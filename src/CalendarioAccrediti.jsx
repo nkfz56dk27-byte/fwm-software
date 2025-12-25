@@ -301,7 +301,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente }) {
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
       <div style={{ background: 'white', borderRadius: '15px', width: '600px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>➕ Nuovo Evento</div>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Nuovo Evento</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
