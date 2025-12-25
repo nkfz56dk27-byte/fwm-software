@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+  import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 
 const CAMPIONATI_DEFAULT = [
@@ -157,7 +157,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
             🔔 Notifiche
             {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
           </button>
-          {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>⚙️ Categorie</button>}
+          {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Categorie</button>}
           <button onClick={() => setShowNuovoEvento(true)} style={{ padding: '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Nuovo</button>
         </div>
       </div>
@@ -565,7 +565,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
               ))}
             </div>
             <button onClick={togglePrenotazione} disabled={!prenotatoCorrente && postiDisponibili <= 0} style={{ width: '100%', padding: '12px', background: prenotatoCorrente ? '#FF3B30' : (postiDisponibili > 0 ? '#34C759' : '#ccc'), color: 'white', border: 'none', borderRadius: '8px', cursor: prenotatoCorrente || postiDisponibili > 0 ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: '14px' }}>
-              {prenotatoCorrente ? '❌ Annulla la mia prenotazione' : (postiDisponibili > 0 ? '✅ Prenota il mio pass' : '🚫 Posti esauriti')}
+              {prenotatoCorrente ? 'Annulla la mia prenotazione' : (postiDisponibili > 0 ? 'Prenota il mio pass' : 'Posti esauriti')}
             </button>
           </div>}
           
@@ -576,8 +576,8 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
         </div>
         <div style={{ padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
           {isAdmin ? <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={elimina} style={{ flex: 1, padding: '12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Elimina</button>
-            <button onClick={() => setModalita('modifica')} style={{ flex: 1, padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>✏️ Modifica</button>
+            <button onClick={elimina} style={{ flex: 1, padding: '12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Elimina</button>
+            <button onClick={() => setModalita('modifica')} style={{ flex: 1, padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Modifica</button>
           </div> : <button onClick={onClose} style={{ width: '100%', padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Chiudi</button>}
         </div>
       </div>
@@ -606,7 +606,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
           )}
         </div>
         <div style={{ padding: '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '10px' }}>
-          <button onClick={onSegnaTutteLette} style={{ flex: 1, padding: '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>✅ Segna tutte come lette</button>
+          <button onClick={onSegnaTutteLette} style={{ flex: 1, padding: '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Segna tutte come lette</button>
           <button onClick={onClose} style={{ padding: '12px 30px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Chiudi</button>
         </div>
       </div>
