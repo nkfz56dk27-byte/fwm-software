@@ -692,3 +692,25 @@ body {
 .btn-save:hover {
   opacity: 0.9;
 }
+/* RESPONSIVE MOBILE */
+@media (max-width: 768px) {
+  .home-cards-row {
+    grid-template-columns: 1fr !important;
+    gap: 15px;
+  }
+  
+  .home-header {
+    padding: 15px 20px;
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+  }
+  
+  .home-content {
+    padding: 20px;
+  }
+  
+  .home-card {
+    min-height: 180px;
+  }
+}
