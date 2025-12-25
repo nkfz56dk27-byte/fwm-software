@@ -307,8 +307,8 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente }) {
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
           <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '10px' }}>Tipo</div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setTipo('gara')} style={{ flex: 1, padding: '12px', background: tipo === 'gara' ? '#007AFF' : '#f0f0f0', color: tipo === 'gara' ? 'white' : '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>🏁 Gara</button>
-              <button onClick={() => setTipo('evento')} style={{ flex: 1, padding: '12px', background: tipo === 'evento' ? '#007AFF' : '#f0f0f0', color: tipo === 'evento' ? 'white' : '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>📅 Evento</button>
+              <button onClick={() => setTipo('gara')} style={{ flex: 1, padding: '12px', background: tipo === 'gara' ? '#007AFF' : '#f0f0f0', color: tipo === 'gara' ? 'white' : '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>Gara</button>
+              <button onClick={() => setTipo('evento')} style={{ flex: 1, padding: '12px', background: tipo === 'evento' ? '#007AFF' : '#f0f0f0', color: tipo === 'evento' ? 'white' : '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>Evento</button>
             </div>
           </div>
           <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Titolo *</div>
@@ -347,7 +347,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente }) {
         </div>
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
           <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annulla</button>
-          <button onClick={salvaEvento} disabled={salvando} style={{ padding: '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{salvando ? '...' : '✅ Salva'}</button>
+          <button onClick={salvaEvento} disabled={salvando} style={{ padding: '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{salvando ? '...' : 'Salva'}</button>
         </div>
       </div>
     </div>
