@@ -144,6 +144,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   const [modalitaModifica, setModalitaModifica] = useState(false)
   const [notifiche, setNotifiche] = useState([])
   const [showNotifiche, setShowNotifiche] = useState(false)
+  const [categorie, setCategorie] = useState([])
   
   const isAdmin = utenteCorrente?.ruolo === 'admin'
   const nomeRedattore = UTENTE_TO_REDATTORE[utenteCorrente?.username] || utenteCorrente?.nomeCompleto || ''
@@ -154,7 +155,16 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   useEffect(() => {
     caricaWeekends()
+    caricaCategorie()
   }, [])
+
+  async function caricaCategorie() {
+    const { data } = await supabase
+      .from('categorie_weekend')
+      .select('*')
+      .order('created_at', { ascending: true })
+    setCategorie(data || [])
+  }
 
   async function caricaWeekends() {
     let query = supabase
@@ -368,7 +378,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '900px', margin: '0 auto' }}>
             {weekends.map(weekend => (
-              <WeekendCard key={weekend.id} weekend={weekend} isAdmin={isAdmin} nomeUtente={nomeRedattore} modalitaModifica={modalitaModifica} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} />
+              <WeekendCard key={weekend.id} weekend={weekend} categorie={categorie} isAdmin={isAdmin} nomeUtente={nomeRedattore} modalitaModifica={modalitaModifica} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} />
             ))}
           </div>
         )}
@@ -388,7 +398,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   )
 }
 
-function WeekendCard({ weekend, isAdmin, nomeUtente, modalitaModifica, onDelete, onUpdate }) {
+function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica, onDelete, onUpdate }) {
   const [showDettaglio, setShowDettaglio] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   
@@ -397,14 +407,33 @@ function WeekendCard({ weekend, isAdmin, nomeUtente, modalitaModifica, onDelete,
   const assegnati = articoli.filter(a => a.stato === 'assegnato').length
   const percentuale = totale > 0 ? Math.round((assegnati / totale) * 100) : 0
   const mieiArticoli = articoli.filter(a => a.assegnato_a === nomeUtente).length
+  
+  // Trova la categoria del weekend
+  const categoriaWeekend = categorie.find(c => c.id === weekend.categoria_id)
+  const colore = categoriaWeekend?.colore || '#8E8E93'
 
   return (
     <div style={{ position: 'relative' }}>
-      <button onClick={() => setShowDettaglio(true)} style={{ width: '100%', padding: '20px', background: 'white', border: 'none', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', cursor: 'pointer', textAlign: 'left' }}>
+      <button 
+        onClick={() => setShowDettaglio(true)} 
+        style={{ 
+          width: '100%', 
+          padding: '20px', 
+          background: 'white', 
+          border: `4px solid ${colore}`,
+          borderRadius: '15px', 
+          boxShadow: `0 4px 12px ${colore}40`,
+          cursor: 'pointer', 
+          textAlign: 'left' 
+        }}
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
           <div>
             <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
-            <div style={{ fontSize: '14px', color: '#666' }}>{weekend.data}</div>
+            <div style={{ fontSize: '14px', color: '#666' }}>
+              {weekend.data}
+              {categoriaWeekend && <span style={{ marginLeft: '10px', color: colore, fontWeight: 'bold' }}>• {categoriaWeekend.nome}</span>}
+            </div>
           </div>
           <div style={{ textAlign: 'right', marginRight: isAdmin ? '35px' : '0' }}>
             <div style={{ fontSize: '20px', fontWeight: 'bold', color: percentuale > 70 ? '#34C759' : '#FF9500' }}>{percentuale}%</div>
@@ -438,7 +467,7 @@ function WeekendCard({ weekend, isAdmin, nomeUtente, modalitaModifica, onDelete,
         </div>
       )}
 
-      {showDettaglio && <RedattoreWeekendView weekend={weekend} nomeRedattore={nomeUtente} isAdmin={isAdmin} onClose={() => { setShowDettaglio(false); onUpdate() }} onDelete={onDelete} />}
+      {showDettaglio && <RedattoreWeekendView weekend={weekend} categorie={categorie} nomeRedattore={nomeUtente} isAdmin={isAdmin} onClose={() => { setShowDettaglio(false); onUpdate() }} onDelete={onDelete} />}
     </div>
   )
 }
@@ -451,6 +480,68 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
   const [redattori, setRedattori] = useState(new Set(REDATTORI_DEFAULT))
   const [nuovoRedattore, setNuovoRedattore] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [categorie, setCategorie] = useState([])
+  const [categoriaSelezionata, setCategoriaSelezionata] = useState(categoria?.id || null)
+  const [templates, setTemplates] = useState([])
+  const [templateSelezionato, setTemplateSelezionato] = useState(null)
+
+  useEffect(() => {
+    caricaCategorie()
+  }, [])
+
+  useEffect(() => {
+    if (categoriaSelezionata) {
+      caricaRedattoriCategoria(categoriaSelezionata)
+      caricaTemplates(categoriaSelezionata)
+    } else {
+      setRedattori(new Set(REDATTORI_DEFAULT))
+      setTemplates([])
+      setTemplateSelezionato(null)
+    }
+  }, [categoriaSelezionata])
+
+  async function caricaCategorie() {
+    const { data } = await supabase
+      .from('categorie_weekend')
+      .select('*')
+      .order('created_at', { ascending: true })
+    setCategorie(data || [])
+  }
+
+  async function caricaTemplates(categoriaId) {
+    const { data } = await supabase
+      .from('template_articoli')
+      .select('*')
+      .eq('categoria_id', categoriaId)
+      .order('nome')
+    
+    setTemplates(data || [])
+    // Se c'è solo un template, selezionalo automaticamente
+    if (data && data.length === 1) {
+      setTemplateSelezionato(data[0].id)
+    }
+  }
+
+  async function caricaRedattoriCategoria(categoriaId) {
+    // Carica username redattori assegnati a questa categoria
+    const { data: gruppi } = await supabase
+      .from('gruppi_redattori')
+      .select('username')
+      .eq('categoria_id', categoriaId)
+    
+    if (gruppi && gruppi.length > 0) {
+      // Carica nomi completi
+      const { data: utenti } = await supabase
+        .from('utenti')
+        .select('username, nome_completo')
+        .in('username', gruppi.map(g => g.username))
+      
+      const nomiCompleti = utenti?.map(u => u.nome_completo || u.username) || []
+      setRedattori(new Set(nomiCompleti))
+    } else {
+      setRedattori(new Set(REDATTORI_DEFAULT))
+    }
+  }
 
   async function creaWeekend() {
     if (!nomeGP || !date) return
@@ -462,7 +553,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
         nome_gp: nomeGP, 
         data: date, 
         redattori: Array.from(redattori).sort(),
-        categoria_id: categoria?.id || null
+        categoria_id: categoriaSelezionata
       })
       .select()
       .single()
@@ -474,8 +565,31 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
       return
     }
     
-    if (usaTemplate) {
-      const articoli = TEMPLATE_ARTICOLI.map(t => ({ weekend_id: weekend.id, titolo: t.titolo, categoria: t.categoria, giorno: t.giorno, stato: 'libero', range_grassetto: [] }))
+    if (usaTemplate && templateSelezionato) {
+      // Carica il template selezionato
+      const template = templates.find(t => t.id === parseInt(templateSelezionato))
+      if (template && template.articoli) {
+        const articoli = template.articoli.map(t => ({ 
+          weekend_id: weekend.id, 
+          titolo: t.titolo, 
+          categoria: t.categoria, 
+          giorno: t.giorno, 
+          stato: 'libero', 
+          range_grassetto: [] 
+        }))
+        const { error: errorArticoli } = await supabase.from('articoli').insert(articoli)
+        if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
+      }
+    } else if (usaTemplate) {
+      // Fallback al template hardcoded se nessun template selezionato
+      const articoli = TEMPLATE_ARTICOLI.map(t => ({ 
+        weekend_id: weekend.id, 
+        titolo: t.titolo, 
+        categoria: t.categoria, 
+        giorno: t.giorno, 
+        stato: 'libero', 
+        range_grassetto: [] 
+      }))
       const { error: errorArticoli } = await supabase.from('articoli').insert(articoli)
       if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
     }
@@ -510,13 +624,73 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
               <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Date</div>
               <input type="text" placeholder="es: 5-7 Dicembre 2024" value={date} onChange={e => setDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
             </div>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Categoria</div>
+              <select 
+                value={categoriaSelezionata || ''} 
+                onChange={e => setCategoriaSelezionata(e.target.value || null)} 
+                style={{ 
+                  width: '100%', 
+                  padding: '10px', 
+                  borderRadius: '8px', 
+                  border: '1px solid #ddd', 
+                  fontSize: '16px',
+                  background: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">Nessuna categoria</option>
+                {categorie.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.nome}</option>
+                ))}
+              </select>
+            </div>
             <div style={{ height: '1px', background: '#e0e0e0' }}></div>
             <div>
-              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '10px' }}>📋 Articoli da includere</div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={usaTemplate} onChange={e => setUsaTemplate(e.target.checked)} style={{ width: '20px', height: '20px' }} />
-                <span>Usa template standard (47 articoli)</span>
-              </label>
+              <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '10px' }}>📋 Template Articoli</div>
+              
+              {templates.length > 0 ? (
+                <>
+                  <div style={{ marginBottom: '10px' }}>
+                    <select
+                      value={templateSelezionato || ''}
+                      onChange={e => {
+                        setTemplateSelezionato(e.target.value || null)
+                        setUsaTemplate(!!e.target.value)
+                      }}
+                      style={{ 
+                        width: '100%', 
+                        padding: '10px', 
+                        borderRadius: '8px', 
+                        border: '1px solid #ddd', 
+                        fontSize: '14px',
+                        background: 'white',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="">Nessun template (crea manualmente)</option>
+                      {templates.map(t => (
+                        <option key={t.id} value={t.id}>{t.nome} ({t.articoli?.length || 0} articoli)</option>
+                      ))}
+                    </select>
+                  </div>
+                  {templateSelezionato && (
+                    <div style={{ padding: '10px', background: '#f0f0f0', borderRadius: '8px', fontSize: '12px', color: '#666' }}>
+                      ✓ Verranno creati {templates.find(t => t.id === parseInt(templateSelezionato))?.articoli?.length || 0} articoli
+                    </div>
+                  )}
+                </>
+              ) : categoriaSelezionata ? (
+                <div style={{ padding: '12px', background: '#FFF3CD', borderRadius: '8px', fontSize: '14px', color: '#856404' }}>
+                  ⚠️ Nessun template disponibile per questa categoria. <br />
+                  <span style={{ fontSize: '12px' }}>Vai in Gestione → Template Articoli per crearne uno.</span>
+                </div>
+              ) : (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={usaTemplate} onChange={e => setUsaTemplate(e.target.checked)} style={{ width: '20px', height: '20px' }} />
+                  <span>Usa template standard (47 articoli)</span>
+                </label>
+              )}
             </div>
             <div style={{ height: '1px', background: '#e0e0e0' }}></div>
             <div>
@@ -1604,7 +1778,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
               fontWeight: 'bold' 
             }}
           >
-            ✅ Segna tutte come lette
+            Segna tutte come lette
           </button>
           <button 
             onClick={onClose} 

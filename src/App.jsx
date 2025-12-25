@@ -10,6 +10,7 @@ import RitaglioImmagine from './RitaglioImmagine'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
+import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 
 import './App.css'
 
@@ -1857,48 +1858,46 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
         </div>
 
         <div className="home-cards-row">
-          {categorieUtente.map(categoria => (
-            <div 
-              key={categoria.id}
-              className="home-card card-purple" 
-              onClick={() => onOpenDisponibilita(categoria)} 
-              style={{ 
-                cursor: 'pointer', 
-                position: 'relative'
-              }}
-            >
-              {notificheNonLetteDisponibilita > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '15px',
-                  right: '15px',
-                  background: '#FF3B30',
-                  color: 'white',
-                  borderRadius: '50%',
-                  width: '32px',
-                  height: '32px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
-                  zIndex: 10
-                }}>
-                  {notificheNonLetteDisponibilita}
-                </div>
-              )}
-              <div className="card-icon-wrapper">
-                <img
-                  src={DisponibilitàSVG}
-                  alt="Disponibilità"
-                  style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }}
-                />
+          <div 
+            className="home-card card-purple" 
+            onClick={() => onOpenDisponibilita(null)} 
+            style={{ 
+              cursor: 'pointer', 
+              position: 'relative'
+            }}
+          >
+            {notificheNonLetteDisponibilita > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '15px',
+                right: '15px',
+                background: '#FF3B30',
+                color: 'white',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
+                zIndex: 10
+              }}>
+                {notificheNonLetteDisponibilita}
               </div>
-              <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
-              <p className="card-subtitle">{categoria.nome}</p>
+            )}
+            <div className="card-icon-wrapper">
+              <img
+                src={DisponibilitàSVG}
+                alt="Disponibilità"
+                style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }}
+              />
             </div>
-          ))}
+            <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
+            <p className="card-subtitle">Eventi e Gare</p>
+          </div>
+
 
            <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
             {notificheNonLetteCalendario > 0 && (
@@ -2011,6 +2010,7 @@ function GestioneUtentiView({ onClose }) {
   const [showNuovo, setShowNuovo] = useState(false)
   const [editUtente, setEditUtente] = useState(null)
   const [showCategorie, setShowCategorie] = useState(false)
+  const [showTemplateArticoli, setShowTemplateArticoli] = useState(false)
 
   useEffect(() => {
     document.title = "FWM - Gestione Utenti"
@@ -2043,6 +2043,7 @@ function GestioneUtentiView({ onClose }) {
   if (showNuovo) return <NuovoUtenteView onClose={() => setShowNuovo(false)} onSave={() => { caricaUtenti(); setShowNuovo(false) }} />
   if (editUtente) return <ModificaUtenteView utente={editUtente} onClose={() => setEditUtente(null)} onSave={() => { caricaUtenti(); setEditUtente(null) }} />
   if (showCategorie) return <GestioneCategorie onClose={() => setShowCategorie(false)} />
+  if (showTemplateArticoli) return <GestioneTemplateArticoli onClose={() => setShowTemplateArticoli(false)} />
 
   return (
     <div className="gestione-container">
@@ -2053,6 +2054,10 @@ function GestioneUtentiView({ onClose }) {
           <button className="btn-nuovo" style={{ background: '#007AFF' }} onClick={() => setShowCategorie(true)}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
             Categorie
+          </button>
+          <button className="btn-nuovo" style={{ background: '#FF9500' }} onClick={() => setShowTemplateArticoli(true)}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+            Template Articoli
           </button>
           <button className="btn-nuovo" onClick={() => setShowNuovo(true)}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>Nuovo</button>
         </div>
@@ -2179,7 +2184,7 @@ function ModificaUtenteView({ utente, onClose, onSave }) {
     <div className="modal-container">
       <div className="modal-card">
         <div className="modal-header">
-          <h2>✏️ Modifica Utente</h2>
+          <h2>Modifica Utente</h2>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSave} className="modal-form">
