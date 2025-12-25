@@ -714,3 +714,31 @@ body {
     min-height: 180px;
   }
 }
+/* ========== RESPONSIVE MOBILE FIX ========== */
+@media only screen and (max-width: 768px) {
+  .home-cards-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 15px !important;
+  }
+  
+  .home-card {
+    width: 100% !important;
+    min-height: 160px !important;
+  }
+  
+  .home-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+  
+  .home-content {
+    padding: 15px !important;
+  }
+  
+  .user-section {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+}
