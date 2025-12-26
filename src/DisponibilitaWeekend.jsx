@@ -502,7 +502,7 @@ function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica
         </div>
       )}
 
-      {showDettaglio && <RedattoreWeekendView weekend={weekend} categorie={categorie} nomeRedattore={nomeUtente} isAdmin={isAdmin} onClose={() => { setShowDettaglio(false); onUpdate() }} onDelete={onDelete} />}
+      {showDettaglio && <RedattoreWeekendView weekend={weekend} categorie={categorie} nomeRedattore={nomeUtente} isAdmin={isAdmin} selezioniTemp={selezioniTemporanee} utenteCorrente={utenteCorrente} onClose={() => { setShowDettaglio(false); onUpdate() }} onDelete={onDelete} />}
     </div>
   )
 }
@@ -757,7 +757,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
   )
 }
 
-function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDelete }) {
+function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, selezioniTemp = [], utenteCorrente, onClose, onDelete }) {
   const [articoli, setArticoli] = useState([])
   const [articoliSelezionati, setArticoliSelezionati] = useState(new Set())
   const [expandedDays, setExpandedDays] = useState(new Set())
@@ -801,7 +801,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
 
   const broadcastSelezione = async (articolo_id, weekend_id, action) => {
     try {
-      const channel = supabase.channel(`weekend-realtime-${categoria?.id || 'all'}`)
+      const channel = supabase.channel('weekend-realtime-all')
       await channel.send({
         type: 'broadcast',
         event: 'temp_selection',
@@ -894,7 +894,7 @@ function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, no
             <div key={catId} style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#666', marginBottom: '10px' }}>{categoria.nome}</div>
               {arts.map(articolo => (
-                <ArticoloCheckbox key={articolo.id} articolo={articolo} isSelected={articoliSelezionati.has(articolo.id)} nomeRedattore={nomeRedattore} onToggle={() => onToggleArticolo(articolo.id, articolo)} selezioniTemp={selezioniTemporanee} />
+                <ArticoloCheckbox key={articolo.id} articolo={articolo} isSelected={articoliSelezionati.has(articolo.id)} nomeRedattore={nomeRedattore} onToggle={() => onToggleArticolo(articolo.id, articolo)} selezioniTemp={selezioniTemp} />
               ))}
             </div>
           ))}
