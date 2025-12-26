@@ -10,6 +10,7 @@ import RitaglioImmagine from './RitaglioImmagine'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
+import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 
 import './App.css'
 
@@ -32,7 +33,7 @@ function App() {
   const [passwordError, setPasswordError] = useState('')
   const [showRitaglioImmagine, setShowRitaglioImmagine] = useState(false)
   const [showCalendario, setShowCalendario] = useState(false)
-  const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
+  const [showDisponibilita, setShowDisponibilita] = useState(null)
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
 
@@ -138,7 +139,6 @@ function App() {
     return <ClassificaView classificaId={classificaId} user={user} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
   }
 
-  // ← AGGIUNTO: Render condizionale RitaglioImmagine
   if (showRitaglioImmagine) {
     return <RitaglioImmagine onClose={() => setShowRitaglioImmagine(false)} />
   }
@@ -153,7 +153,6 @@ function App() {
 
   return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
 }
-// ===== CLASSIFICA VIEW COMPLETA =====
 function ClassificaView({ classificaId, user, onBack }) {
   const [classifica, setClassifica] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -1762,42 +1761,12 @@ function NuovaClassificaModal({ onClose, onSave }) {
 }
 
 /// ===== HOME VIEW =====
+
+/// ===== HOME VIEW =====
 function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
-  const [categorie, setCategorie] = useState([])
-  const [categorieUtente, setCategorieUtente] = useState([])
-  
   useEffect(() => {
     document.title = "FWM Software - Home"
   }, [])
-  
-  useEffect(() => {
-    caricaCategorie()
-  }, [user])
-  
-  async function caricaCategorie() {
-    // Carica tutte le categorie
-    const { data: tutteCategorie } = await supabase
-      .from('categorie_weekend')
-      .select('*')
-      .order('created_at', { ascending: true })
-    
-    setCategorie(tutteCategorie || [])
-    
-    // Se non admin, filtra per categorie assegnate
-    if (user.ruolo !== 'admin') {
-      const { data: gruppi } = await supabase
-        .from('gruppi_redattori')
-        .select('categoria_id')
-        .eq('username', user.username)
-      
-      const categorieIds = new Set((gruppi || []).map(g => g.categoria_id))
-      const catFiltrate = (tutteCategorie || []).filter(c => categorieIds.has(c.id))
-      setCategorieUtente(catFiltrate)
-    } else {
-      // Admin vede tutte
-      setCategorieUtente(tutteCategorie || [])
-    }
-  }
   
   return (
     <div className="home-container">
@@ -1827,6 +1796,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
       </div>
 
       <div className="home-cards-wrapper">
+        {/* PRIMA RIGA - Classifiche + Ritaglio */}
         <div className="home-cards-row">
           <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer' }}>
             <div className="card-icon-wrapper">
@@ -1842,7 +1812,6 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             </p>
           </div>
 
-          {/* ← MODIFICATO: Aggiunto onClick */}
           <div className="home-card card-green" onClick={onOpenRitaglio} style={{ cursor: 'pointer' }}>
             <div className="card-icon-wrapper">
               <img
@@ -1856,51 +1825,42 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
           </div>
         </div>
 
+        {/* SECONDA RIGA - Disponibilità + Calendario */}
         <div className="home-cards-row">
-          {categorieUtente.map(categoria => (
-            <div 
-              key={categoria.id}
-              className="home-card card-purple" 
-              onClick={() => onOpenDisponibilita(categoria)} 
-              style={{ 
-                cursor: 'pointer', 
-                position: 'relative'
-              }}
-            >
-              {notificheNonLetteDisponibilita > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '15px',
-                  right: '15px',
-                  background: '#FF3B30',
-                  color: 'white',
-                  borderRadius: '50%',
-                  width: '32px',
-                  height: '32px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
-                  zIndex: 10
-                }}>
-                  {notificheNonLetteDisponibilita}
-                </div>
-              )}
-              <div className="card-icon-wrapper">
-                <img
-                  src={DisponibilitàSVG}
-                  alt="Disponibilità"
-                  style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }}
-                />
+          <div className="home-card card-purple" onClick={() => onOpenDisponibilita(null)} style={{ cursor: 'pointer', position: 'relative' }}>
+            {notificheNonLetteDisponibilita > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '15px',
+                right: '15px',
+                background: '#FF3B30',
+                color: 'white',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
+                zIndex: 10
+              }}>
+                {notificheNonLetteDisponibilita}
               </div>
-              <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
-              <p className="card-subtitle">{categoria.nome}</p>
+            )}
+            <div className="card-icon-wrapper">
+              <img
+                src={DisponibilitàSVG}
+                alt="Disponibilità"
+                style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }}
+              />
             </div>
-          ))}
+            <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
+            <p className="card-subtitle">Eventi e Gare</p>
+          </div>
 
-           <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
+          <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
             {notificheNonLetteCalendario > 0 && (
               <div style={{
                 position: 'absolute',
@@ -1934,7 +1894,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
           </div>
         </div>
 
-        {/* TERZA RIGA - CARD ROSSE */}
+        {/* TERZA RIGA - Card Rosse */}
         <div className="home-cards-row">
           <div 
             className="home-card card-red" 
