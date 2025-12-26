@@ -169,19 +169,22 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   useEffect(() => {
     // REALTIME SUBSCRIPTION per notifiche
+    console.log('[NOTIFICHE] Attivazione subscription realtime')
     const channel = supabase
       .channel('notifiche_disponibilita_changes')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'notifiche_disponibilita'
-      }, () => {
+      }, (payload) => {
+        console.log('[NOTIFICHE] Cambiamento ricevuto:', payload)
         caricaNotifiche()
         if (onNotificheChange) onNotificheChange()
       })
       .subscribe()
 
     return () => {
+      console.log('[NOTIFICHE] Rimozione subscription')
       supabase.removeChannel(channel)
     }
   }, [utenteCorrente])
@@ -200,37 +203,40 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       .select(`*, articoli:articoli(*)`)
       .order('data_creazione', { ascending: false })
     
-    // Filtra per categoria se specificata
+    // Filtra per categoria se specificata dal menu
     if (categoria?.id) {
       query = query.eq('categoria_id', categoria.id)
     } else if (!isAdmin) {
-      // Se NON admin: mostra SOLO weekend delle sue categorie
-      const { data: categorieUtente } = await supabase
-        .from('categoria_utenti')
+      // Se NON admin: filtra per le categorie dell'utente
+      const { data: gruppiUtente } = await supabase
+        .from('gruppi_redattori')
         .select('categoria_id')
         .eq('username', utenteCorrente.username)
       
-      const categorieIds = (categorieUtente || []).map(c => c.categoria_id).filter(Boolean)
+      const categorieIds = (gruppiUtente || []).map(g => g.categoria_id).filter(Boolean)
+      
+      console.log('[FILTRO] Username:', utenteCorrente.username)
+      console.log('[FILTRO] Categorie utente:', categorieIds)
       
       if (categorieIds.length > 0) {
-        // SOLO weekend delle sue categorie
+        // Mostra SOLO weekend delle sue categorie
         query = query.in('categoria_id', categorieIds)
       } else {
-        // Nessuna categoria: NON mostra niente
-        setWeekends([])
-        setLoading(false)
-        return
+        // Nessuna categoria: mostra weekend senza categoria
+        query = query.is('categoria_id', null)
       }
     }
+    // Se admin: mostra tutti
     
     const { data, error } = await query
     
     if (error) {
-      console.error('Errore caricamento:', error)
+      console.error('[FILTRO] Errore caricamento:', error)
       setLoading(false)
       return
     }
     
+    console.log('[FILTRO] Weekend caricati:', data?.length || 0)
     setWeekends(data || [])
     setLoading(false)
   }
@@ -242,11 +248,14 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   async function caricaNotifiche() {
     try {
-      const { data: tutteNotifiche } = await supabase
+      console.log('[NOTIFICHE] Caricamento notifiche...')
+      const { data: tutteNotifiche, error: errNotifiche } = await supabase
         .from('notifiche_disponibilita')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
+      
+      console.log('[NOTIFICHE] Notifiche caricate:', tutteNotifiche?.length || 0, errNotifiche)
       
       const { data: lette } = await supabase
         .from('notifiche_disponibilita_lette')
@@ -259,25 +268,28 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         letta: idsLette.has(n.id) 
       }))
       
+      console.log('[NOTIFICHE] Notifiche con stato:', notificheConStato.length)
       setNotifiche(notificheConStato)
       
       if (onNotificheChange) {
         onNotificheChange()
       }
     } catch (err) {
-      console.error('Errore caricamento notifiche:', err)
+      console.error('[NOTIFICHE] Errore caricamento notifiche:', err)
     }
   }
 
   async function creaNotifica(messaggio, weekend_id = null) {
     try {
-      await supabase.from('notifiche_disponibilita').insert({ 
+      console.log('[NOTIFICHE] Creazione notifica:', messaggio, weekend_id)
+      const { error } = await supabase.from('notifiche_disponibilita').insert({ 
         messaggio, 
         weekend_id 
       })
+      console.log('[NOTIFICHE] Notifica creata, errore:', error)
       await caricaNotifiche()
     } catch (err) {
-      console.error('Errore creazione notifica:', err)
+      console.error('[NOTIFICHE] Errore creazione notifica:', err)
     }
   }
 
@@ -853,10 +865,12 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
     
     // CREA NOTIFICA quando conferma
     if (articoliSelezionati.size > 0) {
-      await supabase.from('notifiche_disponibilita').insert({
+      console.log('[CONFERMA] Creazione notifica per', articoliSelezionati.size, 'articoli')
+      const { error } = await supabase.from('notifiche_disponibilita').insert({
         messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
         weekend_id: weekend.id
       })
+      console.log('[CONFERMA] Notifica creata, errore:', error)
     }
     
     // PULISCE selezioni temporanee dopo conferma
