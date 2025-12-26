@@ -62,10 +62,82 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   const [showGestioneCampionati, setShowGestioneCampionati] = useState(false)
   const [showNotifiche, setShowNotifiche] = useState(false)
   const [eventoSelezionato, setEventoSelezionato] = useState(null)
+  const [selezioniTemporanee, setSelezioniTemporanee] = useState([])
 
   const isAdmin = utenteCorrente?.ruolo === 'admin'
 
   useEffect(() => { caricaDati() }, [])
+
+  // ===== REALTIME SUBSCRIPTIONS =====
+  useEffect(() => {
+    const channel = supabase.channel('calendario-realtime')
+
+    // 1. Ascolta modifiche PRENOTAZIONI
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'prenotazioni_accrediti' },
+      (payload) => {
+        console.log('🔄 Prenotazione cambiata:', payload)
+        caricaDati()
+      }
+    )
+
+    // 2. Ascolta modifiche EVENTI
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'eventi_calendario' },
+      (payload) => {
+        console.log('🔄 Evento cambiato:', payload)
+        caricaDati()
+      }
+    )
+
+    // 3. Ascolta SELEZIONI TEMPORANEE
+    channel.on('broadcast', { event: 'temp_booking' }, ({ payload }) => {
+      console.log('👁️ Prenotazione temporanea:', payload)
+      const { username, evento_id, stato, action } = payload
+
+      if (username === utenteCorrente.username) return
+
+      setSelezioniTemporanee(prev => {
+        if (action === 'select') {
+          return [...prev.filter(s => s.evento_id !== evento_id || s.username !== username),
+                  { username, evento_id, stato, timestamp: Date.now() }]
+        } else {
+          return prev.filter(s => !(s.evento_id === evento_id && s.username === username))
+        }
+      })
+
+      // Auto-rimuovi dopo 30 secondi
+      setTimeout(() => {
+        setSelezioniTemporanee(prev =>
+          prev.filter(s => !(s.evento_id === evento_id && s.username === username))
+        )
+      }, 30000)
+    })
+
+    // Subscribe
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('✅ Calendario realtime attivo')
+      }
+    })
+
+    return () => {
+      channel.unsubscribe()
+      console.log('❌ Calendario realtime chiuso')
+    }
+  }, [utenteCorrente.username])
+
+  // ===== POLLING DI BACKUP =====
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('🔄 Polling calendario...')
+      caricaDati()
+    }, 10000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   async function caricaDati() {
     setLoading(true)
@@ -151,14 +223,14 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
-        <div style={{ textAlign: 'center' }}><div style={{ fontSize: '20px', fontWeight: 'bold' }}>Calendario Accrediti</div><div style={{ fontSize: '11px', color: '#666' }}>Gare ed Eventi</div></div>
+        <div style={{ textAlign: 'center' }}><div style={{ fontSize: '20px', fontWeight: 'bold' }}>📅 Calendario Accrediti</div><div style={{ fontSize: '11px', color: '#666' }}>Gare ed Eventi</div></div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={() => setShowNotifiche(true)} style={{ position: 'relative', padding: '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
             🔔 Notifiche
             {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
           </button>
-          {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Categorie</button>}
-          <button onClick={() => setShowNuovoEvento(true)} style={{ padding: '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Nuovo</button>
+          {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>⚙️ Categorie</button>}
+          <button onClick={() => setShowNuovoEvento(true)} style={{ padding: '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>+ Nuovo</button>
         </div>
       </div>
 
@@ -177,7 +249,15 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
       </div>
 
       <div style={{ flex: 1, padding: '20px 30px', overflow: 'hidden' }}>
-        <CalendarioMensile mese={meseCorrente} eventi={getEventiDelMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} />
+        <CalendarioMensile 
+          mese={meseCorrente} 
+          eventi={getEventiDelMese()} 
+          campionati={campionati} 
+          prenotazioni={prenotazioni} 
+          selezioniTemp={selezioniTemporanee}
+          utenteCorrente={utenteCorrente}
+          onEventoClick={e => setEventoSelezionato(e)} 
+        />
       </div>
 
       {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo) => { 
@@ -198,7 +278,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   )
 }
 
-function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoClick }) {
+function CalendarioMensile({ mese, eventi, campionati, prenotazioni, selezioniTemp = [], utenteCorrente, onEventoClick }) {
   const anno = mese.getFullYear(), meseNum = mese.getMonth()
   const primoGiorno = new Date(anno, meseNum, 1).getDay(), ultimoGiorno = new Date(anno, meseNum + 1, 0).getDate()
   const offset = primoGiorno === 0 ? 6 : primoGiorno - 1
@@ -213,7 +293,17 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
       return dataCorrenteStr >= dataInizio && dataCorrenteStr <= dataFine
     })
     const isOggi = new Date().toDateString() === dataCorrente.toDateString()
-    giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} isOggi={isOggi} onEventoClick={onEventoClick} />)
+    giorni.push(<GiornoCell 
+      key={giorno} 
+      giorno={giorno} 
+      eventi={eventiGiorno} 
+      campionati={campionati} 
+      prenotazioni={prenotazioni} 
+      selezioniTemp={selezioniTemp}
+      utenteCorrente={utenteCorrente}
+      isOggi={isOggi} 
+      onEventoClick={onEventoClick} 
+    />)
   }
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -225,7 +315,7 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
   )
 }
 
-function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick }) {
+function GiornoCell({ giorno, eventi, campionati, prenotazioni, selezioniTemp = [], utenteCorrente, isOggi, onEventoClick }) {
   return (
     <div style={{ background: 'white', borderRadius: '6px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: '4px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '3px', color: isOggi ? '#007AFF' : '#000' }}>{giorno}</div>
@@ -240,13 +330,43 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
           const numPrenotati = prenotazioniEvento.length
           const maxAccrediti = evento.max_accrediti || 0
           
+          // Check selezioni temporanee
+          const altriSelezionano = selezioniTemp.filter(s => s.evento_id === evento.id)
+          const hasTempSelection = altriSelezionano.length > 0
+          
           let badge = null
           if (evento.accredito_status === 'da_richiedere') badge = { icon: '🟡', text: 'DA RICHIEDERE', bg: '#FFD60A', color: '#000' }
           else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
           else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
           
           return (
-            <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ padding: '5px 7px', background: `${colore}40`, borderLeft: `4px solid ${colore}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ 
+              padding: '5px 7px', 
+              background: `${colore}40`, 
+              borderLeft: `4px solid ${colore}`, 
+              borderRadius: '4px', 
+              cursor: 'pointer', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '3px',
+              border: hasTempSelection ? '2px dashed #FF9500' : undefined,
+              position: 'relative'
+            }}>
+              {hasTempSelection && (
+                <div style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: 2,
+                  background: '#FF9500',
+                  color: 'white',
+                  padding: '2px 4px',
+                  borderRadius: '3px',
+                  fontSize: '8px',
+                  fontWeight: 'bold'
+                }}>
+                  👁️ {altriSelezionano.length}
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px' }}>
                 <span style={{ fontSize: '14px' }}>{emoji}</span>
                 <span style={{ fontWeight: 'bold', color: '#000', fontSize: '9px' }}>{sigla}</span>
@@ -301,14 +421,14 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente }) {
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
       <div style={{ background: 'white', borderRadius: '15px', width: '600px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Nuovo Evento</div>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>➕ Nuovo Evento</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
           <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '10px' }}>Tipo</div>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setTipo('gara')} style={{ flex: 1, padding: '12px', background: tipo === 'gara' ? '#007AFF' : '#f0f0f0', color: tipo === 'gara' ? 'white' : '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>Gara</button>
-              <button onClick={() => setTipo('evento')} style={{ flex: 1, padding: '12px', background: tipo === 'evento' ? '#007AFF' : '#f0f0f0', color: tipo === 'evento' ? 'white' : '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>Evento</button>
+              <button onClick={() => setTipo('gara')} style={{ flex: 1, padding: '12px', background: tipo === 'gara' ? '#007AFF' : '#f0f0f0', color: tipo === 'gara' ? 'white' : '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>🏁 Gara</button>
+              <button onClick={() => setTipo('evento')} style={{ flex: 1, padding: '12px', background: tipo === 'evento' ? '#007AFF' : '#f0f0f0', color: tipo === 'evento' ? 'white' : '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>📅 Evento</button>
             </div>
           </div>
           <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Titolo *</div>
@@ -347,7 +467,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente }) {
         </div>
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
           <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annulla</button>
-          <button onClick={salvaEvento} disabled={salvando} style={{ padding: '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{salvando ? '...' : 'Salva'}</button>
+          <button onClick={salvaEvento} disabled={salvando} style={{ padding: '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{salvando ? '...' : '✅ Salva'}</button>
         </div>
       </div>
     </div>
@@ -377,7 +497,7 @@ function GestioneCampionatiModal({ campionati, onClose, onUpdate }) {
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
       <div style={{ background: 'white', borderRadius: '15px', width: '650px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Gestione Categorie</div>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>⚙️ Gestione Categorie</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
@@ -391,7 +511,7 @@ function GestioneCampionatiModal({ campionati, onClose, onUpdate }) {
               </select>
               <input type="color" value={nuovo.colore} onChange={e => setNuovo({...nuovo, colore: e.target.value})} style={{ width: '60px', height: '42px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer' }} />
             </div>
-            <button onClick={aggiungi} disabled={salvando} style={{ width: '100%', padding: '10px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{salvando ? '...' : 'Aggiungi Categoria'}</button>
+            <button onClick={aggiungi} disabled={salvando} style={{ width: '100%', padding: '10px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{salvando ? '...' : '+ Aggiungi Categoria'}</button>
           </div>
           <div><div style={{ fontSize: '16px', fontWeight: '600', marginBottom: '10px' }}>Categorie Attive ({campionati.length})</div>
             {campionati.map(c => <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'white', borderRadius: '8px', marginBottom: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
@@ -449,7 +569,31 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     onClose()
   }
 
+  // ===== BROADCAST PRENOTAZIONE TEMPORANEA =====
+  const broadcastPrenotazione = async (evento_id, stato, action) => {
+    try {
+      const channel = supabase.channel('calendario-realtime')
+      await channel.send({
+        type: 'broadcast',
+        event: 'temp_booking',
+        payload: {
+          username: utenteCorrente.username,
+          evento_id,
+          stato,
+          action
+        }
+      })
+    } catch (error) {
+      console.error('Errore broadcast:', error)
+    }
+  }
+
   async function togglePrenotazione() {
+    // Broadcast intenzione
+    const action = prenotatoCorrente ? 'deselect' : 'select'
+    const stato = prenotatoCorrente ? null : 'da_richiedere'
+    await broadcastPrenotazione(evento.id, stato, action)
+    
     if (prenotatoCorrente) {
       await supabase.from('prenotazioni_accrediti').delete().eq('id', prenotatoCorrente.id)
       const utente = utenti.find(u => u.username === utenteCorrente.username)
@@ -514,7 +658,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
           </div>
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
             <button onClick={() => setModalita('visualizza')} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Annulla</button>
-            <button onClick={salva} disabled={salvando} style={{ padding: '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{salvando ? '...' : 'Salva'}</button>
+            <button onClick={salva} disabled={salvando} style={{ padding: '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{salvando ? '...' : '✅ Salva'}</button>
           </div>
         </div>
       </div>
@@ -532,7 +676,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
       <div style={{ background: 'white', borderRadius: '15px', width: '550px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{evento.tipo === 'gara' ? '' : ''} Dettagli</div>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{evento.tipo === 'gara' ? '🏁' : '📅'} Dettagli</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
@@ -565,7 +709,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
               ))}
             </div>
             <button onClick={togglePrenotazione} disabled={!prenotatoCorrente && postiDisponibili <= 0} style={{ width: '100%', padding: '12px', background: prenotatoCorrente ? '#FF3B30' : (postiDisponibili > 0 ? '#34C759' : '#ccc'), color: 'white', border: 'none', borderRadius: '8px', cursor: prenotatoCorrente || postiDisponibili > 0 ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: '14px' }}>
-              {prenotatoCorrente ? 'Annulla la mia prenotazione' : (postiDisponibili > 0 ? 'Prenota il mio pass' : 'Posti esauriti')}
+              {prenotatoCorrente ? '❌ Annulla la mia prenotazione' : (postiDisponibili > 0 ? '✅ Prenota il mio pass' : '🚫 Posti esauriti')}
             </button>
           </div>}
           
@@ -576,8 +720,8 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
         </div>
         <div style={{ padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
           {isAdmin ? <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={elimina} style={{ flex: 1, padding: '12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Elimina</button>
-            <button onClick={() => setModalita('modifica')} style={{ flex: 1, padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Modifica</button>
+            <button onClick={elimina} style={{ flex: 1, padding: '12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>🗑️ Elimina</button>
+            <button onClick={() => setModalita('modifica')} style={{ flex: 1, padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>✏️ Modifica</button>
           </div> : <button onClick={onClose} style={{ width: '100%', padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Chiudi</button>}
         </div>
       </div>
@@ -606,7 +750,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
           )}
         </div>
         <div style={{ padding: '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '10px' }}>
-          <button onClick={onSegnaTutteLette} style={{ flex: 1, padding: '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Segna tutte come lette</button>
+          <button onClick={onSegnaTutteLette} style={{ flex: 1, padding: '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>✅ Segna tutte come lette</button>
           <button onClick={onClose} style={{ padding: '12px 30px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Chiudi</button>
         </div>
       </div>
