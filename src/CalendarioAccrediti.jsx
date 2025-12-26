@@ -101,10 +101,11 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     return () => channel.unsubscribe()
   }, [utenteCorrente.username])
 
-  useEffect(() => {
-    const interval = setInterval(() => caricaDati(), 10000)
-    return () => clearInterval(interval)
-  }, [])
+  // Polling disabilitato - il real-time è sufficiente
+  // useEffect(() => {
+  //   const interval = setInterval(() => caricaDati(), 60000)
+  //   return () => clearInterval(interval)
+  // }, [])
 
   async function caricaDati() {
     setLoading(true)
@@ -222,7 +223,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
       {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo) => { 
         await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo}`); 
         await inviaNotificaPush('📅 Nuovo evento', titolo);
-        caricaDati(); 
+        // caricaDati(); // Rimosso - il real-time lo farà
       }} utenteCorrente={utenteCorrente} />}
       {showGestioneCampionati && <GestioneCampionatiModal campionati={campionati} onClose={() => setShowGestioneCampionati(false)} onUpdate={caricaDati} />}
       {showNotifiche && <NotificheModal notifiche={notifiche} onClose={() => setShowNotifiche(false)} onSegnaLetta={segnaComeLetta} onSegnaTutteLette={segnaTutteComeLette} />}
@@ -231,7 +232,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
           await creaNotifica('modifica', notificaMsg, eventoSelezionato.id);
           await inviaNotificaPush('🎫 Aggiornamento', notificaMsg);
         }
-        caricaDati(); 
+        // caricaDati(); // Rimosso - il real-time postgres_changes lo farà automaticamente
       }} />}
     </div>
   )
