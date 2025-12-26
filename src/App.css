@@ -693,99 +693,19 @@ body {
   opacity: 0.9;
 }
 
-/* ===== MOBILE OTTIMIZZATO - 2 CARD PER RIGA ===== */
+/* ===== MOBILE: TUTTO SCROLLABILE E ADATTATO ===== */
 @media (max-width: 768px) {
-  .home-cards-wrapper {
-    padding: 10px;
-    gap: 15px;
+  /* Fix overflow generale */
+  * {
+    -webkit-overflow-scrolling: touch;
   }
 
-  .home-cards-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 15px;
-    width: 100%;
-    max-width: 400px;
-  }
-
-  .home-card {
-    width: 100%;
-    height: 160px;
-    padding: 15px 10px;
-    gap: 10px;
-  }
-
-  .card-icon-wrapper {
-    width: 60px;
-    height: 60px;
-  }
-
-  .card-icon {
-    width: 30px;
-    height: 30px;
-  }
-
-  .card-title {
-    font-size: 14px;
-  }
-
-  .card-subtitle {
-    font-size: 10px;
-  }
-
-  .title-main {
-    font-size: 32px;
-    margin-top: 10px;
-  }
-
-  .title-sub {
-    font-size: 14px;
-  }
-
-  .home-header {
-    padding: 15px;
-  }
-
-  .btn-header {
-    padding: 8px 12px;
-    font-size: 12px;
-  }
-}
-
-/* ===== FIX MOBILE COMPLETI - iPhone 16 Pro ===== */
-@media (max-width: 768px) {
-  /* Fix generale overflow */
   body {
     overflow-x: hidden;
+    overflow-y: auto;
   }
 
-  /* Fix Home e Header */
-  .home-header {
-    padding: 10px 15px;
-  }
-
-  .btn-header {
-    padding: 8px 10px;
-    font-size: 11px;
-    white-space: nowrap;
-  }
-
-  .btn-header .icon {
-    width: 14px;
-    height: 14px;
-  }
-
-  /* Fix Titoli */
-  .title-main {
-    font-size: 28px;
-    margin-top: 5px;
-  }
-
-  .title-sub {
-    font-size: 13px;
-  }
-
-  /* Fix Cards Home */
+  /* Home - 2x2 layout compatto */
   .home-cards-wrapper {
     padding: 10px;
     gap: 12px;
@@ -801,177 +721,257 @@ body {
 
   .home-card {
     width: 100%;
-    height: 150px;
-    padding: 12px 8px;
-    gap: 8px;
+    height: 140px;
+    padding: 10px 6px;
   }
 
   .card-icon-wrapper {
-    width: 55px;
-    height: 55px;
+    width: 50px;
+    height: 50px;
   }
 
   .card-icon {
-    width: 28px;
-    height: 28px;
+    width: 25px;
+    height: 25px;
   }
 
   .card-title {
-    font-size: 13px;
-    line-height: 1.2;
+    font-size: 12px;
   }
 
   .card-subtitle {
     font-size: 9px;
   }
 
-  /* Fix Gestione Container */
-  .gestione-container {
-    overflow-y: auto;
-  }
-
-  .gestione-header {
-    padding: 12px 15px;
-    flex-wrap: wrap;
-  }
-
-  .gestione-title {
-    font-size: 18px;
-  }
-
-  .btn-back {
-    font-size: 15px;
-    padding: 6px;
-    white-space: nowrap;
-  }
-
-  .btn-nuovo {
-    padding: 8px 12px;
-    font-size: 13px;
-    white-space: nowrap;
-  }
-
-  .gestione-content {
-    padding: 15px;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
-  /* Fix Bottoni in liste */
-  .utente-row {
-    flex-wrap: wrap;
-    gap: 10px;
-    padding: 12px;
-  }
-
-  .utente-info {
-    width: 100%;
-  }
-
-  .utente-ruolo,
-  .utente-password {
-    width: auto;
-    font-size: 12px;
-  }
-
-  .utente-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .btn-action {
-    padding: 6px 10px;
-    font-size: 11px;
-    white-space: nowrap;
-  }
-
-  /* Fix Modali */
-  .modal-card {
-    width: 95%;
-    max-width: none;
-    margin: 10px;
-  }
-
-  .modal-header {
-    padding: 15px;
-  }
-
-  .modal-header h2 {
-    font-size: 18px;
-  }
-
-  .modal-form {
-    padding: 15px;
-  }
-
-  .form-input {
-    font-size: 14px;
+  /* Header - bottoni piccoli */
+  .home-header {
     padding: 10px;
-  }
-
-  /* Fix Login */
-  .login-card {
-    padding: 25px 20px;
-  }
-
-  .login-title {
-    font-size: 26px;
-  }
-
-  /* Fix tabelle e scroll orizzontale */
-  table {
-    display: block;
-    overflow-x: auto;
-    white-space: nowrap;
-  }
-
-  /* Fix bottoni con testo lungo */
-  button {
-    word-wrap: break-word;
-    overflow: visible;
-  }
-}
-
-/* ===== FIX SPECIFICI PER SCHERMI PICCOLI (<480px) ===== */
-@media (max-width: 480px) {
-  .home-cards-row {
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    max-width: 360px;
-  }
-
-  .home-card {
-    height: 140px;
-    padding: 10px 6px;
-  }
-
-  .card-title {
-    font-size: 12px;
-  }
-
-  .card-subtitle {
-    font-size: 8px;
-  }
-
-  .gestione-header {
     gap: 8px;
   }
 
+  .btn-header {
+    padding: 6px 8px;
+    font-size: 10px;
+  }
+
+  .title-main {
+    font-size: 26px;
+  }
+
+  .title-sub {
+    font-size: 12px;
+  }
+
+  /* Gestione - tutto scrollabile */
+  .gestione-container {
+    overflow-y: auto;
+    height: 100vh;
+  }
+
+  .gestione-header {
+    padding: 12px;
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+
+  .gestione-title {
+    font-size: 16px;
+    white-space: nowrap;
+  }
+
   .btn-back {
     font-size: 14px;
+    padding: 6px;
+    flex-shrink: 0;
   }
 
   .btn-nuovo {
-    font-size: 12px;
     padding: 6px 10px;
+    font-size: 11px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .gestione-content {
+    padding: 12px;
+    overflow-y: auto;
+    overflow-x: auto;
+    height: calc(100vh - 80px);
+  }
+
+  /* Tabelle e contenuti - scroll orizzontale */
+  .utenti-list,
+  .classifiche-container,
+  .weekend-container,
+  .calendario-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Row utenti - scroll orizzontale */
+  .utente-row {
+    min-width: 600px;
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .utente-info {
+    width: 150px;
+    flex-shrink: 0;
+  }
+
+  .utente-nome {
+    font-size: 13px;
+  }
+
+  .utente-username {
+    font-size: 10px;
+  }
+
+  .utente-ruolo {
+    width: 100px;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .utente-password {
+    width: 150px;
+    font-size: 11px;
+    flex-shrink: 0;
   }
 
   .utente-actions {
+    flex-shrink: 0;
     gap: 6px;
   }
 
   .btn-action {
-    font-size: 10px;
     padding: 5px 8px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  /* Modali - dimensioni ridotte */
+  .modal-card {
+    width: 95vw;
+    max-width: none;
+    margin: 10px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-header {
+    padding: 12px 15px;
+  }
+
+  .modal-header h2 {
+    font-size: 16px;
+  }
+
+  .modal-form {
+    padding: 15px;
+    overflow-y: auto;
+  }
+
+  .form-input,
+  .form-label {
+    font-size: 13px;
+  }
+
+  .form-input {
+    padding: 8px;
+  }
+
+  /* Bottoni modal */
+  .btn-save,
+  .btn-cancel {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+
+  /* Login */
+  .login-card {
+    padding: 25px 18px;
+  }
+
+  .login-title {
+    font-size: 24px;
+  }
+
+  .f1-icon {
+    font-size: 50px;
+  }
+
+  /* Fix per tabelle classifiche */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    min-width: 600px;
+  }
+
+  th,
+  td {
+    padding: 8px 6px;
+    font-size: 11px;
+  }
+
+  /* Fix canvas e immagini */
+  canvas,
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Fix input e select */
+  input,
+  select,
+  textarea {
+    font-size: 14px !important;
+    max-width: 100%;
+  }
+
+  /* Fix dropdown e select */
+  select {
+    padding: 8px;
+  }
+
+  /* Bottoni grandi - testo visibile */
+  button {
+    min-height: 36px;
+    word-wrap: break-word;
+  }
+}
+
+/* ===== iPhone 16 Pro e schermi piccoli ===== */
+@media (max-width: 430px) {
+  .home-card {
+    height: 130px;
+  }
+
+  .card-title {
+    font-size: 11px;
+  }
+
+  .gestione-title {
+    font-size: 14px;
+  }
+
+  .btn-back {
+    font-size: 13px;
+  }
+
+  .btn-nuovo {
+    font-size: 10px;
+    padding: 6px 8px;
+  }
+
+  .utente-row {
+    min-width: 550px;
+  }
+
+  .btn-action {
+    font-size: 9px;
+    padding: 4px 6px;
   }
 }
