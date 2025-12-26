@@ -194,7 +194,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
         <div style={{ textAlign: 'center' }}><div style={{ fontSize: '20px', fontWeight: 'bold' }}>Calendario Accrediti</div><div style={{ fontSize: '11px', color: '#666' }}>Gare ed Eventi</div></div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={() => setShowNotifiche(true)} style={{ position: 'relative', padding: '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-            🔔 Notifiche
+            Notifiche
             {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
           </button>
           {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Categorie</button>}
@@ -461,11 +461,6 @@ function GestioneCampionatiModal({ campionati, onClose, onUpdate }) {
             </div>)}
           </div>
         </div>
-        <div style={{ padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
-          <button onClick={onClose} style={{ width: '100%', padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Chiudi</button>
-        </div>
-      </div>
-    </div>
   )
 }
 
