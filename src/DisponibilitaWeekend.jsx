@@ -413,7 +413,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '900px', margin: '0 auto' }}>
             {weekends.map(weekend => (
-              <WeekendCard key={weekend.id} weekend={weekend} categorie={categorie} isAdmin={isAdmin} nomeUtente={nomeRedattore} modalitaModifica={modalitaModifica} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} />
+              <WeekendCard key={weekend.id} weekend={weekend} categorie={categorie} isAdmin={isAdmin} nomeUtente={nomeRedattore} modalitaModifica={modalitaModifica} selezioniTemporanee={selezioniTemporanee} utenteCorrente={utenteCorrente} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} />
             ))}
           </div>
         )}
@@ -433,7 +433,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   )
 }
 
-function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica, onDelete, onUpdate }) {
+function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica, selezioniTemporanee, utenteCorrente, onDelete, onUpdate }) {
   const [showDettaglio, setShowDettaglio] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   
@@ -850,7 +850,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, selezioniTemp =
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {articoliPerGiorno.map(giorno => (
-              <GiornoAccordion key={giorno.id} giorno={giorno} articoli={giorno.articoli} isExpanded={expandedDays.has(giorno.id)} articoliSelezionati={articoliSelezionati} nomeRedattore={nomeRedattore} onToggle={() => toggleGiorno(giorno.id)} onToggleArticolo={toggleArticolo} />
+              <GiornoAccordion key={giorno.id} giorno={giorno} articoli={giorno.articoli} isExpanded={expandedDays.has(giorno.id)} articoliSelezionati={articoliSelezionati} nomeRedattore={nomeRedattore} selezioniTemp={selezioniTemp} onToggle={() => toggleGiorno(giorno.id)} onToggleArticolo={toggleArticolo} />
             ))}
           </div>
         </div>
@@ -871,7 +871,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, selezioniTemp =
   )
 }
 
-function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, nomeRedattore, onToggle, onToggleArticolo }) {
+function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, nomeRedattore, selezioniTemp = [], onToggle, onToggleArticolo }) {
   const articoliPerCategoria = {}
   CATEGORIE.forEach(cat => {
     const arts = articoli.filter(a => a.categoria === cat.id)
