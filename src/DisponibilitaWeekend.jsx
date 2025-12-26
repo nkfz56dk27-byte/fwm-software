@@ -164,7 +164,27 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   useEffect(() => {
     caricaWeekends()
     caricaCategorie()
+    caricaNotifiche()
   }, [])
+
+  useEffect(() => {
+    // REALTIME SUBSCRIPTION per notifiche
+    const channel = supabase
+      .channel('notifiche_disponibilita_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifiche_disponibilita'
+      }, () => {
+        caricaNotifiche()
+        if (onNotificheChange) onNotificheChange()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [utenteCorrente])
 
   async function caricaCategorie() {
     const { data } = await supabase
@@ -190,14 +210,13 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         .select('categoria_id')
         .eq('username', utenteCorrente.username)
       
-      const categorieIds = (categorieUtente || []).map(c => c.categoria_id)
+      const categorieIds = (categorieUtente || []).map(c => c.categoria_id).filter(Boolean)
       
       if (categorieIds.length > 0) {
-        query = query.in('categoria_id', categorieIds)
-      } else {
-        // Nessuna categoria: mostra solo weekend senza categoria
-        query = query.is('categoria_id', null)
+        // Mostra weekend delle sue categorie + weekend senza categoria
+        query = query.or(`categoria_id.in.(${categorieIds.join(',')}),categoria_id.is.null`)
       }
+      // Se non ha categorie assegnate, mostra tutti i weekend (comportamento di default)
     }
     
     const { data, error } = await query
@@ -811,6 +830,19 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
       }
     }
     
+    // CREA NOTIFICA quando conferma
+    if (articoliSelezionati.size > 0) {
+      await supabase.from('notifiche_disponibilita').insert({
+        messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
+        weekend_id: weekend.id
+      })
+      
+      await inviaNotificaPush(
+        '✅ Articoli confermati',
+        `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`
+      )
+    }
+    
     // PULISCE selezioni temporanee dopo conferma
     if (channelRef.current) {
       channelRef.current.send({
@@ -1355,9 +1387,25 @@ function ModificaRedattoriSection({ weekend, articoli, onUpdate }) {
 
   async function salvaRedattori() {
     setSalvando(true)
-    const { error } = await supabase.from('disponibilita_weekend').update({ redattori: Array.from(redattori).sort() }).eq('id', weekend.id)
-    if (error) console.error('Errore:', error)
-    else alert('✅ Redattori aggiornati!')
+    const { error } = await supabase.from('weekend').update({ redattori: Array.from(redattori).sort() }).eq('id', weekend.id)
+    
+    if (!error) {
+      // CREA NOTIFICA
+      await supabase.from('notifiche_disponibilita').insert({
+        messaggio: `Redattori aggiornati per ${weekend.nome_gp}`,
+        weekend_id: weekend.id
+      })
+      
+      await inviaNotificaPush(
+        '👥 Redattori aggiornati',
+        `I redattori sono stati aggiornati per ${weekend.nome_gp}`
+      )
+      
+      alert('✅ Redattori aggiornati!')
+    } else {
+      console.error('Errore:', error)
+    }
+    
     setSalvando(false)
     onUpdate()
   }
@@ -1368,7 +1416,7 @@ function ModificaRedattoriSection({ weekend, articoli, onUpdate }) {
     const newSet = new Set(redattori)
     newSet.delete(r)
     setRedattori(newSet)
-    await supabase.from('disponibilita_weekend').update({ redattori: Array.from(newSet).sort() }).eq('id', weekend.id)
+    await supabase.from('weekend').update({ redattori: Array.from(newSet).sort() }).eq('id', weekend.id)
     setSalvando(false)
     setDeleteConfirm(null)
     alert('✅ Redattore eliminato!')
