@@ -386,12 +386,13 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
   const postiDisponibili = maxAccrediti - numPrenotati
   const prenotatoCorrente = prenotazioniEvento.find(p => p.username === utenteCorrente.username)
   async function togglePrenotazione() {
+    const nomeUtente = `${utenteCorrente.username}`
     if (prenotatoCorrente) {
       await supabase.from('prenotazioni_accrediti').delete().eq('id', prenotatoCorrente.id)
-      await onUpdate(`${utenteCorrente.nome} ${utenteCorrente.cognome} ha annullato la prenotazione per ${evento.titolo}`)
+      await onUpdate(`${nomeUtente} ha annullato la prenotazione per ${evento.titolo}`)
     } else {
       await supabase.from('prenotazioni_accrediti').insert({ evento_id: evento.id, username: utenteCorrente.username })
-      await onUpdate(`${utenteCorrente.nome} ${utenteCorrente.cognome} si è prenotato per ${evento.titolo}`)
+      await onUpdate(`${nomeUtente} si è prenotato per ${evento.titolo}`)
     }
   }
   async function elimina() {
