@@ -145,6 +145,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   const [notifiche, setNotifiche] = useState([])
   const [showNotifiche, setShowNotifiche] = useState(false)
   const [categorie, setCategorie] = useState([])
+  const [selezioniTemporanee, setSelezioniTemporanee] = useState([])
   
   const isAdmin = utenteCorrente?.ruolo === 'admin'
   const nomeRedattore = UTENTE_TO_REDATTORE[utenteCorrente?.username] || utenteCorrente?.nomeCompleto || ''
@@ -157,6 +158,40 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     caricaWeekends()
     caricaCategorie()
   }, [])
+
+  // ===== REALTIME =====
+  useEffect(() => {
+    const channelName = `weekend-realtime-${categoria?.id || 'all'}`
+    const channel = supabase.channel(channelName)
+
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'disponibilita_articoli' }, (payload) => {
+      console.log('🔄 Cambio DB:', payload)
+      caricaWeekends()
+    })
+
+    channel.on('broadcast', { event: 'temp_selection' }, ({ payload }) => {
+      const { username, articolo_id, weekend_id, action } = payload
+      if (username === utenteCorrente.username) return
+
+      setSelezioniTemporanee(prev => {
+        if (action === 'select') {
+          return [...prev.filter(s => s.articolo_id !== articolo_id), { username, articolo_id, weekend_id, timestamp: Date.now() }]
+        } else {
+          return prev.filter(s => s.articolo_id !== articolo_id)
+        }
+      })
+
+      setTimeout(() => setSelezioniTemporanee(prev => prev.filter(s => s.articolo_id !== articolo_id)), 30000)
+    })
+
+    channel.subscribe()
+    return () => channel.unsubscribe()
+  }, [categoria?.id, utenteCorrente.username])
+
+  useEffect(() => {
+    const interval = setInterval(() => caricaWeekends(), 10000)
+    return () => clearInterval(interval)
+  }, [categoria?.id])
 
   async function caricaCategorie() {
     const { data } = await supabase
@@ -764,8 +799,22 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
     setExpandedDays(newSet)
   }
 
+  const broadcastSelezione = async (articolo_id, weekend_id, action) => {
+    try {
+      const channel = supabase.channel(`weekend-realtime-${categoria?.id || 'all'}`)
+      await channel.send({
+        type: 'broadcast',
+        event: 'temp_selection',
+        payload: { username: utenteCorrente.username, articolo_id, weekend_id, action }
+      })
+    } catch (e) {}
+  }
+
   function toggleArticolo(articoloId, articolo) {
     const newSet = new Set(articoliSelezionati)
+    const action = newSet.has(articoloId) ? 'deselect' : 'select'
+    broadcastSelezione(articoloId, weekend.id, action)
+    
     if (newSet.has(articoloId)) {
       newSet.delete(articoloId)
     } else if (articolo.stato === 'libero' || articolo.assegnato_a === nomeRedattore) {
@@ -845,7 +894,7 @@ function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, no
             <div key={catId} style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#666', marginBottom: '10px' }}>{categoria.nome}</div>
               {arts.map(articolo => (
-                <ArticoloCheckbox key={articolo.id} articolo={articolo} isSelected={articoliSelezionati.has(articolo.id)} nomeRedattore={nomeRedattore} onToggle={() => onToggleArticolo(articolo.id, articolo)} />
+                <ArticoloCheckbox key={articolo.id} articolo={articolo} isSelected={articoliSelezionati.has(articolo.id)} nomeRedattore={nomeRedattore} onToggle={() => onToggleArticolo(articolo.id, articolo)} selezioniTemp={selezioniTemporanee} />
               ))}
             </div>
           ))}
@@ -855,21 +904,27 @@ function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, no
   )
 }
 
-function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle }) {
+function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle, selezioniTemp = [] }) {
   const isLibero = articolo.stato === 'libero'
   const isMio = articolo.assegnato_a === nomeRedattore
   const canSelect = isLibero || isMio
+  
+  const altriSelezionano = selezioniTemp.filter(s => s.articolo_id === articolo.id)
+  const hasTempSelection = altriSelezionano.length > 0
   
   let statoText = '👤 libero', statoColor = '#666', bgColor = 'transparent', checkIcon = '☐', checkColor = '#ccc'
   
   if (isSelected) {
     statoText = '✓ TU'; statoColor = '#34C759'; bgColor = '#34C7591A'; checkIcon = '☑'; checkColor = '#34C759'
+  } else if (hasTempSelection) {
+    const nomi = altriSelezionano.map(s => UTENTE_TO_REDATTORE[s.username] || s.username).join(', ')
+    statoText = `👁️ ${nomi}`; statoColor = '#FF9500'; bgColor = '#FF95001A'; checkIcon = '⏳'; checkColor = '#FF9500'
   } else if (articolo.assegnato_a && articolo.assegnato_a !== nomeRedattore) {
     statoText = `⚠️ ${articolo.assegnato_a}`; statoColor = '#FF3B30'; bgColor = '#FFEBEE'; checkIcon = '☒'; checkColor = '#FF3B30'
   }
 
   return (
-    <button onClick={onToggle} disabled={!canSelect} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: bgColor, border: 'none', borderRadius: '8px', cursor: canSelect ? 'pointer' : 'not-allowed', marginBottom: '8px', opacity: canSelect ? 1 : 0.6 }}>
+    <button onClick={onToggle} disabled={!canSelect} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: bgColor, border: hasTempSelection ? '2px dashed #FF9500' : 'none', borderRadius: '8px', cursor: canSelect ? 'pointer' : 'not-allowed', marginBottom: '8px', opacity: canSelect ? 1 : 0.6 }}>
       <span style={{ fontSize: '18px', color: checkColor }}>{checkIcon}</span>
       <span style={{ flex: 1, textAlign: 'left', fontSize: '14px', color: canSelect ? '#000' : '#666' }}>
         {renderTextWithBold(articolo.titolo, articolo.range_grassetto)}
