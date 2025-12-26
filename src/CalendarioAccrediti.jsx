@@ -460,7 +460,6 @@ function GestioneCampionatiModal({ campionati, onClose, onUpdate }) {
               <button onClick={() => elimina(c.id)} style={{ background: 'none', border: 'none', color: '#FF3B30', cursor: 'pointer', fontSize: '20px', fontWeight: 'bold' }}>×</button>
             </div>)}
           </div>
-        </div>
   )
 }
 
