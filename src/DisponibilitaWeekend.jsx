@@ -204,7 +204,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     if (categoria?.id) {
       query = query.eq('categoria_id', categoria.id)
     } else if (!isAdmin) {
-      // Se NON admin e nessuna categoria specificata, filtra per categorie utente
+      // Se NON admin: mostra SOLO weekend delle sue categorie
       const { data: categorieUtente } = await supabase
         .from('categoria_utenti')
         .select('categoria_id')
@@ -213,10 +213,14 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       const categorieIds = (categorieUtente || []).map(c => c.categoria_id).filter(Boolean)
       
       if (categorieIds.length > 0) {
-        // Mostra weekend delle sue categorie + weekend senza categoria
-        query = query.or(`categoria_id.in.(${categorieIds.join(',')}),categoria_id.is.null`)
+        // SOLO weekend delle sue categorie
+        query = query.in('categoria_id', categorieIds)
+      } else {
+        // Nessuna categoria: NON mostra niente
+        setWeekends([])
+        setLoading(false)
+        return
       }
-      // Se non ha categorie assegnate, mostra tutti i weekend (comportamento di default)
     }
     
     const { data, error } = await query
@@ -814,8 +818,25 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   async function caricaArticoli() {
     const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id).order('giorno').order('categoria')
     setArticoli(data || [])
-    const miei = data?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
-    setArticoliSelezionati(new Set(miei))
+    
+    // Preserva selezioni correnti SE ancora valide
+    setArticoliSelezionati(prevSelezionati => {
+      const nuoveSelezionati = new Set()
+      
+      // Aggiungi articoli confermati dal database
+      const miei = data?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
+      miei.forEach(id => nuoveSelezionati.add(id))
+      
+      // Preserva selezioni correnti SE l'articolo è ancora libero o mio
+      prevSelezionati.forEach(id => {
+        const articolo = data?.find(a => a.id === id)
+        if (articolo && (articolo.stato === 'libero' || articolo.assegnato_a === nomeRedattore)) {
+          nuoveSelezionati.add(id)
+        }
+      })
+      
+      return nuoveSelezionati
+    })
   }
 
   async function salvaArticoli(conferma = false) {
@@ -836,11 +857,6 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
         weekend_id: weekend.id
       })
-      
-      await inviaNotificaPush(
-        '✅ Articoli confermati',
-        `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`
-      )
     }
     
     // PULISCE selezioni temporanee dopo conferma
@@ -1395,11 +1411,6 @@ function ModificaRedattoriSection({ weekend, articoli, onUpdate }) {
         messaggio: `Redattori aggiornati per ${weekend.nome_gp}`,
         weekend_id: weekend.id
       })
-      
-      await inviaNotificaPush(
-        '👥 Redattori aggiornati',
-        `I redattori sono stati aggiornati per ${weekend.nome_gp}`
-      )
       
       alert('✅ Redattori aggiornati!')
     } else {
