@@ -4,14 +4,12 @@
   padding: 0;
   box-sizing: border-box;
 }
-
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'SF Pro Rounded', 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
 }
-
 /* ===== LOGIN & PASSWORD CHANGE ===== */
 .login-container {
   position: fixed;
@@ -27,7 +25,6 @@ body {
   background: rgba(128, 128, 128, 0.05);
   padding: 20px;
 }
-
 .login-card {
   background: white;
   border-radius: 20px;
@@ -36,46 +33,38 @@ body {
   width: 100%;
   max-width: 450px;
 }
-
 .login-header {
   text-align: center;
   margin-bottom: 30px;
 }
-
 .f1-icon {
   font-size: 80px;
   margin-bottom: 10px;
 }
-
 .warning-icon {
   font-size: 60px;
   margin-bottom: 10px;
 }
-
 .login-title {
   font-size: 36px;
   font-weight: 700;
   color: #000;
   margin-bottom: 10px;
 }
-
 .login-subtitle {
   font-size: 16px;
   color: #666;
 }
-
 .login-form {
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
-
 .form-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-
 .form-label {
   display: flex;
   align-items: center;
@@ -84,12 +73,10 @@ body {
   font-weight: 600;
   color: #666;
 }
-
 .form-label .icon {
   width: 16px;
   height: 16px;
 }
-
 .form-input {
   width: 100%;
   padding: 12px;
@@ -99,7 +86,6 @@ body {
   border-radius: 8px;
   outline: none;
 }
-
 .password-input-wrapper {
   position: relative;
   display: flex;
@@ -107,12 +93,10 @@ body {
   background: rgba(128, 128, 128, 0.1);
   border-radius: 8px;
 }
-
 .password-input-wrapper .form-input {
   background: transparent;
   padding-right: 50px;
 }
-
 .toggle-password {
   position: absolute;
   right: 12px;
@@ -122,7 +106,6 @@ body {
   padding: 8px;
   font-size: 16px;
 }
-
 .error-message {
   background: #fee;
   color: #c00;
@@ -131,7 +114,6 @@ body {
   font-size: 14px;
   text-align: center;
 }
-
 .btn-login {
   width: 100%;
   padding: 14px;
@@ -144,18 +126,15 @@ body {
   cursor: pointer;
   transition: opacity 0.2s;
 }
-
 .btn-login:disabled {
   background: #d1d5db;
   cursor: not-allowed;
   color: #9ca3af;
 }
-
 .btn-login.btn-green {
   background: #34C759;
   color: white;
 }
-
 /* ===== HOME CONTAINER ===== */
 .home-container {
   position: fixed;
@@ -173,7 +152,6 @@ body {
   flex-direction: column;
   overflow: hidden;
 }
-
 /* ===== HEADER ===== */
 .home-header {
   display: flex;
@@ -182,13 +160,11 @@ body {
   padding: 20px;
   flex-shrink: 0;
 }
-
 .header-left,
 .header-right {
   display: flex;
   gap: 10px;
 }
-
 .btn-header {
   display: flex;
   align-items: center;
@@ -203,20 +179,16 @@ body {
   background: rgba(0, 0, 0, 0.5);
   transition: all 0.2s ease;
 }
-
 .btn-header:hover {
   background: rgba(0, 0, 0, 0.75);
 }
-
 .btn-header:active {
   background: rgba(0, 0, 0, 0.85);
 }
-
 .btn-header .icon {
   width: 16px;
   height: 16px;
 }
-
 /* ===== TITOLO ===== */
 .home-title {
   text-align: center;
@@ -224,7 +196,6 @@ body {
   padding: 20px;
   margin-top: 30px;
 }
-
 .title-main {
   font-size: 48px;
   font-weight: 700;
@@ -233,15 +204,13 @@ body {
   text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
   margin-bottom: 10px;
 }
-
 .title-sub {
   font-size: 18px;
   font-weight: 500;
   color: white;
   text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
 }
-
-/* ===== CARDS - LAYOUT 2+1 ===== */
+/* ===== CARDS - LAYOUT 2+2+2 ===== */
 .home-cards-wrapper {
   display: flex;
   flex-direction: column;
@@ -251,14 +220,12 @@ body {
   gap: 25px;
   padding: 20px;
 }
-
 .home-cards-row {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 40px;
 }
-
 .home-card {
   width: 220px;
   height: 230px;
@@ -275,12 +242,10 @@ body {
   transition: transform 0.2s, box-shadow 0.2s;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
-
 .home-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
 }
-
 .card-icon-wrapper {
   width: 90px;
   height: 90px;
@@ -290,29 +255,27 @@ body {
   justify-content: center;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
-
 .card-blue .card-icon-wrapper {
   background: linear-gradient(135deg, rgba(0, 122, 255, 0.9), rgba(0, 122, 255, 0.7));
 }
-
 .card-green .card-icon-wrapper {
   background: linear-gradient(135deg, rgba(52, 199, 89, 0.9), rgba(52, 199, 89, 0.7));
 }
-
 .card-purple .card-icon-wrapper {
   background: linear-gradient(135deg, rgba(175, 82, 222, 0.9), rgba(175, 82, 222, 0.7));
 }
-
 .card-yellow .card-icon-wrapper {
   background: linear-gradient(135deg, rgba(255, 193, 7, 0.9), rgba(255, 193, 7, 0.7));
 }
-
+/* ✅ NUOVO: STILE CARD ROSSE */
+.card-red .card-icon-wrapper {
+  background: linear-gradient(135deg, rgba(255, 59, 48, 0.9), rgba(220, 20, 60, 0.7));
+}
 .card-icon {
   width: 40px;
   height: 40px;
   filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.3));
 }
-
 .card-title {
   font-size: 18px;
   font-weight: 700;
@@ -321,7 +284,6 @@ body {
   text-align: center;
   text-shadow: 0 2px 3px rgba(0, 0, 0, 0.5);
 }
-
 .card-subtitle {
   font-size: 11px;
   color: white;
@@ -330,20 +292,17 @@ body {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   white-space: pre-line;
 }
-
 /* ===== FOOTER ===== */
 .home-footer {
   text-align: center;
   padding: 20px;
   flex-shrink: 0;
 }
-
 .version-text {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.7);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
-
 /* ===== GESTIONE UTENTI ===== */
 .gestione-container {
   position: fixed;
@@ -358,7 +317,6 @@ body {
   flex-direction: column;
   overflow: hidden;
 }
-
 .gestione-header {
   display: flex;
   justify-content: space-between;
@@ -367,7 +325,6 @@ body {
   background: white;
   flex-shrink: 0;
 }
-
 .btn-back {
   display: flex;
   align-items: center;
@@ -380,18 +337,15 @@ body {
   cursor: pointer;
   padding: 8px;
 }
-
 .btn-back .icon {
   width: 20px;
   height: 20px;
 }
-
 .gestione-title {
   font-size: 24px;
   font-weight: 700;
   color: #000;
 }
-
 .btn-nuovo {
   display: flex;
   align-items: center;
@@ -406,41 +360,34 @@ body {
   cursor: pointer;
   transition: opacity 0.2s;
 }
-
 .btn-nuovo:hover {
   opacity: 0.9;
 }
-
 .btn-nuovo .icon {
   width: 20px;
   height: 20px;
 }
-
 .divider {
   height: 1px;
   background: #e0e0e0;
   flex-shrink: 0;
 }
-
 .gestione-content {
   flex: 1;
   overflow-y: auto;
   padding: 30px;
 }
-
 .loading {
   text-align: center;
   padding: 40px;
   font-size: 16px;
   color: #666;
 }
-
 .utenti-list {
   display: flex;
   flex-direction: column;
   gap: 15px;
 }
-
 .utente-row {
   display: flex;
   align-items: center;
@@ -450,37 +397,31 @@ body {
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
-
 .utente-info {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 200px;
 }
-
 .utente-icon {
   width: 24px;
   height: 24px;
   flex-shrink: 0;
 }
-
 .utente-nome {
   font-size: 16px;
   font-weight: 600;
   color: #000;
 }
-
 .utente-username {
   font-size: 12px;
   color: #666;
 }
-
 .utente-ruolo {
   font-size: 14px;
   color: #666;
   width: 150px;
 }
-
 .utente-password {
   display: flex;
   align-items: center;
@@ -489,18 +430,15 @@ body {
   color: #666;
   width: 200px;
 }
-
 .status-icon {
   width: 16px;
   height: 16px;
 }
-
 .utente-actions {
   display: flex;
   gap: 10px;
   margin-left: auto;
 }
-
 .btn-action {
   display: flex;
   align-items: center;
@@ -513,31 +451,25 @@ body {
   cursor: pointer;
   transition: opacity 0.2s;
 }
-
 .btn-action:hover {
   opacity: 0.8;
 }
-
 .btn-blue {
   color: #007AFF;
   background: rgba(0, 122, 255, 0.1);
 }
-
 .btn-green {
   color: #34C759;
   background: rgba(52, 199, 89, 0.1);
 }
-
 .btn-orange {
   color: #FF9500;
   background: rgba(255, 149, 0, 0.1);
 }
-
 .icon-small {
   width: 14px;
   height: 14px;
 }
-
 /* ===== MODALI ===== */
 .modal-container {
   position: fixed;
@@ -551,7 +483,6 @@ body {
   justify-content: center;
   z-index: 1000;
 }
-
 .modal-card {
   background: white;
   border-radius: 15px;
@@ -559,7 +490,6 @@ body {
   max-width: 500px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
-
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -567,13 +497,11 @@ body {
   padding: 20px 25px;
   border-bottom: 1px solid #e0e0e0;
 }
-
 .modal-header h2 {
   font-size: 22px;
   font-weight: 700;
   color: #000;
 }
-
 .btn-close {
   width: 32px;
   height: 32px;
@@ -588,25 +516,21 @@ body {
   justify-content: center;
   transition: background 0.2s;
 }
-
 .btn-close:hover {
   background: #e0e0e0;
 }
-
 .modal-form {
   padding: 25px;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
-
 .modal-actions {
   display: flex;
   gap: 10px;
   justify-content: flex-end;
   margin-top: 10px;
 }
-
 .btn-cancel {
   padding: 10px 20px;
   font-size: 16px;
@@ -618,11 +542,9 @@ body {
   cursor: pointer;
   transition: background 0.2s;
 }
-
 .btn-cancel:hover {
   background: #e0e0e0;
 }
-
 .btn-save {
   padding: 10px 20px;
   font-size: 16px;
@@ -634,31 +556,26 @@ body {
   cursor: pointer;
   transition: opacity 0.2s;
 }
-
 .btn-save:hover {
   opacity: 0.9;
 }
-
 /* ===== LAYOUT MOBILE NATIVO - RIPENSATO ===== */
 @media (max-width: 768px) {
-  /* Home - 2x2 OTTIMIZZATO */
+  /* Home - 2x2 OTTIMIZZATO + terza riga */
   .home-cards-wrapper {
     padding: 15px;
     gap: 15px;
   }
-
   .home-cards-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 15px;
     width: 100%;
   }
-
   .home-card {
     width: 100%;
     height: 160px;
   }
-
   /* Header - Stack verticale */
   .home-header {
     flex-direction: column;
@@ -666,20 +583,17 @@ body {
     padding: 15px;
     gap: 10px;
   }
-
   .header-left,
   .header-right {
     width: 100%;
     justify-content: space-between;
   }
-
   .btn-header {
     flex: 1;
     justify-content: center;
     padding: 10px;
     font-size: 12px;
   }
-
   /* Gestione - Header Mobile */
   .gestione-header {
     flex-direction: column;
@@ -687,55 +601,45 @@ body {
     padding: 15px;
     gap: 12px;
   }
-
   .btn-back {
     align-self: flex-start;
     font-size: 16px;
     padding: 8px 0;
   }
-
   .gestione-title {
     font-size: 22px;
     text-align: center;
   }
-
   .btn-nuovo {
     width: 100%;
     justify-content: center;
     padding: 12px;
     font-size: 15px;
   }
-
   /* Gestione Content - Liste verticali */
   .gestione-content {
     padding: 15px;
   }
-
   .utenti-list {
     gap: 12px;
   }
-
   .utente-row {
     flex-direction: column;
     align-items: stretch;
     padding: 15px;
     gap: 12px;
   }
-
   .utente-info {
     width: 100%;
   }
-
   .utente-nome {
     font-size: 16px;
   }
-
   .utente-ruolo,
   .utente-password {
     width: 100%;
     font-size: 14px;
   }
-
   .utente-actions {
     width: 100%;
     display: grid;
@@ -743,14 +647,12 @@ body {
     gap: 8px;
     margin-left: 0;
   }
-
   .btn-action {
     width: 100%;
     justify-content: center;
     padding: 10px 8px;
     font-size: 12px;
   }
-
   /* Modali - Full screen mobile */
   .modal-card {
     width: 100vw;
@@ -760,41 +662,34 @@ body {
     border-radius: 0;
     margin: 0;
   }
-
   .modal-form {
     padding: 20px;
     overflow-y: auto;
     max-height: calc(100vh - 150px);
   }
-
   .modal-actions {
     flex-direction: column;
     gap: 10px;
   }
-
   .modal-actions button {
     width: 100%;
     padding: 14px;
     font-size: 16px;
   }
-
   /* Form inputs - Più grandi */
   .form-input {
     padding: 12px;
     font-size: 16px;
   }
-
   select {
     padding: 12px;
     font-size: 16px;
   }
-
   textarea {
     padding: 12px;
     font-size: 16px;
     min-height: 100px;
   }
-
   /* Fix bottoni con icone */
   .btn-nuovo .icon,
   .btn-action .icon,
@@ -802,26 +697,21 @@ body {
     width: 16px;
     height: 16px;
   }
-
   /* Login mobile */
   .login-card {
     padding: 30px 20px;
   }
-
   .login-title {
     font-size: 28px;
   }
-
   .f1-icon {
     font-size: 60px;
   }
-
   /* Titoli mobile */
   .title-main {
     font-size: 32px;
     margin-top: 10px;
   }
-
   .title-sub {
     font-size: 14px;
   }
