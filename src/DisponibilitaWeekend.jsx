@@ -973,26 +973,26 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
   const [showMenu, setShowMenu] = useState(false)
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000 }}>
-      <div style={{ background: 'white', borderRadius: '15px', width: '1200px', height: '800px', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000, padding: isMobile ? '0' : '20px' }}>
+      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '1200px', height: isMobile ? '100vh' : '800px', display: 'flex', flexDirection: 'column' }}>
         {/* HEADER */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '14px' : '18px', fontWeight: 'bold', cursor: 'pointer', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>← Indietro</button>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
-            <div style={{ fontSize: '13px', color: '#666' }}>{weekend.data}</div>
+            <div style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
+            <div style={{ fontSize: isMobile ? '11px' : '13px', color: '#666' }}>{weekend.data}</div>
           </div>
           {/* MIGLIORAMENTO 2: Menu più visibile */}
           <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowMenu(!showMenu)} style={{ padding: '8px 16px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              Menu Admin
+            <button onClick={() => setShowMenu(!showMenu)} style={{ padding: isMobile ? '10px 12px' : '8px 16px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: isMobile ? '12px' : '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', minHeight: isMobile ? '44px' : 'auto' }}>
+              {isMobile ? 'Menu' : 'Menu Admin'}
             </button>
             {showMenu && (
-              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: '220px' }}>
-                <button onClick={() => { setShowExport(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', fontWeight: '500' }}>
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: isMobile ? '180px' : '220px' }}>
+                <button onClick={() => { setShowExport(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '12px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '14px' : '15px', display: 'flex', alignItems: 'center', gap: '12px', fontWeight: '500', minHeight: isMobile ? '44px' : 'auto' }}>
                   Esporta JPEG
                 </button>
-                <button onClick={() => { setShowModifica(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #eee', fontWeight: '500' }}>
+                <button onClick={() => { setShowModifica(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '12px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '14px' : '15px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #eee', fontWeight: '500', minHeight: isMobile ? '44px' : 'auto' }}>
                   Modifica Tabella
                 </button>
               </div>
