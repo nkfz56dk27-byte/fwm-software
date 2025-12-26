@@ -34,6 +34,7 @@ function App() {
   const [showRitaglioImmagine, setShowRitaglioImmagine] = useState(false)
   const [showCalendario, setShowCalendario] = useState(false)
   const [showDisponibilita, setShowDisponibilita] = useState(null)
+  const [showTemplateArticoli, setShowTemplateArticoli] = useState(false)
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
 
@@ -117,6 +118,7 @@ function App() {
     setPassword('')
     setShowGestione(false)
     setShowClassifica(false)
+    setShowTemplateArticoli(false)
   }
 
   if (!user) {
@@ -129,6 +131,10 @@ function App() {
 
   if (showGestione) {
     return <GestioneUtentiView onClose={() => setShowGestione(false)} />
+  }
+
+  if (showTemplateArticoli) {
+    return <GestioneTemplateArticoli onClose={() => setShowTemplateArticoli(false)} />
   }
 
   if (showClassificheMenu) {
@@ -152,6 +158,177 @@ function App() {
   }
 
   return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+}
+
+/// ===== HOME VIEW =====
+function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
+  useEffect(() => {
+    document.title = "FWM Software - Home"
+  }, [])
+  
+  return (
+    <div className="home-container">
+      <div className="home-header">
+        <div className="header-left">
+          {user.ruolo === 'admin' && (
+            <button className="btn-header" onClick={onOpenGestione}>
+              <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+              </svg>
+              Gestione
+            </button>
+          )}
+        </div>
+        <div className="header-right">
+          <button className="btn-header" onClick={onLogout}>
+            {user.nome_completo}
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="home-title">
+        <h1 className="title-main">FWM Software</h1>
+      </div>
+
+      <div className="home-cards-wrapper">
+        {/* RIGA 1 - Classifiche + Ritaglio */}
+        <div className="home-cards-row">
+          <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer' }}>
+            <div className="card-icon-wrapper">
+              <img
+                src={CoppaSVG}
+                alt="Coppa"
+                style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }}
+              />
+            </div>
+            <h3 className="card-title">CLASSIFICHE</h3>
+            <p className="card-subtitle">
+              {user.ruolo === 'admin' ? 'Gestisci campionati\ne classifiche' : 'Visualizza\nclassifiche'}
+            </p>
+          </div>
+
+          <div className="home-card card-green" onClick={onOpenRitaglio} style={{ cursor: 'pointer' }}>
+            <div className="card-icon-wrapper">
+              <img
+                src={FotoSVG}
+                alt="Foto"
+                style={{ width: "60px", height: "50px", filter: "brightness(0) invert(1)" }}
+              />
+            </div>
+            <h3 className="card-title">RITAGLIO FOTO</h3>
+            <p className="card-subtitle">Ritaglia immagini<br />1200x729 px</p>
+          </div>
+        </div>
+
+        {/* RIGA 2 - Disponibilità + Calendario */}
+        <div className="home-cards-row">
+          <div className="home-card card-purple" onClick={() => onOpenDisponibilita(null)} style={{ cursor: 'pointer', position: 'relative' }}>
+            {notificheNonLetteDisponibilita > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '15px',
+                right: '15px',
+                background: '#FF3B30',
+                color: 'white',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
+                zIndex: 10
+              }}>
+                {notificheNonLetteDisponibilita}
+              </div>
+            )}
+            <div className="card-icon-wrapper">
+              <img
+                src={DisponibilitàSVG}
+                alt="Disponibilità"
+                style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }}
+              />
+            </div>
+            <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
+            <p className="card-subtitle">Eventi e Gare</p>
+          </div>
+
+          <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
+            {notificheNonLetteCalendario > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '15px',
+                right: '15px',
+                background: '#FF3B30',
+                color: 'white',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
+                zIndex: 10
+              }}>
+                {notificheNonLetteCalendario}
+              </div>
+            )}
+            <div className="card-icon-wrapper">
+              <img
+                src={PressPNG}
+                alt="Press"
+                style={{ width: "58px", height: "60px", filter: "brightness(0) invert(1)" }}
+              />
+            </div>
+            <h3 className="card-title">CALENDARIO ACCREDITI</h3>
+            <p className="card-subtitle">Eventi e Gare<br />per cui richiedere accredito</p>
+          </div>
+        </div>
+
+        {/* RIGA 3 - Card Rosse */}
+        <div className="home-cards-row">
+          <div 
+            className="home-card card-red" 
+            onClick={() => window.open('https://www.formula1.it/admin/login.asp', '_blank')} 
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="card-icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="white" style={{ width: "50px", height: "50px" }}>
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+              </svg>
+            </div>
+            <h3 className="card-title">PANNELLO VIDA</h3>
+            <p className="card-subtitle">Gestione articoli<br />e contenuti</p>
+          </div>
+
+          <div 
+            className="home-card card-red" 
+            onClick={() => window.open('https://fonti.formula1.it/login.asp', '_blank')} 
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="card-icon-wrapper">
+              <svg viewBox="0 0 24 24" fill="white" style={{ width: "50px", height: "50px" }}>
+                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+              </svg>
+            </div>
+            <h3 className="card-title">PANNELLO FONTI</h3>
+            <p className="card-subtitle">Archivio fonti<br />e risorse</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="home-footer">
+        <p className="version-text">Versione 2.0</p>
+      </div>
+    </div>
+  )
 }
 function ClassificaView({ classificaId, user, onBack }) {
   const [classifica, setClassifica] = useState(null)
@@ -1761,12 +1938,42 @@ function NuovaClassificaModal({ onClose, onSave }) {
 }
 
 /// ===== HOME VIEW =====
-
-/// ===== HOME VIEW =====
 function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
+  const [categorie, setCategorie] = useState([])
+  const [categorieUtente, setCategorieUtente] = useState([])
+  
   useEffect(() => {
     document.title = "FWM Software - Home"
   }, [])
+  
+  useEffect(() => {
+    caricaCategorie()
+  }, [user])
+  
+  async function caricaCategorie() {
+    // Carica tutte le categorie
+    const { data: tutteCategorie } = await supabase
+      .from('categorie_weekend')
+      .select('*')
+      .order('created_at', { ascending: true })
+    
+    setCategorie(tutteCategorie || [])
+    
+    // Se non admin, filtra per categorie assegnate
+    if (user.ruolo !== 'admin') {
+      const { data: gruppi } = await supabase
+        .from('gruppi_redattori')
+        .select('categoria_id')
+        .eq('username', user.username)
+      
+      const categorieIds = new Set((gruppi || []).map(g => g.categoria_id))
+      const catFiltrate = (tutteCategorie || []).filter(c => categorieIds.has(c.id))
+      setCategorieUtente(catFiltrate)
+    } else {
+      // Admin vede tutte
+      setCategorieUtente(tutteCategorie || [])
+    }
+  }
   
   return (
     <div className="home-container">
@@ -1796,7 +2003,6 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
       </div>
 
       <div className="home-cards-wrapper">
-        {/* PRIMA RIGA - Classifiche + Ritaglio */}
         <div className="home-cards-row">
           <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer' }}>
             <div className="card-icon-wrapper">
@@ -1812,6 +2018,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             </p>
           </div>
 
+          {/* ← MODIFICATO: Aggiunto onClick */}
           <div className="home-card card-green" onClick={onOpenRitaglio} style={{ cursor: 'pointer' }}>
             <div className="card-icon-wrapper">
               <img
@@ -1825,42 +2032,51 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
           </div>
         </div>
 
-        {/* SECONDA RIGA - Disponibilità + Calendario */}
         <div className="home-cards-row">
-          <div className="home-card card-purple" onClick={() => onOpenDisponibilita(null)} style={{ cursor: 'pointer', position: 'relative' }}>
-            {notificheNonLetteDisponibilita > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '15px',
-                right: '15px',
-                background: '#FF3B30',
-                color: 'white',
-                borderRadius: '50%',
-                width: '32px',
-                height: '32px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
-                zIndex: 10
-              }}>
-                {notificheNonLetteDisponibilita}
+          {categorieUtente.map(categoria => (
+            <div 
+              key={categoria.id}
+              className="home-card card-purple" 
+              onClick={() => onOpenDisponibilita(categoria)} 
+              style={{ 
+                cursor: 'pointer', 
+                position: 'relative'
+              }}
+            >
+              {notificheNonLetteDisponibilita > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '15px',
+                  right: '15px',
+                  background: '#FF3B30',
+                  color: 'white',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
+                  zIndex: 10
+                }}>
+                  {notificheNonLetteDisponibilita}
+                </div>
+              )}
+              <div className="card-icon-wrapper">
+                <img
+                  src={DisponibilitàSVG}
+                  alt="Disponibilità"
+                  style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }}
+                />
               </div>
-            )}
-            <div className="card-icon-wrapper">
-              <img
-                src={DisponibilitàSVG}
-                alt="Disponibilità"
-                style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }}
-              />
+              <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
+              <p className="card-subtitle">{categoria.nome}</p>
             </div>
-            <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
-            <p className="card-subtitle">Eventi e Gare</p>
-          </div>
+          ))}
 
-          <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
+           <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
             {notificheNonLetteCalendario > 0 && (
               <div style={{
                 position: 'absolute',
@@ -1891,35 +2107,6 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             </div>
             <h3 className="card-title">CALENDARIO ACCREDITI</h3>
             <p className="card-subtitle">Eventi e Gare<br />per cui richiedere accredito</p>
-          </div>
-        </div>
-
-        {/* TERZA RIGA - Card Rosse */}
-        <div className="home-cards-row">
-          <div 
-            className="home-card card-red" 
-            onClick={() => window.open('https://www.formula1.it/admin/login.asp', '_blank')} 
-            style={{ cursor: 'pointer' }}
-          >
-            <div className="card-icon-wrapper">
-              <svg viewBox="0 0 24 24" fill="white" style={{ width: "50px", height: "50px" }}>
-                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
-              </svg>
-            </div>
-            <h3 className="card-title">PANNELLO VIDA</h3>
-          </div>
-
-          <div 
-            className="home-card card-red" 
-            onClick={() => window.open('https://fonti.formula1.it/login.asp', '_blank')} 
-            style={{ cursor: 'pointer' }}
-          >
-            <div className="card-icon-wrapper">
-              <svg viewBox="0 0 24 24" fill="white" style={{ width: "50px", height: "50px" }}>
-                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-              </svg>
-            </div>
-            <h3 className="card-title">PANNELLO FONTI</h3>
           </div>
         </div>
       </div>
@@ -2000,6 +2187,7 @@ function GestioneUtentiView({ onClose }) {
   const [showNuovo, setShowNuovo] = useState(false)
   const [editUtente, setEditUtente] = useState(null)
   const [showCategorie, setShowCategorie] = useState(false)
+  const [showTemplateArticoli, setShowTemplateArticoli] = useState(false)
 
   useEffect(() => {
     document.title = "FWM - Gestione Utenti"
@@ -2032,6 +2220,7 @@ function GestioneUtentiView({ onClose }) {
   if (showNuovo) return <NuovoUtenteView onClose={() => setShowNuovo(false)} onSave={() => { caricaUtenti(); setShowNuovo(false) }} />
   if (editUtente) return <ModificaUtenteView utente={editUtente} onClose={() => setEditUtente(null)} onSave={() => { caricaUtenti(); setEditUtente(null) }} />
   if (showCategorie) return <GestioneCategorie onClose={() => setShowCategorie(false)} />
+  if (showTemplateArticoli) return <GestioneTemplateArticoli onClose={() => setShowTemplateArticoli(false)} />
 
   return (
     <div className="gestione-container">
@@ -2042,6 +2231,10 @@ function GestioneUtentiView({ onClose }) {
           <button className="btn-nuovo" style={{ background: '#007AFF' }} onClick={() => setShowCategorie(true)}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
             Categorie
+          </button>
+          <button className="btn-nuovo" style={{ background: '#FF9500' }} onClick={() => setShowTemplateArticoli(true)}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+            Template
           </button>
           <button className="btn-nuovo" onClick={() => setShowNuovo(true)}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>Nuovo</button>
         </div>
