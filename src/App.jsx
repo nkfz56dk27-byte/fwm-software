@@ -10,10 +10,10 @@ import RitaglioImmagine from './RitaglioImmagine'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
-import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 
 import './App.css'
 
+function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
   const [mustChangePassword, setMustChangePassword] = useState(false)
@@ -152,7 +152,8 @@ import './App.css'
   }
 
   return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
-
+}
+// ===== CLASSIFICA VIEW COMPLETA =====
 function ClassificaView({ classificaId, user, onBack }) {
   const [classifica, setClassifica] = useState(null)
   const [loading, setLoading] = useState(true)
