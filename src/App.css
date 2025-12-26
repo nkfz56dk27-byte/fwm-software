@@ -301,11 +301,11 @@ body {
 
 .card-purple .card-icon-wrapper {
   background: linear-gradient(135deg, rgba(175, 82, 222, 0.9), rgba(175, 82, 222, 0.7));
- }
+}
 
-  .card-yellow .card-icon-wrapper {
-    background: linear-gradient(135deg, rgba(255, 193, 7, 0.9), rgba(255, 193, 7, 0.7));
-  }
+.card-yellow .card-icon-wrapper {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.9), rgba(255, 193, 7, 0.7));
+}
 
 .card-icon {
   width: 40px;
@@ -691,54 +691,4 @@ body {
 
 .btn-save:hover {
   opacity: 0.9;
-}
-/* RESPONSIVE MOBILE */
-@media (max-width: 768px) {
-  .home-cards-row {
-    grid-template-columns: 1fr !important;
-    gap: 15px;
-  }
-  
-  .home-header {
-    padding: 15px 20px;
-    flex-direction: column;
-    gap: 15px;
-    align-items: flex-start;
-  }
-  
-  .home-content {
-    padding: 20px;
-  }
-  
-  .home-card {
-    min-height: 180px;
-  }
-}
-/* ========== RESPONSIVE MOBILE FIX ========== */
-@media only screen and (max-width: 768px) {
-  .home-cards-row {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 15px !important;
-  }
-  
-  .home-card {
-    width: 100% !important;
-    min-height: 160px !important;
-  }
-  
-  .home-header {
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    gap: 10px !important;
-  }
-  
-  .home-content {
-    padding: 15px !important;
-  }
-  
-  .user-section {
-    width: 100% !important;
-    justify-content: space-between !important;
-  }
 }
