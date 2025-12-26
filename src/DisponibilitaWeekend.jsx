@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
 
@@ -183,6 +183,21 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     // Filtra per categoria se specificata
     if (categoria?.id) {
       query = query.eq('categoria_id', categoria.id)
+    } else if (!isAdmin) {
+      // Se NON admin e nessuna categoria specificata, filtra per categorie utente
+      const { data: categorieUtente } = await supabase
+        .from('categoria_utenti')
+        .select('categoria_id')
+        .eq('username', utenteCorrente.username)
+      
+      const categorieIds = (categorieUtente || []).map(c => c.categoria_id)
+      
+      if (categorieIds.length > 0) {
+        query = query.in('categoria_id', categorieIds)
+      } else {
+        // Nessuna categoria: mostra solo weekend senza categoria
+        query = query.is('categoria_id', null)
+      }
     }
     
     const { data, error } = await query
@@ -736,17 +751,19 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
 function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDelete, isMobile }) {
   const [articoli, setArticoli] = useState([])
   const [articoliSelezionati, setArticoliSelezionati] = useState(new Set())
+  const [selezioniAltri, setSelezioniAltri] = useState({}) // { username: Set(articoloIds) }
   const [expandedDays, setExpandedDays] = useState(new Set())
   const [showAdminView, setShowAdminView] = useState(false)
   const [showTabella, setShowTabella] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const channelRef = useRef(null)
 
   useEffect(() => {
     caricaArticoli()
   }, [weekend.id])
 
   useEffect(() => {
-    // REALTIME SUBSCRIPTION per vedere le modifiche degli altri utenti
+    // REALTIME SUBSCRIPTION per vedere le modifiche degli altri utenti (conferme)
     const channel = supabase
       .channel(`articoli_weekend_${weekend.id}`)
       .on('postgres_changes', { 
@@ -757,12 +774,23 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
       }, () => {
         caricaArticoli() // Ricarica quando qualcuno modifica
       })
+      .on('broadcast', { event: 'selezione' }, ({ payload }) => {
+        // Riceve selezioni temporanee dagli altri
+        if (payload.username !== nomeRedattore) {
+          setSelezioniAltri(prev => ({
+            ...prev,
+            [payload.username]: new Set(payload.articoli)
+          }))
+        }
+      })
       .subscribe()
+
+    channelRef.current = channel
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [weekend.id])
+  }, [weekend.id, nomeRedattore])
 
   async function caricaArticoli() {
     const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id).order('giorno').order('categoria')
@@ -782,6 +810,19 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
       }
     }
+    
+    // PULISCE selezioni temporanee dopo conferma
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'selezione',
+        payload: {
+          username: nomeRedattore,
+          articoli: [] // Array vuoto = conferma completata
+        }
+      })
+    }
+    
     setSalvando(false)
     if (conferma) alert(`✅ Confermati ${articoliSelezionati.size} articoli per ${nomeRedattore}!`)
     caricaArticoli()
@@ -805,6 +846,18 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
       return
     }
     setArticoliSelezionati(newSet)
+    
+    // BROADCAST selezione temporanea in tempo reale
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'selezione',
+        payload: {
+          username: nomeRedattore,
+          articoli: Array.from(newSet)
+        }
+      })
+    }
   }
 
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ ...g, articoli: articoli.filter(a => a.giorno === g.id) }))
@@ -831,7 +884,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {articoliPerGiorno.map(giorno => (
-              <GiornoAccordion key={giorno.id} giorno={giorno} articoli={giorno.articoli} isExpanded={expandedDays.has(giorno.id)} articoliSelezionati={articoliSelezionati} nomeRedattore={nomeRedattore} onToggle={() => toggleGiorno(giorno.id)} onToggleArticolo={toggleArticolo} />
+              <GiornoAccordion key={giorno.id} giorno={giorno} articoli={giorno.articoli} isExpanded={expandedDays.has(giorno.id)} articoliSelezionati={articoliSelezionati} selezioniAltri={selezioniAltri} nomeRedattore={nomeRedattore} onToggle={() => toggleGiorno(giorno.id)} onToggleArticolo={toggleArticolo} />
             ))}
           </div>
         </div>
@@ -852,7 +905,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   )
 }
 
-function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, nomeRedattore, onToggle, onToggleArticolo }) {
+function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, selezioniAltri, nomeRedattore, onToggle, onToggleArticolo }) {
   const articoliPerCategoria = {}
   CATEGORIE.forEach(cat => {
     const arts = articoli.filter(a => a.categoria === cat.id)
@@ -875,7 +928,7 @@ function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, no
             <div key={catId} style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#666', marginBottom: '10px' }}>{categoria.nome}</div>
               {arts.map(articolo => (
-                <ArticoloCheckbox key={articolo.id} articolo={articolo} isSelected={articoliSelezionati.has(articolo.id)} nomeRedattore={nomeRedattore} onToggle={() => onToggleArticolo(articolo.id, articolo)} />
+                <ArticoloCheckbox key={articolo.id} articolo={articolo} isSelected={articoliSelezionati.has(articolo.id)} selezioniAltri={selezioniAltri} nomeRedattore={nomeRedattore} onToggle={() => onToggleArticolo(articolo.id, articolo)} />
               ))}
             </div>
           ))}
@@ -885,17 +938,26 @@ function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, no
   )
 }
 
-function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle }) {
+function ArticoloCheckbox({ articolo, isSelected, selezioniAltri, nomeRedattore, onToggle }) {
   const isLibero = articolo.stato === 'libero'
   const isMio = articolo.assegnato_a === nomeRedattore
   const canSelect = isLibero || isMio
+  
+  // Controlla se qualcun altro ha selezionato (ma non confermato) questo articolo
+  const altriSelezionati = Object.entries(selezioniAltri || {})
+    .filter(([username, articoliSet]) => articoliSet.has(articolo.id) && username !== nomeRedattore)
+    .map(([username]) => username)
   
   let statoText = '👤 libero', statoColor = '#666', bgColor = 'transparent', checkIcon = '☐', checkColor = '#ccc'
   
   if (isSelected) {
     statoText = '✓ TU'; statoColor = '#34C759'; bgColor = '#34C7591A'; checkIcon = '☑'; checkColor = '#34C759'
   } else if (articolo.assegnato_a && articolo.assegnato_a !== nomeRedattore) {
-    statoText = `⚠️ ${articolo.assegnato_a}`; statoColor = '#FF3B30'; bgColor = '#FFEBEE'; checkIcon = '☒'; checkColor = '#FF3B30'
+    // Confermato da un altro
+    statoText = `✅ ${articolo.assegnato_a}`; statoColor = '#FF3B30'; bgColor = '#FFEBEE'; checkIcon = '☒'; checkColor = '#FF3B30'
+  } else if (altriSelezionati.length > 0) {
+    // Selezionato (ma non confermato) da altri
+    statoText = `👁️ ${altriSelezionati[0]}`; statoColor = '#007AFF'; bgColor = '#007AFF1A'; checkIcon = '☐'; checkColor = '#007AFF'
   }
 
   return (
