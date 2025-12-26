@@ -604,11 +604,13 @@ body {
   .home-header {
     flex-direction: column;
     padding: 10px;
-    gap: 8px;
+    gap: 12px; /* AUMENTATO da 8px */
+    margin-top: 15px; /* SCESO */
   }
   .header-left, .header-right {
     width: 100%;
     justify-content: center;
+    gap: 10px; /* SPAZIO TRA BOTTONI */
   }
   .btn-header {
     flex: 1;
@@ -617,11 +619,11 @@ body {
     font-size: 12px;
     white-space: nowrap;
     min-height: 44px;
-    background: rgba(0, 0, 0, 0.75) !important; /* PIÙ SCURO */
+    background: rgba(0, 0, 0, 0.8) !important; /* PIÙ SCURO da 0.75 */
     font-weight: 700;
   }
   .btn-header:active {
-    background: rgba(0, 0, 0, 0.85) !important;
+    background: rgba(0, 0, 0, 0.9) !important; /* PIÙ SCURO da 0.85 */
   }
   .btn-header .icon {
     width: 14px;
@@ -657,6 +659,14 @@ body {
   .card-icon-wrapper {
     width: 50px !important;
     height: 50px !important;
+  }
+  /* LOGHI PNG/SVG PIÙ PICCOLI - solo mobile */
+  .card-icon-wrapper img,
+  .card-icon-wrapper svg {
+    max-width: 32px !important;
+    max-height: 32px !important;
+    width: 32px !important;
+    height: 32px !important;
   }
   .card-title {
     font-size: 12px !important;
