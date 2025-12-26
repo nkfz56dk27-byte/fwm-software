@@ -62,10 +62,49 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   const [showGestioneCampionati, setShowGestioneCampionati] = useState(false)
   const [showNotifiche, setShowNotifiche] = useState(false)
   const [eventoSelezionato, setEventoSelezionato] = useState(null)
+  const [selezioniTemporanee, setSelezioniTemporanee] = useState([])
 
   const isAdmin = utenteCorrente?.ruolo === 'admin'
 
   useEffect(() => { caricaDati() }, [])
+
+  // ===== REALTIME =====
+  useEffect(() => {
+    const channel = supabase.channel('calendario-realtime')
+
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'prenotazioni_accrediti' }, (payload) => {
+      console.log('🔄 Prenotazione:', payload)
+      caricaDati()
+    })
+
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'eventi_calendario' }, (payload) => {
+      console.log('🔄 Evento:', payload)
+      caricaDati()
+    })
+
+    channel.on('broadcast', { event: 'temp_booking' }, ({ payload }) => {
+      const { username, evento_id, stato, action } = payload
+      if (username === utenteCorrente.username) return
+
+      setSelezioniTemporanee(prev => {
+        if (action === 'select') {
+          return [...prev.filter(s => s.evento_id !== evento_id || s.username !== username), { username, evento_id, stato, timestamp: Date.now() }]
+        } else {
+          return prev.filter(s => !(s.evento_id === evento_id && s.username === username))
+        }
+      })
+
+      setTimeout(() => setSelezioniTemporanee(prev => prev.filter(s => !(s.evento_id === evento_id && s.username === username))), 30000)
+    })
+
+    channel.subscribe()
+    return () => channel.unsubscribe()
+  }, [utenteCorrente.username])
+
+  useEffect(() => {
+    const interval = setInterval(() => caricaDati(), 10000)
+    return () => clearInterval(interval)
+  }, [])
 
   async function caricaDati() {
     setLoading(true)
@@ -177,7 +216,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
       </div>
 
       <div style={{ flex: 1, padding: '20px 30px', overflow: 'hidden' }}>
-        <CalendarioMensile mese={meseCorrente} eventi={getEventiDelMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} />
+        <CalendarioMensile mese={meseCorrente} eventi={getEventiDelMese()} campionati={campionati} prenotazioni={prenotazioni} selezioniTemp={selezioniTemporanee} utenteCorrente={utenteCorrente} onEventoClick={e => setEventoSelezionato(e)} />
       </div>
 
       {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo) => { 
@@ -198,7 +237,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   )
 }
 
-function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoClick }) {
+function CalendarioMensile({ mese, eventi, campionati, prenotazioni, selezioniTemp = [], utenteCorrente, onEventoClick }) {
   const anno = mese.getFullYear(), meseNum = mese.getMonth()
   const primoGiorno = new Date(anno, meseNum, 1).getDay(), ultimoGiorno = new Date(anno, meseNum + 1, 0).getDate()
   const offset = primoGiorno === 0 ? 6 : primoGiorno - 1
@@ -213,7 +252,7 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
       return dataCorrenteStr >= dataInizio && dataCorrenteStr <= dataFine
     })
     const isOggi = new Date().toDateString() === dataCorrente.toDateString()
-    giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} isOggi={isOggi} onEventoClick={onEventoClick} />)
+    giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} selezioniTemp={selezioniTemp} utenteCorrente={utenteCorrente} isOggi={isOggi} onEventoClick={onEventoClick} />)
   }
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -225,7 +264,7 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
   )
 }
 
-function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick }) {
+function GiornoCell({ giorno, eventi, campionati, prenotazioni, selezioniTemp = [], utenteCorrente, isOggi, onEventoClick }) {
   return (
     <div style={{ background: 'white', borderRadius: '6px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: '4px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <div style={{ fontSize: '13px', fontWeight: 'bold', marginBottom: '3px', color: isOggi ? '#007AFF' : '#000' }}>{giorno}</div>
@@ -240,13 +279,31 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
           const numPrenotati = prenotazioniEvento.length
           const maxAccrediti = evento.max_accrediti || 0
           
+          const altriSelezionano = selezioniTemp.filter(s => s.evento_id === evento.id)
+          const hasTempSelection = altriSelezionano.length > 0
+          
           let badge = null
           if (evento.accredito_status === 'da_richiedere') badge = { icon: '🟡', text: 'DA RICHIEDERE', bg: '#FFD60A', color: '#000' }
           else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
           else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
           
           return (
-            <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ padding: '5px 7px', background: `${colore}40`, borderLeft: `4px solid ${colore}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ padding: '5px 7px', background: `${colore}40`, borderLeft: `4px solid ${colore}`, border: hasTempSelection ? '2px dashed #FF9500' : undefined, borderRadius: '4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '3px', position: 'relative' }}>
+              {hasTempSelection && (
+                <div style={{
+                  position: 'absolute',
+                  top: 2,
+                  right: 2,
+                  background: '#FF9500',
+                  color: 'white',
+                  padding: '2px 4px',
+                  borderRadius: '3px',
+                  fontSize: '8px',
+                  fontWeight: 'bold'
+                }}>
+                  👁️ {altriSelezionano.length}
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px' }}>
                 <span style={{ fontSize: '14px' }}>{emoji}</span>
                 <span style={{ fontWeight: 'bold', color: '#000', fontSize: '9px' }}>{sigla}</span>
@@ -449,7 +506,22 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     onClose()
   }
 
+  const broadcastPrenotazione = async (evento_id, stato, action) => {
+    try {
+      const channel = supabase.channel('calendario-realtime')
+      await channel.send({
+        type: 'broadcast',
+        event: 'temp_booking',
+        payload: { username: utenteCorrente.username, evento_id, stato, action }
+      })
+    } catch (e) {}
+  }
+
   async function togglePrenotazione() {
+    const action = prenotatoCorrente ? 'deselect' : 'select'
+    const stato = prenotatoCorrente ? null : 'da_richiedere'
+    await broadcastPrenotazione(evento.id, stato, action)
+    
     if (prenotatoCorrente) {
       await supabase.from('prenotazioni_accrediti').delete().eq('id', prenotatoCorrente.id)
       const utente = utenti.find(u => u.username === utenteCorrente.username)
