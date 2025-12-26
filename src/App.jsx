@@ -1907,7 +1907,6 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
               </svg>
             </div>
             <h3 className="card-title">PANNELLO VIDA</h3>
-            <p className="card-subtitle">Gestione articoli<br />e contenuti</p>
           </div>
 
           <div 
@@ -1921,7 +1920,6 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
               </svg>
             </div>
             <h3 className="card-title">PANNELLO FONTI</h3>
-            <p className="card-subtitle">Archivio fonti<br />e risorse</p>
           </div>
         </div>
       </div>
