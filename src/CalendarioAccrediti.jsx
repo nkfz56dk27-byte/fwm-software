@@ -155,7 +155,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
           <span style={{ marginLeft: '15px', color: '#666', whiteSpace: 'nowrap' }}>🟡 Da richiedere • 📨 Richiesto • ✅ Accettato</span>
         </div>
       </div>
-      <div style={{ flex: 1, padding: isMobile ? '10px' : '20px 30px', overflow: 'hidden' }}>
+      <div style={{ flex: 1, padding: isMobile ? '10px' : '20px 30px', overflow: 'auto' }}>
         <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
       </div>
       {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo) => { await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo}`); await inviaNotificaPush('📅 Nuovo evento', titolo); caricaDati(); }} utenteCorrente={utenteCorrente} isMobile={isMobile} />}
@@ -184,18 +184,18 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
   }
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', marginBottom: '8px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: isMobile ? '4px' : '8px', marginBottom: isMobile ? '4px' : '8px' }}>
         {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(g => <div key={g} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: isMobile ? '10px' : '12px', color: '#666' }}>{g}</div>)}
       </div>
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridTemplateRows: 'repeat(6, 1fr)', gap: '8px' }}>{giorni}</div>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: '1fr', gap: isMobile ? '4px' : '8px', minHeight: 0 }}>{giorni}</div>
     </div>
   )
 }
 
 function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick, isMobile }) {
   return (
-    <div style={{ background: 'white', borderRadius: '6px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: isMobile ? '6px' : '4px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: isMobile ? '80px' : 'auto' }}>
-      <div style={{ fontSize: isMobile ? '16px' : '13px', fontWeight: 'bold', marginBottom: '3px', color: isOggi ? '#007AFF' : '#000' }}>{giorno}</div>
+    <div style={{ background: 'white', borderRadius: '6px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: isMobile ? '8px 4px' : '6px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: isMobile ? '100px' : '80px' }}>
+      <div style={{ fontSize: isMobile ? '18px' : '14px', fontWeight: 'bold', marginBottom: '4px', color: isOggi ? '#007AFF' : '#000', flexShrink: 0 }}>{giorno}</div>
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }}>
         {eventi.map(evento => {
           const campionato = campionati.find(c => c.id === evento.campionato_id)
@@ -209,14 +209,14 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
           else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
           else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
           return (
-            <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ padding: isMobile ? '6px 8px' : '5px 7px', background: `${colore}40`, borderLeft: `4px solid ${colore}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: isMobile ? '12px' : '10px' }}>
+            <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ padding: isMobile ? '8px' : '6px 8px', background: `${colore}40`, borderLeft: `4px solid ${colore}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '3px', minHeight: isMobile ? '50px' : 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: isMobile ? '14px' : '11px' }}>
                 <span>{emoji}</span>
-                <strong style={{ fontSize: isMobile ? '11px' : '9px' }}>{sigla}</strong>
+                <strong style={{ fontSize: isMobile ? '12px' : '10px' }}>{sigla}</strong>
               </div>
-              <div style={{ fontSize: isMobile ? '11px' : '9px', fontWeight: '600', lineHeight: '1.2', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{evento.titolo}</div>
-              {badge && <div style={{ fontSize: isMobile ? '9px' : '7px', padding: isMobile ? '3px 5px' : '2px 4px', background: badge.bg, color: badge.color, borderRadius: '3px', fontWeight: 'bold', textAlign: 'center' }}>{badge.icon} {badge.text}</div>}
-              {maxAccrediti > 0 && <div style={{ fontSize: isMobile ? '9px' : '7px', color: numPrenotati >= maxAccrediti ? '#FF3B30' : '#666', fontWeight: '600' }}>🎫 {numPrenotati}/{maxAccrediti}</div>}
+              <div style={{ fontSize: isMobile ? '12px' : '10px', fontWeight: '600', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: isMobile ? 3 : 2, WebkitBoxOrient: 'vertical' }}>{evento.titolo}</div>
+              {badge && <div style={{ fontSize: isMobile ? '10px' : '8px', padding: isMobile ? '4px 6px' : '3px 5px', background: badge.bg, color: badge.color, borderRadius: '3px', fontWeight: 'bold', textAlign: 'center' }}>{badge.icon} {badge.text}</div>}
+              {maxAccrediti > 0 && <div style={{ fontSize: isMobile ? '10px' : '8px', color: numPrenotati >= maxAccrediti ? '#FF3B30' : '#666', fontWeight: '600' }}>🎫 {numPrenotati}/{maxAccrediti}</div>}
             </div>
           )
         })}
@@ -361,9 +361,6 @@ function GestioneCampionatiModal({ campionati, onClose, onUpdate, isMobile }) {
               <button onClick={() => setEdit({ nome: '', sigla: '', emoji: '🏎️', colore: '#000000' })} style={{ width: '100%', padding: isMobile ? '14px' : '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '15px' : '14px', minHeight: isMobile ? '48px' : 'auto' }}>+ Nuova Categoria</button>
             </>
           )}
-        </div>
-        <div style={{ padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0' }}>
-          <button onClick={onClose} style={{ width: '100%', padding: isMobile ? '14px' : '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '15px' : '14px', minHeight: isMobile ? '48px' : 'auto' }}>Chiudi</button>
         </div>
       </div>
     </div>
