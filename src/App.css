@@ -559,14 +559,18 @@ body {
   opacity: 0.9;
 }
 
-/* ===== MOBILE RESPONSIVE - TUTTE LE PAGINE ===== */
+/* ===== MOBILE RESPONSIVE (max-width: 768px) ===== */
 @media (max-width: 768px) {
-  /* Previeni scroll orizzontale */
+  /* Previeni scroll orizzontale globale */
   body, html {
-    overflow-x: hidden;
-    max-width: 100vw;
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
   }
   
+  * {
+    max-width: 100vw;
+  }
+
   /* ===== LOGIN MOBILE ===== */
   .login-container {
     padding: 15px;
@@ -576,7 +580,7 @@ body {
     max-width: 100%;
   }
   .login-title {
-    font-size: 26px;
+    font-size: 24px;
   }
   .f1-icon {
     font-size: 50px;
@@ -586,14 +590,6 @@ body {
   }
   .login-subtitle {
     font-size: 14px;
-  }
-  .form-input {
-    font-size: 16px;
-    padding: 12px;
-  }
-  .btn-login {
-    padding: 14px;
-    font-size: 16px;
   }
 
   /* ===== HOME MOBILE ===== */
@@ -609,88 +605,89 @@ body {
   .btn-header {
     flex: 1;
     justify-content: center;
-    padding: 10px 8px;
+    padding: 10px 6px;
     font-size: 11px;
-    min-height: 44px;
+    white-space: nowrap;
+    min-height: 40px;
+  }
+  .btn-header .icon {
+    width: 14px;
+    height: 14px;
   }
   
   .home-title {
-    padding: 10px;
-  }
-  .title-main {
-    font-size: 28px;
-  }
-  
-  /* Cards mobile - 2x3 grid */
-  .home-cards-wrapper {
-    padding: 10px;
-    gap: 10px;
-    overflow-x: hidden;
-  }
-  .home-cards-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    width: 100%;
-    max-width: 100%;
-  }
-  .home-card {
-    width: 100%;
-    height: 140px;
-    padding: 12px 8px;
-    gap: 8px;
-  }
-  .card-icon-wrapper {
-    width: 55px;
-    height: 55px;
-  }
-  .card-title {
-    font-size: 13px;
-  }
-  .card-subtitle {
-    font-size: 9px;
-  }
-  
-  .home-footer {
     padding: 8px;
   }
-  .version-text {
-    font-size: 10px;
+  .title-main {
+    font-size: 26px;
   }
-
+  
+  /* Cards mobile - 2 colonne */
+  .home-cards-wrapper {
+    padding: 8px;
+    gap: 8px;
+  }
+  .home-cards-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .home-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 135px !important;
+    padding: 10px 6px !important;
+    gap: 6px !important;
+  }
+  .card-icon-wrapper {
+    width: 50px !important;
+    height: 50px !important;
+  }
+  .card-title {
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+  }
+  .card-subtitle {
+    font-size: 9px !important;
+  }
+  
   /* ===== GESTIONE UTENTI MOBILE ===== */
   .gestione-header {
     flex-direction: column;
-    padding: 12px;
-    gap: 10px;
+    padding: 10px;
+    gap: 8px;
     align-items: stretch;
   }
   .btn-back {
     align-self: flex-start;
-    font-size: 16px;
-    min-height: 44px;
+    font-size: 15px;
+    padding: 8px 0;
+    min-height: 40px;
   }
   .gestione-title {
-    font-size: 20px;
+    font-size: 18px;
     text-align: center;
+    padding: 5px 0;
   }
   .btn-nuovo {
     width: 100%;
     justify-content: center;
-    padding: 12px;
-    font-size: 15px;
+    padding: 10px;
+    font-size: 13px;
     min-height: 44px;
+  }
+  .btn-nuovo .icon {
+    width: 16px;
+    height: 16px;
   }
   
   .gestione-content {
-    padding: 12px;
+    padding: 10px;
   }
   
-  .utenti-list {
-    gap: 10px;
-  }
-  
-  /* Utente row mobile - stack verticale */
+  /* Utente row - stack verticale completo */
   .utente-row {
     flex-direction: column;
     align-items: stretch;
@@ -701,65 +698,78 @@ body {
     width: 100%;
   }
   .utente-nome {
-    font-size: 15px;
+    font-size: 14px;
   }
   .utente-username {
-    font-size: 12px;
+    font-size: 11px;
   }
   .utente-ruolo {
     width: 100%;
-    font-size: 13px;
+    font-size: 12px;
   }
   .utente-password {
     width: 100%;
-    font-size: 12px;
+    font-size: 11px;
+  }
+  .status-icon {
+    width: 14px;
+    height: 14px;
   }
   
-  /* Actions mobile - grid 3 colonne */
+  /* Actions - grid 3 colonne */
   .utente-actions {
     width: 100%;
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 6px;
+    gap: 5px;
     margin-left: 0;
   }
   .btn-action {
     width: 100%;
     justify-content: center;
-    padding: 10px 6px;
-    font-size: 11px;
-    min-height: 44px;
+    padding: 8px 4px;
+    font-size: 10px;
+    min-height: 40px;
+    flex-direction: column;
+    gap: 2px;
   }
   .icon-small {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
   }
 
   /* ===== MODALI MOBILE ===== */
   .modal-card {
-    width: 100vw;
-    height: 100vh;
-    max-width: 100vw;
-    max-height: 100vh;
-    border-radius: 0;
-    margin: 0;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
   }
   .modal-header {
-    padding: 15px;
+    padding: 12px 15px;
   }
   .modal-header h2 {
-    font-size: 18px;
+    font-size: 17px;
+  }
+  .btn-close {
+    width: 36px;
+    height: 36px;
+    font-size: 22px;
   }
   .modal-form {
     padding: 15px;
     overflow-y: auto;
-    max-height: calc(100vh - 180px);
+    max-height: calc(100vh - 140px);
   }
+  
+  /* Form elements */
   .form-group {
     gap: 6px;
   }
   .form-label {
-    font-size: 13px;
+    font-size: 12px;
   }
   .form-input {
     padding: 12px;
@@ -778,12 +788,12 @@ body {
   .modal-actions {
     flex-direction: column;
     gap: 8px;
-    margin-top: 15px;
+    margin-top: 10px;
   }
   .modal-actions button {
     width: 100%;
     padding: 14px;
-    font-size: 16px;
+    font-size: 15px;
     min-height: 48px;
   }
   .btn-cancel, .btn-save {
@@ -793,7 +803,7 @@ body {
   }
 }
 
-/* ===== SCHERMI GRANDI (Desktop 1920px+) ===== */
+/* ===== DESKTOP LARGE (1920px+) ===== */
 @media (min-width: 1920px) {
   .home-card {
     width: 210px;
