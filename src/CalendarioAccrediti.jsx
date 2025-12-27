@@ -156,11 +156,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
         </div>
       </div>
       <div style={{ flex: 1, padding: isMobile ? '10px' : '20px 30px', overflow: 'auto' }}>
-        {isMobile ? (
-          <ListaEventiMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} />
-        ) : (
-          <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={false} />
-        )}
+        <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
       </div>
       {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo) => { await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo}`); await inviaNotificaPush('📅 Nuovo evento', titolo); caricaDati(); }} utenteCorrente={utenteCorrente} isMobile={isMobile} />}
       {showGestioneCampionati && <GestioneCampionatiModal campionati={campionati} onClose={() => setShowGestioneCampionati(false)} onUpdate={caricaDati} isMobile={isMobile} />}
@@ -346,77 +342,125 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
 }
 
 function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick, isMobile }) {
+  if (isMobile) {
+    // MOBILE: Vista ultra compatta - Numero + pallini eventi
+    return (
+      <div 
+        style={{ 
+          background: 'white', 
+          borderRadius: '6px', 
+          border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', 
+          padding: '6px 4px', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          minHeight: '70px',
+          position: 'relative'
+        }}
+      >
+        {/* Numero giorno */}
+        <div style={{ 
+          fontSize: '14px', 
+          fontWeight: 'bold', 
+          color: isOggi ? '#007AFF' : '#000', 
+          textAlign: 'center',
+          marginBottom: '4px'
+        }}>
+          {giorno}
+        </div>
+        
+        {/* Eventi come pallini/emoji */}
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '3px', 
+          alignItems: 'center',
+          flex: 1
+        }}>
+          {eventi.slice(0, 3).map(evento => {
+            const campionato = campionati.find(c => c.id === evento.campionato_id)
+            const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666')
+            const emoji = evento.tipo === 'gara' && campionato ? campionato.emoji : '📅'
+            
+            let badgeEmoji = ''
+            if (evento.accredito_status === 'da_richiedere') badgeEmoji = '🟡'
+            else if (evento.accredito_status === 'richiesto') badgeEmoji = '📨'
+            else if (evento.accredito_status === 'accettato') badgeEmoji = '✅'
+            
+            return (
+              <div
+                key={evento.id}
+                onClick={() => onEventoClick(evento)}
+                title={evento.titolo}
+                style={{
+                  width: '100%',
+                  padding: '4px 2px',
+                  background: `${colore}15`,
+                  borderLeft: `3px solid ${colore}`,
+                  borderRadius: '3px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '2px',
+                  minHeight: '24px'
+                }}
+              >
+                <span style={{ fontSize: '12px' }}>{emoji}</span>
+                {badgeEmoji && <span style={{ fontSize: '10px' }}>{badgeEmoji}</span>}
+              </div>
+            )
+          })}
+          
+          {/* Indicatore "altri eventi" */}
+          {eventi.length > 3 && (
+            <div style={{ 
+              fontSize: '9px', 
+              color: '#666', 
+              fontWeight: '600',
+              textAlign: 'center',
+              marginTop: '2px'
+            }}>
+              +{eventi.length - 3}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+  
+  // DESKTOP: Vista completa
   return (
-    <div style={{ background: 'white', borderRadius: '6px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: isMobile ? '4px 2px' : '6px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: isMobile ? '110px' : '80px' }}>
-      <div style={{ fontSize: isMobile ? '16px' : '14px', fontWeight: 'bold', marginBottom: '4px', color: isOggi ? '#007AFF' : '#000', flexShrink: 0, textAlign: 'center' }}>{giorno}</div>
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: isMobile ? '2px' : '3px' }}>
+    <div style={{ background: 'white', borderRadius: '6px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: '6px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: '80px' }}>
+      <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px', color: isOggi ? '#007AFF' : '#000', flexShrink: 0 }}>{giorno}</div>
+      <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }}>
         {eventi.map(evento => {
           const campionato = campionati.find(c => c.id === evento.campionato_id)
           const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666')
           const emoji = evento.tipo === 'gara' && campionato ? campionato.emoji : '📅'
-          const sigla = evento.tipo === 'gara' && campionato ? campionato.sigla : 'EVT'
+          const sigla = evento.tipo === 'gara' && campionato ? campionato.sigla : 'EVENTO'
           const prenotazioniEvento = prenotazioni.filter(p => p.evento_id === evento.id)
           const numPrenotati = prenotazioniEvento.length, maxAccrediti = evento.max_accrediti || 0
           let badge = null
-          if (evento.accredito_status === 'da_richiedere') badge = { icon: '🟡', bg: '#FFD60A' }
-          else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', bg: '#FF9500' }
-          else if (evento.accredito_status === 'accettato') badge = { icon: '✅', bg: '#34C759' }
+          if (evento.accredito_status === 'da_richiedere') badge = { icon: '🟡', text: 'DA RICHIEDERE', bg: '#FFD60A', color: '#000' }
+          else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
+          else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
           
           return (
-            <div 
-              key={evento.id} 
-              onClick={() => onEventoClick(evento)} 
-              title={evento.titolo}
-              style={{ 
-                padding: isMobile ? '4px 3px' : '6px 8px', 
-                background: `${colore}40`, 
-                borderLeft: `3px solid ${colore}`, 
-                borderRadius: '3px', 
-                cursor: 'pointer', 
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: '2px',
-                minHeight: isMobile ? 'auto' : 'auto'
-              }}
-            >
-              {/* MOBILE: Solo emoji + sigla + badge */}
-              {isMobile ? (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '11px' }}>
-                      <span style={{ fontSize: '12px' }}>{emoji}</span>
-                      <strong style={{ fontSize: '9px', whiteSpace: 'nowrap' }}>{sigla}</strong>
-                    </div>
-                    {badge && <span style={{ fontSize: '11px' }}>{badge.icon}</span>}
-                  </div>
-                  {maxAccrediti > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1px' }}>
-                      {Array.from({ length: Math.min(maxAccrediti, 3) }, (_, i) => (
-                        <span key={i} style={{ fontSize: '9px', filter: i < numPrenotati ? 'none' : 'grayscale(1)', opacity: i < numPrenotati ? 1 : 0.3 }}>👤</span>
-                      ))}
-                      {maxAccrediti > 3 && <span style={{ fontSize: '7px', color: '#666', fontWeight: '600' }}>+{maxAccrediti - 3}</span>}
-                    </div>
-                  )}
-                </>
-              ) : (
-                /* DESKTOP: Layout completo con titolo */
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
-                    <span>{emoji}</span>
-                    <strong style={{ fontSize: '10px' }}>{sigla}</strong>
-                  </div>
-                  <div style={{ fontSize: '10px', fontWeight: '600', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{evento.titolo}</div>
-                  {badge && <div style={{ fontSize: '8px', padding: '3px 5px', background: badge.bg, color: '#000', borderRadius: '3px', fontWeight: 'bold', textAlign: 'center', whiteSpace: 'nowrap' }}>{badge.icon}</div>}
-                  {maxAccrediti > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
-                      {Array.from({ length: Math.min(maxAccrediti, 5) }, (_, i) => (
-                        <span key={i} style={{ fontSize: '12px', filter: i < numPrenotati ? 'none' : 'grayscale(1)', opacity: i < numPrenotati ? 1 : 0.3 }}>👤</span>
-                      ))}
-                      {maxAccrediti > 5 && <span style={{ fontSize: '8px', color: '#666', fontWeight: '600' }}>+{maxAccrediti - 5}</span>}
-                      <span style={{ fontSize: '8px', color: numPrenotati >= maxAccrediti ? '#FF3B30' : '#666', fontWeight: '600', marginLeft: '2px' }}>{numPrenotati}/{maxAccrediti}</span>
-                    </div>
-                  )}
-                </>
+            <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ padding: '6px 8px', background: `${colore}40`, borderLeft: `4px solid ${colore}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}>
+                <span>{emoji}</span>
+                <strong style={{ fontSize: '10px' }}>{sigla}</strong>
+              </div>
+              <div style={{ fontSize: '10px', fontWeight: '600', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{evento.titolo}</div>
+              {badge && <div style={{ fontSize: '8px', padding: '3px 5px', background: badge.bg, color: badge.color, borderRadius: '3px', fontWeight: 'bold', textAlign: 'center', whiteSpace: 'nowrap' }}>{badge.icon} {badge.text}</div>}
+              {maxAccrediti > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                  {Array.from({ length: Math.min(maxAccrediti, 5) }, (_, i) => (
+                    <span key={i} style={{ fontSize: '12px', filter: i < numPrenotati ? 'none' : 'grayscale(1)', opacity: i < numPrenotati ? 1 : 0.3 }}>👤</span>
+                  ))}
+                  {maxAccrediti > 5 && <span style={{ fontSize: '8px', color: '#666', fontWeight: '600' }}>+{maxAccrediti - 5}</span>}
+                  <span style={{ fontSize: '8px', color: numPrenotati >= maxAccrediti ? '#FF3B30' : '#666', fontWeight: '600', marginLeft: '2px' }}>{numPrenotati}/{maxAccrediti}</span>
+                </div>
               )}
             </div>
           )
