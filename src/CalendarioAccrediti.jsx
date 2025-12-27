@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
+import { inviaNotificaPush } from './utils/notifiche'
 
 const CAMPIONATI_DEFAULT = [
   { id: 'f1', nome: 'Formula 1', colore: '#E10600', emoji: '🏎️', sigla: 'F1' },
@@ -21,19 +22,6 @@ const EMOJI_DISPONIBILI = [
 
 const MESI_ITALIANO = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 
-async function inviaNotificaPush(titolo, corpo) {
-  try {
-    const { data: tokens } = await supabase.from('fcm_tokens').select('token')
-    if (!tokens || tokens.length === 0) {
-      console.log('Nessun token FCM trovato')
-      return
-    }
-    console.log('📤 Invio notifica push:', { titolo, corpo, numTokens: tokens.length })
-  } catch (error) {
-    console.error('Errore invio notifica push:', error)
-  }
-}
-
 export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotificheChange }) {
   const [campionati, setCampionati] = useState([])
   const [eventi, setEventi] = useState([])
@@ -47,18 +35,18 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   const [showNotifiche, setShowNotifiche] = useState(false)
   const [eventoSelezionato, setEventoSelezionato] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
-
+  
   const isAdmin = utenteCorrente?.ruolo === 'admin'
   const isMobile = windowWidth <= 768
-
+  
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-
+  
   useEffect(() => { caricaDati() }, [])
-
+  
   async function caricaDati() {
     setLoading(true)
     let { data: campionatiDB } = await supabase.from('campionati').select('*').eq('attivo', true).order('nome')
@@ -80,7 +68,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     await caricaNotifiche()
     setLoading(false)
   }
-
+  
   async function caricaNotifiche() {
     const { data: tutteNotifiche } = await supabase.from('notifiche_calendario').select('*').order('created_at', { ascending: false }).limit(50)
     const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', utenteCorrente.username)
@@ -89,17 +77,18 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     setNotifiche(notificheConStato)
     if (onNotificheChange) onNotificheChange()
   }
-
+  
   async function creaNotifica(tipo, messaggio, evento_id = null) {
     await supabase.from('notifiche_calendario').insert({ tipo, messaggio, evento_id })
+    await inviaNotificaPush(messaggio)
     await caricaNotifiche()
   }
-
+  
   async function segnaComeLetta(notificaId) {
     await supabase.from('notifiche_lette').insert({ username: utenteCorrente.username, notifica_id: notificaId })
     await caricaNotifiche()
   }
-
+  
   async function segnaTutteComeLette() {
     const nonLette = notifiche.filter(n => !n.letta)
     for (const n of nonLette) {
@@ -107,13 +96,11 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     }
     await caricaNotifiche()
   }
-
+  
   async function cancellaTutte() {
     try {
-      // Marca tutte come lette per nasconderle dalla vista
       const tutteNotifiche = notifiche
       for (const n of tutteNotifiche) {
-        // Inserisci (ignora errori se già esiste)
         await supabase
           .from('notifiche_lette')
           .upsert({ 
@@ -130,11 +117,11 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
       console.error('Errore cancella tutte:', err)
     }
   }
-
+  
   function cambiaMese(offset) {
     setMeseCorrente(new Date(meseCorrente.getFullYear(), meseCorrente.getMonth() + offset))
   }
-
+  
   function formatData(dataStr) {
     if (!dataStr) return ''
     const [anno, mese, giorno] = dataStr.split('-')
@@ -142,7 +129,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
                   'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
     return `${parseInt(giorno)} ${mesi[parseInt(mese) - 1]}`
   }
-
+  
   function getEventiMese() {
     const anno = meseCorrente.getFullYear(), mese = meseCorrente.getMonth()
     const primoGiorno = new Date(anno, mese, 1).toISOString().split('T')[0]
@@ -152,11 +139,11 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
       return (inizio <= ultimoGiorno && fine >= primoGiorno)
     })
   }
-
+  
   const notificheNonLette = notifiche.filter(n => !n.letta).length
-
+  
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: '18px', color: '#666' }}>Caricamento...</div>
-
+  
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? '10px' : '15px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0' }}>
@@ -174,11 +161,13 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
           <button onClick={() => setShowNuovoEvento(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Nuovo</button>
         </div>
       </div>
+      
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '10px' : '12px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
         <button onClick={() => cambiaMese(-1)} style={{ padding: isMobile ? '10px 16px' : '6px 14px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '16px' : '13px', minHeight: isMobile ? '44px' : 'auto' }}>←</button>
         <div style={{ fontSize: isMobile ? '15px' : '18px', fontWeight: 'bold' }}>{MESI_ITALIANO[meseCorrente.getMonth()]} {meseCorrente.getFullYear()}</div>
         <button onClick={() => cambiaMese(1)} style={{ padding: isMobile ? '10px 16px' : '6px 14px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '16px' : '13px', minHeight: isMobile ? '44px' : 'auto' }}>→</button>
       </div>
+      
       <div style={{ padding: isMobile ? '8px 10px' : '10px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
         <div style={{ display: 'flex', flexWrap: isMobile ? 'nowrap' : 'wrap', gap: '12px', fontSize: isMobile ? '10px' : '11px', minWidth: isMobile ? 'max-content' : 'auto' }}>
           {campionati.map(c => <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', background: c.colore, flexShrink: 0 }}></div><span>{c.emoji} {c.nome}</span></div>)}
@@ -186,6 +175,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
           <span style={{ marginLeft: '15px', color: '#666', whiteSpace: 'nowrap' }}>🟡 Da richiedere • 📨 Richiesto • ✅ Accettato</span>
         </div>
       </div>
+      
       <div style={{ flex: 1, padding: isMobile ? '10px' : '20px 30px', overflow: 'auto' }}>
         {isMobile ? (
           <ListaGiorniMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} />
@@ -193,20 +183,22 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
           <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
         )}
       </div>
+      
       {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo, eventoId, dataInizio) => { 
         const dataFormattata = formatData(dataInizio)
         await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo} il ${dataFormattata}`, eventoId); 
-        await inviaNotificaPush('📅 Nuovo evento', titolo); 
         caricaDati(); 
       }} utenteCorrente={utenteCorrente} isMobile={isMobile} />}
+      
       {showGestioneCampionati && <GestioneCampionatiModal campionati={campionati} onClose={() => setShowGestioneCampionati(false)} onUpdate={caricaDati} isMobile={isMobile} />}
+      
       {showNotifiche && <NotificheModal notifiche={notifiche} onClose={() => setShowNotifiche(false)} onSegnaLetta={segnaComeLetta} onSegnaTutteLette={segnaTutteComeLette} onCancellaTutte={cancellaTutte} isMobile={isMobile} />}
+      
       {eventoSelezionato && <DettaglioEventoModal evento={eventoSelezionato} campionati={campionati} prenotazioni={prenotazioni} utenti={utenti} isAdmin={isAdmin} utenteCorrente={utenteCorrente} onClose={() => setEventoSelezionato(null)} onUpdate={async (notificaMsg) => { 
         if (notificaMsg) { 
           const dataFormattata = formatData(eventoSelezionato.data_inizio)
           const messaggioConData = `${notificaMsg} il ${dataFormattata}`
           await creaNotifica('modifica', messaggioConData, eventoSelezionato.id); 
-          await inviaNotificaPush('🎫 Aggiornamento', notificaMsg); 
         } 
         caricaDati(); 
       }} isMobile={isMobile} />}
@@ -215,18 +207,15 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
 }
 
 function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoClick }) {
-  // Crea array di TUTTI i giorni del mese
   const anno = mese.getFullYear()
   const meseNum = mese.getMonth()
   const ultimoGiorno = new Date(anno, meseNum + 1, 0).getDate()
   
-  // Raggruppa eventi per data
   const eventiPerData = {}
   eventi.forEach(evento => {
     const dataInizio = evento.data_inizio
     const dataFine = evento.data_fine || evento.data_inizio
     
-    // Aggiungi evento a tutti i giorni che copre
     for (let g = 1; g <= ultimoGiorno; g++) {
       const dataGiorno = `${anno}-${String(meseNum + 1).padStart(2, '0')}-${String(g).padStart(2, '0')}`
       if (dataGiorno >= dataInizio && dataGiorno <= dataFine) {
@@ -238,7 +227,6 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
     }
   })
   
-  // Crea array di TUTTI i giorni (anche senza eventi)
   const tuttiIGiorni = []
   for (let giorno = 1; giorno <= ultimoGiorno; giorno++) {
     const dataStr = `${anno}-${String(meseNum + 1).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
@@ -260,7 +248,6 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {tuttiIGiorni.map(({ data, giorno, nomeGiorno, isOggi, eventi: eventiGiorno }) => (
         <div key={data} style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-          {/* Header data */}
           <div style={{ 
             padding: '12px 15px', 
             background: isOggi ? '#007AFF' : (eventiGiorno.length > 0 ? '#f5f5f7' : '#fafafa'),
@@ -277,7 +264,6 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
             {!isOggi && eventiGiorno.length === 0 && <div style={{ fontSize: '12px', color: '#999' }}>Nessun evento</div>}
           </div>
           
-          {/* Eventi */}
           {eventiGiorno.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', background: '#f0f0f0' }}>
               {eventiGiorno.map(evento => {
@@ -309,7 +295,6 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
                       gap: '8px'
                     }}
                   >
-                    {/* Header evento */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '20px' }}>{emoji}</span>
@@ -320,7 +305,6 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
                       </div>
                     </div>
                     
-                    {/* Footer con badge e prenotazioni */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
                       {badge && (
                         <div style={{ 
@@ -381,7 +365,9 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
   const primoGiorno = new Date(anno, meseNum, 1).getDay(), ultimoGiorno = new Date(anno, meseNum + 1, 0).getDate()
   const offset = primoGiorno === 0 ? 6 : primoGiorno - 1
   const giorni = []
+  
   for (let i = 0; i < offset; i++) giorni.push(<div key={`empty-${i}`} style={{ background: '#f9f9f9', borderRadius: '6px' }}></div>)
+  
   for (let giorno = 1; giorno <= ultimoGiorno; giorno++) {
     const dataCorrente = new Date(anno, meseNum, giorno)
     const dataCorrenteStr = `${anno}-${String(meseNum + 1).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
@@ -392,6 +378,7 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
     const isOggi = new Date().toDateString() === dataCorrente.toDateString()
     giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} isOggi={isOggi} onEventoClick={onEventoClick} isMobile={isMobile} />)
   }
+  
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: isMobile ? '4px' : '8px', marginBottom: isMobile ? '4px' : '8px' }}>
@@ -404,7 +391,6 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
 
 function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick, isMobile }) {
   if (isMobile) {
-    // MOBILE: Vista ultra compatta - Numero + pallini eventi
     return (
       <div 
         style={{ 
@@ -418,7 +404,6 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
           position: 'relative'
         }}
       >
-        {/* Numero giorno */}
         <div style={{ 
           fontSize: '14px', 
           fontWeight: 'bold', 
@@ -429,7 +414,6 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
           {giorno}
         </div>
         
-        {/* Eventi come pallini/emoji */}
         <div style={{ 
           display: 'flex', 
           flexDirection: 'column', 
@@ -472,7 +456,6 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
             )
           })}
           
-          {/* Indicatore "altri eventi" */}
           {eventi.length > 3 && (
             <div style={{ 
               fontSize: '9px', 
@@ -489,7 +472,6 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
     )
   }
   
-  // DESKTOP: Vista completa
   return (
     <div style={{ background: 'white', borderRadius: '6px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: '6px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: '80px' }}>
       <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '4px', color: isOggi ? '#007AFF' : '#000', flexShrink: 0 }}>{giorno}</div>
@@ -542,6 +524,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
   const [note, setNote] = useState('')
   const [colorePersonalizzato, setColorePersonalizzato] = useState('#666')
   const [salvando, setSalvando] = useState(false)
+  
   async function salva() {
     if (!titolo || !dataInizio) return alert('Compila titolo e data inizio')
     setSalvando(true)
@@ -551,6 +534,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
     setSalvando(false)
     onClose()
   }
+  
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
       <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '550px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
@@ -608,6 +592,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
 function GestioneCampionatiModal({ campionati, onClose, onUpdate, isMobile }) {
   const [lista, setLista] = useState(campionati)
   const [edit, setEdit] = useState(null)
+  
   async function salva() {
     if (edit.id) {
       await supabase.from('campionati').update({ nome: edit.nome, colore: edit.colore, emoji: edit.emoji, sigla: edit.sigla }).eq('id', edit.id)
@@ -617,11 +602,13 @@ function GestioneCampionatiModal({ campionati, onClose, onUpdate, isMobile }) {
     await onUpdate()
     setEdit(null)
   }
+  
   async function elimina(id) {
     if (!confirm('Eliminare questo campionato?')) return
     await supabase.from('campionati').update({ attivo: false }).eq('id', id)
     await onUpdate()
   }
+  
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
       <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '600px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
@@ -677,12 +664,14 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
   const [modalita, setModalita] = useState('visualizza')
   const [edit, setEdit] = useState(evento)
   const [salvando, setSalvando] = useState(false)
+  
   const campionato = campionati.find(c => c.id === evento.campionato_id)
   const prenotazioniEvento = prenotazioni.filter(p => p.evento_id === evento.id)
   const numPrenotati = prenotazioniEvento.length
   const maxAccrediti = evento.max_accrediti || 0
   const postiDisponibili = maxAccrediti - numPrenotati
   const prenotatoCorrente = prenotazioniEvento.find(p => p.username === utenteCorrente.username)
+  
   async function togglePrenotazione() {
     const nomeUtente = `${utenteCorrente.username}`
     if (prenotatoCorrente) {
@@ -693,12 +682,14 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
       await onUpdate(`${nomeUtente} si è prenotato per ${evento.titolo}`)
     }
   }
+  
   async function elimina() {
     if (!confirm('Eliminare questo evento?')) return
     await supabase.from('eventi_calendario').delete().eq('id', evento.id)
     await onUpdate(null)
     onClose()
   }
+  
   async function salva() {
     setSalvando(true)
     await supabase.from('eventi_calendario').update({ titolo: edit.titolo, data_inizio: edit.data_inizio, data_fine: edit.data_fine || null, max_accrediti: edit.max_accrediti || 0, accredito_status: edit.accredito_status, note: edit.note }).eq('id', edit.id)
@@ -706,6 +697,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     setSalvando(false)
     setModalita('visualizza')
   }
+  
   if (modalita === 'modifica') {
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
@@ -749,11 +741,14 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
       </div>
     )
   }
+  
   let badge = null
   if (evento.accredito_status === 'da_richiedere') badge = { icon: '🟡', text: 'DOVREMMO RICHIEDERLO', bg: '#FFD60A', color: '#000' }
   else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
   else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
+  
   const slots = Array.from({ length: maxAccrediti }, (_, i) => prenotazioniEvento[i] || null)
+  
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
       <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '550px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
@@ -814,12 +809,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
       <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '600px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-         
-          
-          {/* Titolo centrato */}
           <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>🔔 Notifiche</div>
-          
-          {/* X grigia chiudi a DX */}
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666', minWidth: '44px', minHeight: '44px' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '20px 30px' }}>
