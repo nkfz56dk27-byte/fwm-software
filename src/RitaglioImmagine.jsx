@@ -323,13 +323,13 @@ export default function RitaglioImmagine({ onClose }) {
 
               <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center', gap: isMobile ? '8px' : '15px', marginTop: isMobile ? '15px' : '25px' }}>
                 <button onClick={resetPosition} style={{ padding: buttonPadding, background: '#f0f0f0', color: '#333', border: 'none', borderRadius: '10px', fontSize: buttonFontSize, fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
-                  🔄 Reset Posizione
+                  Reset Posizione
                 </button>
                 <button onClick={() => { setSelectedImage(null); fileInputRef.current?.click(); }} style={{ padding: buttonPadding, background: '#FF9500', color: 'white', border: 'none', borderRadius: '10px', fontSize: buttonFontSize, fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
-                  🖼 Cambia Immagine
+                  Cambia Immagine
                 </button>
                 <button onClick={handleSave} disabled={isSaving} style={{ padding: buttonPadding, background: isSaving ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: buttonFontSize, fontWeight: '600', cursor: isSaving ? 'not-allowed' : 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
-                  {isSaving ? '⏳ Salvataggio...' : '💾 Salva'}
+                  {isSaving ? '⏳ Salvataggio...' : 'Salva'}
                 </button>
               </div>
             </div>
