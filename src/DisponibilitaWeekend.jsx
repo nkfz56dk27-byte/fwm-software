@@ -387,20 +387,16 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       // Marca tutte come lette per nasconderle dalla vista
       const tutteNotifiche = notifiche
       for (const n of tutteNotifiche) {
-        // Inserisci solo se non è già letta
-        const { data: exists } = await supabase
+        // Inserisci (ignora errori se già esiste)
+        await supabase
           .from('notifiche_disponibilita_lette')
-          .select('id')
-          .eq('username', utenteCorrente.username)
-          .eq('notifica_id', n.id)
-          .single()
-        
-        if (!exists) {
-          await supabase.from('notifiche_disponibilita_lette').insert({ 
+          .upsert({ 
             username: utenteCorrente.username, 
             notifica_id: n.id 
+          }, { 
+            onConflict: 'username,notifica_id',
+            ignoreDuplicates: true 
           })
-        }
       }
       await caricaNotifiche()
       setShowNotifiche(false)
@@ -2037,7 +2033,32 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
           padding: '20px 30px', 
           borderBottom: '1px solid #e0e0e0' 
         }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>🔔 Notifiche</div>
+          {/* X rossa Cancella tutto a SX */}
+          <button 
+            onClick={onCancellaTutte} 
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              fontSize: '20px', 
+              cursor: 'pointer', 
+              color: '#FF3B30',
+              fontWeight: 'bold',
+              padding: '4px',
+              minWidth: '44px',
+              minHeight: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Cancella tutte"
+          >
+            ✕
+          </button>
+          
+          {/* Titolo centrato */}
+          <div style={{ fontSize: '20px', fontWeight: 'bold', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>🔔 Notifiche</div>
+          
+          {/* X grigia chiudi a DX */}
           <button 
             onClick={onClose} 
             style={{ 
@@ -2045,7 +2066,9 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
               border: 'none', 
               fontSize: '24px', 
               cursor: 'pointer', 
-              color: '#666' 
+              color: '#666',
+              minWidth: '44px',
+              minHeight: '44px'
             }}
           >
             ✕
@@ -2090,45 +2113,14 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
           padding: '20px 30px', 
           borderTop: '1px solid #e0e0e0', 
           display: 'flex', 
-          gap: '10px',
-          flexWrap: 'wrap'
+          justifyContent: 'center'
         }}>
           <button 
             onClick={onSegnaTutteLette} 
             style={{ 
-              flex: 1, 
-              minWidth: '180px',
+              width: '100%',
+              maxWidth: '300px',
               padding: '12px', 
-              background: '#34C759', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
-              cursor: 'pointer', 
-              fontWeight: 'bold' 
-            }}
-          >
-            Segna tutte lette
-          </button>
-          <button 
-            onClick={onCancellaTutte} 
-            style={{ 
-              flex: 1, 
-              minWidth: '180px',
-              padding: '12px', 
-              background: '#FF3B30', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
-              cursor: 'pointer', 
-              fontWeight: 'bold' 
-            }}
-          >
-            Cancella tutto
-          </button>
-          <button 
-            onClick={onClose} 
-            style={{ 
-              padding: '12px 30px', 
               background: '#007AFF', 
               color: 'white', 
               border: 'none', 
@@ -2137,7 +2129,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
               fontWeight: 'bold' 
             }}
           >
-            Chiudi
+            Segna tutte come lette
           </button>
         </div>
       </div>
