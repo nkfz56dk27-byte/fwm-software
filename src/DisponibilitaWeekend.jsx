@@ -1078,7 +1078,6 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
       </div>
     </div>
   )
-}
 
 function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, nomeRedattore, onToggle, onToggleArticolo }) {
   const articoliPerCategoria = {}
