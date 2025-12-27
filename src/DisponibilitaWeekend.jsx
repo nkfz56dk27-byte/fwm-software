@@ -974,6 +974,7 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
   const [showModifica, setShowModifica] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [showGrassetto, setShowGrassetto] = useState(false)
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000 }}>
@@ -993,10 +994,13 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
             {showMenu && (
               <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: '220px' }}>
                 <button onClick={() => { setShowExport(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', fontWeight: '500' }}>
-                  Esporta JPEG
+                  📸 Esporta JPEG
+                </button>
+                <button onClick={() => { setShowGrassetto(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #eee', fontWeight: '500' }}>
+                  🔤 Aggiorna Grassetto
                 </button>
                 <button onClick={() => { setShowModifica(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #eee', fontWeight: '500' }}>
-                  Modifica Tabella
+                  ✏️ Modifica Tabella
                 </button>
               </div>
             )}
@@ -1026,6 +1030,7 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
         {/* MODALS */}
         {showModifica && <ModificaTabellaModal weekend={weekend} articoli={articoli} onClose={() => { setShowModifica(false); onRefresh() }} />}
         {showExport && <ExportJPEGModal weekend={weekend} articoli={articoli} onClose={() => setShowExport(false)} />}
+        {showGrassetto && <AggiornaGrassettoModal weekend={weekend} articoli={articoli} onClose={() => { setShowGrassetto(false); onRefresh() }} />}
       </div>
     </div>
   )
@@ -1531,6 +1536,148 @@ function RichTextEditor({ text, rangeGrassetto, onChange, onRangesChange }) {
 
 
 // ===== MIGLIORAMENTO 6: EXPORT JPEG VERO CON DIMENSIONI DINAMICHE =====
+
+// ===== AGGIORNA GRASSETTO DA TEMPLATE =====
+
+function AggiornaGrassettoModal({ weekend, articoli, onClose }) {
+  const [templates, setTemplates] = useState([])
+  const [templateSelezionato, setTemplateSelezionato] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [aggiornando, setAggiornando] = useState(false)
+
+  useEffect(() => {
+    caricaTemplates()
+  }, [])
+
+  async function caricaTemplates() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('template_articoli')
+      .select('*')
+      .order('nome')
+    setTemplates(data || [])
+    setLoading(false)
+  }
+
+  async function aggiornaGrassetto() {
+    if (!templateSelezionato) {
+      alert('Seleziona un template')
+      return
+    }
+
+    if (!confirm('Vuoi aggiornare il grassetto di tutti gli articoli usando questo template?\n\nGli articoli verranno matchati per titolo.')) {
+      return
+    }
+
+    setAggiornando(true)
+
+    const template = templates.find(t => t.id === parseInt(templateSelezionato))
+    if (!template || !template.articoli) {
+      alert('Template non valido')
+      setAggiornando(false)
+      return
+    }
+
+    let aggiornati = 0
+
+    // Per ogni articolo del weekend
+    for (const articolo of articoli) {
+      // Trova articolo corrispondente nel template (match per titolo)
+      const articoloTemplate = template.articoli.find(a => a.titolo === articolo.titolo)
+      
+      if (articoloTemplate && articoloTemplate.range_grassetto) {
+        // Aggiorna il range_grassetto
+        const { error } = await supabase
+          .from('articoli')
+          .update({ range_grassetto: articoloTemplate.range_grassetto })
+          .eq('id', articolo.id)
+        
+        if (!error) aggiornati++
+      }
+    }
+
+    setAggiornando(false)
+    alert(`✅ Aggiornati ${aggiornati} articoli su ${articoli.length}`)
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30000 }}>
+      <div style={{ background: 'white', borderRadius: '15px', width: '600px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>🔤 Aggiorna Grassetto</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
+        </div>
+
+        <div style={{ padding: '30px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Caricamento template...</div>
+          ) : (
+            <>
+              <div style={{ marginBottom: '20px', padding: '15px', background: '#007AFF1A', borderRadius: '10px' }}>
+                <div style={{ fontSize: '14px', color: '#007AFF', fontWeight: '600' }}>ℹ️ Come funziona</div>
+                <div style={{ fontSize: '13px', color: '#666', marginTop: '8px' }}>
+                  Gli articoli verranno matchati per titolo. Se un articolo del weekend ha lo stesso titolo di un articolo nel template, il grassetto verrà copiato dal template.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '25px' }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Seleziona Template</div>
+                <select
+                  value={templateSelezionato || ''}
+                  onChange={e => setTemplateSelezionato(e.target.value)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px', 
+                    borderRadius: '8px', 
+                    border: '1px solid #ddd', 
+                    fontSize: '16px',
+                    background: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">-- Scegli template --</option>
+                  {templates.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.nome} ({t.articoli?.length || 0} articoli)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {templateSelezionato && (
+                <div style={{ padding: '15px', background: '#34C7591A', borderRadius: '10px', fontSize: '14px', color: '#34C759', fontWeight: '600' }}>
+                  ✓ Pronto per aggiornare {articoli.length} articoli
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
+          <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
+          <button 
+            onClick={aggiornaGrassetto} 
+            disabled={!templateSelezionato || aggiornando || loading} 
+            style={{ 
+              padding: '10px 20px', 
+              background: (!templateSelezionato || aggiornando || loading) ? '#ccc' : '#34C759', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '10px', 
+              cursor: (!templateSelezionato || aggiornando || loading) ? 'not-allowed' : 'pointer', 
+              fontWeight: 'bold' 
+            }}
+          >
+            {aggiornando ? 'Aggiornamento...' : '✓ Aggiorna Grassetto'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== EXPORT JPEG MODAL =====
 
 function ExportJPEGModal({ weekend, articoli, onClose }) {
   const [generando, setGenerando] = useState(false)
