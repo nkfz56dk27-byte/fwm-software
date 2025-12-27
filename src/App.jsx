@@ -49,12 +49,56 @@ function App() {
 
   async function caricaNotificheDisponibilita(username) {
     try {
-      const { data: notifiche } = await supabase.from('notifiche_disponibilita').select('id')
-      const { data: lette } = await supabase.from('notifiche_disponibilita_lette').select('notifica_id').eq('username', username)
+      const isAdmin = user?.ruolo === 'admin'
+      
+      // 1. Carica tutte le notifiche
+      const { data: tutteNotifiche } = await supabase
+        .from('notifiche_disponibilita')
+        .select('id, weekend_id')
+      
+      let notificheFiltrate = tutteNotifiche || []
+      
+      // 2. Se NON admin: filtra per categorie
+      if (!isAdmin) {
+        // Carica categorie utente
+        const { data: gruppiUtente } = await supabase
+          .from('gruppi_redattori')
+          .select('categoria_id')
+          .eq('username', username)
+        
+        const categorieIds = (gruppiUtente || []).map(g => g.categoria_id).filter(Boolean)
+        
+        // Carica weekend di quelle categorie
+        let queryWeekend = supabase.from('weekend').select('id')
+        
+        if (categorieIds.length > 0) {
+          queryWeekend = queryWeekend.or(`categoria_id.in.(${categorieIds.join(',')}),categoria_id.is.null`)
+        } else {
+          queryWeekend = queryWeekend.is('categoria_id', null)
+        }
+        
+        const { data: weekendConsentiti } = await queryWeekend
+        const weekendIdsConsentiti = new Set((weekendConsentiti || []).map(w => w.id))
+        
+        // Filtra notifiche
+        notificheFiltrate = notificheFiltrate.filter(n => 
+          !n.weekend_id || weekendIdsConsentiti.has(n.weekend_id)
+        )
+      }
+      
+      // 3. Conta notifiche NON lette
+      const { data: lette } = await supabase
+        .from('notifiche_disponibilita_lette')
+        .select('notifica_id')
+        .eq('username', username)
+      
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
-      const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id))
+      const nonLette = notificheFiltrate.filter(n => !idsLette.has(n.id))
+      
       setNotificheNonLetteDisponibilita(nonLette.length)
-    } catch (e) {}
+    } catch (e) {
+      console.error('[HOME] Errore caricamento notifiche disponibilità:', e)
+    }
   }
 
   useEffect(() => {
