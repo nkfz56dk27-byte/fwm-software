@@ -1211,16 +1211,17 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
         <div style={{ 
           display: 'flex', 
           flexDirection: 'column',
-          padding: isMobile ? '12px 15px' : '20px 30px', 
+          padding: isMobile ? '15px' : '20px 30px', 
           borderBottom: '1px solid #e0e0e0',
-          gap: isMobile ? '12px' : '0',
+          gap: isMobile ? '15px' : '0',
           background: 'white'
         }}>
           {/* Prima riga: Indietro + Menu */}
           <div style={{ 
             display: 'flex', 
             justifyContent: 'space-between', 
-            alignItems: 'center'
+            alignItems: 'center',
+            paddingBottom: isMobile ? '8px' : '0'
           }}>
             <button 
               onClick={onClose} 
@@ -1228,7 +1229,7 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
                 background: 'none', 
                 border: 'none', 
                 color: '#007AFF', 
-                fontSize: isMobile ? '15px' : '18px', 
+                fontSize: isMobile ? '16px' : '18px', 
                 fontWeight: 'bold', 
                 cursor: 'pointer', 
                 minHeight: isMobile ? '44px' : 'auto',
@@ -1245,13 +1246,13 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
               <button 
                 onClick={() => setShowMenu(!showMenu)} 
                 style={{ 
-                  padding: isMobile ? '10px 16px' : '8px 16px', 
+                  padding: isMobile ? '10px 18px' : '8px 16px', 
                   background: '#007AFF', 
                   color: 'white', 
                   border: 'none', 
                   borderRadius: '10px', 
                   cursor: 'pointer', 
-                  fontSize: isMobile ? '14px' : '14px', 
+                  fontSize: isMobile ? '15px' : '14px', 
                   fontWeight: '600',
                   minHeight: isMobile ? '44px' : 'auto',
                   whiteSpace: 'nowrap'
@@ -1274,8 +1275,8 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
           
           {/* Seconda riga: Titolo GP (centrato) */}
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
-            <div style={{ fontSize: isMobile ? '12px' : '13px', color: '#666' }}>{weekend.data}</div>
+            <div style={{ fontSize: isMobile ? '20px' : '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
+            <div style={{ fontSize: isMobile ? '13px' : '13px', color: '#666' }}>{weekend.data}</div>
           </div>
         </div>
 
