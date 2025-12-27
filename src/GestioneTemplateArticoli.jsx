@@ -183,10 +183,6 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
   const [showAggiungi, setShowAggiungi] = useState(false)
   const [editIndex, setEditIndex] = useState(null)
   const [salvando, setSalvando] = useState(false)
-  const [showNuovaCategoria, setShowNuovaCategoria] = useState(false)
-  const [nuovoNomeCategoria, setNuovoNomeCategoria] = useState('')
-  const [nuovoColoreCategoria, setNuovoColoreCategoria] = useState('#FF1801')
-  const [categorieLocali, setCategorieLocali] = useState(categorie)
 
   function rimuoviArticolo(index) {
     setArticoli(articoli.filter((_, i) => i !== index))
@@ -197,44 +193,30 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
     setShowAggiungi(true)
   }
 
-  function handleCategoriaChange(value) {
-    if (value === 'nuova_categoria') {
-      setShowNuovaCategoria(true)
-      setCategoriaId(null)
-    } else {
-      setShowNuovaCategoria(false)
-      setCategoriaId(value || null)
+  async function copiaTemplate() {
+    if (!confirm('Vuoi creare una copia di questo template?')) return
+    
+    setSalvando(true)
+    
+    const data = {
+      nome: nome + ' (copia)',
+      categoria_id: categoriaId,
+      articoli: articoli
     }
-  }
-
-  async function creaNuovaCategoria() {
-    if (!nuovoNomeCategoria.trim()) {
-      alert('Inserisci il nome della categoria')
-      return
-    }
-
-    const { data, error } = await supabase
-      .from('categorie_weekend')
-      .insert({
-        nome: nuovoNomeCategoria.trim(),
-        colore: nuovoColoreCategoria
-      })
-      .select()
-      .single()
-
+    
+    const { error } = await supabase
+      .from('template_articoli')
+      .insert(data)
+    
+    setSalvando(false)
+    
     if (error) {
-      console.error('Errore creazione categoria:', error)
-      alert('Errore nella creazione della categoria')
-      return
+      console.error('Errore copia:', error)
+      alert('Errore nella copia del template')
+    } else {
+      alert('✅ Template copiato con successo!')
+      onSave()
     }
-
-    // Aggiorna lista locale
-    const nuoveCategorie = [...categorieLocali, data]
-    setCategorieLocali(nuoveCategorie)
-    setCategoriaId(data.id)
-    setShowNuovaCategoria(false)
-    setNuovoNomeCategoria('')
-    setNuovoColoreCategoria('#FF1801')
   }
 
   async function salva() {
@@ -301,67 +283,15 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
             <div>
               <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Categoria</div>
               <select
-                value={showNuovaCategoria ? 'nuova_categoria' : (categoriaId || '')}
-                onChange={e => handleCategoriaChange(e.target.value)}
+                value={categoriaId || ''}
+                onChange={e => setCategoriaId(e.target.value || null)}
                 style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px', background: 'white', cursor: 'pointer' }}
               >
                 <option value="">Nessuna categoria (generico)</option>
-                {categorieLocali.map(cat => (
+                {categorie.map(cat => (
                   <option key={cat.id} value={cat.id}>{cat.nome}</option>
                 ))}
-                <option value="nuova_categoria">+ Nuova Categoria</option>
               </select>
-
-              {/* Form nuova categoria */}
-              {showNuovaCategoria && (
-                <div style={{ marginTop: '15px', padding: '15px', background: '#f8f8f8', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '12px' }}>Crea Nuova Categoria</div>
-                  
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '5px' }}>Nome</div>
-                    <input
-                      type="text"
-                      placeholder="es: Formula E"
-                      value={nuovoNomeCategoria}
-                      onChange={e => setNuovoNomeCategoria(e.target.value)}
-                      style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '14px' }}
-                    />
-                  </div>
-
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '5px' }}>Colore</div>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <input
-                        type="color"
-                        value={nuovoColoreCategoria}
-                        onChange={e => setNuovoColoreCategoria(e.target.value)}
-                        style={{ width: '60px', height: '40px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                      />
-                      <input
-                        type="text"
-                        value={nuovoColoreCategoria}
-                        onChange={e => setNuovoColoreCategoria(e.target.value)}
-                        style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '14px' }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button 
-                      onClick={() => { setShowNuovaCategoria(false); setNuovoNomeCategoria(''); setNuovoColoreCategoria('#FF1801') }} 
-                      style={{ flex: 1, padding: '8px', background: '#f0f0f0', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      Annulla
-                    </button>
-                    <button 
-                      onClick={creaNuovaCategoria} 
-                      style={{ flex: 1, padding: '8px', background: '#34C759', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                    >
-                      Crea
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
             <div style={{ height: '1px', background: '#e0e0e0' }}></div>
@@ -398,11 +328,20 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
           </div>
         </div>
 
-        <div style={{ padding: '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-          <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
-          <button onClick={salva} disabled={salvando} style={{ padding: '10px 20px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', opacity: salvando ? 0.5 : 1 }}>
-            {salvando ? 'Salvataggio...' : template ? 'Salva Modifiche' : 'Crea Template'}
-          </button>
+        <div style={{ padding: '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+          <div>
+            {template && (
+              <button onClick={copiaTemplate} disabled={salvando} style={{ padding: '10px 20px', background: '#AF52DE', color: 'white', border: 'none', borderRadius: '10px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: salvando ? 0.5 : 1 }}>
+                📋 Copia Template
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
+            <button onClick={salva} disabled={salvando} style={{ padding: '10px 20px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', opacity: salvando ? 0.5 : 1 }}>
+              {salvando ? 'Salvataggio...' : template ? 'Salva Modifiche' : 'Crea Template'}
+            </button>
+          </div>
         </div>
       </div>
 
