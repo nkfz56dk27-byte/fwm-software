@@ -69,12 +69,12 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     setCampionati(campionatiDB)
     const { data: eventiDB } = await supabase.from('eventi_calendario').select('*').order('data_inizio')
     setEventi(eventiDB || [])
-    const { data: utentiDB } = await supabase.from('utenti').select('username, nome_completo')
+    const { data: utentiDB } = await supabase.from('utenti').select('username, nome, cognome')
     setUtenti(utentiDB || [])
     const { data: prenotazioniDB } = await supabase.from('prenotazioni_accrediti').select('*')
     const prenotazioniConNomi = (prenotazioniDB || []).map(p => {
       const utente = (utentiDB || []).find(u => u.username === p.username)
-      return { ...p, nome_completo: utente ? utente.nome_completo : p.username }
+      return { ...p, nome_completo: utente ? `${utente.nome} ${utente.cognome}` : p.username }
     })
     setPrenotazioni(prenotazioniConNomi)
     await caricaNotifiche()
@@ -90,21 +90,8 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     if (onNotificheChange) onNotificheChange()
   }
 
-  async function creaNotifica(tipo, messaggio, evento_id = null, created_by = null) {
-    const { data: notifica } = await supabase
-      .from('notifiche_calendario')
-      .insert({ tipo, messaggio, evento_id })
-      .select()
-      .single()
-    
-    // Marca subito come letta per chi ha creato la notifica (così non la vede)
-    if (created_by && notifica) {
-      await supabase
-        .from('notifiche_lette')
-        .insert({ username: created_by, notifica_id: notifica.id })
-        .catch(() => {}) // Ignora errori (es. duplicati)
-    }
-    
+  async function creaNotifica(tipo, messaggio, evento_id = null) {
+    await supabase.from('notifiche_calendario').insert({ tipo, messaggio, evento_id })
     await caricaNotifiche()
   }
 
@@ -208,7 +195,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
       </div>
       {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo, eventoId, dataInizio) => { 
         const dataFormattata = formatData(dataInizio)
-        await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo} il ${dataFormattata}`, eventoId, utenteCorrente.username); 
+        await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo} il ${dataFormattata}`, eventoId); 
         await inviaNotificaPush('📅 Nuovo evento', titolo); 
         caricaDati(); 
       }} utenteCorrente={utenteCorrente} isMobile={isMobile} />}
@@ -218,7 +205,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
         if (notificaMsg) { 
           const dataFormattata = formatData(eventoSelezionato.data_inizio)
           const messaggioConData = `${notificaMsg} il ${dataFormattata}`
-          await creaNotifica('modifica', messaggioConData, eventoSelezionato.id, utenteCorrente.username); 
+          await creaNotifica('modifica', messaggioConData, eventoSelezionato.id); 
           await inviaNotificaPush('🎫 Aggiornamento', notificaMsg); 
         } 
         caricaDati(); 
@@ -827,7 +814,12 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
       <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '600px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
+         
+          
+          {/* Titolo centrato */}
           <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>🔔 Notifiche</div>
+          
+          {/* X grigia chiudi a DX */}
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666', minWidth: '44px', minHeight: '44px' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '20px 30px' }}>
