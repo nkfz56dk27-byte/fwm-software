@@ -250,7 +250,40 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     try {
       console.log('[NOTIFICHE] Caricamento notifiche...')
       console.log('[NOTIFICHE] Username:', utenteCorrente.username)
+      console.log('[NOTIFICHE] Admin:', isAdmin)
       
+      // Se NON admin: filtra per categorie utente
+      let weekendIdsConsentiti = null
+      
+      if (!isAdmin) {
+        // 1. Carica categorie utente
+        const { data: gruppiUtente } = await supabase
+          .from('gruppi_redattori')
+          .select('categoria_id')
+          .eq('username', utenteCorrente.username)
+        
+        const categorieIds = (gruppiUtente || []).map(g => g.categoria_id).filter(Boolean)
+        console.log('[NOTIFICHE] Categorie utente:', categorieIds)
+        
+        // 2. Carica weekend di quelle categorie
+        let queryWeekend = supabase
+          .from('weekend')
+          .select('id')
+        
+        if (categorieIds.length > 0) {
+          // Weekend delle sue categorie + weekend senza categoria
+          queryWeekend = queryWeekend.or(`categoria_id.in.(${categorieIds.join(',')}),categoria_id.is.null`)
+        } else {
+          // Solo weekend senza categoria
+          queryWeekend = queryWeekend.is('categoria_id', null)
+        }
+        
+        const { data: weekendConsentiti } = await queryWeekend
+        weekendIdsConsentiti = new Set((weekendConsentiti || []).map(w => w.id))
+        console.log('[NOTIFICHE] Weekend consentiti:', weekendIdsConsentiti.size)
+      }
+      
+      // 3. Carica notifiche
       const { data: tutteNotifiche, error: errNotifiche } = await supabase
         .from('notifiche_disponibilita')
         .select('*')
@@ -264,9 +297,22 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         return
       }
       
-      console.log('[NOTIFICHE] Notifiche caricate:', tutteNotifiche?.length || 0)
-      console.log('[NOTIFICHE] Prime 3 notifiche:', tutteNotifiche?.slice(0, 3))
+      console.log('[NOTIFICHE] Notifiche totali:', tutteNotifiche?.length || 0)
       
+      // 4. Filtra notifiche per categorie (se non admin)
+      let notificheFiltrate = tutteNotifiche || []
+      
+      if (!isAdmin && weekendIdsConsentiti) {
+        notificheFiltrate = notificheFiltrate.filter(n => {
+          // Mostra se: weekend consentito O nessun weekend (notifica generale)
+          return !n.weekend_id || weekendIdsConsentiti.has(n.weekend_id)
+        })
+        console.log('[NOTIFICHE] Notifiche filtrate per categoria:', notificheFiltrate.length)
+      }
+      
+      console.log('[NOTIFICHE] Prime 3 notifiche:', notificheFiltrate?.slice(0, 3))
+      
+      // 5. Carica notifiche lette
       const { data: lette, error: errLette } = await supabase
         .from('notifiche_disponibilita_lette')
         .select('notifica_id')
@@ -277,12 +323,12 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       }
       
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
-      const notificheConStato = (tutteNotifiche || []).map(n => ({ 
+      const notificheConStato = notificheFiltrate.map(n => ({ 
         ...n, 
         letta: idsLette.has(n.id) 
       }))
       
-      console.log('[NOTIFICHE] Notifiche con stato:', notificheConStato.length)
+      console.log('[NOTIFICHE] Notifiche finali:', notificheConStato.length)
       console.log('[NOTIFICHE] Notifiche NON lette:', notificheConStato.filter(n => !n.letta).length)
       setNotifiche(notificheConStato)
       
