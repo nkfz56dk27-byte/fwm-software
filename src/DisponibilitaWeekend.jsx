@@ -854,8 +854,8 @@ function RedattoreWeekendView({ weekend, nomeRedattore, utenteCorrente, isAdmin,
             </div>
           </div>
         </div>
-        {showTabella && <TabellaWeekendView weekend={weekend} articoli={articoli} onClose={() => setShowTabella(false)} />}
-        {showAdminView && <AdminWeekendView weekend={weekend} articoli={articoli} onClose={() => setShowAdminView(false)} onRefresh={caricaArticoli} />}
+        {showTabella && <TabellaWeekendView weekend={weekend} articoli={articoli} onClose={() => setShowTabella(false)} isMobile={isMobile} />}
+        {showAdminView && <AdminWeekendView weekend={weekend} articoli={articoli} onClose={() => setShowAdminView(false)} onRefresh={caricaArticoli} isMobile={isMobile} />}
       </div>
     </div>
   )
@@ -994,7 +994,7 @@ function TabellaWeekendView({ weekend, articoli, onClose }) {
 
 // ===== ADMIN WEEKEND VIEW =====
 
-function AdminWeekendView({ weekend, articoli, onClose, onRefresh }) {
+function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
   const [selectedTab, setSelectedTab] = useState('riepilogo')
   const [showModifica, setShowModifica] = useState(false)
   const [showExport, setShowExport] = useState(false)
