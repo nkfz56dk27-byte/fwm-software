@@ -1,6 +1,38 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
+import GiornoAccordion from './GiornoAccordion';
+import { GIORNI_WEEKEND } from './constants';
+
+const DisponibilitaWeekend = ({
+  articoli,
+  nomeRedattore,
+  weekend,
+  isAdmin,
+  channelRef,
+  onClose,
+  toggleGiorno,
+  toggleArticolo,
+  salvaArticoli,
+  setShowTabella,
+  setShowAdminView,
+  expandedDays,
+  articoliSelezionati,
+  salvando
+}) => {
+  const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({
+    ...g,
+    articoli: articoli.filter(a => a.giorno === g.id)
+  }));
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+      <div style={{ background: '#f5f5f7', borderRadius: '15px', width: '900px', height: '700px', display: 'flex', flexDirection: 'column' }}>
+        {/* Inserisci qui tutto il tuo JSX interno */}
+      </div>
+    </div>
+  );
+};
 
 // ===== MAPPING UTENTE → REDATTORE =====
 const UTENTE_TO_REDATTORE = {
