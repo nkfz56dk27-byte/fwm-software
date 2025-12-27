@@ -156,7 +156,11 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
         </div>
       </div>
       <div style={{ flex: 1, padding: isMobile ? '10px' : '20px 30px', overflow: 'auto' }}>
-        <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
+        {isMobile ? (
+          <ListaGiorniMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} />
+        ) : (
+          <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
+        )}
       </div>
       {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo) => { await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo}`); await inviaNotificaPush('📅 Nuovo evento', titolo); caricaDati(); }} utenteCorrente={utenteCorrente} isMobile={isMobile} />}
       {showGestioneCampionati && <GestioneCampionatiModal campionati={campionati} onClose={() => setShowGestioneCampionati(false)} onUpdate={caricaDati} isMobile={isMobile} />}
@@ -166,58 +170,71 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   )
 }
 
-function ListaEventiMobile({ mese, eventi, campionati, prenotazioni, onEventoClick }) {
+function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoClick }) {
+  // Crea array di TUTTI i giorni del mese
+  const anno = mese.getFullYear()
+  const meseNum = mese.getMonth()
+  const ultimoGiorno = new Date(anno, meseNum + 1, 0).getDate()
+  
   // Raggruppa eventi per data
   const eventiPerData = {}
-  
   eventi.forEach(evento => {
     const dataInizio = evento.data_inizio
-    if (!eventiPerData[dataInizio]) {
-      eventiPerData[dataInizio] = []
+    const dataFine = evento.data_fine || evento.data_inizio
+    
+    // Aggiungi evento a tutti i giorni che copre
+    for (let g = 1; g <= ultimoGiorno; g++) {
+      const dataGiorno = `${anno}-${String(meseNum + 1).padStart(2, '0')}-${String(g).padStart(2, '0')}`
+      if (dataGiorno >= dataInizio && dataGiorno <= dataFine) {
+        if (!eventiPerData[dataGiorno]) {
+          eventiPerData[dataGiorno] = []
+        }
+        eventiPerData[dataGiorno].push(evento)
+      }
     }
-    eventiPerData[dataInizio].push(evento)
   })
   
-  // Ordina date
-  const dateOrdinate = Object.keys(eventiPerData).sort()
-  
-  if (dateOrdinate.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', padding: '60px 20px', color: '#999' }}>
-        <div style={{ fontSize: '48px', marginBottom: '20px' }}>📅</div>
-        <div style={{ fontSize: '16px' }}>Nessun evento in questo mese</div>
-      </div>
-    )
+  // Crea array di TUTTI i giorni (anche senza eventi)
+  const tuttiIGiorni = []
+  for (let giorno = 1; giorno <= ultimoGiorno; giorno++) {
+    const dataStr = `${anno}-${String(meseNum + 1).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
+    const dataObj = new Date(anno, meseNum, giorno)
+    const nomeGiorno = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'][dataObj.getDay()]
+    const isOggi = new Date().toDateString() === dataObj.toDateString()
+    const eventiGiorno = eventiPerData[dataStr] || []
+    
+    tuttiIGiorni.push({
+      data: dataStr,
+      giorno,
+      nomeGiorno,
+      isOggi,
+      eventi: eventiGiorno
+    })
   }
   
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {dateOrdinate.map(data => {
-        const eventiGiorno = eventiPerData[data]
-        const [anno, meseNum, giorno] = data.split('-')
-        const dataObj = new Date(anno, meseNum - 1, giorno)
-        const nomeGiorno = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'][dataObj.getDay()]
-        const isOggi = new Date().toDateString() === dataObj.toDateString()
-        
-        return (
-          <div key={data} style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-            {/* Header data */}
-            <div style={{ 
-              padding: '12px 15px', 
-              background: isOggi ? '#007AFF' : '#f5f5f7',
-              borderBottom: '1px solid #e0e0e0',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <div>
-                <div style={{ fontSize: '14px', fontWeight: '600', color: isOggi ? 'white' : '#666' }}>{nomeGiorno}</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold', color: isOggi ? 'white' : '#000' }}>{giorno}</div>
-              </div>
-              {isOggi && <div style={{ fontSize: '12px', fontWeight: '600', color: 'white', background: 'rgba(255,255,255,0.3)', padding: '4px 10px', borderRadius: '20px' }}>OGGI</div>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {tuttiIGiorni.map(({ data, giorno, nomeGiorno, isOggi, eventi: eventiGiorno }) => (
+        <div key={data} style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+          {/* Header data */}
+          <div style={{ 
+            padding: '12px 15px', 
+            background: isOggi ? '#007AFF' : (eventiGiorno.length > 0 ? '#f5f5f7' : '#fafafa'),
+            borderBottom: eventiGiorno.length > 0 ? '1px solid #e0e0e0' : 'none',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: isOggi ? 'white' : '#666' }}>{nomeGiorno}</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: isOggi ? 'white' : '#000' }}>{giorno}</div>
             </div>
-            
-            {/* Eventi */}
+            {isOggi && <div style={{ fontSize: '12px', fontWeight: '600', color: 'white', background: 'rgba(255,255,255,0.3)', padding: '4px 10px', borderRadius: '20px' }}>OGGI</div>}
+            {!isOggi && eventiGiorno.length === 0 && <div style={{ fontSize: '12px', color: '#999' }}>Nessun evento</div>}
+          </div>
+          
+          {/* Eventi */}
+          {eventiGiorno.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', background: '#f0f0f0' }}>
               {eventiGiorno.map(evento => {
                 const campionato = campionati.find(c => c.id === evento.campionato_id)
@@ -308,9 +325,9 @@ function ListaEventiMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
                 )
               })}
             </div>
-          </div>
-        )
-      })}
+          )}
+        </div>
+      ))}
     </div>
   )
 }
