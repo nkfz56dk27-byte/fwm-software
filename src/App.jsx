@@ -323,17 +323,17 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
             ← Indietro
           </button>
           <h1 style={{ fontSize: isMobile ? '22px' : '34px', fontWeight: 'bold', margin: 0, flex: 1, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0 }}>{classifica.nome}</h1>
-          <div style={{ display: 'flex', gap: '10px', alignSelf: isMobile ? 'flex-end' : 'auto' }}>
+          <div style={{ display: 'flex', gap: '10px', alignSelf: isMobile ? 'flex-end' : 'auto', alignItems: 'center' }}>
             {isAdmin && (
-              <button onClick={() => setShowImpostazioni(true)} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
+              <button onClick={() => setShowImpostazioni(true)} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg viewBox="0 0 24 24" fill="#000" style={{ width: isMobile ? '28px' : '30px', height: isMobile ? '28px' : '30px' }}>
                   <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
                 </svg>
               </button>
             )}
             <div style={{ position: 'relative' }}>
-              <button onClick={(e) => { const menu = e.currentTarget.nextSibling; menu.style.display = menu.style.display === 'block' ? 'none' : 'block' }} style={{ width: isMobile ? '44px' : '50px', height: isMobile ? '44px' : '50px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
-                <svg viewBox="0 0 24 24" fill="#34C759" style={{ width: isMobile ? '38px' : '40px', height: isMobile ? '38px' : '40px' }}>
+              <button onClick={(e) => { const menu = e.currentTarget.nextSibling; menu.style.display = menu.style.display === 'block' ? 'none' : 'block' }} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg viewBox="0 0 24 24" fill="#34C759" style={{ width: isMobile ? '38px' : '38px', height: isMobile ? '38px' : '38px' }}>
                   <circle cx="12" cy="12" r="10" fill="#34C759"/>
                   <path d="M12 7v10M7 12h10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
@@ -356,7 +356,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                 )}
               </div>
             </div>
-            <button onClick={() => setShowGrafico(true)} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
+            <button onClick={() => setShowGrafico(true)} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <svg viewBox="0 0 24 24" fill="#000" style={{ width: isMobile ? '28px' : '30px', height: isMobile ? '28px' : '30px' }}>
                 <path d="M3 3v18h18M7 14l4-4 4 4 6-6"/>
               </svg>
