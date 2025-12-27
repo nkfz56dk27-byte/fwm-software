@@ -1914,7 +1914,7 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
         <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
           <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
           <button onClick={generaJPEG} disabled={generando} style={{ padding: '10px 20px', background: generando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: generando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
-            {generando ? 'Generazione...' : '💾 Genera e Salva JPEG'}
+            {generando ? 'Generazione...' : 'Salva JPEG'}
           </button>
         </div>
       </div>
