@@ -91,7 +91,27 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   }
 
   async function creaNotifica(tipo, messaggio, evento_id = null) {
-    await supabase.from('notifiche_calendario').insert({ tipo, messaggio, evento_id })
+    let messaggioFinale = messaggio
+    
+    // Se c'è un evento_id, aggiungi la data al messaggio
+    if (evento_id) {
+      const { data: evento } = await supabase
+        .from('eventi_calendario')
+        .select('data_inizio')
+        .eq('id', evento_id)
+        .single()
+      
+      if (evento && evento.data_inizio) {
+        // Formatta data in italiano (es: "27 dicembre")
+        const [anno, mese, giorno] = evento.data_inizio.split('-')
+        const mesi = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 
+                      'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
+        const dataFormattata = `${parseInt(giorno)} ${mesi[parseInt(mese) - 1]}`
+        messaggioFinale = `${messaggio} (${dataFormattata})`
+      }
+    }
+    
+    await supabase.from('notifiche_calendario').insert({ tipo, messaggio: messaggioFinale, evento_id })
     await caricaNotifiche()
   }
 
@@ -106,6 +126,33 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
       await supabase.from('notifiche_lette').insert({ username: utenteCorrente.username, notifica_id: n.id })
     }
     await caricaNotifiche()
+  }
+
+  async function cancellaTutte() {
+    try {
+      // Marca tutte come lette per nasconderle dalla vista
+      const tutteNotifiche = notifiche
+      for (const n of tutteNotifiche) {
+        // Inserisci solo se non è già letta
+        const { data: exists } = await supabase
+          .from('notifiche_lette')
+          .select('id')
+          .eq('username', utenteCorrente.username)
+          .eq('notifica_id', n.id)
+          .single()
+        
+        if (!exists) {
+          await supabase.from('notifiche_lette').insert({ 
+            username: utenteCorrente.username, 
+            notifica_id: n.id 
+          })
+        }
+      }
+      await caricaNotifiche()
+      setShowNotifiche(false)
+    } catch (err) {
+      console.error('Errore cancella tutte:', err)
+    }
   }
 
   function cambiaMese(offset) {
@@ -162,9 +209,9 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
           <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
         )}
       </div>
-      {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo) => { await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo}`); await inviaNotificaPush('📅 Nuovo evento', titolo); caricaDati(); }} utenteCorrente={utenteCorrente} isMobile={isMobile} />}
+      {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo, eventoId, dataInizio) => { await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo}`, eventoId); await inviaNotificaPush('📅 Nuovo evento', titolo); caricaDati(); }} utenteCorrente={utenteCorrente} isMobile={isMobile} />}
       {showGestioneCampionati && <GestioneCampionatiModal campionati={campionati} onClose={() => setShowGestioneCampionati(false)} onUpdate={caricaDati} isMobile={isMobile} />}
-      {showNotifiche && <NotificheModal notifiche={notifiche} onClose={() => setShowNotifiche(false)} onSegnaLetta={segnaComeLetta} onSegnaTutteLette={segnaTutteComeLette} isMobile={isMobile} />}
+      {showNotifiche && <NotificheModal notifiche={notifiche} onClose={() => setShowNotifiche(false)} onSegnaLetta={segnaComeLetta} onSegnaTutteLette={segnaTutteComeLette} onCancellaTutte={cancellaTutte} isMobile={isMobile} />}
       {eventoSelezionato && <DettaglioEventoModal evento={eventoSelezionato} campionati={campionati} prenotazioni={prenotazioni} utenti={utenti} isAdmin={isAdmin} utenteCorrente={utenteCorrente} onClose={() => setEventoSelezionato(null)} onUpdate={async (notificaMsg) => { if (notificaMsg) { await creaNotifica('modifica', notificaMsg, eventoSelezionato.id); await inviaNotificaPush('🎫 Aggiornamento', notificaMsg); } caricaDati(); }} isMobile={isMobile} />}
     </div>
   )
@@ -502,8 +549,8 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
     if (!titolo || !dataInizio) return alert('Compila titolo e data inizio')
     setSalvando(true)
     const nuovoEvento = { tipo, campionato_id: tipo === 'gara' ? campionatoId : null, titolo, data_inizio: dataInizio, data_fine: dataFine || null, max_accrediti: maxAccrediti, accredito_status: accreditoStatus, note, colore_personalizzato: tipo === 'evento' ? colorePersonalizzato : null, creato_da: utenteCorrente.username }
-    await supabase.from('eventi_calendario').insert(nuovoEvento)
-    await onSave(titolo)
+    const { data: eventoCreato } = await supabase.from('eventi_calendario').insert(nuovoEvento).select().single()
+    await onSave(titolo, eventoCreato?.id, dataInizio)
     setSalvando(false)
     onClose()
   }
@@ -765,7 +812,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
   )
 }
 
-function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, isMobile }) {
+function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, onCancellaTutte, isMobile }) {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
       <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '600px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
@@ -785,8 +832,9 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, i
             ))
           )}
         </div>
-        <div style={{ padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px' }}>
-          <button onClick={onSegnaTutteLette} style={{ flex: 1, padding: isMobile ? '14px' : '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Segna tutte come lette</button>
+        <div style={{ padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', flexWrap: 'wrap' }}>
+          <button onClick={onSegnaTutteLette} style={{ flex: 1, minWidth: isMobile ? '100%' : '150px', padding: isMobile ? '14px' : '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Segna tutte lette</button>
+          <button onClick={onCancellaTutte} style={{ flex: 1, minWidth: isMobile ? '100%' : '150px', padding: isMobile ? '14px' : '12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Cancella tutto</button>
           <button onClick={onClose} style={{ padding: isMobile ? '14px 30px' : '12px 30px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Chiudi</button>
         </div>
       </div>
