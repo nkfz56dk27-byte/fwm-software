@@ -1944,7 +1944,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
           >
  <div className="card-icon-wrapper">
               <img
-                src={vidaPNG}
+                src={VidaPNG}
                 alt="vida"
                 style={{ width: "58px", height: "60px", filter: "brightness(0) invert(1)" }}
               />
