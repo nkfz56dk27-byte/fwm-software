@@ -249,18 +249,32 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   async function caricaNotifiche() {
     try {
       console.log('[NOTIFICHE] Caricamento notifiche...')
+      console.log('[NOTIFICHE] Username:', utenteCorrente.username)
+      
       const { data: tutteNotifiche, error: errNotifiche } = await supabase
         .from('notifiche_disponibilita')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
       
-      console.log('[NOTIFICHE] Notifiche caricate:', tutteNotifiche?.length || 0, errNotifiche)
+      if (errNotifiche) {
+        console.error('[NOTIFICHE] ERRORE caricamento notifiche:', errNotifiche)
+        console.error('[NOTIFICHE] Messaggio errore:', errNotifiche.message)
+        console.error('[NOTIFICHE] Dettagli:', errNotifiche.details)
+        return
+      }
       
-      const { data: lette } = await supabase
+      console.log('[NOTIFICHE] Notifiche caricate:', tutteNotifiche?.length || 0)
+      console.log('[NOTIFICHE] Prime 3 notifiche:', tutteNotifiche?.slice(0, 3))
+      
+      const { data: lette, error: errLette } = await supabase
         .from('notifiche_disponibilita_lette')
         .select('notifica_id')
         .eq('username', utenteCorrente.username)
+      
+      if (errLette) {
+        console.error('[NOTIFICHE] ERRORE caricamento lette:', errLette)
+      }
       
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
       const notificheConStato = (tutteNotifiche || []).map(n => ({ 
@@ -269,13 +283,15 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       }))
       
       console.log('[NOTIFICHE] Notifiche con stato:', notificheConStato.length)
+      console.log('[NOTIFICHE] Notifiche NON lette:', notificheConStato.filter(n => !n.letta).length)
       setNotifiche(notificheConStato)
       
       if (onNotificheChange) {
         onNotificheChange()
       }
     } catch (err) {
-      console.error('[NOTIFICHE] Errore caricamento notifiche:', err)
+      console.error('[NOTIFICHE] Errore CATCH:', err)
+      console.error('[NOTIFICHE] Stack:', err.stack)
     }
   }
 
@@ -828,20 +844,29 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   }, [weekend.id, nomeRedattore])
 
   async function caricaArticoli() {
-    const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id).order('giorno').order('categoria')
-    setArticoli(data || [])
+    const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id)
+    
+    // Ordina articoli SOLO se array vuoto (primo caricamento)
+    const articoliOrdinati = articoli.length === 0 
+      ? (data || []).sort((a, b) => {
+          if (a.giorno !== b.giorno) return a.giorno.localeCompare(b.giorno)
+          return a.categoria.localeCompare(b.categoria)
+        })
+      : (data || [])
+    
+    setArticoli(articoliOrdinati)
     
     // Preserva selezioni correnti SE ancora valide
     setArticoliSelezionati(prevSelezionati => {
       const nuoveSelezionati = new Set()
       
       // Aggiungi articoli confermati dal database
-      const miei = data?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
+      const miei = articoliOrdinati?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
       miei.forEach(id => nuoveSelezionati.add(id))
       
       // Preserva selezioni correnti SE l'articolo è ancora libero o mio
       prevSelezionati.forEach(id => {
-        const articolo = data?.find(a => a.id === id)
+        const articolo = articoliOrdinati?.find(a => a.id === id)
         if (articolo && (articolo.stato === 'libero' || articolo.assegnato_a === nomeRedattore)) {
           nuoveSelezionati.add(id)
         }
@@ -866,11 +891,29 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
     // CREA NOTIFICA quando conferma
     if (articoliSelezionati.size > 0) {
       console.log('[CONFERMA] Creazione notifica per', articoliSelezionati.size, 'articoli')
-      const { error } = await supabase.from('notifiche_disponibilita').insert({
-        messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
-        weekend_id: weekend.id
-      })
-      console.log('[CONFERMA] Notifica creata, errore:', error)
+      console.log('[CONFERMA] Weekend ID:', weekend.id)
+      console.log('[CONFERMA] Weekend nome:', weekend.nome_gp)
+      console.log('[CONFERMA] Redattore:', nomeRedattore)
+      
+      const messaggioNotifica = `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`
+      console.log('[CONFERMA] Messaggio:', messaggioNotifica)
+      
+      const { data: notificaCreata, error } = await supabase
+        .from('notifiche_disponibilita')
+        .insert({
+          messaggio: messaggioNotifica,
+          weekend_id: weekend.id
+        })
+        .select()
+      
+      if (error) {
+        console.error('[CONFERMA] ERRORE creazione notifica:', error)
+        console.error('[CONFERMA] Messaggio errore:', error.message)
+        console.error('[CONFERMA] Dettagli:', error.details)
+        console.error('[CONFERMA] Hint:', error.hint)
+      } else {
+        console.log('[CONFERMA] Notifica creata con successo:', notificaCreata)
+      }
     }
     
     // PULISCE selezioni temporanee dopo conferma
