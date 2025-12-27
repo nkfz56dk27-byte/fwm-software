@@ -2033,27 +2033,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
           padding: '20px 30px', 
           borderBottom: '1px solid #e0e0e0' 
         }}>
-          {/* X rossa Cancella tutto a SX */}
-          <button 
-            onClick={onCancellaTutte} 
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              fontSize: '20px', 
-              cursor: 'pointer', 
-              color: '#FF3B30',
-              fontWeight: 'bold',
-              padding: '4px',
-              minWidth: '44px',
-              minHeight: '44px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-            title="Cancella tutte"
-          >
-            ✕
-          </button>
+          
           
           {/* Titolo centrato */}
           <div style={{ fontSize: '20px', fontWeight: 'bold', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>🔔 Notifiche</div>
