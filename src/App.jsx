@@ -103,13 +103,44 @@ function App() {
 
   useEffect(() => {
     if (user && user.username) {
+      // Caricamento iniziale
       caricaNotificheCalendario(user.username)
       caricaNotificheDisponibilita(user.username)
+      
+      // Polling ogni 30 secondi (backup)
       const interval = setInterval(() => {
         caricaNotificheCalendario(user.username)
         caricaNotificheDisponibilita(user.username)
       }, 30000)
-      return () => clearInterval(interval)
+      
+      // REALTIME SUBSCRIPTION per notifiche disponibilità
+      const channelDisponibilita = supabase
+        .channel('home_notifiche_disponibilita')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'notifiche_disponibilita'
+        }, (payload) => {
+          console.log('[HOME] Notifica disponibilità ricevuta in realtime:', payload)
+          caricaNotificheDisponibilita(user.username)
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'notifiche_disponibilita_lette'
+        }, (payload) => {
+          console.log('[HOME] Notifica letta in realtime:', payload)
+          caricaNotificheDisponibilita(user.username)
+        })
+        .subscribe()
+      
+      console.log('[HOME] Subscription realtime notifiche attivata')
+      
+      return () => {
+        clearInterval(interval)
+        supabase.removeChannel(channelDisponibilita)
+        console.log('[HOME] Subscription realtime notifiche rimossa')
+      }
     }
   }, [user])
 
