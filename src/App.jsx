@@ -1946,7 +1946,6 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
              <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
             </div>
             <h3 className="card-title">PANNELLO VIDA</h3>
-            <p className="card-subtitle">Gestione articoli<br />e contenuti</p>
           </div>
 
           <div 
@@ -1958,7 +1957,6 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
               <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
             </div>
             <h3 className="card-title">PANNELLO FONTI</h3>
-            <p className="card-subtitle">Archivio fonti<br />e risorse</p>
           </div>
         </div>
       </div>
