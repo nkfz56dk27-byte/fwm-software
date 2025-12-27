@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
-import OneSignal from 'react-onesignal'
-import { inviaNotificaPush } from './utils/notifiche'
 
 // ===== MAPPING UTENTE → REDATTORE =====
 const UTENTE_TO_REDATTORE = {
@@ -164,20 +162,38 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   }, [categoria])
 
   useEffect(() => {
-    caricaWeekends()
-    caricaCategorie()
-  }, [])
-
-  useEffect(() => {
-  OneSignal.init({
-    appId: "929f6f56-9a35-4a5f-900c-4e77e881e899",
-    allowLocalhostAsSecureOrigin: true,
-  }).then(() => {
-    console.log('✅ OneSignal inizializzato!')
-  }).catch((err) => {
-    console.error('❌ Errore OneSignal:', err)
-  })
+  caricaWeekends()
+  caricaCategorie()
+  caricaNotifiche()
 }, [])
+
+useEffect(() => {
+  if (!utenteCorrente) return
+
+  console.log('[NOTIFICHE] Attivazione realtime')
+
+  const channel = supabase
+    .channel('notifiche_disponibilita_changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'notifiche_disponibilita'
+      },
+      () => {
+        console.log('[NOTIFICHE] Realtime update')
+        caricaNotifiche()
+        if (onNotificheChange) onNotificheChange()
+      }
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}, [utenteCorrente])
+
 
   async function caricaCategorie() {
     const { data } = await supabase
@@ -245,22 +261,16 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   }
 
   async function creaNotifica(messaggio, weekend_id = null) {
-  try {
-    // 1. Salva nel database
-    await supabase.from('notifiche_disponibilita').insert({
-      messaggio,
-      weekend_id,
-    })
-    
-    // 2. Invia push se necessario
-    await inviaNotificaPush(messaggio)
-    
-    // 3. Ricarica notifiche
-    await caricaNotifiche()
-  } catch (err) {
-    console.error('Errore creazione notifica:', err)
+    try {
+      await supabase.from('notifiche_disponibilita').insert({ 
+        messaggio, 
+        weekend_id 
+      })
+      await caricaNotifiche()
+    } catch (err) {
+      console.error('Errore creazione notifica:', err)
+    }
   }
-}
 
   async function segnaComeLetta(notificaId) {
     try {
