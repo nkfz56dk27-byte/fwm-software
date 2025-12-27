@@ -1943,7 +1943,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             style={{ cursor: 'pointer' }}
           >
             <div className="card-icon-wrapper">
-             <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
+             <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", objectFit: "contain" }} />
             </div>
             <h3 className="card-title">PANNELLO VIDA</h3>
             <p className="card-subtitle">Gestione articoli<br />e contenuti</p>
