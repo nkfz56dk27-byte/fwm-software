@@ -6,7 +6,7 @@ import DisponibilitàSVG from "./assets/disponibilità.svg"
 import PressPNG from "./assets/press.png"
 import CestinoSVG from "./assets/cestino.svg"
 import CheckSVG from "./assets/check.svg"
-import VidaPNG from "./assets/vida.png"
+import VidaSVG from "./assets/vida.svg"
 import RitaglioImmagine from './RitaglioImmagine'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
@@ -1943,7 +1943,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             style={{ cursor: 'pointer' }}
           >
             <div className="card-icon-wrapper">
-             <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", objectFit: "contain" }} />
+             <img src={VidaSVG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
             </div>
             <h3 className="card-title">PANNELLO VIDA</h3>
             <p className="card-subtitle">Gestione articoli<br />e contenuti</p>
@@ -1955,7 +1955,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             style={{ cursor: 'pointer' }}
           >
             <div className="card-icon-wrapper">
-              <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
+              <img src={VidaSVG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
             </div>
             <h3 className="card-title">PANNELLO FONTI</h3>
             <p className="card-subtitle">Archivio fonti<br />e risorse</p>
