@@ -162,9 +162,38 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   }, [categoria])
 
   useEffect(() => {
-    caricaWeekends()
-    caricaCategorie()
-  }, [])
+  caricaWeekends()
+  caricaCategorie()
+  caricaNotifiche()
+}, [])
+
+useEffect(() => {
+  if (!utenteCorrente) return
+
+  console.log('[NOTIFICHE] Attivazione realtime')
+
+  const channel = supabase
+    .channel('notifiche_disponibilita_changes')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'notifiche_disponibilita'
+      },
+      () => {
+        console.log('[NOTIFICHE] Realtime update')
+        caricaNotifiche()
+        if (onNotificheChange) onNotificheChange()
+      }
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}, [utenteCorrente])
+
 
   async function caricaCategorie() {
     const { data } = await supabase
