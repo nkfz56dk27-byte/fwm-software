@@ -225,7 +225,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   async function creaNotifica(messaggio, weekend_id = null, created_by = null) {
     try {
-      const { data: notifica, error } = await supabase
+      const { data: notifica } = await supabase
         .from('notifiche_disponibilita')
         .insert({ 
           messaggio, 
@@ -391,7 +391,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '900px', margin: '0 auto' }}>
             {weekends.map(weekend => (
-              <WeekendCard key={weekend.id} weekend={weekend} categorie={categorie} isAdmin={isAdmin} nomeUtente={nomeRedattore} modalitaModifica={modalitaModifica} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} />
+              <WeekendCard key={weekend.id} weekend={weekend} categorie={categorie} isAdmin={isAdmin} nomeUtente={nomeRedattore} utenteCorrente={utenteCorrente} modalitaModifica={modalitaModifica} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} isMobile={isMobile} />
             ))}
           </div>
         )}
@@ -411,7 +411,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   )
 }
 
-function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica, onDelete, onUpdate }) {
+function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, utenteCorrente, modalitaModifica, onDelete, onUpdate, isMobile }) {
   const [showDettaglio, setShowDettaglio] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   
@@ -480,7 +480,7 @@ function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica
         </div>
       )}
 
-      {showDettaglio && <RedattoreWeekendView weekend={weekend} categorie={categorie} nomeRedattore={nomeUtente} isAdmin={isAdmin} onClose={() => { setShowDettaglio(false); onUpdate() }} onDelete={onDelete} />}
+      {showDettaglio && <RedattoreWeekendView weekend={weekend} nomeRedattore={nomeUtente} utenteCorrente={utenteCorrente} isAdmin={isAdmin} onClose={() => { setShowDettaglio(false); onUpdate() }} onDelete={onDelete} isMobile={isMobile} />}
     </div>
   )
 }
@@ -735,7 +735,7 @@ function NuovoWeekendModal({ categoria, utenteCorrente, onClose, onCreated, onCr
   )
 }
 
-function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDelete }) {
+function RedattoreWeekendView({ weekend, nomeRedattore, utenteCorrente, isAdmin, onClose, onDelete, isMobile }) {
   const [articoli, setArticoli] = useState([])
   const [articoliSelezionati, setArticoliSelezionati] = useState(new Set())
   const [expandedDays, setExpandedDays] = useState(new Set())
