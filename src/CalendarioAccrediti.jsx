@@ -209,20 +209,20 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
           else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
           else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
           return (
-            <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ padding: isMobile ? '8px' : '6px 8px', background: `${colore}40`, borderLeft: `4px solid ${colore}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '3px', minHeight: isMobile ? '50px' : 'auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: isMobile ? '14px' : '11px' }}>
+            <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ padding: isMobile ? '10px 8px' : '6px 8px', background: `${colore}40`, borderLeft: `4px solid ${colore}`, borderRadius: '4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: isMobile ? '4px' : '3px', minHeight: isMobile ? '65px' : 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: isMobile ? '15px' : '11px' }}>
                 <span>{emoji}</span>
-                <strong style={{ fontSize: isMobile ? '12px' : '10px' }}>{sigla}</strong>
+                <strong style={{ fontSize: isMobile ? '13px' : '10px' }}>{sigla}</strong>
               </div>
-              <div style={{ fontSize: isMobile ? '12px' : '10px', fontWeight: '600', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: isMobile ? 3 : 2, WebkitBoxOrient: 'vertical' }}>{evento.titolo}</div>
-              {badge && <div style={{ fontSize: isMobile ? '10px' : '8px', padding: isMobile ? '4px 6px' : '3px 5px', background: badge.bg, color: badge.color, borderRadius: '3px', fontWeight: 'bold', textAlign: 'center' }}>{badge.icon} {badge.text}</div>}
+              <div style={{ fontSize: isMobile ? '13px' : '10px', fontWeight: '600', lineHeight: '1.3', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: isMobile ? 3 : 2, WebkitBoxOrient: 'vertical' }}>{evento.titolo}</div>
+              {badge && <div style={{ fontSize: isMobile ? '9px' : '8px', padding: isMobile ? '3px 5px' : '3px 5px', background: badge.bg, color: badge.color, borderRadius: '3px', fontWeight: 'bold', textAlign: 'center', whiteSpace: 'nowrap' }}>{badge.icon} {badge.text}</div>}
               {maxAccrediti > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
                   {Array.from({ length: Math.min(maxAccrediti, 5) }, (_, i) => (
-                    <span key={i} style={{ fontSize: isMobile ? '14px' : '12px', filter: i < numPrenotati ? 'none' : 'grayscale(1)', opacity: i < numPrenotati ? 1 : 0.3 }}>👤</span>
+                    <span key={i} style={{ fontSize: isMobile ? '12px' : '12px', filter: i < numPrenotati ? 'none' : 'grayscale(1)', opacity: i < numPrenotati ? 1 : 0.3 }}>👤</span>
                   ))}
-                  {maxAccrediti > 5 && <span style={{ fontSize: isMobile ? '9px' : '8px', color: '#666', fontWeight: '600' }}>+{maxAccrediti - 5}</span>}
-                  <span style={{ fontSize: isMobile ? '9px' : '8px', color: numPrenotati >= maxAccrediti ? '#FF3B30' : '#666', fontWeight: '600', marginLeft: '4px' }}>{numPrenotati}/{maxAccrediti}</span>
+                  {maxAccrediti > 5 && <span style={{ fontSize: isMobile ? '8px' : '8px', color: '#666', fontWeight: '600' }}>+{maxAccrediti - 5}</span>}
+                  <span style={{ fontSize: isMobile ? '8px' : '8px', color: numPrenotati >= maxAccrediti ? '#FF3B30' : '#666', fontWeight: '600', marginLeft: '2px' }}>{numPrenotati}/{maxAccrediti}</span>
                 </div>
               )}
             </div>
