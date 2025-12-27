@@ -145,9 +145,17 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   const [notifiche, setNotifiche] = useState([])
   const [showNotifiche, setShowNotifiche] = useState(false)
   const [categorie, setCategorie] = useState([])
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
   
   const isAdmin = utenteCorrente?.ruolo === 'admin'
+  const isMobile = windowWidth <= 768
   const nomeRedattore = UTENTE_TO_REDATTORE[utenteCorrente?.username] || utenteCorrente?.nomeCompleto || ''
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   useEffect(() => {
     document.title = categoria ? `FWM - Disponibilità ${categoria.nome}` : "FWM - Disponibilità Weekend"
@@ -223,25 +231,12 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     }
   }
 
-  async function creaNotifica(messaggio, weekend_id = null, created_by = null) {
+  async function creaNotifica(messaggio, weekend_id = null) {
     try {
-      const { data: notifica } = await supabase
-        .from('notifiche_disponibilita')
-        .insert({ 
-          messaggio, 
-          weekend_id 
-        })
-        .select()
-        .single()
-      
-      // Marca subito come letta per chi ha creato la notifica (così non la vede)
-      if (created_by && notifica) {
-        await supabase
-          .from('notifiche_disponibilita_lette')
-          .insert({ username: created_by, notifica_id: notifica.id })
-          .catch(() => {}) // Ignora errori (es. duplicati)
-      }
-      
+      await supabase.from('notifiche_disponibilita').insert({ 
+        messaggio, 
+        weekend_id 
+      })
       await caricaNotifiche()
     } catch (err) {
       console.error('Errore creazione notifica:', err)
@@ -391,13 +386,13 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '900px', margin: '0 auto' }}>
             {weekends.map(weekend => (
-              <WeekendCard key={weekend.id} weekend={weekend} categorie={categorie} isAdmin={isAdmin} nomeUtente={nomeRedattore} utenteCorrente={utenteCorrente} modalitaModifica={modalitaModifica} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} isMobile={isMobile} />
+              <WeekendCard key={weekend.id} weekend={weekend} categorie={categorie} isAdmin={isAdmin} nomeUtente={nomeRedattore} modalitaModifica={modalitaModifica} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} isMobile={isMobile} />
             ))}
           </div>
         )}
       </div>
 
-      {showNuovo && <NuovoWeekendModal categoria={categoria} utenteCorrente={utenteCorrente} onClose={() => setShowNuovo(false)} onCreated={() => { setShowNuovo(false); caricaWeekends(); }} onCreaNotifica={creaNotifica} />}
+      {showNuovo && <NuovoWeekendModal categoria={categoria} onClose={() => setShowNuovo(false)} onCreated={() => { setShowNuovo(false); caricaWeekends(); }} onCreaNotifica={creaNotifica} />}
       
       {showNotifiche && (
         <NotificheModal 
@@ -411,7 +406,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   )
 }
 
-function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, utenteCorrente, modalitaModifica, onDelete, onUpdate, isMobile }) {
+function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica, onDelete, onUpdate, isMobile }) {
   const [showDettaglio, setShowDettaglio] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   
@@ -480,13 +475,13 @@ function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, utenteCorrente, 
         </div>
       )}
 
-      {showDettaglio && <RedattoreWeekendView weekend={weekend} nomeRedattore={nomeUtente} utenteCorrente={utenteCorrente} isAdmin={isAdmin} onClose={() => { setShowDettaglio(false); onUpdate() }} onDelete={onDelete} isMobile={isMobile} />}
+      {showDettaglio && <RedattoreWeekendView weekend={weekend} categorie={categorie} nomeRedattore={nomeUtente} isAdmin={isAdmin} onClose={() => { setShowDettaglio(false); onUpdate() }} onDelete={onDelete} isMobile={isMobile} />}
     </div>
   )
 }
 
 
-function NuovoWeekendModal({ categoria, utenteCorrente, onClose, onCreated, onCreaNotifica }) {
+function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
   const [nomeGP, setNomeGP] = useState('')
   const [date, setDate] = useState('')
   const [usaTemplate, setUsaTemplate] = useState(true)
@@ -610,7 +605,7 @@ function NuovoWeekendModal({ categoria, utenteCorrente, onClose, onCreated, onCr
     // Crea notifica (non blocca se fallisce)
     try {
       if (onCreaNotifica) {
-        await onCreaNotifica(`Nuovo weekend aperto: ${nomeGP} (${date})`, weekend.id, utenteCorrente.username)
+        await onCreaNotifica(`Nuovo weekend aperto: ${nomeGP} (${date})`, weekend.id)
       }
     } catch (err) {
       console.error('Errore creazione notifica:', err)
@@ -735,7 +730,7 @@ function NuovoWeekendModal({ categoria, utenteCorrente, onClose, onCreated, onCr
   )
 }
 
-function RedattoreWeekendView({ weekend, nomeRedattore, utenteCorrente, isAdmin, onClose, onDelete, isMobile }) {
+function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDelete, isMobile }) {
   const [articoli, setArticoli] = useState([])
   const [articoliSelezionati, setArticoliSelezionati] = useState(new Set())
   const [expandedDays, setExpandedDays] = useState(new Set())
@@ -765,32 +760,6 @@ function RedattoreWeekendView({ weekend, nomeRedattore, utenteCorrente, isAdmin,
         await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
       }
     }
-    
-    // CREA NOTIFICA quando conferma (escludi chi la crea)
-    if (articoliSelezionati.size > 0) {
-      const messaggioNotifica = `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`
-      try {
-        const { data: notifica } = await supabase
-          .from('notifiche_disponibilita')
-          .insert({
-            messaggio: messaggioNotifica,
-            weekend_id: weekend.id
-          })
-          .select()
-          .single()
-        
-        // Marca come letta per chi ha confermato (così non vede la sua notifica)
-        if (notifica && utenteCorrente) {
-          await supabase
-            .from('notifiche_disponibilita_lette')
-            .insert({ username: utenteCorrente.username, notifica_id: notifica.id })
-            .catch(() => {}) // Ignora errori duplicati
-        }
-      } catch (error) {
-        console.error('[CONFERMA] Errore creazione notifica:', error)
-      }
-    }
-    
     setSalvando(false)
     if (conferma) {
       if (articoliSelezionati.size > 0) {
@@ -924,7 +893,7 @@ function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle }) {
   )
 }
 
-function TabellaWeekendView({ weekend, articoli, onClose }) {
+function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
   const [zoom, setZoom] = useState(1)
   const redattoriOrdinati = [...(weekend.redattori || [])].sort()
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ giorno: g, articoli: articoli.filter(a => a.giorno === g.id) }))
@@ -1570,9 +1539,6 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
     setGenerando(true)
     
     try {
-      // Aspetta che il DOM sia completamente renderizzato
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
       const element = document.getElementById('export-table-hidden')
       if (!element) {
         alert('Errore: elemento non trovato')
@@ -1580,30 +1546,13 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
         return
       }
 
-      // Forza overflow visible per catturare tutto
-      const originalOverflow = element.style.overflow
-      element.style.overflow = 'visible'
-      
-      // Calcola dimensioni complete dell'elemento (incluso contenuto scrollabile)
-      const scrollWidth = element.scrollWidth
-      const scrollHeight = element.scrollHeight
-      
-      console.log('[EXPORT] Dimensioni elemento:', scrollWidth, 'x', scrollHeight)
-
-      // Genera canvas con alta risoluzione e dimensioni complete
+      // Genera canvas con alta risoluzione
       const canvas = await html2canvas(element, {
         scale: 2,
         backgroundColor: '#ffffff',
         logging: false,
-        useCORS: true,
-        windowWidth: scrollWidth,
-        windowHeight: scrollHeight,
-        width: scrollWidth,
-        height: scrollHeight
+        useCORS: true
       })
-      
-      // Ripristina overflow originale
-      element.style.overflow = originalOverflow
       
       // Converti in JPEG
       const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
@@ -1663,7 +1612,7 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
 
       {/* TABELLA NASCOSTA PER EXPORT - DIMENSIONI DINAMICHE */}
       <div style={{ position: 'fixed', top: '-20000px', left: '-20000px' }}>
-        <div id="export-table-hidden" style={{ background: 'white', padding: '40px', width: 'fit-content', overflow: 'visible' }}>
+        <div id="export-table-hidden" style={{ background: 'white', padding: '40px', width: 'fit-content' }}>
           {/* HEADER */}
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <div style={{ fontSize: '42px', fontWeight: 'bold', marginBottom: '10px', color: '#000' }}>{weekend.nome_gp}</div>
