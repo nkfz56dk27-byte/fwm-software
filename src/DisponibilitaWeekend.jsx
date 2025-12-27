@@ -382,6 +382,33 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     }
   }
 
+  async function cancellaTutte() {
+    try {
+      // Marca tutte come lette per nasconderle dalla vista
+      const tutteNotifiche = notifiche
+      for (const n of tutteNotifiche) {
+        // Inserisci solo se non è già letta
+        const { data: exists } = await supabase
+          .from('notifiche_disponibilita_lette')
+          .select('id')
+          .eq('username', utenteCorrente.username)
+          .eq('notifica_id', n.id)
+          .single()
+        
+        if (!exists) {
+          await supabase.from('notifiche_disponibilita_lette').insert({ 
+            username: utenteCorrente.username, 
+            notifica_id: n.id 
+          })
+        }
+      }
+      await caricaNotifiche()
+      setShowNotifiche(false)
+    } catch (err) {
+      console.error('Errore cancella tutte:', err)
+    }
+  }
+
   useEffect(() => {
     if (utenteCorrente) {
       caricaNotifiche()
@@ -514,7 +541,8 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
           notifiche={notifiche} 
           onClose={() => setShowNotifiche(false)} 
           onSegnaLetta={segnaComeLetta} 
-          onSegnaTutteLette={segnaTutteComeLette} 
+          onSegnaTutteLette={segnaTutteComeLette}
+          onCancellaTutte={cancellaTutte}
         />
       )}
     </div>
@@ -1207,12 +1235,12 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000, padding: isMobile ? '0' : '20px' }}>
       <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '1200px', height: isMobile ? '100vh' : '800px', display: 'flex', flexDirection: 'column' }}>
-        {/* HEADER - UNA RIGA come selezione articoli */}
+        {/* HEADER - IDENTICO a selezione articoli */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
-          padding: isMobile ? '15px' : '20px 30px', 
+          padding: isMobile ? '20px 15px' : '20px 30px', 
           background: 'white', 
           borderBottom: '1px solid #e0e0e0',
           borderRadius: isMobile ? '0' : '15px 15px 0 0'
@@ -1224,13 +1252,10 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
               background: 'none', 
               border: 'none', 
               color: '#007AFF', 
-              fontSize: isMobile ? '16px' : '18px', 
+              fontSize: isMobile ? '18px' : '18px', 
               fontWeight: 'bold', 
               cursor: 'pointer',
-              padding: 0,
-              minHeight: isMobile ? '44px' : 'auto',
-              display: 'flex',
-              alignItems: 'center'
+              padding: 0
             }}
           >
             ← Indietro
@@ -1238,8 +1263,8 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
           
           {/* Titolo centrato */}
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
-            <div style={{ fontSize: isMobile ? '12px' : '13px', color: '#666' }}>{weekend.data}</div>
+            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
+            <div style={{ fontSize: '13px', color: '#666' }}>{weekend.data}</div>
           </div>
           
           {/* Bottone Menu */}
@@ -1247,15 +1272,14 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
             <button 
               onClick={() => setShowMenu(!showMenu)} 
               style={{ 
-                padding: isMobile ? '10px 18px' : '8px 16px', 
+                padding: isMobile ? '8px 16px' : '8px 16px', 
                 background: '#007AFF', 
                 color: 'white', 
                 border: 'none', 
                 borderRadius: '10px', 
                 cursor: 'pointer', 
-                fontSize: isMobile ? '15px' : '14px', 
+                fontSize: '14px', 
                 fontWeight: '600',
-                minHeight: isMobile ? '44px' : 'auto',
                 whiteSpace: 'nowrap'
               }}
             >
@@ -1984,7 +2008,7 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
     </div>
   )
 }
-function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette }) {
+function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, onCancellaTutte }) {
   return (
     <div style={{ 
       position: 'fixed', 
@@ -2066,12 +2090,14 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
           padding: '20px 30px', 
           borderTop: '1px solid #e0e0e0', 
           display: 'flex', 
-          gap: '10px' 
+          gap: '10px',
+          flexWrap: 'wrap'
         }}>
           <button 
             onClick={onSegnaTutteLette} 
             style={{ 
               flex: 1, 
+              minWidth: '180px',
               padding: '12px', 
               background: '#34C759', 
               color: 'white', 
@@ -2081,7 +2107,23 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
               fontWeight: 'bold' 
             }}
           >
-            Segna tutte come lette
+            Segna tutte lette
+          </button>
+          <button 
+            onClick={onCancellaTutte} 
+            style={{ 
+              flex: 1, 
+              minWidth: '180px',
+              padding: '12px', 
+              background: '#FF3B30', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: 'pointer', 
+              fontWeight: 'bold' 
+            }}
+          >
+            Cancella tutto
           </button>
           <button 
             onClick={onClose} 
