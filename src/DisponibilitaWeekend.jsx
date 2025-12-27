@@ -1207,76 +1207,70 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000, padding: isMobile ? '0' : '20px' }}>
       <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '1200px', height: isMobile ? '100vh' : '800px', display: 'flex', flexDirection: 'column' }}>
-        {/* HEADER */}
+        {/* HEADER - UNA RIGA come selezione articoli */}
         <div style={{ 
           display: 'flex', 
-          flexDirection: 'column',
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
           padding: isMobile ? '15px' : '20px 30px', 
+          background: 'white', 
           borderBottom: '1px solid #e0e0e0',
-          gap: isMobile ? '15px' : '0',
-          background: 'white'
+          borderRadius: isMobile ? '0' : '15px 15px 0 0'
         }}>
-          {/* Prima riga: Indietro + Menu */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            paddingBottom: isMobile ? '8px' : '0'
-          }}>
-            <button 
-              onClick={onClose} 
-              style={{ 
-                background: 'none', 
-                border: 'none', 
-                color: '#007AFF', 
-                fontSize: isMobile ? '16px' : '18px', 
-                fontWeight: 'bold', 
-                cursor: 'pointer', 
-                minHeight: isMobile ? '44px' : 'auto',
-                padding: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px'
-              }}
-            >
-              ← Indietro
-            </button>
-            
-            <div style={{ position: 'relative' }}>
-              <button 
-                onClick={() => setShowMenu(!showMenu)} 
-                style={{ 
-                  padding: isMobile ? '10px 18px' : '8px 16px', 
-                  background: '#007AFF', 
-                  color: 'white', 
-                  border: 'none', 
-                  borderRadius: '10px', 
-                  cursor: 'pointer', 
-                  fontSize: isMobile ? '15px' : '14px', 
-                  fontWeight: '600',
-                  minHeight: isMobile ? '44px' : 'auto',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Menu
-              </button>
-              {showMenu && (
-                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: isMobile ? '180px' : '220px' }}>
-                  <button onClick={() => { setShowExport(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : '15px', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
-                    Esporta JPEG
-                  </button>
-                  <button onClick={() => { setShowModifica(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : '15px', borderTop: '1px solid #eee', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
-                    Modifica Tabella
-                  </button>
-                </div>
-              )}
-            </div>
+          {/* Bottone Indietro */}
+          <button 
+            onClick={onClose} 
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              color: '#007AFF', 
+              fontSize: isMobile ? '16px' : '18px', 
+              fontWeight: 'bold', 
+              cursor: 'pointer',
+              padding: 0,
+              minHeight: isMobile ? '44px' : 'auto',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+          >
+            ← Indietro
+          </button>
+          
+          {/* Titolo centrato */}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: isMobile ? '18px' : '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
+            <div style={{ fontSize: isMobile ? '12px' : '13px', color: '#666' }}>{weekend.data}</div>
           </div>
           
-          {/* Seconda riga: Titolo GP (centrato) */}
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: isMobile ? '20px' : '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
-            <div style={{ fontSize: isMobile ? '13px' : '13px', color: '#666' }}>{weekend.data}</div>
+          {/* Bottone Menu */}
+          <div style={{ position: 'relative' }}>
+            <button 
+              onClick={() => setShowMenu(!showMenu)} 
+              style={{ 
+                padding: isMobile ? '10px 18px' : '8px 16px', 
+                background: '#007AFF', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '10px', 
+                cursor: 'pointer', 
+                fontSize: isMobile ? '15px' : '14px', 
+                fontWeight: '600',
+                minHeight: isMobile ? '44px' : 'auto',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Menu
+            </button>
+            {showMenu && (
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: isMobile ? '180px' : '220px' }}>
+                <button onClick={() => { setShowExport(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : '15px', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
+                  Esporta JPEG
+                </button>
+                <button onClick={() => { setShowModifica(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : '15px', borderTop: '1px solid #eee', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
+                  Modifica Tabella
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
