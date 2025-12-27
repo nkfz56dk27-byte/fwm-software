@@ -11,6 +11,7 @@ import RitaglioImmagine from './RitaglioImmagine'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
+import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 
 import './App.css'
 
@@ -36,6 +37,15 @@ function App() {
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
+  
+  // Detect mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   async function caricaNotificheCalendario(username) {
     try {
@@ -49,23 +59,98 @@ function App() {
 
   async function caricaNotificheDisponibilita(username) {
     try {
-      const { data: notifiche } = await supabase.from('notifiche_disponibilita').select('id')
-      const { data: lette } = await supabase.from('notifiche_disponibilita_lette').select('notifica_id').eq('username', username)
+      const isAdmin = user?.ruolo === 'admin'
+      
+      // 1. Carica tutte le notifiche
+      const { data: tutteNotifiche } = await supabase
+        .from('notifiche_disponibilita')
+        .select('id, weekend_id')
+      
+      let notificheFiltrate = tutteNotifiche || []
+      
+      // 2. Se NON admin: filtra per categorie
+      if (!isAdmin) {
+        // Carica categorie utente
+        const { data: gruppiUtente } = await supabase
+          .from('gruppi_redattori')
+          .select('categoria_id')
+          .eq('username', username)
+        
+        const categorieIds = (gruppiUtente || []).map(g => g.categoria_id).filter(Boolean)
+        
+        // Carica weekend di quelle categorie
+        let queryWeekend = supabase.from('weekend').select('id')
+        
+        if (categorieIds.length > 0) {
+          queryWeekend = queryWeekend.or(`categoria_id.in.(${categorieIds.join(',')}),categoria_id.is.null`)
+        } else {
+          queryWeekend = queryWeekend.is('categoria_id', null)
+        }
+        
+        const { data: weekendConsentiti } = await queryWeekend
+        const weekendIdsConsentiti = new Set((weekendConsentiti || []).map(w => w.id))
+        
+        // Filtra notifiche
+        notificheFiltrate = notificheFiltrate.filter(n => 
+          !n.weekend_id || weekendIdsConsentiti.has(n.weekend_id)
+        )
+      }
+      
+      // 3. Conta notifiche NON lette
+      const { data: lette } = await supabase
+        .from('notifiche_disponibilita_lette')
+        .select('notifica_id')
+        .eq('username', username)
+      
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
-      const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id))
+      const nonLette = notificheFiltrate.filter(n => !idsLette.has(n.id))
+      
       setNotificheNonLetteDisponibilita(nonLette.length)
-    } catch (e) {}
+    } catch (e) {
+      console.error('[HOME] Errore caricamento notifiche disponibilità:', e)
+    }
   }
 
   useEffect(() => {
     if (user && user.username) {
+      // Caricamento iniziale
       caricaNotificheCalendario(user.username)
       caricaNotificheDisponibilita(user.username)
+      
+      // Polling ogni 30 secondi (backup)
       const interval = setInterval(() => {
         caricaNotificheCalendario(user.username)
         caricaNotificheDisponibilita(user.username)
       }, 30000)
-      return () => clearInterval(interval)
+      
+      // REALTIME SUBSCRIPTION per notifiche disponibilità
+      const channelDisponibilita = supabase
+        .channel('home_notifiche_disponibilita')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'notifiche_disponibilita'
+        }, (payload) => {
+          console.log('[HOME] Notifica disponibilità ricevuta in realtime:', payload)
+          caricaNotificheDisponibilita(user.username)
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'notifiche_disponibilita_lette'
+        }, (payload) => {
+          console.log('[HOME] Notifica letta in realtime:', payload)
+          caricaNotificheDisponibilita(user.username)
+        })
+        .subscribe()
+      
+      console.log('[HOME] Subscription realtime notifiche attivata')
+      
+      return () => {
+        clearInterval(interval)
+        supabase.removeChannel(channelDisponibilita)
+        console.log('[HOME] Subscription realtime notifiche rimossa')
+      }
     }
   }, [user])
 
@@ -132,11 +217,11 @@ function App() {
   }
 
   if (showClassificheMenu) {
-    return <ClassificheMenuView user={user} onBack={() => setShowClassificheMenu(false)} onOpenClassifica={(id) => { setClassificaId(id); setShowClassifica(true); setShowClassificheMenu(false) }} />
+    return <ClassificheMenuView user={user} isMobile={isMobile} onBack={() => setShowClassificheMenu(false)} onOpenClassifica={(id) => { setClassificaId(id); setShowClassifica(true); setShowClassificheMenu(false) }} />
   }
 
   if (showClassifica) {
-    return <ClassificaView classificaId={classificaId} user={user} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
+    return <ClassificaView classificaId={classificaId} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
   }
 
   // ← AGGIUNTO: Render condizionale RitaglioImmagine
@@ -155,7 +240,7 @@ function App() {
   return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
 }
 // ===== CLASSIFICA VIEW COMPLETA =====
-function ClassificaView({ classificaId, user, onBack }) {
+function ClassificaView({ classificaId, user, isMobile, onBack }) {
   const [classifica, setClassifica] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showSetup, setShowSetup] = useState(false)
@@ -223,7 +308,7 @@ function ClassificaView({ classificaId, user, onBack }) {
   if (showSetup) return <SetupIniziale classifica={classifica} onSave={salvaClassifica} onBack={onBack} />
   if (showImpostazioni) return <ImpostazioniClassifica classifica={classifica} onClose={() => { setShowImpostazioni(false); caricaClassifica() }} onSave={salvaClassifica} />
   if (showInserimentoGP) return <InserimentoRisultatiGP classifica={classifica} gpPreselezionato={gpSelezionato} onClose={() => { setShowInserimentoGP(false); setGpSelezionato(null) }} onSave={salvaClassifica} />
-  if (showGrafico) return <GraficoPronostico classifica={classifica} onClose={() => setShowGrafico(false)} />
+  if (showGrafico) return <GraficoPronostico classifica={classifica} isMobile={isMobile} onClose={() => setShowGrafico(false)} />
 
   const pilotiOrdinati = classifica.piloti ? [...classifica.piloti].filter(p => p.attivo).sort((a, b) => b.punti - a.punti) : []
   const costruttoriOrdinati = classifica.costruttori ? [...classifica.costruttori].sort((a, b) => b.punti - a.punti) : []
@@ -231,48 +316,53 @@ function ClassificaView({ classificaId, user, onBack }) {
   const gpDaCompletare = classifica.gp ? classifica.gp.filter(g => !g.completato) : []
 
   return (
-    <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: '20px' }}>
+    <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '40px' }}>
         {/* HEADER */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', padding: '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <h1 style={{ fontSize: '34px', fontWeight: 'bold', margin: 0, flex: 1 }}>{classifica.nome}</h1>
-          {isAdmin && (
-            <button onClick={() => setShowImpostazioni(true)} style={{ width: '40px', height: '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
-              <svg viewBox="0 0 24 24" fill="#000" style={{ width: '30px', height: '30px' }}>
-                <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-              </svg>
-            </button>
-          )}
-          <div style={{ position: 'relative' }}>
-            <button onClick={(e) => { const menu = e.currentTarget.nextSibling; menu.style.display = menu.style.display === 'block' ? 'none' : 'block' }} style={{ width: '50px', height: '50px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
-              <svg viewBox="0 0 24 24" fill="#34C759" style={{ width: '40px', height: '40px' }}>
-                <circle cx="12" cy="12" r="10" fill="#34C759"/>
-                <path d="M12 7v10M7 12h10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-            </button>
-            <div style={{ display: 'none', position: 'absolute', top: '100%', right: 0, background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: '250px', zIndex: 1000, marginTop: '10px' }}>
-              {gpDaCompletare.length === 0 ? (
-                <div style={{ padding: '15px', color: '#999' }}>Nessun GP da completare</div>
-              ) : (
-                gpDaCompletare.map(gp => (
-                  <div key={gp.id} onClick={() => { setGpSelezionato(gp); setShowInserimentoGP(true) }} style={{ padding: '15px', cursor: 'pointer', borderBottom: '1px solid #eee' }}>
-                    {gp.tipo_weekend === 'sprintF1' ? '⚡️' : gp.tipo_weekend === 'f2' ? '🏎️' : '🏆'} {gp.nome}
-                  </div>
-                ))
-              )}
-              {isAdmin && (
-                <>
-                  <div style={{ borderTop: '2px solid #eee' }}></div>
-                  <div onClick={() => { setGpSelezionato(null); setShowInserimentoGP(true) }} style={{ padding: '15px', cursor: 'pointer', color: '#007AFF', fontWeight: 'bold' }}>+ Aggiungi nuovo GP</div>
-                </>
-              )}
-            </div>
-          </div>
-          <button onClick={() => setShowGrafico(true)} style={{ width: '40px', height: '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
-            <svg viewBox="0 0 24 24" fill="#000" style={{ width: '30px', height: '30px' }}>
-              <path d="M3 3v18h18M7 14l4-4 4 4 6-6"/>
-            </svg>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '10px' : '15px', marginBottom: '20px', padding: isMobile ? '15px' : '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', position: 'relative' }}>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-start', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>
+            ← Indietro
           </button>
+          <h1 style={{ fontSize: isMobile ? '22px' : '34px', fontWeight: 'bold', margin: 0, flex: 1, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0 }}>{classifica.nome}</h1>
+          <div style={{ display: 'flex', gap: '10px', alignSelf: isMobile ? 'flex-end' : 'auto', alignItems: 'center' }}>
+            {isAdmin && (
+              <button onClick={() => setShowImpostazioni(true)} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg viewBox="0 0 24 24" fill="#000" style={{ width: isMobile ? '28px' : '30px', height: isMobile ? '28px' : '30px' }}>
+                  <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                </svg>
+              </button>
+            )}
+            <div style={{ position: 'relative' }}>
+              <button onClick={(e) => { const menu = e.currentTarget.nextSibling; menu.style.display = menu.style.display === 'block' ? 'none' : 'block' }} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg viewBox="0 0 24 24" fill="#34C759" style={{ width: isMobile ? '38px' : '38px', height: isMobile ? '38px' : '38px' }}>
+                  <circle cx="12" cy="12" r="10" fill="#34C759"/>
+                  <path d="M12 7v10M7 12h10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+              <div style={{ display: 'none', position: 'absolute', top: '100%', right: 0, background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: isMobile ? '200px' : '250px', zIndex: 1000, marginTop: '10px' }}>
+                {gpDaCompletare.length === 0 ? (
+                  <div style={{ padding: '15px', color: '#999' }}>Nessun GP da completare</div>
+                ) : (
+                  gpDaCompletare.map(gp => (
+                    <div key={gp.id} onClick={() => { setGpSelezionato(gp); setShowInserimentoGP(true) }} style={{ padding: isMobile ? '12px 15px' : '15px', cursor: 'pointer', borderBottom: '1px solid #eee', minHeight: isMobile ? '44px' : 'auto' }}>
+                      {gp.tipo_weekend === 'sprintF1' ? '⚡️' : gp.tipo_weekend === 'f2' ? '🏎️' : '🏆'} {gp.nome}
+                    </div>
+                  ))
+                )}
+                {isAdmin && (
+                  <>
+                    <div style={{ borderTop: '2px solid #eee' }}></div>
+                    <div onClick={() => { setGpSelezionato(null); setShowInserimentoGP(true) }} style={{ padding: isMobile ? '12px 15px' : '15px', cursor: 'pointer', color: '#007AFF', fontWeight: 'bold', minHeight: isMobile ? '44px' : 'auto' }}>+ Aggiungi nuovo GP</div>
+                  </>
+                )}
+              </div>
+            </div>
+            <button onClick={() => setShowGrafico(true)} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg viewBox="0 0 24 24" fill="#000" style={{ width: isMobile ? '28px' : '30px', height: isMobile ? '28px' : '30px' }}>
+                <path d="M3 3v18h18M7 14l4-4 4 4 6-6"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
        {/* GP COMPLETATI */}
@@ -401,31 +491,6 @@ function ClassificaView({ classificaId, user, onBack }) {
             )}
           </div>
         </div>
-
-        BOTTONE INDIETRO CLASSIFICA
-
-  <button
-  onClick={onBack}
-  style={{
-    position: 'absolute',
-    top: '20px',
-    left: '20px',
-    background: 'none',
-    border: 'none',
-    color: '#007AFF',
-    fontSize: '18px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px'
-  }}
->
-  ← Indietro
-</button>
-
-
-
       </div>
     </div>
   )
@@ -1092,7 +1157,7 @@ function CambiaPilotaView({ classifica, onClose, onSave }) {
 }
 
 // ===== GRAFICO PRONOSTICO =====
-function GraficoPronostico({ classifica, onClose }) {
+function GraficoPronostico({ classifica, isMobile, onClose }) {
   const [tab, setTab] = useState(0)
   const [pilotaFissato, setPilotaFissato] = useState(null)
   
@@ -1105,34 +1170,14 @@ function GraficoPronostico({ classifica, onClose }) {
   const puntiMassimiRimanenti = gpRimanenti * 25 + sprintRimanenti * 8
 
   return (
-    <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: '20px' }}>
+    <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '20px' }}>
-        <div style={{ background: 'white', borderRadius: '20px', padding: '1px 15px', marginBottom: '20px' }}>
-        <button
-  onClick={onClose}
-  style={{
-    background: 'none',
-    border: 'none',
-    color: '#007AFF',
-    fontSize: '18px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: '8px',
-    padding: '10px 0',
-    width: 'fit-content',
-    // per spostarlo fuori dal bordo bianco:
-    marginTop: '-11px', // negativo per salire sopra il bordo
-    marginLeft: '-115px',
-    marginBottom: '20px'
-  }}
->
-  ← Indietro
-</button>
-
-          <h1 style={{ fontSize: '34px', fontWeight: 'bold', margin: 0,  flex: 1 }}>Grafico Pronostico Campionato</h1>
+        {/* HEADER */}
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '10px' : '15px', marginBottom: '20px', padding: isMobile ? '15px' : '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-start', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>
+            ← Indietro
+          </button>
+          <h1 style={{ fontSize: isMobile ? '20px' : '34px', fontWeight: 'bold', margin: 0, flex: 1, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0 }}>Grafico Pronostico Campionato</h1>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
@@ -1595,7 +1640,7 @@ function SetupIniziale({ classifica, onSave, onBack }) {
 }
 
 // ===== MENU CLASSIFICHE =====
-function ClassificheMenuView({ user, onBack, onOpenClassifica }) {
+function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
   const [classifiche, setClassifiche] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAltreClassifiche, setShowAltreClassifiche] = useState(false)
@@ -1632,59 +1677,55 @@ function ClassificheMenuView({ user, onBack, onOpenClassifica }) {
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Caricamento...</div>
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-      <div style={{ position: 'absolute', top: '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '20px' : '40px' }}>
+      <div style={{ position: 'absolute', top: isMobile ? '10px' : '20px', left: isMobile ? '10px' : '20px', right: isMobile ? '10px' : '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
+        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', cursor: 'pointer', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>
+          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
           Indietro
         </button>
-  <button
-  onClick={() => {
-    if (modalitaElimina) {
-      setModalitaElimina(false);
-      setShowAltreClassifiche(false);
-    } else {
-      setShowAltreClassifiche(true);
-      setModalitaElimina(true);
-    }
-  }}
-  DISTANZA BOTTONE CESTINO DAL BORDO HOME CLASSIFICA
-  style={{
-    position: "fixed",
-    right: "60px",      // 👈 aumenta questo valore = più a sinistra
-    bottom: "720px",     // puoi regolarlo se serve
-    width: "48px",
-    height: "48px",
-    borderRadius: "50%",
-    border: "none",
-    background: modalitaElimina ? "#34C759" : "#FF3B30",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
-    zIndex: 1000
-  }}
->
-  {modalitaElimina ? (
-    /* ✔️ V verde */
-    <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
-      <path d="M9 16.2l-3.5-3.5 1.4-1.4L9 13.4l8.1-8.1 1.4 1.4z" />
-    </svg>
-  ) : (
-    /* 🗑️ Cestino bianco */
-    <img
-      src={CestinoSVG}
-      alt="Cestino"
-      style={{
-        width: "24px",
-        height: "24px",
-        filter: "brightness(0) invert(1)"
-      }}
-    />
-  )}
-</button>
-
+        {isAdmin && (
+          <button
+            onClick={() => {
+              if (modalitaElimina) {
+                setModalitaElimina(false);
+                setShowAltreClassifiche(false);
+              } else {
+                setShowAltreClassifiche(true);
+                setModalitaElimina(true);
+              }
+            }}
+            style={{
+              width: isMobile ? '44px' : '48px',
+              height: isMobile ? '44px' : '48px',
+              borderRadius: "50%",
+              border: "none",
+              background: modalitaElimina ? "#34C759" : "#FF3B30",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              boxShadow: "0 4px 10px rgba(0,0,0,0.3)"
+            }}
+          >
+            {modalitaElimina ? (
+              /* ✔️ V verde */
+              <svg viewBox="0 0 24 24" width={isMobile ? "20" : "24"} height={isMobile ? "20" : "24"} fill="white">
+                <path d="M9 16.2l-3.5-3.5 1.4-1.4L9 13.4l8.1-8.1 1.4 1.4z" />
+              </svg>
+            ) : (
+              /* 🗑️ Cestino bianco */
+              <img
+                src={CestinoSVG}
+                alt="Cestino"
+                style={{
+                  width: isMobile ? "20px" : "24px",
+                  height: isMobile ? "20px" : "24px",
+                  filter: "brightness(0) invert(1)"
+                }}
+              />
+            )}
+          </button>
+        )}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '40px' }}>
@@ -1764,41 +1805,9 @@ function NuovaClassificaModal({ onClose, onSave }) {
 
 /// ===== HOME VIEW =====
 function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
-  const [categorie, setCategorie] = useState([])
-  const [categorieUtente, setCategorieUtente] = useState([])
-  
   useEffect(() => {
     document.title = "FWM Software - Home"
   }, [])
-  
-  useEffect(() => {
-    caricaCategorie()
-  }, [user])
-  
-  async function caricaCategorie() {
-    // Carica tutte le categorie
-    const { data: tutteCategorie } = await supabase
-      .from('categorie_weekend')
-      .select('*')
-      .order('created_at', { ascending: true })
-    
-    setCategorie(tutteCategorie || [])
-    
-    // Se non admin, filtra per categorie assegnate
-    if (user.ruolo !== 'admin') {
-      const { data: gruppi } = await supabase
-        .from('gruppi_redattori')
-        .select('categoria_id')
-        .eq('username', user.username)
-      
-      const categorieIds = new Set((gruppi || []).map(g => g.categoria_id))
-      const catFiltrate = (tutteCategorie || []).filter(c => categorieIds.has(c.id))
-      setCategorieUtente(catFiltrate)
-    } else {
-      // Admin vede tutte
-      setCategorieUtente(tutteCategorie || [])
-    }
-  }
   
   return (
     <div className="home-container">
@@ -1828,6 +1837,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
       </div>
 
       <div className="home-cards-wrapper">
+        {/* RIGA 1 - Classifiche + Ritaglio */}
         <div className="home-cards-row">
           <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer' }}>
             <div className="card-icon-wrapper">
@@ -1843,7 +1853,6 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             </p>
           </div>
 
-          {/* ← MODIFICATO: Aggiunto onClick */}
           <div className="home-card card-green" onClick={onOpenRitaglio} style={{ cursor: 'pointer' }}>
             <div className="card-icon-wrapper">
               <img
@@ -1857,51 +1866,42 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
           </div>
         </div>
 
+        {/* RIGA 2 - Disponibilità + Calendario */}
         <div className="home-cards-row">
-          {categorieUtente.map(categoria => (
-            <div 
-              key={categoria.id}
-              className="home-card card-purple" 
-              onClick={() => onOpenDisponibilita(categoria)} 
-              style={{ 
-                cursor: 'pointer', 
-                position: 'relative'
-              }}
-            >
-              {notificheNonLetteDisponibilita > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '15px',
-                  right: '15px',
-                  background: '#FF3B30',
-                  color: 'white',
-                  borderRadius: '50%',
-                  width: '32px',
-                  height: '32px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
-                  zIndex: 10
-                }}>
-                  {notificheNonLetteDisponibilita}
-                </div>
-              )}
-              <div className="card-icon-wrapper">
-                <img
-                  src={DisponibilitàSVG}
-                  alt="Disponibilità"
-                  style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }}
-                />
+          <div className="home-card card-purple" onClick={() => onOpenDisponibilita(null)} style={{ cursor: 'pointer', position: 'relative' }}>
+            {notificheNonLetteDisponibilita > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '15px',
+                right: '15px',
+                background: '#FF3B30',
+                color: 'white',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
+                zIndex: 10
+              }}>
+                {notificheNonLetteDisponibilita}
               </div>
-              <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
-              <p className="card-subtitle">{categoria.nome}</p>
+            )}
+            <div className="card-icon-wrapper">
+              <img
+                src={DisponibilitàSVG}
+                alt="Disponibilità"
+                style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }}
+              />
             </div>
-          ))}
+            <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
+            <p className="card-subtitle">Eventi e Gare</p>
+          </div>
 
-           <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
+          <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
             {notificheNonLetteCalendario > 0 && (
               <div style={{
                 position: 'absolute',
@@ -1934,9 +1934,8 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             <p className="card-subtitle">Eventi e Gare<br />per cui richiedere accredito</p>
           </div>
         </div>
-      </div>
 
-        {/* RIGA 3 - Card Rosse CON LOGO VIDA */}
+        {/* RIGA 3 - Card Rosse */}
         <div className="home-cards-row">
           <div 
             className="home-card card-red" 
@@ -1944,18 +1943,10 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             style={{ cursor: 'pointer' }}
           >
             <div className="card-icon-wrapper">
-              <img
-                src={VidaPNG}
-                alt="Vida Logo"
-                style={{ 
-                  width: "60px", 
-                  height: "60px", 
-                  filter: "brightness(0) invert(1)",
-                  objectFit: "contain"
-                }}
-              />
+             <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
             </div>
             <h3 className="card-title">PANNELLO VIDA</h3>
+            <p className="card-subtitle">Gestione articoli<br />e contenuti</p>
           </div>
 
           <div 
@@ -1964,20 +1955,13 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             style={{ cursor: 'pointer' }}
           >
             <div className="card-icon-wrapper">
-              <img
-                src={VidaPNG}
-                alt="Vida Logo"
-                style={{ 
-                  width: "60px", 
-                  height: "60px", 
-                  filter: "brightness(0) invert(1)",
-                  objectFit: "contain"
-                }}
-              />
+              <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
             </div>
-            <h3 className="card-title">PANNELLO FONTI F1</h3>
+            <h3 className="card-title">PANNELLO FONTI</h3>
+            <p className="card-subtitle">Archivio fonti<br />e risorse</p>
           </div>
         </div>
+      </div>
 
       <div className="home-footer">
         <p className="version-text">Versione 2.0</p>
@@ -2055,6 +2039,7 @@ function GestioneUtentiView({ onClose }) {
   const [showNuovo, setShowNuovo] = useState(false)
   const [editUtente, setEditUtente] = useState(null)
   const [showCategorie, setShowCategorie] = useState(false)
+  const [showTemplateArticoli, setShowTemplateArticoli] = useState(false)
 
   useEffect(() => {
     document.title = "FWM - Gestione Utenti"
@@ -2087,6 +2072,7 @@ function GestioneUtentiView({ onClose }) {
   if (showNuovo) return <NuovoUtenteView onClose={() => setShowNuovo(false)} onSave={() => { caricaUtenti(); setShowNuovo(false) }} />
   if (editUtente) return <ModificaUtenteView utente={editUtente} onClose={() => setEditUtente(null)} onSave={() => { caricaUtenti(); setEditUtente(null) }} />
   if (showCategorie) return <GestioneCategorie onClose={() => setShowCategorie(false)} />
+  if (showTemplateArticoli) return <GestioneTemplateArticoli onClose={() => setShowTemplateArticoli(false)} />
 
   return (
     <div className="gestione-container">
@@ -2097,6 +2083,10 @@ function GestioneUtentiView({ onClose }) {
           <button className="btn-nuovo" style={{ background: '#007AFF' }} onClick={() => setShowCategorie(true)}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
             Categorie
+          </button>
+          <button className="btn-nuovo" style={{ background: '#FF9500' }} onClick={() => setShowTemplateArticoli(true)}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+            Template
           </button>
           <button className="btn-nuovo" onClick={() => setShowNuovo(true)}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>Nuovo</button>
         </div>
