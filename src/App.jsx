@@ -11,6 +11,7 @@ import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
 import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
+import Logovida from "./assets/logo_vida.png"
 
 import './App.css'
 
@@ -1941,10 +1942,12 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             onClick={() => window.open('https://www.formula1.it/admin/login.asp', '_blank')} 
             style={{ cursor: 'pointer' }}
           >
-            <div className="card-icon-wrapper">
-              <svg viewBox="0 0 24 24" fill="white" style={{ width: "50px", height: "50px" }}>
-                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
-              </svg>
+ <div className="card-icon-wrapper">
+              <img
+                src={LogovidaPNG}
+                alt="logo_vida"
+                style={{ width: "58px", height: "60px", filter: "brightness(0) invert(1)" }}
+              />
             </div>
             <h3 className="card-title">PANNELLO VIDA</h3>
           </div>
