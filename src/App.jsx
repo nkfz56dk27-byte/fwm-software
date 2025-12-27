@@ -1936,6 +1936,49 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
         </div>
       </div>
 
+        {/* RIGA 3 - Card Rosse CON LOGO VIDA */}
+        <div className="home-cards-row">
+          <div 
+            className="home-card card-red" 
+            onClick={() => window.open('https://www.formula1.it/admin/login.asp', '_blank')} 
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="card-icon-wrapper">
+              <img
+                src={VidaPNG}
+                alt="Vida Logo"
+                style={{ 
+                  width: "60px", 
+                  height: "60px", 
+                  filter: "brightness(0) invert(1)",
+                  objectFit: "contain"
+                }}
+              />
+            </div>
+            <h3 className="card-title">PANNELLO VIDA</h3>
+          </div>
+
+          <div 
+            className="home-card card-red" 
+            onClick={() => window.open('https://fonti.formula1.it/login.asp', '_blank')} 
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="card-icon-wrapper">
+              <img
+                src={VidaPNG}
+                alt="Vida Logo"
+                style={{ 
+                  width: "60px", 
+                  height: "60px", 
+                  filter: "brightness(0) invert(1)",
+                  objectFit: "contain"
+                }}
+              />
+            </div>
+            <h3 className="card-title">PANNELLO FONTI F1</h3>
+          </div>
+        </div>
+
       <div className="home-footer">
         <p className="version-text">Versione 2.0</p>
       </div>
@@ -2204,107 +2247,3 @@ function ModificaUtenteView({ utente, onClose, onSave }) {
 }
 
 export default App
-/// ===== HOME VIEW CON LOGO VIDA =====
-function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
-  useEffect(() => {
-    document.title = "FWM Software - Home"
-  }, [])
-  
-  return (
-    <div className="home-container">
-      <div className="home-header">
-        <div className="header-left">
-          {user.ruolo === 'admin' && (
-            <button className="btn-header" onClick={onOpenGestione}>
-              <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-              </svg>
-              Gestione
-            </button>
-          )}
-        </div>
-        <div className="header-right">
-          <button className="btn-header" onClick={onLogout}>
-            {user.nome_completo}
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div className="home-title">
-        <h1 className="title-main">FWM Software</h1>
-      </div>
-
-      <div className="home-cards-wrapper">
-        <div className="home-cards-row">
-          <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer' }}>
-            <div className="card-icon-wrapper">
-              <img src={CoppaSVG} alt="Coppa" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
-            </div>
-            <h3 className="card-title">CLASSIFICHE</h3>
-            <p className="card-subtitle">{user.ruolo === 'admin' ? 'Gestisci campionati\ne classifiche' : 'Visualizza\nclassifiche'}</p>
-          </div>
-
-          <div className="home-card card-green" onClick={onOpenRitaglio} style={{ cursor: 'pointer' }}>
-            <div className="card-icon-wrapper">
-              <img src={FotoSVG} alt="Foto" style={{ width: "60px", height: "50px", filter: "brightness(0) invert(1)" }} />
-            </div>
-            <h3 className="card-title">RITAGLIO FOTO</h3>
-            <p className="card-subtitle">Ritaglia immagini<br />1200x729 px</p>
-          </div>
-        </div>
-
-        <div className="home-cards-row">
-          <div className="home-card card-purple" onClick={() => onOpenDisponibilita(null)} style={{ cursor: 'pointer', position: 'relative' }}>
-            {notificheNonLetteDisponibilita > 0 && (
-              <div style={{ position: 'absolute', top: '15px', right: '15px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(255,59,48,0.4)', zIndex: 10 }}>
-                {notificheNonLetteDisponibilita}
-              </div>
-            )}
-            <div className="card-icon-wrapper">
-              <img src={DisponibilitàSVG} alt="Disponibilità" style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }} />
-            </div>
-            <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
-            <p className="card-subtitle">Eventi e Gare</p>
-          </div>
-
-          <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
-            {notificheNonLetteCalendario > 0 && (
-              <div style={{ position: 'absolute', top: '15px', right: '15px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(255,59,48,0.4)', zIndex: 10 }}>
-                {notificheNonLetteCalendario}
-              </div>
-            )}
-            <div className="card-icon-wrapper">
-              <img src={PressPNG} alt="Press" style={{ width: "58px", height: "60px", filter: "brightness(0) invert(1)" }} />
-            </div>
-            <h3 className="card-title">CALENDARIO ACCREDITI</h3>
-            <p className="card-subtitle">Eventi e Gare<br />per cui richiedere accredito</p>
-          </div>
-        </div>
-
-        {/* RIGA 3 - Card Rosse CON LOGO VIDA */}
-        <div className="home-cards-row">
-          <div className="home-card card-red" onClick={() => window.open('https://www.formula1.it/admin/login.asp', '_blank')} style={{ cursor: 'pointer' }}>
-            <div className="card-icon-wrapper">
-              <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
-            </div>
-            <h3 className="card-title">PANNELLO VIDA</h3>
-          </div>
-
-          <div className="home-card card-red" onClick={() => window.open('https://fonti.formula1.it/login.asp', '_blank')} style={{ cursor: 'pointer' }}>
-            <div className="card-icon-wrapper">
-              <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
-            </div>
-            <h3 className="card-title">PANNELLO FONTI F1</h3>
-          </div>
-        </div>
-      </div>
-
-      <div className="home-footer">
-        <p className="version-text">Versione 2.0</p>
-      </div>
-    </div>
-  )
-}
