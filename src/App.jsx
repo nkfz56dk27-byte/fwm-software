@@ -11,7 +11,7 @@ import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
 import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
-import Logovida from "./assets/logo_vida.png"
+import Logovida from "./assets/logovida.png"
 
 import './App.css'
 
@@ -1945,7 +1945,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
  <div className="card-icon-wrapper">
               <img
                 src={LogovidaPNG}
-                alt="logo_vida"
+                alt="logovida"
                 style={{ width: "58px", height: "60px", filter: "brightness(0) invert(1)" }}
               />
             </div>
