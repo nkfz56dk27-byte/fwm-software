@@ -156,12 +156,165 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
         </div>
       </div>
       <div style={{ flex: 1, padding: isMobile ? '10px' : '20px 30px', overflow: 'auto' }}>
-        <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
+        {isMobile ? (
+          <ListaEventiMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} />
+        ) : (
+          <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={false} />
+        )}
       </div>
       {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo) => { await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo}`); await inviaNotificaPush('📅 Nuovo evento', titolo); caricaDati(); }} utenteCorrente={utenteCorrente} isMobile={isMobile} />}
       {showGestioneCampionati && <GestioneCampionatiModal campionati={campionati} onClose={() => setShowGestioneCampionati(false)} onUpdate={caricaDati} isMobile={isMobile} />}
       {showNotifiche && <NotificheModal notifiche={notifiche} onClose={() => setShowNotifiche(false)} onSegnaLetta={segnaComeLetta} onSegnaTutteLette={segnaTutteComeLette} isMobile={isMobile} />}
       {eventoSelezionato && <DettaglioEventoModal evento={eventoSelezionato} campionati={campionati} prenotazioni={prenotazioni} utenti={utenti} isAdmin={isAdmin} utenteCorrente={utenteCorrente} onClose={() => setEventoSelezionato(null)} onUpdate={async (notificaMsg) => { if (notificaMsg) { await creaNotifica('modifica', notificaMsg, eventoSelezionato.id); await inviaNotificaPush('🎫 Aggiornamento', notificaMsg); } caricaDati(); }} isMobile={isMobile} />}
+    </div>
+  )
+}
+
+function ListaEventiMobile({ mese, eventi, campionati, prenotazioni, onEventoClick }) {
+  // Raggruppa eventi per data
+  const eventiPerData = {}
+  
+  eventi.forEach(evento => {
+    const dataInizio = evento.data_inizio
+    if (!eventiPerData[dataInizio]) {
+      eventiPerData[dataInizio] = []
+    }
+    eventiPerData[dataInizio].push(evento)
+  })
+  
+  // Ordina date
+  const dateOrdinate = Object.keys(eventiPerData).sort()
+  
+  if (dateOrdinate.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 20px', color: '#999' }}>
+        <div style={{ fontSize: '48px', marginBottom: '20px' }}>📅</div>
+        <div style={{ fontSize: '16px' }}>Nessun evento in questo mese</div>
+      </div>
+    )
+  }
+  
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {dateOrdinate.map(data => {
+        const eventiGiorno = eventiPerData[data]
+        const [anno, meseNum, giorno] = data.split('-')
+        const dataObj = new Date(anno, meseNum - 1, giorno)
+        const nomeGiorno = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'][dataObj.getDay()]
+        const isOggi = new Date().toDateString() === dataObj.toDateString()
+        
+        return (
+          <div key={data} style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+            {/* Header data */}
+            <div style={{ 
+              padding: '12px 15px', 
+              background: isOggi ? '#007AFF' : '#f5f5f7',
+              borderBottom: '1px solid #e0e0e0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: isOggi ? 'white' : '#666' }}>{nomeGiorno}</div>
+                <div style={{ fontSize: '24px', fontWeight: 'bold', color: isOggi ? 'white' : '#000' }}>{giorno}</div>
+              </div>
+              {isOggi && <div style={{ fontSize: '12px', fontWeight: '600', color: 'white', background: 'rgba(255,255,255,0.3)', padding: '4px 10px', borderRadius: '20px' }}>OGGI</div>}
+            </div>
+            
+            {/* Eventi */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', background: '#f0f0f0' }}>
+              {eventiGiorno.map(evento => {
+                const campionato = campionati.find(c => c.id === evento.campionato_id)
+                const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666')
+                const emoji = evento.tipo === 'gara' && campionato ? campionato.emoji : '📅'
+                const sigla = evento.tipo === 'gara' && campionato ? campionato.sigla : 'EVENTO'
+                const prenotazioniEvento = prenotazioni.filter(p => p.evento_id === evento.id)
+                const numPrenotati = prenotazioniEvento.length
+                const maxAccrediti = evento.max_accrediti || 0
+                
+                let badge = null
+                if (evento.accredito_status === 'da_richiedere') badge = { icon: '🟡', text: 'Da richiedere', bg: '#FFD60A', color: '#000' }
+                else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'Richiesto', bg: '#FF9500', color: '#FFF' }
+                else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'Accettato', bg: '#34C759', color: '#FFF' }
+                
+                return (
+                  <div 
+                    key={evento.id}
+                    onClick={() => onEventoClick(evento)}
+                    style={{
+                      background: 'white',
+                      padding: '15px',
+                      cursor: 'pointer',
+                      borderLeft: `5px solid ${colore}`,
+                      minHeight: '44px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}
+                  >
+                    {/* Header evento */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '20px' }}>{emoji}</span>
+                        <div>
+                          <div style={{ fontSize: '11px', color: '#666', fontWeight: '600' }}>{sigla}</div>
+                          <div style={{ fontSize: '15px', fontWeight: 'bold', lineHeight: '1.3' }}>{evento.titolo}</div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Footer con badge e prenotazioni */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                      {badge && (
+                        <div style={{ 
+                          fontSize: '11px', 
+                          padding: '4px 10px', 
+                          background: badge.bg, 
+                          color: badge.color, 
+                          borderRadius: '6px', 
+                          fontWeight: '600',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <span>{badge.icon}</span>
+                          <span>{badge.text}</span>
+                        </div>
+                      )}
+                      
+                      {maxAccrediti > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
+                          {Array.from({ length: Math.min(maxAccrediti, 5) }, (_, i) => (
+                            <span 
+                              key={i} 
+                              style={{ 
+                                fontSize: '14px', 
+                                filter: i < numPrenotati ? 'none' : 'grayscale(1)', 
+                                opacity: i < numPrenotati ? 1 : 0.3 
+                              }}
+                            >
+                              👤
+                            </span>
+                          ))}
+                          {maxAccrediti > 5 && <span style={{ fontSize: '10px', color: '#666', fontWeight: '600' }}>+{maxAccrediti - 5}</span>}
+                          <span style={{ 
+                            fontSize: '12px', 
+                            color: numPrenotati >= maxAccrediti ? '#FF3B30' : '#666', 
+                            fontWeight: '700',
+                            marginLeft: '4px'
+                          }}>
+                            {numPrenotati}/{maxAccrediti}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
