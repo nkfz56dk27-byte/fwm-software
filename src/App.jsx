@@ -36,6 +36,15 @@ function App() {
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
+  
+  // Detect mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   async function caricaNotificheCalendario(username) {
     try {
@@ -207,11 +216,11 @@ function App() {
   }
 
   if (showClassificheMenu) {
-    return <ClassificheMenuView user={user} onBack={() => setShowClassificheMenu(false)} onOpenClassifica={(id) => { setClassificaId(id); setShowClassifica(true); setShowClassificheMenu(false) }} />
+    return <ClassificheMenuView user={user} isMobile={isMobile} onBack={() => setShowClassificheMenu(false)} onOpenClassifica={(id) => { setClassificaId(id); setShowClassifica(true); setShowClassificheMenu(false) }} />
   }
 
   if (showClassifica) {
-    return <ClassificaView classificaId={classificaId} user={user} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
+    return <ClassificaView classificaId={classificaId} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
   }
 
   // ← AGGIUNTO: Render condizionale RitaglioImmagine
@@ -230,7 +239,7 @@ function App() {
   return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
 }
 // ===== CLASSIFICA VIEW COMPLETA =====
-function ClassificaView({ classificaId, user, onBack }) {
+function ClassificaView({ classificaId, user, isMobile, onBack }) {
   const [classifica, setClassifica] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showSetup, setShowSetup] = useState(false)
@@ -298,7 +307,7 @@ function ClassificaView({ classificaId, user, onBack }) {
   if (showSetup) return <SetupIniziale classifica={classifica} onSave={salvaClassifica} onBack={onBack} />
   if (showImpostazioni) return <ImpostazioniClassifica classifica={classifica} onClose={() => { setShowImpostazioni(false); caricaClassifica() }} onSave={salvaClassifica} />
   if (showInserimentoGP) return <InserimentoRisultatiGP classifica={classifica} gpPreselezionato={gpSelezionato} onClose={() => { setShowInserimentoGP(false); setGpSelezionato(null) }} onSave={salvaClassifica} />
-  if (showGrafico) return <GraficoPronostico classifica={classifica} onClose={() => setShowGrafico(false)} />
+  if (showGrafico) return <GraficoPronostico classifica={classifica} isMobile={isMobile} onClose={() => setShowGrafico(false)} />
 
   const pilotiOrdinati = classifica.piloti ? [...classifica.piloti].filter(p => p.attivo).sort((a, b) => b.punti - a.punti) : []
   const costruttoriOrdinati = classifica.costruttori ? [...classifica.costruttori].sort((a, b) => b.punti - a.punti) : []
@@ -306,48 +315,53 @@ function ClassificaView({ classificaId, user, onBack }) {
   const gpDaCompletare = classifica.gp ? classifica.gp.filter(g => !g.completato) : []
 
   return (
-    <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: '20px' }}>
+    <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '40px' }}>
         {/* HEADER */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', padding: '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <h1 style={{ fontSize: '34px', fontWeight: 'bold', margin: 0, flex: 1 }}>{classifica.nome}</h1>
-          {isAdmin && (
-            <button onClick={() => setShowImpostazioni(true)} style={{ width: '40px', height: '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
-              <svg viewBox="0 0 24 24" fill="#000" style={{ width: '30px', height: '30px' }}>
-                <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
-              </svg>
-            </button>
-          )}
-          <div style={{ position: 'relative' }}>
-            <button onClick={(e) => { const menu = e.currentTarget.nextSibling; menu.style.display = menu.style.display === 'block' ? 'none' : 'block' }} style={{ width: '50px', height: '50px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
-              <svg viewBox="0 0 24 24" fill="#34C759" style={{ width: '40px', height: '40px' }}>
-                <circle cx="12" cy="12" r="10" fill="#34C759"/>
-                <path d="M12 7v10M7 12h10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-            </button>
-            <div style={{ display: 'none', position: 'absolute', top: '100%', right: 0, background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: '250px', zIndex: 1000, marginTop: '10px' }}>
-              {gpDaCompletare.length === 0 ? (
-                <div style={{ padding: '15px', color: '#999' }}>Nessun GP da completare</div>
-              ) : (
-                gpDaCompletare.map(gp => (
-                  <div key={gp.id} onClick={() => { setGpSelezionato(gp); setShowInserimentoGP(true) }} style={{ padding: '15px', cursor: 'pointer', borderBottom: '1px solid #eee' }}>
-                    {gp.tipo_weekend === 'sprintF1' ? '⚡️' : gp.tipo_weekend === 'f2' ? '🏎️' : '🏆'} {gp.nome}
-                  </div>
-                ))
-              )}
-              {isAdmin && (
-                <>
-                  <div style={{ borderTop: '2px solid #eee' }}></div>
-                  <div onClick={() => { setGpSelezionato(null); setShowInserimentoGP(true) }} style={{ padding: '15px', cursor: 'pointer', color: '#007AFF', fontWeight: 'bold' }}>+ Aggiungi nuovo GP</div>
-                </>
-              )}
-            </div>
-          </div>
-          <button onClick={() => setShowGrafico(true)} style={{ width: '40px', height: '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
-            <svg viewBox="0 0 24 24" fill="#000" style={{ width: '30px', height: '30px' }}>
-              <path d="M3 3v18h18M7 14l4-4 4 4 6-6"/>
-            </svg>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '10px' : '15px', marginBottom: '20px', padding: isMobile ? '15px' : '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', position: 'relative' }}>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-start', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>
+            ← Indietro
           </button>
+          <h1 style={{ fontSize: isMobile ? '22px' : '34px', fontWeight: 'bold', margin: 0, flex: 1, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0 }}>{classifica.nome}</h1>
+          <div style={{ display: 'flex', gap: '10px', alignSelf: isMobile ? 'flex-end' : 'auto' }}>
+            {isAdmin && (
+              <button onClick={() => setShowImpostazioni(true)} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
+                <svg viewBox="0 0 24 24" fill="#000" style={{ width: isMobile ? '28px' : '30px', height: isMobile ? '28px' : '30px' }}>
+                  <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                </svg>
+              </button>
+            )}
+            <div style={{ position: 'relative' }}>
+              <button onClick={(e) => { const menu = e.currentTarget.nextSibling; menu.style.display = menu.style.display === 'block' ? 'none' : 'block' }} style={{ width: isMobile ? '44px' : '50px', height: isMobile ? '44px' : '50px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
+                <svg viewBox="0 0 24 24" fill="#34C759" style={{ width: isMobile ? '38px' : '40px', height: isMobile ? '38px' : '40px' }}>
+                  <circle cx="12" cy="12" r="10" fill="#34C759"/>
+                  <path d="M12 7v10M7 12h10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+              <div style={{ display: 'none', position: 'absolute', top: '100%', right: 0, background: 'white', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', minWidth: isMobile ? '200px' : '250px', zIndex: 1000, marginTop: '10px' }}>
+                {gpDaCompletare.length === 0 ? (
+                  <div style={{ padding: '15px', color: '#999' }}>Nessun GP da completare</div>
+                ) : (
+                  gpDaCompletare.map(gp => (
+                    <div key={gp.id} onClick={() => { setGpSelezionato(gp); setShowInserimentoGP(true) }} style={{ padding: isMobile ? '12px 15px' : '15px', cursor: 'pointer', borderBottom: '1px solid #eee', minHeight: isMobile ? '44px' : 'auto' }}>
+                      {gp.tipo_weekend === 'sprintF1' ? '⚡️' : gp.tipo_weekend === 'f2' ? '🏎️' : '🏆'} {gp.nome}
+                    </div>
+                  ))
+                )}
+                {isAdmin && (
+                  <>
+                    <div style={{ borderTop: '2px solid #eee' }}></div>
+                    <div onClick={() => { setGpSelezionato(null); setShowInserimentoGP(true) }} style={{ padding: isMobile ? '12px 15px' : '15px', cursor: 'pointer', color: '#007AFF', fontWeight: 'bold', minHeight: isMobile ? '44px' : 'auto' }}>+ Aggiungi nuovo GP</div>
+                  </>
+                )}
+              </div>
+            </div>
+            <button onClick={() => setShowGrafico(true)} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0 }}>
+              <svg viewBox="0 0 24 24" fill="#000" style={{ width: isMobile ? '28px' : '30px', height: isMobile ? '28px' : '30px' }}>
+                <path d="M3 3v18h18M7 14l4-4 4 4 6-6"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
        {/* GP COMPLETATI */}
@@ -476,31 +490,6 @@ function ClassificaView({ classificaId, user, onBack }) {
             )}
           </div>
         </div>
-
-        BOTTONE INDIETRO CLASSIFICA
-
-  <button
-  onClick={onBack}
-  style={{
-    position: 'absolute',
-    top: '20px',
-    left: '20px',
-    background: 'none',
-    border: 'none',
-    color: '#007AFF',
-    fontSize: '18px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px'
-  }}
->
-  ← Indietro
-</button>
-
-
-
       </div>
     </div>
   )
@@ -1167,7 +1156,7 @@ function CambiaPilotaView({ classifica, onClose, onSave }) {
 }
 
 // ===== GRAFICO PRONOSTICO =====
-function GraficoPronostico({ classifica, onClose }) {
+function GraficoPronostico({ classifica, isMobile, onClose }) {
   const [tab, setTab] = useState(0)
   const [pilotaFissato, setPilotaFissato] = useState(null)
   
@@ -1180,34 +1169,14 @@ function GraficoPronostico({ classifica, onClose }) {
   const puntiMassimiRimanenti = gpRimanenti * 25 + sprintRimanenti * 8
 
   return (
-    <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: '20px' }}>
+    <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '20px' }}>
-        <div style={{ background: 'white', borderRadius: '20px', padding: '1px 15px', marginBottom: '20px' }}>
-        <button
-  onClick={onClose}
-  style={{
-    background: 'none',
-    border: 'none',
-    color: '#007AFF',
-    fontSize: '18px',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    gap: '8px',
-    padding: '10px 0',
-    width: 'fit-content',
-    // per spostarlo fuori dal bordo bianco:
-    marginTop: '-11px', // negativo per salire sopra il bordo
-    marginLeft: '-115px',
-    marginBottom: '20px'
-  }}
->
-  ← Indietro
-</button>
-
-          <h1 style={{ fontSize: '34px', fontWeight: 'bold', margin: 0,  flex: 1 }}>Grafico Pronostico Campionato</h1>
+        {/* HEADER */}
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '10px' : '15px', marginBottom: '20px', padding: isMobile ? '15px' : '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-start', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>
+            ← Indietro
+          </button>
+          <h1 style={{ fontSize: isMobile ? '20px' : '34px', fontWeight: 'bold', margin: 0, flex: 1, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0 }}>Grafico Pronostico Campionato</h1>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
@@ -1670,7 +1639,7 @@ function SetupIniziale({ classifica, onSave, onBack }) {
 }
 
 // ===== MENU CLASSIFICHE =====
-function ClassificheMenuView({ user, onBack, onOpenClassifica }) {
+function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
   const [classifiche, setClassifiche] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAltreClassifiche, setShowAltreClassifiche] = useState(false)
@@ -1707,59 +1676,55 @@ function ClassificheMenuView({ user, onBack, onOpenClassifica }) {
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Caricamento...</div>
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-      <div style={{ position: 'absolute', top: '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '20px' : '40px' }}>
+      <div style={{ position: 'absolute', top: isMobile ? '10px' : '20px', left: isMobile ? '10px' : '20px', right: isMobile ? '10px' : '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
+        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', cursor: 'pointer', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>
+          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
           Indietro
         </button>
-  <button
-  onClick={() => {
-    if (modalitaElimina) {
-      setModalitaElimina(false);
-      setShowAltreClassifiche(false);
-    } else {
-      setShowAltreClassifiche(true);
-      setModalitaElimina(true);
-    }
-  }}
-  DISTANZA BOTTONE CESTINO DAL BORDO HOME CLASSIFICA
-  style={{
-    position: "fixed",
-    right: "60px",      // 👈 aumenta questo valore = più a sinistra
-    bottom: "720px",     // puoi regolarlo se serve
-    width: "48px",
-    height: "48px",
-    borderRadius: "50%",
-    border: "none",
-    background: modalitaElimina ? "#34C759" : "#FF3B30",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
-    zIndex: 1000
-  }}
->
-  {modalitaElimina ? (
-    /* ✔️ V verde */
-    <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
-      <path d="M9 16.2l-3.5-3.5 1.4-1.4L9 13.4l8.1-8.1 1.4 1.4z" />
-    </svg>
-  ) : (
-    /* 🗑️ Cestino bianco */
-    <img
-      src={CestinoSVG}
-      alt="Cestino"
-      style={{
-        width: "24px",
-        height: "24px",
-        filter: "brightness(0) invert(1)"
-      }}
-    />
-  )}
-</button>
-
+        {isAdmin && (
+          <button
+            onClick={() => {
+              if (modalitaElimina) {
+                setModalitaElimina(false);
+                setShowAltreClassifiche(false);
+              } else {
+                setShowAltreClassifiche(true);
+                setModalitaElimina(true);
+              }
+            }}
+            style={{
+              width: isMobile ? '44px' : '48px',
+              height: isMobile ? '44px' : '48px',
+              borderRadius: "50%",
+              border: "none",
+              background: modalitaElimina ? "#34C759" : "#FF3B30",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              boxShadow: "0 4px 10px rgba(0,0,0,0.3)"
+            }}
+          >
+            {modalitaElimina ? (
+              /* ✔️ V verde */
+              <svg viewBox="0 0 24 24" width={isMobile ? "20" : "24"} height={isMobile ? "20" : "24"} fill="white">
+                <path d="M9 16.2l-3.5-3.5 1.4-1.4L9 13.4l8.1-8.1 1.4 1.4z" />
+              </svg>
+            ) : (
+              /* 🗑️ Cestino bianco */
+              <img
+                src={CestinoSVG}
+                alt="Cestino"
+                style={{
+                  width: isMobile ? "20px" : "24px",
+                  height: isMobile ? "20px" : "24px",
+                  filter: "brightness(0) invert(1)"
+                }}
+              />
+            )}
+          </button>
+        )}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '40px' }}>
