@@ -16,8 +16,8 @@ export async function inviaNotificaPush(messaggio) {
       body: JSON.stringify({
         app_id: '929f6f56-9a35-4a5f-900c-4e77e881e899',
         included_segments: ['All'],
-        headings: { en: '🔔 FWM - Nuova Notifica' },
-        contents: { en: messaggio },
+        headings: { it: '🔔 FWM - Nuova Notifica' },
+        contents: { it: messaggio },
         url: 'https://fwm-software.vercel.app'
       })
     })
