@@ -1,11 +1,11 @@
 export async function inviaNotificaPush(messaggio) {
-  // Se l'utente È sul sito, non inviare push
+  // Se l'utente è SUL SITO (tab visibile) → NON inviare push
   if (!document.hidden) {
     console.log('✅ Utente sul sito - solo notifica interna')
     return
   }
 
-  // Invia push notification
+  // Se l'utente NON è sul sito (tab nascosto/chiuso) → Invia push
   try {
     await fetch('https://api.onesignal.com/notifications', {
       method: 'POST',
