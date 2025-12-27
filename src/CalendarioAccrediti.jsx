@@ -91,27 +91,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   }
 
   async function creaNotifica(tipo, messaggio, evento_id = null) {
-    let messaggioFinale = messaggio
-    
-    // Se c'è un evento_id, aggiungi la data al messaggio
-    if (evento_id) {
-      const { data: evento } = await supabase
-        .from('eventi_calendario')
-        .select('data_inizio')
-        .eq('id', evento_id)
-        .single()
-      
-      if (evento && evento.data_inizio) {
-        // Formatta data in italiano (es: "27 dicembre")
-        const [anno, mese, giorno] = evento.data_inizio.split('-')
-        const mesi = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 
-                      'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
-        const dataFormattata = `${parseInt(giorno)} ${mesi[parseInt(mese) - 1]}`
-        messaggioFinale = `${messaggio} (${dataFormattata})`
-      }
-    }
-    
-    await supabase.from('notifiche_calendario').insert({ tipo, messaggio: messaggioFinale, evento_id })
+    await supabase.from('notifiche_calendario').insert({ tipo, messaggio, evento_id })
     await caricaNotifiche()
   }
 
@@ -157,6 +137,14 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
 
   function cambiaMese(offset) {
     setMeseCorrente(new Date(meseCorrente.getFullYear(), meseCorrente.getMonth() + offset))
+  }
+
+  function formatData(dataStr) {
+    if (!dataStr) return ''
+    const [anno, mese, giorno] = dataStr.split('-')
+    const mesi = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 
+                  'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre']
+    return `${parseInt(giorno)} ${mesi[parseInt(mese) - 1]}`
   }
 
   function getEventiMese() {
@@ -209,10 +197,23 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
           <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
         )}
       </div>
-      {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo, eventoId, dataInizio) => { await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo}`, eventoId); await inviaNotificaPush('📅 Nuovo evento', titolo); caricaDati(); }} utenteCorrente={utenteCorrente} isMobile={isMobile} />}
+      {showNuovoEvento && <NuovoEventoModal campionati={campionati} onClose={() => setShowNuovoEvento(false)} onSave={async (titolo, eventoId, dataInizio) => { 
+        const dataFormattata = formatData(dataInizio)
+        await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo} il ${dataFormattata}`, eventoId); 
+        await inviaNotificaPush('📅 Nuovo evento', titolo); 
+        caricaDati(); 
+      }} utenteCorrente={utenteCorrente} isMobile={isMobile} />}
       {showGestioneCampionati && <GestioneCampionatiModal campionati={campionati} onClose={() => setShowGestioneCampionati(false)} onUpdate={caricaDati} isMobile={isMobile} />}
       {showNotifiche && <NotificheModal notifiche={notifiche} onClose={() => setShowNotifiche(false)} onSegnaLetta={segnaComeLetta} onSegnaTutteLette={segnaTutteComeLette} onCancellaTutte={cancellaTutte} isMobile={isMobile} />}
-      {eventoSelezionato && <DettaglioEventoModal evento={eventoSelezionato} campionati={campionati} prenotazioni={prenotazioni} utenti={utenti} isAdmin={isAdmin} utenteCorrente={utenteCorrente} onClose={() => setEventoSelezionato(null)} onUpdate={async (notificaMsg) => { if (notificaMsg) { await creaNotifica('modifica', notificaMsg, eventoSelezionato.id); await inviaNotificaPush('🎫 Aggiornamento', notificaMsg); } caricaDati(); }} isMobile={isMobile} />}
+      {eventoSelezionato && <DettaglioEventoModal evento={eventoSelezionato} campionati={campionati} prenotazioni={prenotazioni} utenti={utenti} isAdmin={isAdmin} utenteCorrente={utenteCorrente} onClose={() => setEventoSelezionato(null)} onUpdate={async (notificaMsg) => { 
+        if (notificaMsg) { 
+          const dataFormattata = formatData(eventoSelezionato.data_inizio)
+          const messaggioConData = `${notificaMsg} il ${dataFormattata}`
+          await creaNotifica('modifica', messaggioConData, eventoSelezionato.id); 
+          await inviaNotificaPush('🎫 Aggiornamento', notificaMsg); 
+        } 
+        caricaDati(); 
+      }} isMobile={isMobile} />}
     </div>
   )
 }
@@ -817,7 +818,35 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
       <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '600px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold' }}>🔔 Notifiche</div>
+          {/* Bottone Cancella tutto a SX */}
+          <button 
+            onClick={onCancellaTutte} 
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              fontSize: isMobile ? '13px' : '12px', 
+              cursor: 'pointer', 
+              color: '#FF3B30',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: isMobile ? '6px 10px' : '6px 10px',
+              borderRadius: '6px',
+              transition: 'background 0.2s',
+              minHeight: isMobile ? '36px' : 'auto'
+            }}
+            onMouseEnter={e => e.target.style.background = '#FF3B3015'}
+            onMouseLeave={e => e.target.style.background = 'none'}
+          >
+            <span style={{ fontSize: '16px' }}>🗑️</span>
+            {!isMobile && <span>Cancella</span>}
+          </button>
+          
+          {/* Titolo centrato */}
+          <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>🔔 Notifiche</div>
+          
+          {/* X a DX */}
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666', minWidth: '44px', minHeight: '44px' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '20px 30px' }}>
@@ -832,10 +861,8 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
             ))
           )}
         </div>
-        <div style={{ padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', flexWrap: 'wrap' }}>
-          <button onClick={onSegnaTutteLette} style={{ flex: 1, minWidth: isMobile ? '100%' : '150px', padding: isMobile ? '14px' : '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Segna tutte lette</button>
-          <button onClick={onCancellaTutte} style={{ flex: 1, minWidth: isMobile ? '100%' : '150px', padding: isMobile ? '14px' : '12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Cancella tutto</button>
-          <button onClick={onClose} style={{ padding: isMobile ? '14px 30px' : '12px 30px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Chiudi</button>
+        <div style={{ padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'center' }}>
+          <button onClick={onSegnaTutteLette} style={{ width: '100%', maxWidth: '300px', padding: isMobile ? '14px' : '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Segna tutte lette</button>
         </div>
       </div>
     </div>
