@@ -876,11 +876,67 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
     caricaArticoli()
   }, [weekend.id])
 
+  useEffect(() => {
+    // REALTIME SUBSCRIPTION per vedere le modifiche degli altri utenti (conferme)
+    const channel = supabase
+      .channel(`articoli_weekend_${weekend.id}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'articoli',
+        filter: `weekend_id=eq.${weekend.id}`
+      }, () => {
+        caricaArticoli() // Ricarica quando qualcuno modifica
+      })
+      .on('broadcast', { event: 'selezione' }, ({ payload }) => {
+        // Riceve selezioni temporanee dagli altri
+        if (payload.username !== nomeRedattore) {
+          setSelezioniAltri(prev => ({
+            ...prev,
+            [payload.username]: new Set(payload.articoli)
+          }))
+        }
+      })
+      .subscribe()
+
+    channelRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [weekend.id, nomeRedattore])
+
   async function caricaArticoli() {
-    const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id).order('giorno').order('categoria')
-    setArticoli(data || [])
-    const miei = data?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
-    setArticoliSelezionati(new Set(miei))
+    const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id)
+    
+    // Ordina articoli SOLO se array vuoto (primo caricamento)
+    const articoliOrdinati = articoli.length === 0 
+      ? (data || []).sort((a, b) => {
+          if (a.giorno !== b.giorno) return a.giorno.localeCompare(b.giorno)
+          return a.categoria.localeCompare(b.categoria)
+        })
+      : (data || [])
+    
+    setArticoli(articoliOrdinati)
+    
+    // Preserva selezioni correnti SE ancora valide
+    setArticoliSelezionati(prevSelezionati => {
+      const nuoveSelezionati = new Set()
+      
+      // Aggiungi articoli confermati dal database
+      const miei = articoliOrdinati?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
+      miei.forEach(id => nuoveSelezionati.add(id))
+      
+      // Preserva selezioni correnti SE l'articolo è ancora libero o mio
+      prevSelezionati.forEach(id => {
+        const articolo = articoliOrdinati?.find(a => a.id === id)
+        if (articolo && (articolo.stato === 'libero' || articolo.assegnato_a === nomeRedattore)) {
+          nuoveSelezionati.add(id)
+        }
+      })
+      
+      return nuoveSelezionati
+    })
   }
 
   async function salvaArticoli(conferma = false) {
@@ -894,6 +950,47 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
       }
     }
+    
+   // CREA NOTIFICA quando conferma
+    if (articoliSelezionati.size > 0) {
+      console.log('[CONFERMA] Creazione notifica per', articoliSelezionati.size, 'articoli')
+      console.log('[CONFERMA] Weekend ID:', weekend.id)
+      console.log('[CONFERMA] Weekend nome:', weekend.nome_gp)
+      console.log('[CONFERMA] Redattore:', nomeRedattore)
+      
+      const messaggioNotifica = `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`
+      console.log('[CONFERMA] Messaggio:', messaggioNotifica)
+      
+      const { data: notificaCreata, error } = await supabase
+        .from('notifiche_disponibilita')
+        .insert({
+          messaggio: messaggioNotifica,
+          weekend_id: weekend.id
+        })
+        .select()
+      
+      if (error) {
+        console.error('[CONFERMA] ERRORE creazione notifica:', error)
+        console.error('[CONFERMA] Messaggio errore:', error.message)
+        console.error('[CONFERMA] Dettagli:', error.details)
+        console.error('[CONFERMA] Hint:', error.hint)
+      } else {
+        console.log('[CONFERMA] Notifica creata con successo:', notificaCreata)
+      }
+    }
+    
+    // PULISCE selezioni temporanee dopo conferma
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'selezione',
+        payload: {
+          username: nomeRedattore,
+          articoli: [] // Array vuoto = conferma completata
+        }
+      })
+    }
+    
     setSalvando(false)
     if (conferma) {
       if (articoliSelezionati.size > 0) {
@@ -923,6 +1020,19 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
       return
     }
     setArticoliSelezionati(newSet)
+  }
+
+  // BROADCAST selezione temporanea in tempo reale
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'selezione',
+        payload: {
+          username: nomeRedattore,
+          articoli: Array.from(newSet)
+        }
+      })
+    }
   }
 
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ ...g, articoli: articoli.filter(a => a.giorno === g.id) }))
@@ -1007,6 +1117,11 @@ function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle }) {
   const isLibero = articolo.stato === 'libero'
   const isMio = articolo.assegnato_a === nomeRedattore
   const canSelect = isLibero || isMio
+
+  // Controlla se qualcun altro ha selezionato (ma non confermato) questo articolo
+  const altriSelezionati = Object.entries(selezioniAltri || {})
+    .filter(([username, articoliSet]) => articoliSet.has(articolo.id) && username !== nomeRedattore)
+    .map(([username]) => username)
   
   let statoText = '👤 libero', statoColor = '#666', bgColor = 'transparent', checkIcon = '☐', checkColor = '#ccc'
   
@@ -1108,33 +1223,67 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
   const [showModifica, setShowModifica] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
-  const [showGrassetto, setShowGrassetto] = useState(false)
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000 }}>
-      <div style={{ background: 'white', borderRadius: '15px', width: '1200px', height: '800px', display: 'flex', flexDirection: 'column' }}>
-        {/* HEADER */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000, padding: isMobile ? '0' : '20px' }}>
+      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '1200px', height: isMobile ? '100vh' : '800px', display: 'flex', flexDirection: 'column' }}>
+        {/* HEADER - IDENTICO a selezione articoli */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          padding: isMobile ? '20px 15px' : '20px 30px', 
+          background: 'white', 
+          borderBottom: '1px solid #e0e0e0',
+          borderRadius: isMobile ? '0' : '15px 15px 0 0'
+        }}>
+          {/* Bottone Indietro */}
+          <button 
+            onClick={onClose} 
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              color: '#007AFF', 
+              fontSize: isMobile ? '18px' : '18px', 
+              fontWeight: 'bold', 
+              cursor: 'pointer',
+              padding: 0
+            }}
+          >
+            ← Indietro
+          </button>
+          
+          {/* Titolo centrato */}
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
             <div style={{ fontSize: '13px', color: '#666' }}>{weekend.data}</div>
           </div>
-          {/* MIGLIORAMENTO 2: Menu più visibile */}
+          
+          {/* Bottone Menu */}
           <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowMenu(!showMenu)} style={{ padding: '8px 16px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              Menu Admin
+            <button 
+              onClick={() => setShowMenu(!showMenu)} 
+              style={{ 
+                padding: isMobile ? '8px 16px' : '8px 16px', 
+                background: '#007AFF', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '10px', 
+                cursor: 'pointer', 
+                fontSize: '14px', 
+                fontWeight: '600',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Menu
             </button>
             {showMenu && (
-              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: '220px' }}>
-                <button onClick={() => { setShowExport(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', fontWeight: '500' }}>
-                  📸 Esporta JPEG
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: isMobile ? '180px' : '220px' }}>
+                <button onClick={() => { setShowExport(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : '15px', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
+                  Esporta JPEG
                 </button>
-                <button onClick={() => { setShowGrassetto(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #eee', fontWeight: '500' }}>
-                  🔤 Aggiorna Grassetto
-                </button>
-                <button onClick={() => { setShowModifica(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #eee', fontWeight: '500' }}>
-                  ✏️ Modifica Tabella
+                <button onClick={() => { setShowModifica(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : '15px', borderTop: '1px solid #eee', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
+                  Modifica Tabella
                 </button>
               </div>
             )}
@@ -1142,13 +1291,13 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
         </div>
 
         {/* TAB BAR - MIGLIORAMENTO 1: Rimozione tab Log */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #e0e0e0', padding: '0 30px' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid #e0e0e0', padding: isMobile ? '0 10px' : '0 30px', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
           {[
             { id: 'riepilogo', label: 'Riepilogo', icon: '' },
             { id: 'tabella', label: 'Tabella', icon: '' },
             { id: 'nonAssegnati', label: 'Non Assegnati', icon: '' }
           ].map(tab => (
-            <button key={tab.id} onClick={() => setSelectedTab(tab.id)} style={{ flex: 1, padding: '12px', background: selectedTab === tab.id ? '#007AFF1A' : 'transparent', border: 'none', borderBottom: selectedTab === tab.id ? '2px solid #007AFF' : '2px solid transparent', color: selectedTab === tab.id ? '#007AFF' : '#666', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
+            <button key={tab.id} onClick={() => setSelectedTab(tab.id)} style={{ flex: isMobile ? '0 0 auto' : 1, padding: isMobile ? '10px 15px' : '12px', background: selectedTab === tab.id ? '#007AFF1A' : 'transparent', border: 'none', borderBottom: selectedTab === tab.id ? '2px solid #007AFF' : '2px solid transparent', color: selectedTab === tab.id ? '#007AFF' : '#666', cursor: 'pointer', fontSize: isMobile ? '13px' : '14px', fontWeight: '600', whiteSpace: 'nowrap' }}>
               {tab.icon} {tab.label}
             </button>
           ))}
@@ -1156,15 +1305,14 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
 
         {/* CONTENT */}
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {selectedTab === 'riepilogo' && <AdminRiepilogoTab weekend={weekend} articoli={articoli} />}
-          {selectedTab === 'tabella' && <AdminTabellaTab weekend={weekend} articoli={articoli} />}
-          {selectedTab === 'nonAssegnati' && <AdminNonAssegnatiTab weekend={weekend} articoli={articoli} />}
+          {selectedTab === 'riepilogo' && <AdminRiepilogoTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
+          {selectedTab === 'tabella' && <AdminTabellaTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
+          {selectedTab === 'nonAssegnati' && <AdminNonAssegnatiTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
         </div>
 
         {/* MODALS */}
         {showModifica && <ModificaTabellaModal weekend={weekend} articoli={articoli} onClose={() => { setShowModifica(false); onRefresh() }} />}
         {showExport && <ExportJPEGModal weekend={weekend} articoli={articoli} onClose={() => setShowExport(false)} />}
-        {showGrassetto && <AggiornaGrassettoModal weekend={weekend} articoli={articoli} onClose={() => { setShowGrassetto(false); onRefresh() }} />}
       </div>
     </div>
   )
@@ -1409,9 +1557,20 @@ function ModificaRedattoriSection({ weekend, articoli, onUpdate }) {
 
   async function salvaRedattori() {
     setSalvando(true)
-    const { error } = await supabase.from('disponibilita_weekend').update({ redattori: Array.from(redattori).sort() }).eq('id', weekend.id)
-    if (error) console.error('Errore:', error)
-    else alert('✅ Redattori aggiornati!')
+    const { error } = await supabase.from('weekend').update({ redattori: Array.from(redattori).sort() }).eq('id', weekend.id)
+    
+    if (!error) {
+      // CREA NOTIFICA
+      await supabase.from('notifiche_disponibilita').insert({
+        messaggio: `Redattori aggiornati per ${weekend.nome_gp}`,
+        weekend_id: weekend.id
+      })
+      
+      alert('✅ Redattori aggiornati!')
+    } else {
+      console.error('Errore:', error)
+    }
+    
     setSalvando(false)
     onUpdate()
   }
@@ -1456,7 +1615,7 @@ function ModificaRedattoriSection({ weekend, articoli, onUpdate }) {
       </div>
 
       <button onClick={salvaRedattori} disabled={salvando} style={{ width: '100%', padding: '12px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
-        {salvando ? 'Salvataggio...' : '💾 Salva Redattori'}
+        {salvando ? 'Salvataggio...' : 'Salva Redattori'}
       </button>
 
       {deleteConfirm && (
