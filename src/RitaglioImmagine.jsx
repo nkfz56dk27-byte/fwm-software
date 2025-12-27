@@ -123,16 +123,38 @@ export default function RitaglioImmagine({ onClose }) {
       const img = new Image()
       img.onload = () => {
         const canvas = document.createElement('canvas')
-        // SALVATAGGIO 1200x729 (NON CAMBIARE!)
         canvas.width = CROP_WIDTH
         canvas.height = CROP_HEIGHT
         const ctx = canvas.getContext('2d')
 
-        const scale = CROP_WIDTH / DISPLAY_WIDTH
-        const adjustedOffsetX = imageOffset.x * scale
-        const adjustedOffsetY = imageOffset.y * scale
+        // Calcola come l'immagine viene scalata con objectFit: cover
+        const imgWidth = img.width
+        const imgHeight = img.height
+        const displayRatio = DISPLAY_WIDTH / DISPLAY_HEIGHT
+        const imgRatio = imgWidth / imgHeight
 
-        ctx.drawImage(img, adjustedOffsetX, adjustedOffsetY, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height)
+        let scaleFactor
+        if (imgRatio > displayRatio) {
+          // Immagine più larga: scala in base all'altezza
+          scaleFactor = DISPLAY_HEIGHT / imgHeight
+        } else {
+          // Immagine più alta: scala in base alla larghezza
+          scaleFactor = DISPLAY_WIDTH / imgWidth
+        }
+
+        // Calcola quale porzione dell'immagine originale è visibile nella preview
+        const visibleLeft = -imageOffset.x
+        const visibleTop = -imageOffset.y
+        
+        // Mappa le coordinate alla dimensione originale dell'immagine
+        const scaleToOriginal = 1 / scaleFactor
+        const srcX = visibleLeft * scaleToOriginal
+        const srcY = visibleTop * scaleToOriginal
+        const srcWidth = DISPLAY_WIDTH * scaleToOriginal
+        const srcHeight = DISPLAY_HEIGHT * scaleToOriginal
+
+        // Ritaglia e scala l'immagine originale sul canvas 1200x729
+        ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, CROP_WIDTH, CROP_HEIGHT)
 
         if (conLogo && logoImage) {
           const logoImg = new Image()
@@ -164,16 +186,32 @@ export default function RitaglioImmagine({ onClose }) {
 
   function downloadImage(canvas) {
     canvas.toBlob((blob) => {
+      // Gestione numeri progressivi con localStorage
+      const progressivo = conLogo 
+        ? (parseInt(localStorage.getItem('contoSitoConLogo') || '0') + 1)
+        : (parseInt(localStorage.getItem('contoSitoSenzaLogo') || '0') + 1)
+
+      const fileName = conLogo 
+        ? `Sito con logo ${progressivo}.jpg` 
+        : `Sito senza logo ${progressivo}.jpg`
+
+      // Salva il nuovo contatore
+      if (conLogo) {
+        localStorage.setItem('contoSitoConLogo', progressivo.toString())
+      } else {
+        localStorage.setItem('contoSitoSenzaLogo', progressivo.toString())
+      }
+
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `ritaglio_${Date.now()}.jpg`
+      a.download = fileName
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
 
-      setSavedFilePath(`✅ Download completato: ${a.download}`)
+      setSavedFilePath(`✅ Download completato: ${fileName}`)
       setShowSuccessAlert(true)
       setIsSaving(false)
     }, 'image/jpeg', 1.0)
