@@ -164,7 +164,28 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   useEffect(() => {
     caricaWeekends()
     caricaCategorie()
+    caricaNotifiche()
   }, [])
+
+  useEffect(() => {
+  // REALTIME SUBSCRIPTION per notifiche
+  const channel = supabase
+    .channel('notifiche_disponibilita_changes')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'notifiche_disponibilita'
+    }, (payload) => {
+      console.log('[NOTIFICHE] Cambiamento ricevuto:', payload)
+      caricaNotifiche()
+      if (onNotificheChange) onNotificheChange()
+    })
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}, [utenteCorrente])
 
   async function caricaCategorie() {
     const { data } = await supabase
@@ -763,12 +784,14 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   }
   
   // CREA NOTIFICA quando conferma
-  if (conferma && articoliSelezionati.size > 0) {
-    await supabase.from('notifiche_disponibilita').insert({
-      messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
-      weekend_id: weekend.id
-    })
-  }
+if (conferma && articoliSelezionati.size > 0) {
+  await supabase.from('notifiche_disponibilita').insert({
+    messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
+    weekend_id: weekend.id
+  })
+  // Forza ricarica notifiche per farle apparire subito
+  window.dispatchEvent(new Event('ricarica-notifiche'))
+}
   
   // PULISCE selezioni temporanee dopo conferma
   if (channelRef.current) {
