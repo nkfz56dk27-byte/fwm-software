@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
 
@@ -164,30 +164,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   useEffect(() => {
     caricaWeekends()
     caricaCategorie()
-    caricaNotifiche()
   }, [])
-
-  useEffect(() => {
-    // REALTIME SUBSCRIPTION per notifiche
-    console.log('[NOTIFICHE] Attivazione subscription realtime')
-    const channel = supabase
-      .channel('notifiche_disponibilita_changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'notifiche_disponibilita'
-      }, (payload) => {
-        console.log('[NOTIFICHE] Cambiamento ricevuto:', payload)
-        caricaNotifiche()
-        if (onNotificheChange) onNotificheChange()
-      })
-      .subscribe()
-
-    return () => {
-      console.log('[NOTIFICHE] Rimozione subscription')
-      supabase.removeChannel(channel)
-    }
-  }, [utenteCorrente])
 
   async function caricaCategorie() {
     const { data } = await supabase
@@ -203,40 +180,19 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       .select(`*, articoli:articoli(*)`)
       .order('data_creazione', { ascending: false })
     
-    // Filtra per categoria se specificata dal menu
+    // Filtra per categoria se specificata
     if (categoria?.id) {
       query = query.eq('categoria_id', categoria.id)
-    } else if (!isAdmin) {
-      // Se NON admin: filtra per le categorie dell'utente
-      const { data: gruppiUtente } = await supabase
-        .from('gruppi_redattori')
-        .select('categoria_id')
-        .eq('username', utenteCorrente.username)
-      
-      const categorieIds = (gruppiUtente || []).map(g => g.categoria_id).filter(Boolean)
-      
-      console.log('[FILTRO] Username:', utenteCorrente.username)
-      console.log('[FILTRO] Categorie utente:', categorieIds)
-      
-      if (categorieIds.length > 0) {
-        // Mostra SOLO weekend delle sue categorie
-        query = query.in('categoria_id', categorieIds)
-      } else {
-        // Nessuna categoria: mostra weekend senza categoria
-        query = query.is('categoria_id', null)
-      }
     }
-    // Se admin: mostra tutti
     
     const { data, error } = await query
     
     if (error) {
-      console.error('[FILTRO] Errore caricamento:', error)
+      console.error('Errore caricamento:', error)
       setLoading(false)
       return
     }
     
-    console.log('[FILTRO] Weekend caricati:', data?.length || 0)
     setWeekends(data || [])
     setLoading(false)
   }
@@ -248,110 +204,42 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   async function caricaNotifiche() {
     try {
-      console.log('[NOTIFICHE] Caricamento notifiche...')
-      console.log('[NOTIFICHE] Username:', utenteCorrente.username)
-      console.log('[NOTIFICHE] Admin:', isAdmin)
-      
-      // Se NON admin: filtra per categorie utente
-      let weekendIdsConsentiti = null
-      
-      if (!isAdmin) {
-        // 1. Carica categorie utente
-        const { data: gruppiUtente } = await supabase
-          .from('gruppi_redattori')
-          .select('categoria_id')
-          .eq('username', utenteCorrente.username)
-        
-        const categorieIds = (gruppiUtente || []).map(g => g.categoria_id).filter(Boolean)
-        console.log('[NOTIFICHE] Categorie utente:', categorieIds)
-        
-        // 2. Carica weekend di quelle categorie
-        let queryWeekend = supabase
-          .from('weekend')
-          .select('id')
-        
-        if (categorieIds.length > 0) {
-          // Weekend delle sue categorie + weekend senza categoria
-          queryWeekend = queryWeekend.or(`categoria_id.in.(${categorieIds.join(',')}),categoria_id.is.null`)
-        } else {
-          // Solo weekend senza categoria
-          queryWeekend = queryWeekend.is('categoria_id', null)
-        }
-        
-        const { data: weekendConsentiti } = await queryWeekend
-        weekendIdsConsentiti = new Set((weekendConsentiti || []).map(w => w.id))
-        console.log('[NOTIFICHE] Weekend consentiti:', weekendIdsConsentiti.size)
-      }
-      
-      // 3. Carica notifiche
-      const { data: tutteNotifiche, error: errNotifiche } = await supabase
+      const { data: tutteNotifiche } = await supabase
         .from('notifiche_disponibilita')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
       
-      if (errNotifiche) {
-        console.error('[NOTIFICHE] ERRORE caricamento notifiche:', errNotifiche)
-        console.error('[NOTIFICHE] Messaggio errore:', errNotifiche.message)
-        console.error('[NOTIFICHE] Dettagli:', errNotifiche.details)
-        return
-      }
-      
-      console.log('[NOTIFICHE] Notifiche totali:', tutteNotifiche?.length || 0)
-      
-      // 4. Filtra notifiche per categorie (se non admin)
-      let notificheFiltrate = tutteNotifiche || []
-      
-      if (!isAdmin && weekendIdsConsentiti) {
-        notificheFiltrate = notificheFiltrate.filter(n => {
-          // Mostra se: weekend consentito O nessun weekend (notifica generale)
-          return !n.weekend_id || weekendIdsConsentiti.has(n.weekend_id)
-        })
-        console.log('[NOTIFICHE] Notifiche filtrate per categoria:', notificheFiltrate.length)
-      }
-      
-      console.log('[NOTIFICHE] Prime 3 notifiche:', notificheFiltrate?.slice(0, 3))
-      
-      // 5. Carica notifiche lette
-      const { data: lette, error: errLette } = await supabase
+      const { data: lette } = await supabase
         .from('notifiche_disponibilita_lette')
         .select('notifica_id')
         .eq('username', utenteCorrente.username)
       
-      if (errLette) {
-        console.error('[NOTIFICHE] ERRORE caricamento lette:', errLette)
-      }
-      
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
-      const notificheConStato = notificheFiltrate.map(n => ({ 
+      const notificheConStato = (tutteNotifiche || []).map(n => ({ 
         ...n, 
         letta: idsLette.has(n.id) 
       }))
       
-      console.log('[NOTIFICHE] Notifiche finali:', notificheConStato.length)
-      console.log('[NOTIFICHE] Notifiche NON lette:', notificheConStato.filter(n => !n.letta).length)
       setNotifiche(notificheConStato)
       
       if (onNotificheChange) {
         onNotificheChange()
       }
     } catch (err) {
-      console.error('[NOTIFICHE] Errore CATCH:', err)
-      console.error('[NOTIFICHE] Stack:', err.stack)
+      console.error('Errore caricamento notifiche:', err)
     }
   }
 
   async function creaNotifica(messaggio, weekend_id = null) {
     try {
-      console.log('[NOTIFICHE] Creazione notifica:', messaggio, weekend_id)
-      const { error } = await supabase.from('notifiche_disponibilita').insert({ 
+      await supabase.from('notifiche_disponibilita').insert({ 
         messaggio, 
         weekend_id 
       })
-      console.log('[NOTIFICHE] Notifica creata, errore:', error)
       await caricaNotifiche()
     } catch (err) {
-      console.error('[NOTIFICHE] Errore creazione notifica:', err)
+      console.error('Errore creazione notifica:', err)
     }
   }
 
@@ -382,29 +270,6 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     }
   }
 
-  async function cancellaTutte() {
-    try {
-      // Marca tutte come lette per nasconderle dalla vista
-      const tutteNotifiche = notifiche
-      for (const n of tutteNotifiche) {
-        // Inserisci (ignora errori se già esiste)
-        await supabase
-          .from('notifiche_disponibilita_lette')
-          .upsert({ 
-            username: utenteCorrente.username, 
-            notifica_id: n.id 
-          }, { 
-            onConflict: 'username,notifica_id',
-            ignoreDuplicates: true 
-          })
-      }
-      await caricaNotifiche()
-      setShowNotifiche(false)
-    } catch (err) {
-      console.error('Errore cancella tutte:', err)
-    }
-  }
-
   useEffect(() => {
     if (utenteCorrente) {
       caricaNotifiche()
@@ -413,34 +278,32 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? '10px' : '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0' }}>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '14px' : '18px', fontWeight: 'bold', cursor: 'pointer', alignSelf: isMobile ? 'flex-start' : 'auto', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0', textAlign: 'left' }}>← Indietro</button>
-        <div style={{ textAlign: 'center', order: isMobile ? -1 : 0, padding: isMobile ? '10px 0' : '0' }}>
-          <div style={{ fontSize: isMobile ? '17px' : '24px', fontWeight: 'bold', whiteSpace: isMobile ? 'normal' : 'nowrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
             Disponibilità Weekend
-            {categoria && <span style={{ color: categoria.colore, marginLeft: isMobile ? '0' : '10px', display: isMobile ? 'block' : 'inline', fontSize: isMobile ? '14px' : '24px', marginTop: isMobile ? '5px' : '0' }}>- {categoria.nome}</span>}
+            {categoria && <span style={{ color: categoria.colore, marginLeft: '10px' }}>- {categoria.nome}</span>}
           </div>
           {isAdmin && <div style={{ fontSize: '12px', color: '#FF9500' }}>Admin</div>}
         </div>
         {isAdmin ? (
-          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '8px' : '12px' }}>
+          <div style={{ display: 'flex', gap: '12px' }}>
             <button 
               onClick={() => setShowNotifiche(true)} 
               style={{ 
                 position: 'relative',
                 display: 'flex', 
                 alignItems: 'center', 
-                justifyContent: 'center',
                 gap: '6px', 
-                padding: isMobile ? '12px' : '8px 16px', 
+                padding: '8px 16px', 
                 background: '#007AFF', 
                 color: 'white', 
                 border: 'none', 
                 borderRadius: '10px', 
-                fontSize: isMobile ? '14px' : '16px', 
+                fontSize: '16px', 
                 fontWeight: '600', 
-                cursor: 'pointer',
-                minHeight: isMobile ? '48px' : 'auto'
+                cursor: 'pointer' 
               }}
             >
               🔔 Notifiche
@@ -452,23 +315,22 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
                   background: '#FF3B30', 
                   color: 'white', 
                   borderRadius: '50%', 
-                  minWidth: '20px',
+                  width: '20px', 
                   height: '20px', 
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center', 
                   fontSize: '10px', 
-                  fontWeight: 'bold',
-                  padding: '0 5px'
+                  fontWeight: 'bold' 
                 }}>
                   {notifiche.filter(n => !n.letta).length}
                 </span>
               )}
             </button>
-            <button onClick={() => setModalitaModifica(!modalitaModifica)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: isMobile ? '12px' : '8px 16px', background: modalitaModifica ? '#007AFF' : '#FF9500', color: 'white', border: 'none', borderRadius: '10px', fontSize: isMobile ? '14px' : '16px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
+            <button onClick={() => setModalitaModifica(!modalitaModifica)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: modalitaModifica ? '#007AFF' : '#FF9500', color: 'white', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>
               {modalitaModifica ? '✓ Fine' : 'Modifica'}
             </button>
-            <button onClick={() => setShowNuovo(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: isMobile ? '12px' : '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: isMobile ? '14px' : '16px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>+ Nuovo</button>
+            <button onClick={() => setShowNuovo(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>+ Nuovo</button>
           </div>
         ) : (
           <button 
@@ -537,8 +399,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
           notifiche={notifiche} 
           onClose={() => setShowNotifiche(false)} 
           onSegnaLetta={segnaComeLetta} 
-          onSegnaTutteLette={segnaTutteComeLette}
-          onCancellaTutte={cancellaTutte}
+          onSegnaTutteLette={segnaTutteComeLette} 
         />
       )}
     </div>
@@ -722,7 +583,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
           categoria: t.categoria, 
           giorno: t.giorno, 
           stato: 'libero', 
-          range_grassetto: [] 
+          range_grassetto: t.range_grassetto || [] 
         }))
         const { error: errorArticoli } = await supabase.from('articoli').insert(articoli)
         if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
@@ -872,78 +733,20 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
 function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDelete, isMobile }) {
   const [articoli, setArticoli] = useState([])
   const [articoliSelezionati, setArticoliSelezionati] = useState(new Set())
-  const [selezioniAltri, setSelezioniAltri] = useState({}) // { username: Set(articoloIds) }
   const [expandedDays, setExpandedDays] = useState(new Set())
   const [showAdminView, setShowAdminView] = useState(false)
   const [showTabella, setShowTabella] = useState(false)
   const [salvando, setSalvando] = useState(false)
-  const channelRef = useRef(null)
 
   useEffect(() => {
     caricaArticoli()
   }, [weekend.id])
 
-  useEffect(() => {
-    // REALTIME SUBSCRIPTION per vedere le modifiche degli altri utenti (conferme)
-    const channel = supabase
-      .channel(`articoli_weekend_${weekend.id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'articoli',
-        filter: `weekend_id=eq.${weekend.id}`
-      }, () => {
-        caricaArticoli() // Ricarica quando qualcuno modifica
-      })
-      .on('broadcast', { event: 'selezione' }, ({ payload }) => {
-        // Riceve selezioni temporanee dagli altri
-        if (payload.username !== nomeRedattore) {
-          setSelezioniAltri(prev => ({
-            ...prev,
-            [payload.username]: new Set(payload.articoli)
-          }))
-        }
-      })
-      .subscribe()
-
-    channelRef.current = channel
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [weekend.id, nomeRedattore])
-
   async function caricaArticoli() {
-    const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id)
-    
-    // Ordina articoli SOLO se array vuoto (primo caricamento)
-    const articoliOrdinati = articoli.length === 0 
-      ? (data || []).sort((a, b) => {
-          if (a.giorno !== b.giorno) return a.giorno.localeCompare(b.giorno)
-          return a.categoria.localeCompare(b.categoria)
-        })
-      : (data || [])
-    
-    setArticoli(articoliOrdinati)
-    
-    // Preserva selezioni correnti SE ancora valide
-    setArticoliSelezionati(prevSelezionati => {
-      const nuoveSelezionati = new Set()
-      
-      // Aggiungi articoli confermati dal database
-      const miei = articoliOrdinati?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
-      miei.forEach(id => nuoveSelezionati.add(id))
-      
-      // Preserva selezioni correnti SE l'articolo è ancora libero o mio
-      prevSelezionati.forEach(id => {
-        const articolo = articoliOrdinati?.find(a => a.id === id)
-        if (articolo && (articolo.stato === 'libero' || articolo.assegnato_a === nomeRedattore)) {
-          nuoveSelezionati.add(id)
-        }
-      })
-      
-      return nuoveSelezionati
-    })
+    const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id).order('giorno').order('categoria')
+    setArticoli(data || [])
+    const miei = data?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
+    setArticoliSelezionati(new Set(miei))
   }
 
   async function salvaArticoli(conferma = false) {
@@ -957,49 +760,14 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
       }
     }
-    
-    // CREA NOTIFICA quando conferma
-    if (articoliSelezionati.size > 0) {
-      console.log('[CONFERMA] Creazione notifica per', articoliSelezionati.size, 'articoli')
-      console.log('[CONFERMA] Weekend ID:', weekend.id)
-      console.log('[CONFERMA] Weekend nome:', weekend.nome_gp)
-      console.log('[CONFERMA] Redattore:', nomeRedattore)
-      
-      const messaggioNotifica = `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`
-      console.log('[CONFERMA] Messaggio:', messaggioNotifica)
-      
-      const { data: notificaCreata, error } = await supabase
-        .from('notifiche_disponibilita')
-        .insert({
-          messaggio: messaggioNotifica,
-          weekend_id: weekend.id
-        })
-        .select()
-      
-      if (error) {
-        console.error('[CONFERMA] ERRORE creazione notifica:', error)
-        console.error('[CONFERMA] Messaggio errore:', error.message)
-        console.error('[CONFERMA] Dettagli:', error.details)
-        console.error('[CONFERMA] Hint:', error.hint)
+    setSalvando(false)
+    if (conferma) {
+      if (articoliSelezionati.size > 0) {
+        alert(`✅ Confermati ${articoliSelezionati.size} articoli per ${nomeRedattore}!`)
       } else {
-        console.log('[CONFERMA] Notifica creata con successo:', notificaCreata)
+        alert(`✅ Selezione aggiornata! ${nomeRedattore} non ha articoli assegnati.`)
       }
     }
-    
-    // PULISCE selezioni temporanee dopo conferma
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'selezione',
-        payload: {
-          username: nomeRedattore,
-          articoli: [] // Array vuoto = conferma completata
-        }
-      })
-    }
-    
-    setSalvando(false)
-    if (conferma) alert(`✅ Confermati ${articoliSelezionati.size} articoli per ${nomeRedattore}!`)
     caricaArticoli()
   }
 
@@ -1021,18 +789,6 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
       return
     }
     setArticoliSelezionati(newSet)
-    
-    // BROADCAST selezione temporanea in tempo reale
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'selezione',
-        payload: {
-          username: nomeRedattore,
-          articoli: Array.from(newSet)
-        }
-      })
-    }
   }
 
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ ...g, articoli: articoli.filter(a => a.giorno === g.id) }))
@@ -1059,7 +815,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {articoliPerGiorno.map(giorno => (
-              <GiornoAccordion key={giorno.id} giorno={giorno} articoli={giorno.articoli} isExpanded={expandedDays.has(giorno.id)} articoliSelezionati={articoliSelezionati} selezioniAltri={selezioniAltri} nomeRedattore={nomeRedattore} onToggle={() => toggleGiorno(giorno.id)} onToggleArticolo={toggleArticolo} />
+              <GiornoAccordion key={giorno.id} giorno={giorno} articoli={giorno.articoli} isExpanded={expandedDays.has(giorno.id)} articoliSelezionati={articoliSelezionati} nomeRedattore={nomeRedattore} onToggle={() => toggleGiorno(giorno.id)} onToggleArticolo={toggleArticolo} />
             ))}
           </div>
         </div>
@@ -1069,7 +825,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
             <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => setShowTabella(true)} style={{ padding: '10px 20px', background: '#AF52DE', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>Mostra Tabella</button>
-              <button onClick={() => salvaArticoli(true)} disabled={articoliSelezionati.size === 0 || salvando} style={{ padding: '10px 20px', background: (articoliSelezionati.size === 0 || salvando) ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: (articoliSelezionati.size === 0 || salvando) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>Conferma Selezione</button>
+              <button onClick={() => salvaArticoli(true)} disabled={salvando} style={{ padding: '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>Conferma Selezione</button>
             </div>
           </div>
         </div>
@@ -1080,7 +836,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   )
 }
 
-function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, selezioniAltri, nomeRedattore, onToggle, onToggleArticolo }) {
+function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, nomeRedattore, onToggle, onToggleArticolo }) {
   const articoliPerCategoria = {}
   CATEGORIE.forEach(cat => {
     const arts = articoli.filter(a => a.categoria === cat.id)
@@ -1103,7 +859,7 @@ function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, se
             <div key={catId} style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#666', marginBottom: '10px' }}>{categoria.nome}</div>
               {arts.map(articolo => (
-                <ArticoloCheckbox key={articolo.id} articolo={articolo} isSelected={articoliSelezionati.has(articolo.id)} selezioniAltri={selezioniAltri} nomeRedattore={nomeRedattore} onToggle={() => onToggleArticolo(articolo.id, articolo)} />
+                <ArticoloCheckbox key={articolo.id} articolo={articolo} isSelected={articoliSelezionati.has(articolo.id)} nomeRedattore={nomeRedattore} onToggle={() => onToggleArticolo(articolo.id, articolo)} />
               ))}
             </div>
           ))}
@@ -1113,26 +869,17 @@ function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, se
   )
 }
 
-function ArticoloCheckbox({ articolo, isSelected, selezioniAltri, nomeRedattore, onToggle }) {
+function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle }) {
   const isLibero = articolo.stato === 'libero'
   const isMio = articolo.assegnato_a === nomeRedattore
   const canSelect = isLibero || isMio
-  
-  // Controlla se qualcun altro ha selezionato (ma non confermato) questo articolo
-  const altriSelezionati = Object.entries(selezioniAltri || {})
-    .filter(([username, articoliSet]) => articoliSet.has(articolo.id) && username !== nomeRedattore)
-    .map(([username]) => username)
   
   let statoText = '👤 libero', statoColor = '#666', bgColor = 'transparent', checkIcon = '☐', checkColor = '#ccc'
   
   if (isSelected) {
     statoText = '✓ TU'; statoColor = '#34C759'; bgColor = '#34C7591A'; checkIcon = '☑'; checkColor = '#34C759'
   } else if (articolo.assegnato_a && articolo.assegnato_a !== nomeRedattore) {
-    // Confermato da un altro
-    statoText = `✅ ${articolo.assegnato_a}`; statoColor = '#FF3B30'; bgColor = '#FFEBEE'; checkIcon = '☒'; checkColor = '#FF3B30'
-  } else if (altriSelezionati.length > 0) {
-    // Selezionato (ma non confermato) da altri
-    statoText = `👁️ ${altriSelezionati[0]}`; statoColor = '#007AFF'; bgColor = '#007AFF1A'; checkIcon = '☐'; checkColor = '#007AFF'
+    statoText = `⚠️ ${articolo.assegnato_a}`; statoColor = '#FF3B30'; bgColor = '#FFEBEE'; checkIcon = '☒'; checkColor = '#FF3B30'
   }
 
   return (
@@ -1227,67 +974,33 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
   const [showModifica, setShowModifica] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [showGrassetto, setShowGrassetto] = useState(false)
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000, padding: isMobile ? '0' : '20px' }}>
-      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '1200px', height: isMobile ? '100vh' : '800px', display: 'flex', flexDirection: 'column' }}>
-        {/* HEADER - IDENTICO a selezione articoli */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: isMobile ? '20px 15px' : '20px 30px', 
-          background: 'white', 
-          borderBottom: '1px solid #e0e0e0',
-          borderRadius: isMobile ? '0' : '15px 15px 0 0'
-        }}>
-          {/* Bottone Indietro */}
-          <button 
-            onClick={onClose} 
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              color: '#007AFF', 
-              fontSize: isMobile ? '18px' : '18px', 
-              fontWeight: 'bold', 
-              cursor: 'pointer',
-              padding: 0
-            }}
-          >
-            ← Indietro
-          </button>
-          
-          {/* Titolo centrato */}
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000 }}>
+      <div style={{ background: 'white', borderRadius: '15px', width: '1200px', height: '800px', display: 'flex', flexDirection: 'column' }}>
+        {/* HEADER */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
             <div style={{ fontSize: '13px', color: '#666' }}>{weekend.data}</div>
           </div>
-          
-          {/* Bottone Menu */}
+          {/* MIGLIORAMENTO 2: Menu più visibile */}
           <div style={{ position: 'relative' }}>
-            <button 
-              onClick={() => setShowMenu(!showMenu)} 
-              style={{ 
-                padding: isMobile ? '8px 16px' : '8px 16px', 
-                background: '#007AFF', 
-                color: 'white', 
-                border: 'none', 
-                borderRadius: '10px', 
-                cursor: 'pointer', 
-                fontSize: '14px', 
-                fontWeight: '600',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Menu
+            <button onClick={() => setShowMenu(!showMenu)} style={{ padding: '8px 16px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Menu Admin
             </button>
             {showMenu && (
-              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: isMobile ? '180px' : '220px' }}>
-                <button onClick={() => { setShowExport(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : '15px', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
-                  Esporta JPEG
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: '220px' }}>
+                <button onClick={() => { setShowExport(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', fontWeight: '500' }}>
+                  📸 Esporta JPEG
                 </button>
-                <button onClick={() => { setShowModifica(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : '15px', borderTop: '1px solid #eee', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
-                  Modifica Tabella
+                <button onClick={() => { setShowGrassetto(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #eee', fontWeight: '500' }}>
+                  🔤 Aggiorna Grassetto
+                </button>
+                <button onClick={() => { setShowModifica(true); setShowMenu(false) }} style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #eee', fontWeight: '500' }}>
+                  ✏️ Modifica Tabella
                 </button>
               </div>
             )}
@@ -1295,13 +1008,13 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
         </div>
 
         {/* TAB BAR - MIGLIORAMENTO 1: Rimozione tab Log */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #e0e0e0', padding: isMobile ? '0 10px' : '0 30px', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid #e0e0e0', padding: '0 30px' }}>
           {[
             { id: 'riepilogo', label: 'Riepilogo', icon: '' },
             { id: 'tabella', label: 'Tabella', icon: '' },
             { id: 'nonAssegnati', label: 'Non Assegnati', icon: '' }
           ].map(tab => (
-            <button key={tab.id} onClick={() => setSelectedTab(tab.id)} style={{ flex: isMobile ? '0 0 auto' : 1, padding: isMobile ? '10px 15px' : '12px', background: selectedTab === tab.id ? '#007AFF1A' : 'transparent', border: 'none', borderBottom: selectedTab === tab.id ? '2px solid #007AFF' : '2px solid transparent', color: selectedTab === tab.id ? '#007AFF' : '#666', cursor: 'pointer', fontSize: isMobile ? '13px' : '14px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+            <button key={tab.id} onClick={() => setSelectedTab(tab.id)} style={{ flex: 1, padding: '12px', background: selectedTab === tab.id ? '#007AFF1A' : 'transparent', border: 'none', borderBottom: selectedTab === tab.id ? '2px solid #007AFF' : '2px solid transparent', color: selectedTab === tab.id ? '#007AFF' : '#666', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
               {tab.icon} {tab.label}
             </button>
           ))}
@@ -1309,21 +1022,22 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
 
         {/* CONTENT */}
         <div style={{ flex: 1, overflow: 'auto' }}>
-          {selectedTab === 'riepilogo' && <AdminRiepilogoTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
-          {selectedTab === 'tabella' && <AdminTabellaTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
-          {selectedTab === 'nonAssegnati' && <AdminNonAssegnatiTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
+          {selectedTab === 'riepilogo' && <AdminRiepilogoTab weekend={weekend} articoli={articoli} />}
+          {selectedTab === 'tabella' && <AdminTabellaTab weekend={weekend} articoli={articoli} />}
+          {selectedTab === 'nonAssegnati' && <AdminNonAssegnatiTab weekend={weekend} articoli={articoli} />}
         </div>
 
         {/* MODALS */}
         {showModifica && <ModificaTabellaModal weekend={weekend} articoli={articoli} onClose={() => { setShowModifica(false); onRefresh() }} />}
         {showExport && <ExportJPEGModal weekend={weekend} articoli={articoli} onClose={() => setShowExport(false)} />}
+        {showGrassetto && <AggiornaGrassettoModal weekend={weekend} articoli={articoli} onClose={() => { setShowGrassetto(false); onRefresh() }} />}
       </div>
     </div>
   )
 }
 
 // MIGLIORAMENTO 3: Riepilogo con giorni invece di pallini
-function AdminRiepilogoTab({ weekend, articoli, isMobile }) {
+function AdminRiepilogoTab({ weekend, articoli }) {
   const totale = articoli.length
   const assegnati = articoli.filter(a => a.stato === 'assegnato').length
   const percentuale = totale > 0 ? Math.round((assegnati / totale) * 100) : 0
@@ -1335,34 +1049,34 @@ function AdminRiepilogoTab({ weekend, articoli, isMobile }) {
   })
 
   return (
-    <div style={{ padding: isMobile ? '15px' : '30px' }}>
-      <div style={{ marginBottom: isMobile ? '20px' : '30px' }}>
-        <div style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', marginBottom: '15px' }}>📊 STATO ASSEGNAZIONI</div>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '15px' : '20px' }}>
-          <div style={{ flex: 1, padding: isMobile ? '15px' : '20px', background: percentuale > 70 ? '#34C7591A' : '#FF95001A', borderRadius: '15px', textAlign: 'center' }}>
-            <div style={{ fontSize: isMobile ? '13px' : '14px', color: '#666', marginBottom: '5px' }}>Completamento</div>
-            <div style={{ fontSize: isMobile ? '28px' : '36px', fontWeight: 'bold', color: percentuale > 70 ? '#34C759' : '#FF9500' }}>{percentuale}%</div>
+    <div style={{ padding: '30px' }}>
+      <div style={{ marginBottom: '30px' }}>
+        <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>📊 STATO ASSEGNAZIONI</div>
+        <div style={{ display: 'flex', gap: '20px' }}>
+          <div style={{ flex: 1, padding: '20px', background: percentuale > 70 ? '#34C7591A' : '#FF95001A', borderRadius: '15px', textAlign: 'center' }}>
+            <div style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>Completamento</div>
+            <div style={{ fontSize: '36px', fontWeight: 'bold', color: percentuale > 70 ? '#34C759' : '#FF9500' }}>{percentuale}%</div>
           </div>
-          <div style={{ flex: 1, padding: isMobile ? '15px' : '20px', background: '#007AFF1A', borderRadius: '15px', textAlign: 'center' }}>
-            <div style={{ fontSize: isMobile ? '13px' : '14px', color: '#666', marginBottom: '5px' }}>Articoli Assegnati</div>
-            <div style={{ fontSize: isMobile ? '28px' : '36px', fontWeight: 'bold', color: '#007AFF' }}>{assegnati}/{totale}</div>
+          <div style={{ flex: 1, padding: '20px', background: '#007AFF1A', borderRadius: '15px', textAlign: 'center' }}>
+            <div style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>Articoli Assegnati</div>
+            <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#007AFF' }}>{assegnati}/{totale}</div>
           </div>
-          <div style={{ flex: 1, padding: isMobile ? '15px' : '20px', background: '#AF52DE1A', borderRadius: '15px', textAlign: 'center' }}>
-            <div style={{ fontSize: isMobile ? '13px' : '14px', color: '#666', marginBottom: '5px' }}>Redattori</div>
-            <div style={{ fontSize: isMobile ? '28px' : '36px', fontWeight: 'bold', color: '#AF52DE' }}>{weekend.redattori?.length || 0}</div>
+          <div style={{ flex: 1, padding: '20px', background: '#AF52DE1A', borderRadius: '15px', textAlign: 'center' }}>
+            <div style={{ fontSize: '14px', color: '#666', marginBottom: '5px' }}>Redattori</div>
+            <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#AF52DE' }}>{weekend.redattori?.length || 0}</div>
           </div>
         </div>
       </div>
 
-      <div style={{ marginBottom: isMobile ? '20px' : '30px' }}>
-        <div style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', marginBottom: '15px' }}>PROGRESSI PER GIORNO</div>
+      <div style={{ marginBottom: '30px' }}>
+        <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>PROGRESSI PER GIORNO</div>
         {articoliPerGiorno.map(({ giorno, totale, assegnati, percentuale }) => (
-          <div key={giorno.id} style={{ marginBottom: isMobile ? '12px' : '15px', padding: isMobile ? '12px' : '15px', background: 'white', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: isMobile ? '13px' : '14px' }}>
+          <div key={giorno.id} style={{ marginBottom: '15px', padding: '15px', background: 'white', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
               <span style={{ fontWeight: '600' }}>{giorno.emoji} {giorno.nome}</span>
               <span style={{ color: '#666' }}>{assegnati}/{totale} ({percentuale}%)</span>
             </div>
-            <div style={{ height: isMobile ? '6px' : '8px', background: '#eee', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ height: '8px', background: '#eee', borderRadius: '4px', overflow: 'hidden' }}>
               <div style={{ width: `${percentuale}%`, height: '100%', background: giorno.colore.replace('0.3', '1') }}></div>
             </div>
           </div>
@@ -1370,26 +1084,26 @@ function AdminRiepilogoTab({ weekend, articoli, isMobile }) {
       </div>
 
       <div>
-        <div style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', marginBottom: '15px' }}>👥 REDATTORI</div>
+        <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>👥 REDATTORI</div>
         {weekend.redattori?.sort().map(r => {
           const articoliRedattore = articoli.filter(a => a.assegnato_a === r)
           return (
-            <div key={r} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? '12px' : '15px', background: 'white', borderRadius: '10px', marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', gap: isMobile ? '10px' : '0' }}>
+            <div key={r} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: 'white', borderRadius: '10px', marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
               <div>
-                <div style={{ fontSize: isMobile ? '15px' : '16px', fontWeight: '600' }}>{r}</div>
-                <div style={{ fontSize: isMobile ? '11px' : '12px', color: '#666' }}>{articoliRedattore.length} articoli confermati</div>
+                <div style={{ fontSize: '16px', fontWeight: '600' }}>{r}</div>
+                <div style={{ fontSize: '12px', color: '#666' }}>{articoliRedattore.length} articoli confermati</div>
               </div>
               {/* MIGLIORAMENTO 3: Giorni invece di pallini */}
-              <div style={{ display: 'flex', gap: isMobile ? '8px' : '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                 {GIORNI_WEEKEND.map(g => {
                   const count = articoliRedattore.filter(a => a.giorno === g.id).length
                   return count > 0 ? (
-                    <div key={g.id} style={{ padding: isMobile ? '3px 8px' : '4px 10px', background: g.colore, borderRadius: '6px', fontSize: isMobile ? '11px' : '12px', fontWeight: '600' }}>
+                    <div key={g.id} style={{ padding: '4px 10px', background: g.colore, borderRadius: '6px', fontSize: '12px', fontWeight: '600' }}>
                       {g.emoji} {count}
                     </div>
                   ) : null
                 })}
-                {articoliRedattore.length > 0 ? <span style={{ color: '#34C759', fontSize: isMobile ? '16px' : '18px' }}>✓</span> : <span style={{ color: '#FF9500', fontSize: isMobile ? '11px' : '12px' }}>Non confermato</span>}
+                {articoliRedattore.length > 0 ? <span style={{ color: '#34C759', fontSize: '18px' }}>✓</span> : <span style={{ color: '#FF9500', fontSize: '12px' }}>⏸️ Non confermato</span>}
               </div>
             </div>
           )
@@ -1399,7 +1113,7 @@ function AdminRiepilogoTab({ weekend, articoli, isMobile }) {
   )
 }
 
-function AdminTabellaTab({ weekend, articoli, isMobile }) {
+function AdminTabellaTab({ weekend, articoli }) {
   const [zoom, setZoom] = useState(1)
   const redattoriOrdinati = [...(weekend.redattori || [])].sort()
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ giorno: g, articoli: articoli.filter(a => a.giorno === g.id) }))
@@ -1413,8 +1127,7 @@ function AdminTabellaTab({ weekend, articoli, isMobile }) {
         <button onClick={() => setZoom(Math.min(2.5, zoom + 0.25))} disabled={zoom >= 2.5} style={{ padding: '6px 12px', background: zoom < 2.5 ? '#007AFF' : '#ccc', color: 'white', border: 'none', borderRadius: '6px', cursor: zoom < 2.5 ? 'pointer' : 'not-allowed', fontWeight: 'bold' }}>+</button>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
-        <div style={{ overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
-          <table style={{ borderCollapse: 'collapse', width: 'auto', transform: `scale(${zoom})`, transformOrigin: 'top left', minWidth: isMobile ? '800px' : 'auto' }}>
+        <table style={{ borderCollapse: 'collapse', width: 'auto', transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
           <thead>
             <tr>
               <th style={{ border: '1px solid black', padding: '10px', background: '#ddd', fontWeight: 'bold', fontSize: '12px', width: '120px' }}>GIORNO</th>
@@ -1461,19 +1174,13 @@ function AdminTabellaTab({ weekend, articoli, isMobile }) {
             </tr>
           </tbody>
         </table>
-        </div>
-        {isMobile && (
-          <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic', marginTop: '10px', textAlign: 'center' }}>
-            ← Scorri orizzontalmente per vedere tutti i redattori →
-          </div>
-        )}
       </div>
     </div>
   )
 }
 
 // MIGLIORAMENTO 4: Non assegnati con accordion per giorno
-function AdminNonAssegnatiTab({ weekend, articoli, isMobile }) {
+function AdminNonAssegnatiTab({ weekend, articoli }) {
   const [expandedDays, setExpandedDays] = useState(new Set())
   const nonAssegnati = articoli.filter(a => a.stato === 'libero')
   const perGiorno = GIORNI_WEEKEND.map(g => ({ giorno: g, articoli: nonAssegnati.filter(a => a.giorno === g.id) }))
@@ -1568,20 +1275,9 @@ function ModificaRedattoriSection({ weekend, articoli, onUpdate }) {
 
   async function salvaRedattori() {
     setSalvando(true)
-    const { error } = await supabase.from('weekend').update({ redattori: Array.from(redattori).sort() }).eq('id', weekend.id)
-    
-    if (!error) {
-      // CREA NOTIFICA
-      await supabase.from('notifiche_disponibilita').insert({
-        messaggio: `Redattori aggiornati per ${weekend.nome_gp}`,
-        weekend_id: weekend.id
-      })
-      
-      alert('✅ Redattori aggiornati!')
-    } else {
-      console.error('Errore:', error)
-    }
-    
+    const { error } = await supabase.from('disponibilita_weekend').update({ redattori: Array.from(redattori).sort() }).eq('id', weekend.id)
+    if (error) console.error('Errore:', error)
+    else alert('✅ Redattori aggiornati!')
     setSalvando(false)
     onUpdate()
   }
@@ -1592,7 +1288,7 @@ function ModificaRedattoriSection({ weekend, articoli, onUpdate }) {
     const newSet = new Set(redattori)
     newSet.delete(r)
     setRedattori(newSet)
-    await supabase.from('weekend').update({ redattori: Array.from(newSet).sort() }).eq('id', weekend.id)
+    await supabase.from('disponibilita_weekend').update({ redattori: Array.from(newSet).sort() }).eq('id', weekend.id)
     setSalvando(false)
     setDeleteConfirm(null)
     alert('✅ Redattore eliminato!')
@@ -1626,7 +1322,7 @@ function ModificaRedattoriSection({ weekend, articoli, onUpdate }) {
       </div>
 
       <button onClick={salvaRedattori} disabled={salvando} style={{ width: '100%', padding: '12px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
-        {salvando ? 'Salvataggio...' : 'Salva Redattori'}
+        {salvando ? 'Salvataggio...' : '💾 Salva Redattori'}
       </button>
 
       {deleteConfirm && (
@@ -1841,6 +1537,148 @@ function RichTextEditor({ text, rangeGrassetto, onChange, onRangesChange }) {
 
 // ===== MIGLIORAMENTO 6: EXPORT JPEG VERO CON DIMENSIONI DINAMICHE =====
 
+// ===== AGGIORNA GRASSETTO DA TEMPLATE =====
+
+function AggiornaGrassettoModal({ weekend, articoli, onClose }) {
+  const [templates, setTemplates] = useState([])
+  const [templateSelezionato, setTemplateSelezionato] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [aggiornando, setAggiornando] = useState(false)
+
+  useEffect(() => {
+    caricaTemplates()
+  }, [])
+
+  async function caricaTemplates() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('template_articoli')
+      .select('*')
+      .order('nome')
+    setTemplates(data || [])
+    setLoading(false)
+  }
+
+  async function aggiornaGrassetto() {
+    if (!templateSelezionato) {
+      alert('Seleziona un template')
+      return
+    }
+
+    if (!confirm('Vuoi aggiornare il grassetto di tutti gli articoli usando questo template?\n\nGli articoli verranno matchati per titolo.')) {
+      return
+    }
+
+    setAggiornando(true)
+
+    const template = templates.find(t => t.id === parseInt(templateSelezionato))
+    if (!template || !template.articoli) {
+      alert('Template non valido')
+      setAggiornando(false)
+      return
+    }
+
+    let aggiornati = 0
+
+    // Per ogni articolo del weekend
+    for (const articolo of articoli) {
+      // Trova articolo corrispondente nel template (match per titolo)
+      const articoloTemplate = template.articoli.find(a => a.titolo === articolo.titolo)
+      
+      if (articoloTemplate && articoloTemplate.range_grassetto) {
+        // Aggiorna il range_grassetto
+        const { error } = await supabase
+          .from('articoli')
+          .update({ range_grassetto: articoloTemplate.range_grassetto })
+          .eq('id', articolo.id)
+        
+        if (!error) aggiornati++
+      }
+    }
+
+    setAggiornando(false)
+    alert(`✅ Aggiornati ${aggiornati} articoli su ${articoli.length}`)
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30000 }}>
+      <div style={{ background: 'white', borderRadius: '15px', width: '600px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>🔤 Aggiorna Grassetto</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
+        </div>
+
+        <div style={{ padding: '30px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Caricamento template...</div>
+          ) : (
+            <>
+              <div style={{ marginBottom: '20px', padding: '15px', background: '#007AFF1A', borderRadius: '10px' }}>
+                <div style={{ fontSize: '14px', color: '#007AFF', fontWeight: '600' }}>ℹ️ Come funziona</div>
+                <div style={{ fontSize: '13px', color: '#666', marginTop: '8px' }}>
+                  Gli articoli verranno matchati per titolo. Se un articolo del weekend ha lo stesso titolo di un articolo nel template, il grassetto verrà copiato dal template.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '25px' }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Seleziona Template</div>
+                <select
+                  value={templateSelezionato || ''}
+                  onChange={e => setTemplateSelezionato(e.target.value)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px', 
+                    borderRadius: '8px', 
+                    border: '1px solid #ddd', 
+                    fontSize: '16px',
+                    background: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">-- Scegli template --</option>
+                  {templates.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.nome} ({t.articoli?.length || 0} articoli)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {templateSelezionato && (
+                <div style={{ padding: '15px', background: '#34C7591A', borderRadius: '10px', fontSize: '14px', color: '#34C759', fontWeight: '600' }}>
+                  ✓ Pronto per aggiornare {articoli.length} articoli
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
+          <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
+          <button 
+            onClick={aggiornaGrassetto} 
+            disabled={!templateSelezionato || aggiornando || loading} 
+            style={{ 
+              padding: '10px 20px', 
+              background: (!templateSelezionato || aggiornando || loading) ? '#ccc' : '#34C759', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '10px', 
+              cursor: (!templateSelezionato || aggiornando || loading) ? 'not-allowed' : 'pointer', 
+              fontWeight: 'bold' 
+            }}
+          >
+            {aggiornando ? 'Aggiornamento...' : '✓ Aggiorna Grassetto'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== EXPORT JPEG MODAL =====
+
 function ExportJPEGModal({ weekend, articoli, onClose }) {
   const [generando, setGenerando] = useState(false)
 
@@ -1914,7 +1752,7 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
         <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
           <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
           <button onClick={generaJPEG} disabled={generando} style={{ padding: '10px 20px', background: generando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: generando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
-            {generando ? 'Generazione...' : 'Salva JPEG'}
+            {generando ? 'Generazione...' : '💾 Genera e Salva JPEG'}
           </button>
         </div>
       </div>
@@ -2004,7 +1842,7 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
     </div>
   )
 }
-function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, onCancellaTutte }) {
+function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette }) {
   return (
     <div style={{ 
       position: 'fixed', 
@@ -2033,12 +1871,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
           padding: '20px 30px', 
           borderBottom: '1px solid #e0e0e0' 
         }}>
-          
-          
-          {/* Titolo centrato */}
-          <div style={{ fontSize: '20px', fontWeight: 'bold', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>🔔 Notifiche</div>
-          
-          {/* X grigia chiudi a DX */}
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>🔔 Notifiche</div>
           <button 
             onClick={onClose} 
             style={{ 
@@ -2046,9 +1879,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
               border: 'none', 
               fontSize: '24px', 
               cursor: 'pointer', 
-              color: '#666',
-              minWidth: '44px',
-              minHeight: '44px'
+              color: '#666' 
             }}
           >
             ✕
@@ -2093,15 +1924,14 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
           padding: '20px 30px', 
           borderTop: '1px solid #e0e0e0', 
           display: 'flex', 
-          justifyContent: 'center'
+          gap: '10px' 
         }}>
           <button 
             onClick={onSegnaTutteLette} 
             style={{ 
-              width: '100%',
-              maxWidth: '300px',
+              flex: 1, 
               padding: '12px', 
-              background: '#007AFF', 
+              background: '#34C759', 
               color: 'white', 
               border: 'none', 
               borderRadius: '8px', 
@@ -2110,6 +1940,20 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
             }}
           >
             Segna tutte come lette
+          </button>
+          <button 
+            onClick={onClose} 
+            style={{ 
+              padding: '12px 30px', 
+              background: '#007AFF', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: 'pointer', 
+              fontWeight: 'bold' 
+            }}
+          >
+            Chiudi
           </button>
         </div>
       </div>
