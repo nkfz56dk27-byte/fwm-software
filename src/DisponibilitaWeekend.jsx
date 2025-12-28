@@ -299,32 +299,33 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? '10px' : '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0' }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '14px' : '18px', fontWeight: 'bold', cursor: 'pointer', alignSelf: isMobile ? 'flex-start' : 'auto', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0', textAlign: 'left' }}>← Indietro</button>
+        <div style={{ textAlign: 'center', order: isMobile ? -1 : 0, padding: isMobile ? '10px 0' : '0' }}>
+          <div style={{ fontSize: isMobile ? '17px' : '24px', fontWeight: 'bold', whiteSpace: isMobile ? 'normal' : 'nowrap' }}>
             Disponibilità Weekend
-            {categoria && <span style={{ color: categoria.colore, marginLeft: '10px' }}>- {categoria.nome}</span>}
+            {categoria && <span style={{ color: categoria.colore, marginLeft: isMobile ? '0' : '10px', display: isMobile ? 'block' : 'inline', fontSize: isMobile ? '14px' : '24px', marginTop: isMobile ? '5px' : '0' }}>- {categoria.nome}</span>}
           </div>
           {isAdmin && <div style={{ fontSize: '12px', color: '#FF9500' }}>Admin</div>}
         </div>
         {isAdmin ? (
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button 
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '8px' : '12px' }}>
+            <button
               onClick={() => setShowNotifiche(true)} 
               style={{ 
                 position: 'relative',
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: '6px', 
-                padding: '8px 16px', 
+                padding: isMobile ? '12px' : '8px 16px', 
                 background: '#007AFF', 
                 color: 'white', 
                 border: 'none', 
                 borderRadius: '10px', 
-                fontSize: '16px', 
+                fontSize: isMobile ? '14px' : '16px', 
                 fontWeight: '600', 
                 cursor: 'pointer' 
+                minHeight: isMobile ? '48px' : 'auto'
               }}
             >
               🔔 Notifiche
@@ -348,10 +349,10 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
                 </span>
               )}
             </button>
-            <button onClick={() => setModalitaModifica(!modalitaModifica)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: modalitaModifica ? '#007AFF' : '#FF9500', color: 'white', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>
+            <button onClick={() => setModalitaModifica(!modalitaModifica)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: isMobile ? '12px' : '8px 16px', background: modalitaModifica ? '#007AFF' : '#FF9500', color: 'white', border: 'none', borderRadius: '10px', fontSize: isMobile ? '14px' : '16px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
               {modalitaModifica ? '✓ Fine' : 'Modifica'}
             </button>
-            <button onClick={() => setShowNuovo(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>+ Nuovo</button>
+            <button onClick={() => setShowNuovo(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: isMobile ? '12px' : '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: isMobile ? '14px' : '16px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>+ Nuovo</button>
           </div>
         ) : (
           <button 
