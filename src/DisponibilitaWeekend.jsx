@@ -1926,26 +1926,117 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
 }
 function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette }) {
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
-      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '600px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>🔔 Notifiche</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666', minWidth: '44px', minHeight: '44px' }}>✕</button>
+    <div style={{ 
+      position: 'fixed', 
+      top: 0, 
+      left: 0, 
+      right: 0, 
+      bottom: 0, 
+      background: 'rgba(0,0,0,0.5)', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      zIndex: 10000 
+    }}>
+      <div style={{ 
+        background: 'white', 
+        borderRadius: '15px', 
+        width: '600px', 
+        maxHeight: '90vh', 
+        display: 'flex', 
+        flexDirection: 'column' 
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          padding: '20px 30px', 
+          borderBottom: '1px solid #e0e0e0' 
+        }}>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>🔔 Notifiche</div>
+          <button 
+            onClick={onClose} 
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              fontSize: '24px', 
+              cursor: 'pointer', 
+              color: '#666' 
+            }}
+          >
+            ✕
+          </button>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '20px 30px' }}>
+
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 30px' }}>
           {notifiche.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Nessuna notifica</div>
+            <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+              Nessuna notifica
+            </div>
           ) : (
             notifiche.map(n => (
-              <div key={n.id} onClick={() => !n.letta && onSegnaLetta(n.id)} style={{ padding: '15px', background: n.letta ? '#f5f5f7' : '#007AFF15', borderRadius: '10px', marginBottom: '10px', cursor: n.letta ? 'default' : 'pointer', borderLeft: `4px solid ${n.letta ? '#ccc' : '#007AFF'}` }}>
-                <div style={{ fontSize: '14px', fontWeight: n.letta ? 'normal' : 'bold', marginBottom: '5px' }}>{n.messaggio}</div>
-                <div style={{ fontSize: '11px', color: '#666' }}>{new Date(n.created_at).toLocaleString('it-IT')}</div>
+              <div 
+                key={n.id} 
+                onClick={() => !n.letta && onSegnaLetta(n.id)} 
+                style={{ 
+                  padding: '15px', 
+                  background: n.letta ? '#f5f5f7' : '#007AFF15', 
+                  borderRadius: '10px', 
+                  marginBottom: '10px', 
+                  cursor: n.letta ? 'default' : 'pointer', 
+                  borderLeft: `4px solid ${n.letta ? '#ccc' : '#007AFF'}` 
+                }}
+              >
+                <div style={{ 
+                  fontSize: '14px', 
+                  fontWeight: n.letta ? 'normal' : 'bold', 
+                  marginBottom: '5px' 
+                }}>
+                  {n.messaggio}
+                </div>
+                <div style={{ fontSize: '11px', color: '#666' }}>
+                  {new Date(n.created_at).toLocaleString('it-IT')}
+                </div>
               </div>
             ))
           )}
         </div>
-        <div style={{ padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'center' }}>
-          <button onClick={onSegnaTutteLette} style={{ width: '100%', maxWidth: '300px', padding: isMobile ? '14px' : '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Segna tutte come lette</button>
+
+        <div style={{ 
+          padding: '20px 30px', 
+          borderTop: '1px solid #e0e0e0', 
+          display: 'flex', 
+          gap: '10px' 
+        }}>
+          <button 
+            onClick={onSegnaTutteLette} 
+            style={{ 
+              flex: 1, 
+              padding: '12px', 
+              background: '#34C759', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: 'pointer', 
+              fontWeight: 'bold' 
+            }}
+          >
+            Segna tutte come lette
+          </button>
+          <button 
+            onClick={onClose} 
+            style={{ 
+              padding: '12px 30px', 
+              background: '#007AFF', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: 'pointer', 
+              fontWeight: 'bold' 
+            }}
+          >
+            Chiudi
+          </button>
         </div>
       </div>
     </div>
