@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
 
@@ -162,38 +162,30 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   }, [categoria])
 
   useEffect(() => {
-  caricaWeekends()
-  caricaCategorie()
-  caricaNotifiche()
-}, [])
+    caricaWeekends()
+    caricaCategorie()
+    caricaNotifiche()
+  }, [])
 
-useEffect(() => {
-  if (!utenteCorrente) return
-
-  console.log('[NOTIFICHE] Attivazione realtime')
-
+  useEffect(() => {
+  // REALTIME SUBSCRIPTION per notifiche
   const channel = supabase
     .channel('notifiche_disponibilita_changes')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'notifiche_disponibilita'
-      },
-      () => {
-        console.log('[NOTIFICHE] Realtime update')
-        caricaNotifiche()
-        if (onNotificheChange) onNotificheChange()
-      }
-    )
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'notifiche_disponibilita'
+    }, (payload) => {
+      console.log('[NOTIFICHE] Cambiamento ricevuto:', payload)
+      caricaNotifiche()
+      if (onNotificheChange) onNotificheChange()
+    })
     .subscribe()
 
   return () => {
     supabase.removeChannel(channel)
   }
 }, [utenteCorrente])
-
 
   async function caricaCategorie() {
     const { data } = await supabase
@@ -766,6 +758,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   const [showAdminView, setShowAdminView] = useState(false)
   const [showTabella, setShowTabella] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const channelRef = useRef(null)
 
   useEffect(() => {
     caricaArticoli()
@@ -779,26 +772,43 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   }
 
   async function salvaArticoli(conferma = false) {
-    setSalvando(true)
-    for (const id of articoliSelezionati) {
-      await supabase.from('articoli').update({ stato: 'assegnato', assegnato_a: nomeRedattore }).eq('id', id)
-    }
-    const articoliMiei = articoli.filter(a => a.assegnato_a === nomeRedattore)
-    for (const art of articoliMiei) {
-      if (!articoliSelezionati.has(art.id)) {
-        await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
-      }
-    }
-    setSalvando(false)
-    if (conferma) {
-      if (articoliSelezionati.size > 0) {
-        alert(`✅ Confermati ${articoliSelezionati.size} articoli per ${nomeRedattore}!`)
-      } else {
-        alert(`✅ Selezione aggiornata! ${nomeRedattore} non ha articoli assegnati.`)
-      }
-    }
-    caricaArticoli()
+  setSalvando(true)
+  for (const id of articoliSelezionati) {
+    await supabase.from('articoli').update({ stato: 'assegnato', assegnato_a: nomeRedattore }).eq('id', id)
   }
+  const articoliMiei = articoli.filter(a => a.assegnato_a === nomeRedattore)
+  for (const art of articoliMiei) {
+    if (!articoliSelezionati.has(art.id)) {
+      await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
+    }
+  }
+  
+  // CREA NOTIFICA quando conferma
+if (conferma && articoliSelezionati.size > 0) {
+  await supabase.from('notifiche_disponibilita').insert({
+    messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
+    weekend_id: weekend.id
+  })
+  // Forza ricarica notifiche per farle apparire subito
+  window.dispatchEvent(new Event('ricarica-notifiche'))
+}
+  
+  // PULISCE selezioni temporanee dopo conferma
+  if (channelRef.current) {
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'selezione',
+      payload: {
+        username: nomeRedattore,
+        articoli: []
+      }
+    })
+  }
+  
+  setSalvando(false)
+  if (conferma) alert(`✅ Confermati ${articoliSelezionati.size} articoli per ${nomeRedattore}!`)
+  caricaArticoli()
+}
 
   function toggleGiorno(giorno) {
     const newSet = new Set(expandedDays)
