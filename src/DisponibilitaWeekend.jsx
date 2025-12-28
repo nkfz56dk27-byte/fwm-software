@@ -229,7 +229,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     } catch (err) {
       console.error('Errore caricamento notifiche:', err)
     }
-  } ----
+  }
 
   async function creaNotifica(messaggio, weekend_id = null) {
     try {
