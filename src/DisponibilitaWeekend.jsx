@@ -393,9 +393,6 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
             }}>
               {notifiche.filter(n => !n.letta).length}
             </span>
-          )}
-        </button>
-      )}
     </div>
 
     <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
