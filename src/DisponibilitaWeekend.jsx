@@ -397,11 +397,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     </button>
   )}
 </div>
-      )}
-   </button>
-    )}
-  </div>
-
+     
   <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: '100px', color: '#666' }}>Caricamento...</div>
