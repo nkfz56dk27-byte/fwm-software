@@ -737,6 +737,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   const [showAdminView, setShowAdminView] = useState(false)
   const [showTabella, setShowTabella] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const channelRef = useRef(null)
 
   useEffect(() => {
     caricaArticoli()
