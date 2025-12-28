@@ -397,6 +397,45 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     </button>
   )}
 </div>
+      )}
+    </button>
+  )}
+</div>
+
+      <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '100px', color: '#666' }}>Caricamento...</div>
+        ) : weekends.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '100px' }}>
+            <div style={{ fontSize: '60px', marginBottom: '20px' }}>📅</div>
+            <div style={{ fontSize: '20px', color: '#666', marginBottom: '10px' }}>Nessun weekend disponibile</div>
+            {isAdmin && <div style={{ fontSize: '14px', color: '#999' }}>Clicca "Nuovo" per creare la prima tabella</div>}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '900px', margin: '0 auto' }}>
+            {weekends.map(weekend => (
+              <WeekendCard key={weekend.id} weekend={weekend} categorie={categorie} isAdmin={isAdmin} nomeUtente={nomeRedattore} modalitaModifica={modalitaModifica} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} isMobile={isMobile} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showNuovo && <NuovoWeekendModal categoria={categoria} onClose={() => setShowNuovo(false)} onCreated={() => { setShowNuovo(false); caricaWeekends(); }} onCreaNotifica={creaNotifica} />}
+      
+      {showNotifiche && (
+        <NotificheModal 
+          notifiche={notifiche} 
+          onClose={() => setShowNotifiche(false)} 
+          onSegnaLetta={segnaComeLetta} 
+          onSegnaTutteLette={segnaTutteComeLette}
+          onCancellaTutte={cancellaTutte}
+        />
+      )}
+    </div>
+  )
+}
+
+function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica, onDelete, onUpdate, isMobile }) {
 
 function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica, onDelete, onUpdate, isMobile }) {
   const [showDettaglio, setShowDettaglio] = useState(false)
