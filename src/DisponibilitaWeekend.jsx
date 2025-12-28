@@ -324,7 +324,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
                 borderRadius: '10px', 
                 fontSize: isMobile ? '14px' : '16px', 
                 fontWeight: '600', 
-                cursor: 'pointer', 
+                cursor: 'pointer',
                 minHeight: isMobile ? '48px' : 'auto'
               }}
             >
