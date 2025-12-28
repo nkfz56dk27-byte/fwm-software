@@ -1,4 +1,4 @@
- import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
 
@@ -1086,45 +1086,17 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
         </div>
 
         {/* TAB BAR - MIGLIORAMENTO 1: Rimozione tab Log */}
-        <div
-  style={{
-    display: 'flex',
-    justifyContent: isMobile ? 'center' : 'space-between',
-    borderBottom: '1px solid #e0e0e0',
-    padding: isMobile ? '0 10px' : '0 30px',
-    overflowX: isMobile ? 'auto' : 'visible',
-    WebkitOverflowScrolling: 'touch',
-    gap: isMobile ? '8px' : '0'
-  }}
->
-  {[
-    { id: 'riepilogo', label: 'Riepilogo', icon: '' },
-    { id: 'tabella', label: 'Tabella', icon: '' },
-    { id: 'nonAssegnati', label: 'Non Assegnati', icon: '' }
-  ].map(tab => (
-    <button
-      style={{
-  flex: isMobile ? '0 0 auto' : 1,
-  padding: isMobile ? '10px 14px' : '12px',
-  background: selectedTab === tab.id ? '#007AFF1A' : 'transparent',
-  border: 'none',
-  borderBottom: selectedTab === tab.id ? '2px solid #007AFF' : '2px solid transparent',
-  color: selectedTab === tab.id ? '#007AFF' : '#666',
-  cursor: 'pointer',
-  fontSize: isMobile ? '13px' : '14px',
-  fontWeight: '600',
-  whiteSpace: 'nowrap',
-  borderRadius: isMobile ? '8px 8px 0 0' : '0',
-  minWidth: isMobile ? '110px' : 'auto',
-  textAlign: 'center'
-}}
-
-    >
-      {tab.icon} {tab.label}
-    </button>
-  ))}
-</div>
-
+        <div style={{ display: 'flex', borderBottom: '1px solid #e0e0e0', padding: isMobile ? '0 10px' : '0 30px', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
+          {[
+            { id: 'riepilogo', label: 'Riepilogo', icon: '' },
+            { id: 'tabella', label: 'Tabella', icon: '' },
+            { id: 'nonAssegnati', label: 'Non Assegnati', icon: '' }
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setSelectedTab(tab.id)} style={{ flex: isMobile ? '0 0 auto' : 1, padding: isMobile ? '10px 15px' : '12px', background: selectedTab === tab.id ? '#007AFF1A' : 'transparent', border: 'none', borderBottom: selectedTab === tab.id ? '2px solid #007AFF' : '2px solid transparent', color: selectedTab === tab.id ? '#007AFF' : '#666', cursor: 'pointer', fontSize: isMobile ? '13px' : '14px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
 
         {/* CONTENT */}
         <div style={{ flex: 1, overflow: 'auto' }}>
@@ -1952,114 +1924,121 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
     </div>
   )
 }
-function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, isMobile }) {
+function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette }) {
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10000,
-        padding: isMobile ? '0' : '20px'
-      }}
-    >
-      <div
-        style={{
-          background: 'white',
-          borderRadius: isMobile ? '0' : '15px',
-          width: isMobile ? '100vw' : '600px',
-          maxHeight: isMobile ? '100vh' : '90vh',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        {/* HEADER centrato */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: isMobile ? '12px 15px' : '20px 30px',
-            borderBottom: '1px solid #e0e0e0'
-          }}
-        >
-          <div style={{ width: '44px' }} />
-
-          <div style={{ flex: 1, textAlign: 'center', fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold' }}>
-            🔔 Notifiche
-          </div>
-
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '24px',
-              cursor: 'pointer',
-              color: '#666',
-              minWidth: '44px',
-              minHeight: '44px'
+    <div style={{ 
+      position: 'fixed', 
+      top: 0, 
+      left: 0, 
+      right: 0, 
+      bottom: 0, 
+      background: 'rgba(0,0,0,0.5)', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      zIndex: 10000 
+    }}>
+      <div style={{ 
+        background: 'white', 
+        borderRadius: '15px', 
+        width: '600px', 
+        maxHeight: '90vh', 
+        display: 'flex', 
+        flexDirection: 'column' 
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          padding: '20px 30px', 
+          borderBottom: '1px solid #e0e0e0' 
+        }}>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>🔔 Notifiche</div>
+          <button 
+            onClick={onClose} 
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              fontSize: '24px', 
+              cursor: 'pointer', 
+              color: '#666' 
             }}
           >
             ✕
           </button>
         </div>
 
-        {/* LISTA */}
-        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '20px 30px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 30px' }}>
           {notifiche.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Nessuna notifica</div>
+            <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+              Nessuna notifica
+            </div>
           ) : (
             notifiche.map(n => (
-              <div
-                key={n.id}
-                onClick={() => !n.letta && onSegnaLetta(n.id)}
-                style={{
-                  padding: '15px',
-                  background: n.letta ? '#f5f5f7' : '#007AFF15',
-                  borderRadius: '10px',
-                  marginBottom: '10px',
-                  cursor: n.letta ? 'default' : 'pointer',
-                  borderLeft: `4px solid ${n.letta ? '#ccc' : '#007AFF'}`
+              <div 
+                key={n.id} 
+                onClick={() => !n.letta && onSegnaLetta(n.id)} 
+                style={{ 
+                  padding: '15px', 
+                  background: n.letta ? '#f5f5f7' : '#007AFF15', 
+                  borderRadius: '10px', 
+                  marginBottom: '10px', 
+                  cursor: n.letta ? 'default' : 'pointer', 
+                  borderLeft: `4px solid ${n.letta ? '#ccc' : '#007AFF'}` 
                 }}
               >
-                <div style={{ fontSize: '14px', fontWeight: n.letta ? 'normal' : 'bold', marginBottom: '5px' }}>
+                <div style={{ 
+                  fontSize: '14px', 
+                  fontWeight: n.letta ? 'normal' : 'bold', 
+                  marginBottom: '5px' 
+                }}>
                   {n.messaggio}
                 </div>
-                <div style={{ fontSize: '11px', color: '#666' }}>{new Date(n.created_at).toLocaleString('it-IT')}</div>
+                <div style={{ fontSize: '11px', color: '#666' }}>
+                  {new Date(n.created_at).toLocaleString('it-IT')}
+                </div>
               </div>
             ))
           )}
         </div>
 
-        {/* FOOTER */}
-        <div style={{ padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'center' }}>
-          <button
-            onClick={onSegnaTutteLette}
-            style={{
-              width: '100%',
-              maxWidth: '300px',
-              padding: isMobile ? '14px' : '12px',
-              background: '#007AFF',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              minHeight: '48px',
-              fontSize: isMobile ? '15px' : '14px'
+        <div style={{ 
+          padding: '20px 30px', 
+          borderTop: '1px solid #e0e0e0', 
+          display: 'flex', 
+          gap: '10px' 
+        }}>
+          <button 
+            onClick={onSegnaTutteLette} 
+            style={{ 
+              flex: 1, 
+              padding: '12px', 
+              background: '#34C759', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: 'pointer', 
+              fontWeight: 'bold' 
             }}
           >
             Segna tutte come lette
+          </button>
+          <button 
+            onClick={onClose} 
+            style={{ 
+              padding: '12px 30px', 
+              background: '#007AFF', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: 'pointer', 
+              fontWeight: 'bold' 
+            }}
+          >
+            Chiudi
           </button>
         </div>
       </div>
     </div>
   )
 }
-
