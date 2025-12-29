@@ -239,43 +239,60 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
   }
   
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
       {tuttiIGiorni.map(({ data, giorno, nomeGiorno, isOggi, eventi: eventiGiorno }) => (
-        <div key={data} style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-          <div style={{ padding: '12px 15px', background: isOggi ? '#007AFF' : (eventiGiorno.length > 0 ? '#f5f5f7' : '#fafafa'), display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div key={data} style={{ 
+          background: isOggi ? '#007AFF' : 'white', 
+          borderRadius: '12px', 
+          padding: '12px', 
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+          height: 'auto' 
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: isOggi ? 'white' : '#666' }}>{nomeGiorno}</div>
-              <div style={{ fontSize: '24px', fontWeight: 'bold', color: isOggi ? 'white' : '#000' }}>{giorno}</div>
+              <div style={{ fontSize: '13px', fontWeight: '600', color: isOggi ? 'rgba(255,255,255,0.8)' : '#666' }}>{nomeGiorno.toUpperCase()}</div>
+              <div style={{ fontSize: '22px', fontWeight: 'bold', color: isOggi ? 'white' : '#000' }}>{giorno}</div>
             </div>
-            {isOggi && <div style={{ fontSize: '12px', fontWeight: '600', color: 'white', background: 'rgba(255,255,255,0.3)', padding: '4px 10px', borderRadius: '20px' }}>OGGI</div>}
+            {isOggi && <div style={{ fontSize: '10px', fontWeight: '800', color: 'white', background: 'rgba(255,255,255,0.2)', padding: '4px 10px', borderRadius: '20px' }}>OGGI</div>}
           </div>
-          {eventiGiorno.map(evento => {
-            const campionato = campionati.find(c => c.id === evento.campionato_id)
-            const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666')
-            const numPrenotati = prenotazioni.filter(p => p.evento_id === evento.id).length
-            const maxAccrediti = evento.max_accrediti || 0
-            let b = null
-            if (evento.accredito_status === 'da_richiedere') b = { i: '🟡', t: 'Da richiedere', bg: '#FFD60A', c: '#000' }
-            else if (evento.accredito_status === 'richiesto') b = { i: '📨', t: 'Richiesto', bg: '#FF9500', c: '#FFF' }
-            else if (evento.accredito_status === 'accettato') b = { i: '✅', t: 'Accettato', bg: '#34C759', c: '#FFF' }
-            return (
-              <div key={evento.id} onClick={() => onEventoClick(evento)} style={{ 
-  padding: '1px',           // Ridotto drasticamente
-  height: 'auto',           // Forza la card a non occupare tutto lo spazio
-  minHeight: 'fit-content', // Si stringe attorno al testo
-  borderLeft: `4px solid ${colore}`, 
-  display: 'flex', 
-  flexDirection: 'column', 
-  gap: '2px'                // Spazio minimo tra titolo e badge
-}}>
-                <div style={{ fontSize: '15px', fontWeight: 'bold' }}>{evento.titolo}</div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  {b && <div style={{ fontSize: '11px', padding: '4px 8px', background: b.bg, color: b.c, borderRadius: '6px', fontWeight: 'bold' }}>{b.i} {b.t}</div>}
-                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#666' }}>👤 {numPrenotati}/{maxAccrediti}</div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {eventiGiorno.map(evento => {
+              const campionato = campionati.find(c => c.id === evento.campionato_id)
+              const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666')
+              const sigla = evento.tipo === 'gara' && campionato ? campionato.sigla : 'EVENTO'
+              const numPrenotati = prenotazioni.filter(p => p.evento_id === evento.id).length
+              const maxAccrediti = evento.max_accrediti || 0
+              
+              let b = null
+              if (evento.accredito_status === 'da_richiedere') b = { t: 'Da richiedere', bg: '#FFD60A', c: '#000' }
+              else if (evento.accredito_status === 'richiesto') b = { t: 'Richiesto', bg: '#FF9500', c: '#FFF' }
+              else if (evento.accredito_status === 'accettato') b = { t: 'Accettato', bg: '#34C759', c: '#FFF' }
+
+              return (
+                <div key={evento.id} onClick={() => onEventoClick(evento)} style={{ 
+                  padding: '12px', 
+                  background: isOggi ? 'rgba(255,255,255,0.15)' : '#f8f9fa',
+                  borderRadius: '10px',
+                  borderLeft: `5px solid ${colore}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  <div style={{ fontSize: '10px', fontWeight: '900', color: isOggi ? 'white' : colore, textTransform: 'uppercase' }}>{sigla}</div>
+                  <div style={{ fontSize: '15px', fontWeight: 'bold', color: isOggi ? 'white' : '#333' }}>{evento.titolo}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                    {b && <div style={{ fontSize: '10px', padding: '3px 8px', background: b.bg, color: b.c, borderRadius: '5px', fontWeight: 'bold' }}>{b.t}</div>}
+                    {maxAccrediti > 0 && (
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: isOggi ? 'white' : '#666' }}>
+                        👤 {numPrenotati}/{maxAccrediti}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       ))}
     </div>
