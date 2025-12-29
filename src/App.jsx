@@ -2200,7 +2200,7 @@ function HomeView({
             <div className="card-icon-wrapper">
               <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
             </div>
-            <h3 className="card-title">PANNELLO VIDA</h3>
+            <h3 className="card-title">PANNELLI VIDA</h3>
           </div>
 
           <div className="home-card card-red" onClick={() => window.open('https://fonti.formula1.it/login.asp', '_blank')} style={{ cursor: 'pointer' }}>
