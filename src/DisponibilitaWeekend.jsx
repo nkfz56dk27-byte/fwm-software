@@ -313,6 +313,8 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
             <button
               onClick={() => setShowNotifiche(true)} 
               style={{ 
+                justifyContent: 'center',
+                alignItems: 'center',
                 position: 'relative',
                 display: 'flex', 
                 alignItems: 'center', 
@@ -352,7 +354,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
             <button onClick={() => setModalitaModifica(!modalitaModifica)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: isMobile ? '12px' : '8px 16px', background: modalitaModifica ? '#007AFF' : '#FF9500', color: 'white', border: 'none', borderRadius: '10px', fontSize: isMobile ? '14px' : '16px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
               {modalitaModifica ? '✓ Fine' : 'Modifica'}
             </button>
-            <button onClick={() => setShowNuovo(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: isMobile ? '12px' : '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: isMobile ? '14px' : '16px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>+ Nuovo</button>
+            <button onClick={() => setShowNuovo(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: isMobile ? '12px' : '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: isMobile ? '14px' : '16px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Nuovo</button>
           </div>
         ) : (
           <button 
@@ -1070,14 +1072,23 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
               Menu
             </button>
             {showMenu && (
-              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: isMobile ? '180px' : '220px' }}>
-                <button onClick={() => { setShowExport(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : '15px', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: isMobile ? '180px' : '220px', overflow: 'hidden' }}>
+                <button 
+                  onClick={() => { setShowExport(true); setShowMenu(false) }} 
+                  style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', fontWeight: '500', minHeight: '48px', display: 'block' }}
+                >
                   Esporta JPEG
                 </button>
-                <button onClick={() => { setShowGrassetto(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : "14  20px", background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : "15px", display: 'flex', alignItems: 'center', gap: '12px', borderTop: '1px solid #eee', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
+                <button 
+                  onClick={() => { setShowGrassetto(true); setShowMenu(false) }} 
+                  style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', fontWeight: '500', minHeight: '48px', display: 'block', borderTop: '1px solid #eee' }}
+                >
                   Aggiorna Grassetto
                 </button>
-                <button onClick={() => { setShowModifica(true); setShowMenu(false) }} style={{ width: '100%', padding: isMobile ? '14px 15px' : '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: isMobile ? '15px' : '15px', borderTop: '1px solid #eee', fontWeight: '500', minHeight: isMobile ? '48px' : 'auto' }}>
+                <button 
+                  onClick={() => { setShowModifica(true); setShowMenu(false) }} 
+                  style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', fontWeight: '500', minHeight: '48px', display: 'block', borderTop: '1px solid #eee' }}
+                >
                   Modifica Tabella
                 </button>
               </div>
@@ -1086,13 +1097,35 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
         </div>
 
         {/* TAB BAR - MIGLIORAMENTO 1: Rimozione tab Log */}
-        <div style={{ display: 'flex', borderBottom: '1px solid #e0e0e0', padding: isMobile ? '0 10px' : '0 30px', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ 
+          display: 'flex', 
+          borderBottom: '1px solid #e0e0e0', 
+          padding: isMobile ? '0 5px' : '0 30px', 
+          overflowX: 'hidden', // Impedisce lo scroll laterale ora che sono spalmati
+          justifyContent: isMobile ? 'center' : 'flex-start'
+        }}>
           {[
             { id: 'riepilogo', label: 'Riepilogo', icon: '' },
             { id: 'tabella', label: 'Tabella', icon: '' },
-            { id: 'nonAssegnati', label: 'Non Assegnati', icon: '' }
+            { id: 'nonAssegnati', label: isMobile ? 'Non Ass.' : 'Non Assegnati', icon: '' }
           ].map(tab => (
-            <button key={tab.id} onClick={() => setSelectedTab(tab.id)} style={{ flex: isMobile ? '0 0 auto' : 1, padding: isMobile ? '10px 15px' : '12px', background: selectedTab === tab.id ? '#007AFF1A' : 'transparent', border: 'none', borderBottom: selectedTab === tab.id ? '2px solid #007AFF' : '2px solid transparent', color: selectedTab === tab.id ? '#007AFF' : '#666', cursor: 'pointer', fontSize: isMobile ? '13px' : '14px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+            <button 
+              key={tab.id} 
+              onClick={() => setSelectedTab(tab.id)} 
+              style={{ 
+                flex: 1, // Spalma i tasti in parti uguali (33% ciascuno)
+                textAlign: 'center', // Centra il testo nel nuovo spazio largo
+                padding: isMobile ? '12px 5px' : '12px', 
+                background: selectedTab === tab.id ? '#007AFF1A' : 'transparent', 
+                border: 'none', 
+                borderBottom: selectedTab === tab.id ? '2px solid #007AFF' : '2px solid transparent', 
+                color: selectedTab === tab.id ? '#007AFF' : '#666', 
+                cursor: 'pointer', 
+                fontSize: isMobile ? '13px' : '14px', 
+                fontWeight: '600', 
+                whiteSpace: 'nowrap' 
+              }}
+            >
               {tab.icon} {tab.label}
             </button>
           ))}
@@ -1331,8 +1364,8 @@ function ModificaTabellaModal({ weekend, articoli, onClose }) {
 
         <div style={{ display: 'flex', gap: '10px', padding: '15px 30px', borderBottom: '1px solid #e0e0e0' }}>
           {[
-            { id: 'redattori', label: '👥 Redattori' },
-            { id: 'articoli', label: '📝 Articoli' }
+            { id: 'redattori', label: 'Redattori' },
+            { id: 'articoli', label: 'Articoli' }
           ].map(sec => (
             <button key={sec.id} onClick={() => setSelectedSection(sec.id)} style={{ flex: 1, padding: '10px', background: selectedSection === sec.id ? '#007AFF' : '#f0f0f0', color: selectedSection === sec.id ? 'white' : '#333', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>
               {sec.label}
@@ -1834,7 +1867,7 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
         <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
           <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
           <button onClick={generaJPEG} disabled={generando} style={{ padding: '10px 20px', background: generando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: generando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
-            {generando ? 'Generazione...' : '💾 Genera e Salva JPEG'}
+            {generando ? 'Generazione...' : 'Genera e Salva JPEG'}
           </button>
         </div>
       </div>
