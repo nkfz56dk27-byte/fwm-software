@@ -12,7 +12,6 @@ export default function RitaglioImmagine({ onClose }) {
   const [isSaving, setIsSaving] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [exportFormat, setExportFormat] = useState('image/webp')
-  const [showOptions, setShowOptions] = useState(false)
 
   const fileInputRef = useRef(null)
   const logoImgRef = useRef(null)
@@ -49,7 +48,6 @@ export default function RitaglioImmagine({ onClose }) {
     const height = parseInt(h)
     const projectName = nome || `${width}x${height}`
     setDimensions({ width, height })
-
     const exists = recentProjects.find(p => p.width === width && p.height === height && p.nome === projectName)
     if (!exists) {
       await supabase.from('progetti_dimensioni').insert([{ width, height, nome: projectName }])
@@ -58,9 +56,8 @@ export default function RitaglioImmagine({ onClose }) {
     setView('editor')
   }
 
-  // NUOVA FUNZIONE PER ELIMINARE
   const deleteProject = async (e, id) => {
-    e.stopPropagation(); // Evita di aprire l'editor quando clicchi la X
+    e.stopPropagation()
     if (window.confirm("Vuoi eliminare questo formato?")) {
       await supabase.from('progetti_dimensioni').delete().eq('id', id)
       fetchCloudProgetti()
@@ -105,7 +102,7 @@ export default function RitaglioImmagine({ onClose }) {
       canvas.toBlob((blob) => {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
-        a.href = url; a.download = `Export_${Date.now()}.${ext}`; a.click()
+        a.href = url; a.download = `FWM_${Date.now()}.${ext}`; a.click()
         URL.revokeObjectURL(url)
         setFeedback(`✅ Esportato: ${ext.toUpperCase()}`)
         setIsSaving(false)
@@ -152,7 +149,6 @@ export default function RitaglioImmagine({ onClose }) {
                 <div style={{ background: '#fff', padding: '35px', borderRadius: '24px', width: '300px' }}>
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>NOME PROGETTO</label>
                   <input id="proj_name" type="text" placeholder="Es: Post Facebook" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', marginBottom: '20px' }} />
-                  
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>LARGHEZZA (PX)</label>
                   <input id="w" type="number" defaultValue={1200} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', marginBottom: '20px' }} />
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>ALTEZZA (PX)</label>
@@ -164,19 +160,10 @@ export default function RitaglioImmagine({ onClose }) {
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '15px' }}>FORMATI CLOUD</label>
                   {recentProjects.length > 0 ? recentProjects.map((p, i) => (
                     <div key={i} onClick={() => { setDimensions({width: p.width, height: p.height}); setView('editor'); }} 
-                         style={{ cursor: 'pointer', padding: '14px', background: '#F2F2F7', marginBottom: '12px', borderRadius: '14px', border: '1px solid transparent', position: 'relative', transition: '0.2s' }} 
-                         onMouseOver={e => e.currentTarget.style.borderColor = '#007AFF'} onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}>
-                      
+                         style={{ cursor: 'pointer', padding: '14px', background: '#F2F2F7', marginBottom: '12px', borderRadius: '14px', border: '1px solid transparent', position: 'relative' }}>
                       <div style={{ fontWeight: '800', fontSize: '13px', color: '#007AFF' }}>{p.nome || 'Senza Nome'}</div>
                       <div style={{ fontSize: '12px', color: '#8e8e93' }}>{p.width} × {p.height}</div>
-                      
-                      {/* X ROSSA PER ELIMINARE */}
-                      <div 
-                        onClick={(e) => deleteProject(e, p.id)}
-                        style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#FF3B30', fontSize: '18px', fontWeight: 'bold', padding: '5px' }}
-                      >
-                        ✕
-                      </div>
+                      <div onClick={(e) => deleteProject(e, p.id)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#FF3B30', fontSize: '18px', fontWeight: 'bold', padding: '5px' }}>✕</div>
                     </div>
                   )) : <p style={{ color: '#c7c7cc', fontSize: '14px' }}>Nessun formato salvato</p>}
                 </div>
@@ -193,12 +180,31 @@ export default function RitaglioImmagine({ onClose }) {
               ) : (
                 <>
                   <div style={{ marginBottom: '20px' }}><span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span></div>
-                  <div onMouseDown={() => setIsDragging(true)} onMouseMove={(e) => isDragging && setImageOffset(prev => ({ x: 0, y: prev.y + e.movementY }))} onMouseUp={() => setIsDragging(false)} onMouseLeave={() => setIsDragging(false)} style={{ width: `${displayDim.w}px`, height: `${displayDim.h}px`, background: '#fff', position: 'relative', overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', cursor: isDragging ? 'grabbing' : 'grab' }}>
+                  <div 
+                    onMouseDown={() => setIsDragging(true)}
+                    onMouseMove={(e) => isDragging && setImageOffset(prev => ({ x: 0, y: prev.y + e.movementY }))}
+                    onMouseUp={() => setIsDragging(false)}
+                    onMouseLeave={() => setIsDragging(false)}
+                    onTouchStart={(e) => { setIsDragging(true); e.currentTarget.dataset.startY = e.touches[0].clientY; }}
+                    onTouchMove={(e) => {
+                      if (!isDragging) return;
+                      const y = e.touches[0].clientY;
+                      const diff = y - parseFloat(e.currentTarget.dataset.startY);
+                      setImageOffset(prev => ({ x: 0, y: prev.y + diff }));
+                      e.currentTarget.dataset.startY = y;
+                    }}
+                    onTouchEnd={() => setIsDragging(false)}
+                    style={{ 
+                      width: `${displayDim.w}px`, height: `${displayDim.h}px`, background: '#fff', position: 'relative', 
+                      overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', cursor: isDragging ? 'grabbing' : 'grab',
+                      touchAction: 'none' 
+                    }}
+                  >
                     <img src={selectedImage} draggable={false} style={{ position: 'absolute', width: '100%', height: 'auto', top: 0, left: 0, transform: `translateY(${imageOffset.y}px)`, pointerEvents: 'none' }} />
                     {conLogo && <div style={{ position: 'absolute', bottom: '6%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src="/Logo_Formula1it.png" style={{ width: '45%', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
                   </div>
                   <div style={{ display: 'flex', gap: '12px', marginTop: '40px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
-                    <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} style={{ padding: '12px', borderRadius: '14px', border: '1px solid #d1d1d6', fontWeight: '800', cursor: 'pointer', background: '#fff', height: '45px' }}>
+                    <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} style={{ padding: '12px', borderRadius: '14px', border: '1px solid #d1d1d6', fontWeight: '800', background: '#fff', height: '45px' }}>
                       <option value="image/webp">WEBP</option>
                       <option value="image/jpeg">JPEG</option>
                     </select>
