@@ -15,6 +15,7 @@ export default function RitaglioImmagine({ onClose }) {
 
   const fileInputRef = useRef(null)
   const logoImgRef = useRef(null)
+  const containerRef = useRef(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
 
   const isMobile = windowWidth <= 768
@@ -24,6 +25,7 @@ export default function RitaglioImmagine({ onClose }) {
     h: dimensions.height * DISPLAY_SCALE
   }
 
+  // --- Sincronizzazione Cloud ---
   useEffect(() => {
     fetchCloudProgetti()
     const handleResize = () => setWindowWidth(window.innerWidth)
@@ -46,8 +48,10 @@ export default function RitaglioImmagine({ onClose }) {
   const startNewProject = async (w, h, nome) => {
     const width = parseInt(w)
     const height = parseInt(h)
-    const projectName = nome || `${width}x${height}`
+    const projectName = nome.trim() || `${width}x${height}`
     setDimensions({ width, height })
+
+    // Salvataggio su Supabase
     const exists = recentProjects.find(p => p.width === width && p.height === height && p.nome === projectName)
     if (!exists) {
       await supabase.from('progetti_dimensioni').insert([{ width, height, nome: projectName }])
@@ -58,10 +62,26 @@ export default function RitaglioImmagine({ onClose }) {
 
   const deleteProject = async (e, id) => {
     e.stopPropagation()
-    if (window.confirm("Vuoi eliminare questo formato?")) {
+    if (window.confirm("Vuoi eliminare questo formato dal Cloud?")) {
       await supabase.from('progetti_dimensioni').delete().eq('id', id)
       fetchCloudProgetti()
     }
+  }
+
+  // --- Gestione Limiti e Fine Corsa ---
+  const applyBounds = (newY) => {
+    if (!containerRef.current) return newY
+    const imgElement = containerRef.current.querySelector('img')
+    if (!imgElement) return newY
+    
+    const displayedImgHeight = imgElement.offsetHeight
+    const containerHeight = displayDim.h
+    
+    if (newY > 0) return 0
+    const minOffset = containerHeight - displayedImgHeight
+    if (newY < minOffset) return minOffset
+    
+    return newY
   }
 
   const handleFileSelect = (e) => {
@@ -90,19 +110,22 @@ export default function RitaglioImmagine({ onClose }) {
       const renderW = dimensions.width
       const renderH = img.height * scale
       const realY = (imageOffset.y / DISPLAY_SCALE)
+      
       ctx.fillStyle = "#ffffff"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
       ctx.drawImage(img, 0, realY, renderW, renderH)
+      
       if (conLogo && logoImgRef.current) {
         const lW = dimensions.width * 0.45
         const lH = (logoImgRef.current.height / logoImgRef.current.width) * lW
         ctx.drawImage(logoImgRef.current, (dimensions.width - lW) / 2, dimensions.height - lH - 20, lW, lH)
       }
+      
       const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
       canvas.toBlob((blob) => {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
-        a.href = url; a.download = `FWM_${Date.now()}.${ext}`; a.click()
+        a.href = url; a.download = `FWM_Export_${Date.now()}.${ext}`; a.click()
         URL.revokeObjectURL(url)
         setFeedback(`✅ Esportato: ${ext.toUpperCase()}`)
         setIsSaving(false)
@@ -181,21 +204,25 @@ export default function RitaglioImmagine({ onClose }) {
                 <>
                   <div style={{ marginBottom: '20px' }}><span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span></div>
                   <div 
+                    ref={containerRef}
                     onMouseDown={() => setIsDragging(true)}
-                    onMouseMove={(e) => isDragging && setImageOffset(prev => ({ x: 0, y: prev.y + e.movementY }))}
+                    onMouseMove={(e) => {
+                      if (!isDragging) return
+                      setImageOffset(prev => ({ x: 0, y: applyBounds(prev.y + e.movementY) }))
+                    }}
                     onMouseUp={() => setIsDragging(false)}
                     onMouseLeave={() => setIsDragging(false)}
                     onTouchStart={(e) => { setIsDragging(true); e.currentTarget.dataset.startY = e.touches[0].clientY; }}
                     onTouchMove={(e) => {
-                      if (!isDragging) return;
-                      const y = e.touches[0].clientY;
-                      const diff = y - parseFloat(e.currentTarget.dataset.startY);
-                      setImageOffset(prev => ({ x: 0, y: prev.y + diff }));
-                      e.currentTarget.dataset.startY = y;
+                      if (!isDragging) return
+                      const y = e.touches[0].clientY
+                      const diff = y - parseFloat(e.currentTarget.dataset.startY)
+                      setImageOffset(prev => ({ x: 0, y: applyBounds(prev.y + diff) }))
+                      e.currentTarget.dataset.startY = y
                     }}
                     onTouchEnd={() => setIsDragging(false)}
                     style={{ 
-                      width: `${displayDim.w}px`, height: `${displayDim.h}px`, background: '#fff', position: 'relative', 
+                      width: `${displayDim.w}px`, height: `${displayDim.h}px`, background: '#000', position: 'relative', 
                       overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', cursor: isDragging ? 'grabbing' : 'grab',
                       touchAction: 'none' 
                     }}
