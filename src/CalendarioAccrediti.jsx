@@ -519,7 +519,7 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
 }
 
 function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobile }) {
-  const [tipo, setTipo] = useState('gara')
+  const [tipo, setTipo] = useState('gara') // 'gara' o 'evento'
   const [campionatoId, setCampionatoId] = useState(campionati[0]?.id || '')
   const [titolo, setTitolo] = useState('')
   const [dataInizio, setDataInizio] = useState('')
@@ -527,13 +527,27 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
   const [maxAccrediti, setMaxAccrediti] = useState(0)
   const [accreditoStatus, setAccreditoStatus] = useState('nessuno')
   const [note, setNote] = useState('')
-  const [colorePersonalizzato, setColorePersonalizzato] = useState('#666')
+  const [colorePersonalizzato, setColorePersonalizzato] = useState('#666666')
   const [salvando, setSalvando] = useState(false)
   
   async function salva() {
     if (!titolo || !dataInizio) return alert('Compila titolo e data inizio')
     setSalvando(true)
-    const nuovoEvento = { tipo, campionato_id: tipo === 'gara' ? campionatoId : null, titolo, data_inizio: dataInizio, data_fine: dataFine || null, max_accrediti: maxAccrediti, accredito_status: accreditoStatus, note, colore_personalizzato: tipo === 'evento' ? colorePersonalizzato : null, creato_da: utenteCorrente.username }
+    
+    const nuovoEvento = { 
+      tipo, 
+      campionato_id: tipo === 'gara' ? campionatoId : null, 
+      titolo, 
+      data_inizio: dataInizio, 
+      data_fine: dataFine || null, 
+      max_accrediti: maxAccrediti, 
+      accredito_status: accreditoStatus, 
+      note, 
+      // Il colore personalizzato viene salvato solo se il tipo è 'evento'
+      colore_personalizzato: tipo === 'evento' ? colorePersonalizzato : null, 
+      creato_da: utenteCorrente.username 
+    }
+    
     const { data: eventoCreato } = await supabase.from('eventi_calendario').insert(nuovoEvento).select().single()
     await onSave(titolo, eventoCreato?.id, dataInizio)
     setSalvando(false)
@@ -543,37 +557,79 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
       <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '550px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
+        
+        {/* HEADER */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
           <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold' }}>Nuovo Evento</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666', minWidth: '44px', minHeight: '44px' }}>✕</button>
         </div>
+
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '30px' }}>
-          <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Tipo</div>
-            <select value={tipo} onChange={e => setTipo(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', cursor: 'pointer' }}>
-              <option value="gara">Gara</option>
-              <option value="evento">Evento Personalizzato</option>
-            </select>
+          
+          {/* SELEZIONE TIPO (TAB) */}
+          <div style={{ marginBottom: '25px' }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '10px', color: '#666' }}>CATEGORIA EVENTO</div>
+            <div style={{ display: 'flex', background: '#f0f0f0', padding: '4px', borderRadius: '10px', gap: '4px' }}>
+              <button 
+                onClick={() => setTipo('gara')}
+                style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', transition: 'all 0.2s', background: tipo === 'gara' ? 'white' : 'transparent', color: tipo === 'gara' ? '#007AFF' : '#666', boxShadow: tipo === 'gara' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none' }}
+              >🏎️ Gara</button>
+              <button 
+                onClick={() => setTipo('evento')}
+                style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', transition: 'all 0.2s', background: tipo === 'evento' ? 'white' : 'transparent', color: tipo === 'evento' ? '#007AFF' : '#666', boxShadow: tipo === 'evento' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none' }}
+              >📅 Evento</button>
+            </div>
           </div>
-          {tipo === 'gara' && <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Campionato</div>
-            <select value={campionatoId} onChange={e => setCampionatoId(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', cursor: 'pointer' }}>
-              {campionati.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>)}
-            </select>
-          </div>}
-          <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Titolo</div>
+
+          {/* CAMPIONATO (Solo se Gara) */}
+          {tipo === 'gara' && (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Campionato</div>
+              <select value={campionatoId} onChange={e => setCampionatoId(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', cursor: 'pointer' }}>
+                {campionati.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* COLORE PERSONALIZZATO (Solo se Altro Evento) */}
+          {tipo === 'evento' && (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Colore Etichetta</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <input 
+                  type="color" 
+                  value={colorePersonalizzato} 
+                  onChange={e => setColorePersonalizzato(e.target.value)} 
+                  style={{ width: '60px', height: '44px', padding: '2px', border: '2px solid #ddd', borderRadius: '8px', cursor: 'pointer' }} 
+                />
+                <span style={{ fontSize: '14px', color: '#666' }}>Scegli come apparirà nel calendario</span>
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Titolo</div>
             <input type="text" value={titolo} onChange={e => setTitolo(e.target.value)} placeholder="Es: GP Italia" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
           </div>
+
           <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-            <div style={{ flex: 1 }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Inizio</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Inizio</div>
               <input type="date" value={dataInizio} onChange={e => setDataInizio(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
             </div>
-            <div style={{ flex: 1 }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Fine (opzionale)</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Fine (opzionale)</div>
               <input type="date" value={dataFine} onChange={e => setDataFine(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
             </div>
           </div>
-          <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Numero Pass Disponibili (0 = nessun limite)</div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Numero Pass Disponibili (0 = nessuno)</div>
             <input type="number" min="0" value={maxAccrediti} onChange={e => setMaxAccrediti(parseInt(e.target.value) || 0)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
           </div>
-          <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Stato Accredito</div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Stato Accredito</div>
             <select value={accreditoStatus} onChange={e => setAccreditoStatus(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', cursor: 'pointer' }}>
               <option value="nessuno">Nessuno</option>
               <option value="da_richiedere">🟡 Dovremmo richiederlo</option>
@@ -581,13 +637,17 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
               <option value="accettato">✅ Accettato</option>
             </select>
           </div>
-          <div><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Note (opzionali)</div>
+
+          <div>
+            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Note (opzionali)</div>
             <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Informazioni aggiuntive..." style={{ width: '100%', minHeight: '80px', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', fontFamily: 'inherit', resize: 'vertical' }} />
           </div>
         </div>
+
+        {/* FOOTER */}
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', justifyContent: 'flex-end', padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0' }}>
           <button onClick={onClose} style={{ padding: isMobile ? '14px' : '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '8px', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Annulla</button>
-          <button onClick={salva} disabled={salvando} style={{ padding: isMobile ? '14px' : '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>{salvando ? '...' : 'Salva'}</button>
+          <button onClick={salva} disabled={salvando} style={{ padding: isMobile ? '14px' : '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>{salvando ? '...' : 'Salva Evento'}</button>
         </div>
       </div>
     </div>
