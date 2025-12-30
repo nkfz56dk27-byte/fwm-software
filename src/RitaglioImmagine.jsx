@@ -1,346 +1,232 @@
 import { useState, useRef, useEffect } from 'react'
+import { supabase } from './supabaseClient' // Importiamo il tuo client già configurato
 
 export default function RitaglioImmagine({ onClose }) {
+  const [view, setView] = useState('menu')
+  const [dimensions, setDimensions] = useState({ width: 1200, height: 729 })
+  const [recentProjects, setRecentProjects] = useState([])
   const [selectedImage, setSelectedImage] = useState(null)
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 })
-  const [lastDragPosition, setLastDragPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false)
-  const [savedFilePath, setSavedFilePath] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
   const [conLogo, setConLogo] = useState(false)
-  const [logoImage, setLogoImage] = useState(null)
-  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
-  
+  const [isSaving, setIsSaving] = useState(false)
+  const [feedback, setFeedback] = useState('')
+  const [exportFormat, setExportFormat] = useState('image/webp')
+  const [showOptions, setShowOptions] = useState(false) // NUOVO STATO PER OPZIONI
+
   const fileInputRef = useRef(null)
-  const canvasRef = useRef(null)
-  
-  // Costanti per il salvataggio (1200x729 - NON TOCCARE!)
-  const CROP_WIDTH = 1200
-  const CROP_HEIGHT = 729
-  
-  // Scale responsive per preview
+  const logoImgRef = useRef(null)
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
+
   const isMobile = windowWidth <= 768
   const DISPLAY_SCALE = isMobile ? 0.35 : 0.6
-  const DISPLAY_WIDTH = CROP_WIDTH * DISPLAY_SCALE
-  const DISPLAY_HEIGHT = CROP_HEIGHT * DISPLAY_SCALE
+  const displayDim = {
+    w: dimensions.width * DISPLAY_SCALE,
+    h: dimensions.height * DISPLAY_SCALE
+  }
 
+  // --- SINCRONIZZAZIONE CLOUD ---
   useEffect(() => {
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth)
-    }
+    fetchCloudProgetti()
+    const handleResize = () => setWindowWidth(window.innerWidth)
     window.addEventListener('resize', handleResize)
+    
+    const img = new Image()
+    img.src = '/Logo_Formula1it.png'
+    img.onload = () => { logoImgRef.current = img }
+    
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  useEffect(() => {
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = img.width
-      canvas.height = img.height
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(img, 0, 0)
-      setLogoImage(canvas.toDataURL('image/png'))
-      console.log('✅ Logo caricato automaticamente')
-    }
-    img.onerror = () => {
-      console.warn('⚠️ Logo non trovato in /public/Logo_Formula1it.png')
-    }
-    img.src = '/Logo_Formula1it.png'
-  }, [])
+  const fetchCloudProgetti = async () => {
+    const { data, error } = await supabase
+      .from('progetti_dimensioni')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(6)
+    if (data) setRecentProjects(data)
+  }
 
-  function handleFileSelect(e) {
+  const startNewProject = async (w, h) => {
+    const width = parseInt(w)
+    const height = parseInt(h)
+    setDimensions({ width, height })
+
+    // Se la dimensione non esiste nel cloud, la aggiungo
+    const exists = recentProjects.find(p => p.width === width && p.height === height)
+    if (!exists) {
+      await supabase.from('progetti_dimensioni').insert([{ width, height }])
+      fetchCloudProgetti()
+    }
+    setView('editor')
+  }
+
+  // --- LOGICA RITAGLIO (Lati bloccati, Scorrimento Verticale) ---
+  const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    
     const reader = new FileReader()
     reader.onload = (event) => {
       setSelectedImage(event.target.result)
       setImageOffset({ x: 0, y: 0 })
-      setLastDragPosition({ x: 0, y: 0 })
+      setFeedback('')
     }
     reader.readAsDataURL(file)
   }
 
-  function handleDrop(e) {
-    e.preventDefault()
-    const file = e.dataTransfer.files?.[0]
-    if (!file) return
-    
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setSelectedImage(event.target.result)
-      setImageOffset({ x: 0, y: 0 })
-      setLastDragPosition({ x: 0, y: 0 })
-    }
-    reader.readAsDataURL(file)
-  }
-
-  function handleDragOver(e) {
-    e.preventDefault()
-  }
-
-  function handleMouseDown(e) {
+  const handleSave = () => {
     if (!selectedImage) return
-    setIsDragging(true)
-  }
-
-  function handleMouseMove(e) {
-    if (!isDragging || !selectedImage) return
-    
-    const deltaX = e.movementX
-    const deltaY = e.movementY
-    const newOffsetX = imageOffset.x + deltaX
-    const newOffsetY = imageOffset.y + deltaY
-    
-    setImageOffset({
-      x: newOffsetX,
-      y: newOffsetY
-    })
-  }
-
-  function handleMouseUp() {
-    if (isDragging) {
-      setLastDragPosition(imageOffset)
-      setIsDragging(false)
-    }
-  }
-
-  function resetPosition() {
-    setImageOffset({ x: 0, y: 0 })
-    setLastDragPosition({ x: 0, y: 0 })
-  }
-
-  async function handleSave() {
-    if (!selectedImage) return
-
     setIsSaving(true)
-    setSavedFilePath('')
-    setShowSuccessAlert(false)
+    const img = new Image()
+    img.src = selectedImage
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = dimensions.width
+      canvas.height = dimensions.height
+      const ctx = canvas.getContext('2d')
+      
+      const scale = dimensions.width / img.width
+      const renderW = dimensions.width
+      const renderH = img.height * scale
+      const realY = (imageOffset.y / DISPLAY_SCALE)
+      
+      ctx.fillStyle = "#ffffff"
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, realY, renderW, renderH)
 
-    try {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = CROP_WIDTH
-        canvas.height = CROP_HEIGHT
-        const ctx = canvas.getContext('2d')
-
-        // Calcola come l'immagine viene scalata con objectFit: cover
-        const imgWidth = img.width
-        const imgHeight = img.height
-        const displayRatio = DISPLAY_WIDTH / DISPLAY_HEIGHT
-        const imgRatio = imgWidth / imgHeight
-
-        let scaleFactor
-        if (imgRatio > displayRatio) {
-          // Immagine più larga: scala in base all'altezza
-          scaleFactor = DISPLAY_HEIGHT / imgHeight
-        } else {
-          // Immagine più alta: scala in base alla larghezza
-          scaleFactor = DISPLAY_WIDTH / imgWidth
-        }
-
-        // Calcola quale porzione dell'immagine originale è visibile nella preview
-        const visibleLeft = -imageOffset.x
-        const visibleTop = -imageOffset.y
-        
-        // Mappa le coordinate alla dimensione originale dell'immagine
-        const scaleToOriginal = 1 / scaleFactor
-        const srcX = visibleLeft * scaleToOriginal
-        const srcY = visibleTop * scaleToOriginal
-        const srcWidth = DISPLAY_WIDTH * scaleToOriginal
-        const srcHeight = DISPLAY_HEIGHT * scaleToOriginal
-
-        // Ritaglia e scala l'immagine originale sul canvas 1200x729
-        ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, CROP_WIDTH, CROP_HEIGHT)
-
-        if (conLogo && logoImage) {
-          const logoImg = new Image()
-          logoImg.onload = () => {
-            const logoWidth = 400
-            const logoHeight = (logoImg.height / logoImg.width) * logoWidth
-            const logoX = (CROP_WIDTH - logoWidth) / 2
-            const logoY = CROP_HEIGHT - logoHeight - 20
-
-            ctx.globalAlpha = 0.8
-            ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight)
-            ctx.globalAlpha = 1.0
-
-            downloadImage(canvas)
-          }
-          logoImg.src = logoImage
-        } else {
-          downloadImage(canvas)
-        }
+      if (conLogo && logoImgRef.current) {
+        const lW = dimensions.width * 0.45
+        const lH = (logoImgRef.current.height / logoImgRef.current.width) * lW
+        ctx.drawImage(logoImgRef.current, (dimensions.width - lW) / 2, dimensions.height - lH - 20, lW, lH)
       }
-      img.src = selectedImage
-    } catch (error) {
-      console.error('Errore salvataggio:', error)
-      setSavedFilePath('❌ Errore durante il salvataggio')
-      setShowSuccessAlert(true)
-      setIsSaving(false)
+
+      const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = `Studio_Export_${Date.now()}.${ext}`; a.click()
+        URL.revokeObjectURL(url)
+        setFeedback(`✅ Esportato: ${ext.toUpperCase()}`)
+        setIsSaving(false)
+        setTimeout(() => setFeedback(''), 4000)
+      }, exportFormat, 0.92)
     }
   }
 
-  function downloadImage(canvas) {
-    canvas.toBlob((blob) => {
-      // Gestione numeri progressivi con localStorage
-      const progressivo = conLogo 
-        ? (parseInt(localStorage.getItem('contoSitoConLogo') || '0') + 1)
-        : (parseInt(localStorage.getItem('contoSitoSenzaLogo') || '0') + 1)
-
-      const fileName = conLogo 
-        ? `Sito con logo ${progressivo}.jpg` 
-        : `Sito senza logo ${progressivo}.jpg`
-
-      // Salva il nuovo contatore
-      if (conLogo) {
-        localStorage.setItem('contoSitoConLogo', progressivo.toString())
-      } else {
-        localStorage.setItem('contoSitoSenzaLogo', progressivo.toString())
-      }
-
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = fileName
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-
-      setSavedFilePath(`✅ Download completato: ${fileName}`)
-      setShowSuccessAlert(true)
-      setIsSaving(false)
-    }, 'image/jpeg', 1.0)
+  // --- STILI BOTTONI ---
+  const StyledButton = ({ onClick, children, variant = 'primary', disabled = false, fullWidth = false }) => {
+    const variants = {
+      primary: { background: '#007AFF', color: '#fff' },
+      secondary: { background: '#ffffff', color: '#1c1c1e', border: '1px solid #d1d1d6' },
+      success: { background: '#34C759', color: '#fff' },
+      warning: { background: '#FF9500', color: '#fff' },
+      outline: { background: 'transparent', color: '#007AFF', boxShadow: 'none' }
+    }
+    return (
+      <button disabled={disabled} onClick={onClick} style={{ 
+        padding: '16px 28px', borderRadius: '14px', border: 'none', fontSize: '15px', fontWeight: '800', 
+        cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+        gap: '8px', width: fullWidth ? '100%' : 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', textTransform: 'uppercase',
+        ...variants[variant], opacity: disabled ? 0.6 : 1
+      }}>{children}</button>
+    )
   }
-
-  const containerWidth = isMobile ? '100vw' : '1000px'
-  const containerMaxHeight = isMobile ? '100vh' : '95vh'
-  const containerBorderRadius = isMobile ? '0' : '15px'
-  const headerPadding = isMobile ? '12px 15px' : '15px 25px'
-  const contentPadding = isMobile ? '15px 10px' : '25px'
-  const buttonPadding = isMobile ? '8px 12px' : '10px 20px'
-  const buttonFontSize = isMobile ? '13px' : '16px'
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-      <div style={{ background: '#f5f5f7', borderRadius: containerBorderRadius, width: containerWidth, maxHeight: containerMaxHeight, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: headerPadding, background: 'white', borderBottom: '1px solid #e0e0e0' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '14px' : '16px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', minHeight: isMobile ? '44px' : 'auto' }}>
-            ← Indietro
-          </button>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: 'bold' }}>Ritaglio Immagine</div>
-            <div style={{ fontSize: isMobile ? '11px' : '13px', color: '#666' }}>1200 x 729 px</div>
-          </div>
-          <div style={{ width: isMobile ? '60px' : '90px' }}></div>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif' }}>
+      <div style={{ background: '#F2F2F7', width: isMobile ? '100%' : '900px', borderRadius: isMobile ? 0 : '28px', overflow: 'hidden', maxHeight: '95vh', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
+        
+        <div style={{ padding: '18px 25px', background: '#fff', borderBottom: '1px solid #e5e5ea', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <StyledButton variant="outline" onClick={view === 'menu' ? onClose : () => setView('menu')}>
+            {view === 'menu' ? '✕ Chiudi' : '← Indietro'}
+          </StyledButton>
+          <span style={{ fontWeight: '900', fontSize: '18px', color: '#1c1c1e' }}>EDITOR FOTO FWM</span>
+          <div style={{ width: '80px' }}></div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center', gap: isMobile ? '8px' : '15px', padding: headerPadding, background: 'white', borderBottom: '1px solid #e0e0e0' }}>
-          <button onClick={() => setConLogo(false)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: buttonPadding, background: !conLogo ? '#007AFF1A' : '#f0f0f0', border: !conLogo ? '2px solid #007AFF' : '2px solid #d0d0d0', borderRadius: '10px', cursor: 'pointer', fontSize: buttonFontSize, fontWeight: '600', color: !conLogo ? '#007AFF' : '#666', minHeight: isMobile ? '48px' : 'auto' }}>
-            <span style={{ fontSize: isMobile ? '16px' : '18px' }}>{!conLogo ? '☑' : '☐'}</span>
-            Senza Logo
-          </button>
-          <button onClick={() => setConLogo(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: buttonPadding, background: conLogo ? '#007AFF1A' : '#f0f0f0', border: conLogo ? '2px solid #007AFF' : '2px solid #d0d0d0', borderRadius: '10px', cursor: 'pointer', fontSize: buttonFontSize, fontWeight: '600', color: conLogo ? '#007AFF' : '#666', minHeight: isMobile ? '48px' : 'auto' }}>
-            <span style={{ fontSize: isMobile ? '16px' : '18px' }}>{conLogo ? '☑' : '☐'}</span>
-            Con Logo
-          </button>
-        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
+          {view === 'menu' ? (
+            <div style={{ textAlign: 'center' }}>
+              <h2 style={{ fontSize: '26px', fontWeight: '800', marginBottom: '40px' }}>Progetti Condivisi</h2>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '30px' }}>
+                <div style={{ background: '#fff', padding: '35px', borderRadius: '24px', width: '300px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>LARGHEZZA (PX)</label>
+                  <input id="w" type="number" defaultValue={1200} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', marginBottom: '20px' }} />
+                  <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>ALTEZZA (PX)</label>
+                  <input id="h" type="number" defaultValue={729} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', marginBottom: '30px' }} />
+                  <StyledButton fullWidth onClick={() => startNewProject(document.getElementById('w').value, document.getElementById('h').value)}>Apri Cloud</StyledButton>
+                </div>
 
-        <div style={{ flex: 1, overflow: 'auto', padding: contentPadding, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          {!selectedImage ? (
-            <div 
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              style={{ 
-                width: `${DISPLAY_WIDTH}px`, 
-                height: `${DISPLAY_HEIGHT}px`, 
-                maxWidth: '100%',
-                border: '3px dashed #ccc', 
-                borderRadius: '12px', 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                gap: '15px',
-                cursor: 'pointer'
-              }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <div style={{ fontSize: isMobile ? '35px' : '50px', color: '#999' }}>📷</div>
-              <div style={{ fontSize: isMobile ? '14px' : '18px', color: '#666', textAlign: 'center', padding: '0 10px' }}>Trascina un'immagine qui</div>
-              <div style={{ fontSize: isMobile ? '12px' : '14px', color: '#999' }}>oppure</div>
-              <button style={{ padding: isMobile ? '10px 20px' : '12px 25px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '10px', fontSize: isMobile ? '14px' : '16px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '44px' : 'auto' }}>
-                📁 Carica Immagine
-              </button>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+                <div style={{ background: '#fff', padding: '35px', borderRadius: '24px', width: '300px', textAlign: 'left' }}>
+                  <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '15px' }}>FORMATI CLOUD</label>
+                  {recentProjects.length > 0 ? recentProjects.map((p, i) => (
+                    <div key={i} onClick={() => { setDimensions({width: p.width, height: p.height}); setView('editor'); }} style={{ cursor: 'pointer', padding: '14px', background: '#F2F2F7', marginBottom: '12px', borderRadius: '14px', fontWeight: '700', border: '1px solid transparent' }} onMouseOver={e => e.currentTarget.style.borderColor = '#007AFF'} onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}>
+                      {p.width} × {p.height}
+                    </div>
+                  )) : <p style={{ color: '#c7c7cc', fontSize: '14px' }}>Nessun formato salvato</p>}
+                </div>
+              </div>
             </div>
           ) : (
-            <div>
-              <div 
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-                style={{ 
-                  width: `${DISPLAY_WIDTH}px`, 
-                  height: `${DISPLAY_HEIGHT}px`, 
-                  maxWidth: 'calc(100vw - 20px)',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  borderRadius: '12px',
-                  border: '5px solid rgba(128,128,128,0.5)',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                  cursor: isDragging ? 'grabbing' : 'grab',
-                  background: '#000',
-                  margin: '0 auto'
-                }}
-              >
-                <img 
-                  src={selectedImage} 
-                  alt="Crop" 
-                  draggable={false}
-                  style={{ 
-                    position: 'absolute',
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    transform: `translate(${imageOffset.x}px, ${imageOffset.y}px)`,
-                    userSelect: 'none',
-                    pointerEvents: 'none'
-                  }} 
-                />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <input ref={fileInputRef} type="file" hidden onChange={handleFileSelect} accept="image/*" />
 
-                {conLogo && logoImage && (
-                  <div style={{ position: 'absolute', bottom: `${20 * DISPLAY_SCALE}px`, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-                    <img src={logoImage} alt="Logo" style={{ width: `${400 * DISPLAY_SCALE}px`, opacity: 0.8 }} />
+              {!selectedImage ? (
+                <div onClick={() => fileInputRef.current.click()} style={{ width: '100%', maxWidth: '550px', height: '320px', border: '3px dashed #c7c7cc', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: '#fff' }}>
+                  <div style={{ fontSize: '60px' }}>📷</div>
+                  <p style={{ fontWeight: '800', color: '#8e8e93', marginTop: '15px' }}>Carica Foto</p>
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '20px' }}>
+                    <span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span>
                   </div>
-                )}
-              </div>
 
-              <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center', gap: isMobile ? '8px' : '15px', marginTop: isMobile ? '15px' : '25px' }}>
-                <button onClick={resetPosition} style={{ padding: buttonPadding, background: '#f0f0f0', color: '#333', border: 'none', borderRadius: '10px', fontSize: buttonFontSize, fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
-                  Reset Posizione
-                </button>
-                <button onClick={() => { setSelectedImage(null); fileInputRef.current?.click(); }} style={{ padding: buttonPadding, background: '#FF9500', color: 'white', border: 'none', borderRadius: '10px', fontSize: buttonFontSize, fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
-                  Cambia Immagine
-                </button>
-                <button onClick={handleSave} disabled={isSaving} style={{ padding: buttonPadding, background: isSaving ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: buttonFontSize, fontWeight: '600', cursor: isSaving ? 'not-allowed' : 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
-                  {isSaving ? '⏳ Salvataggio...' : 'Salva'}
-                </button>
-              </div>
+                  <div 
+                    onMouseDown={() => setIsDragging(true)}
+                    onMouseMove={(e) => isDragging && setImageOffset(prev => ({ x: 0, y: prev.y + e.movementY }))}
+                    onMouseUp={() => setIsDragging(false)}
+                    onMouseLeave={() => setIsDragging(false)}
+                    style={{ 
+                      width: `${displayDim.w}px`, height: `${displayDim.h}px`, background: '#fff', position: 'relative', overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', cursor: isDragging ? 'grabbing' : 'grab'
+                    }}
+                  >
+                    <img src={selectedImage} draggable={false} style={{ position: 'absolute', width: '100%', height: 'auto', top: 0, left: 0, transform: `translateY(${imageOffset.y}px)`, pointerEvents: 'none' }} />
+                    {conLogo && (
+                      <div style={{ position: 'absolute', bottom: '6%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+                        <img src="/Logo_Formula1it.png" style={{ width: '45%', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} />
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '40px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
+                    <select 
+                      value={exportFormat} 
+                      onChange={(e) => setExportFormat(e.target.value)}
+                      style={{ padding: '12px', borderRadius: '14px', border: '1px solid #d1d1d6', fontWeight: '800', cursor: 'pointer', background: '#fff', height: '45px' }}
+                    >
+                      <option value="image/webp">WEBP</option>
+                      <option value="image/jpeg">JPEG</option>
+                    </select>
+
+                    <StyledButton variant={conLogo ? 'success' : 'secondary'} onClick={() => setConLogo(!conLogo)}>
+                      {conLogo ? '✅ Logo' : '➕ Logo'}
+                    </StyledButton>
+                    
+                    <StyledButton variant="warning" onClick={() => fileInputRef.current.click()}>
+                      Nuova Foto
+                    </StyledButton>
+                    
+                    <StyledButton variant="primary" onClick={handleSave} disabled={isSaving}>
+                      {isSaving ? '⏳...' : 'Salva'}
+                    </StyledButton>
+                  </div>
+                </>
+              )}
+              {feedback && <div style={{ marginTop: '25px', padding: '14px 28px', background: '#34C759', color: '#fff', borderRadius: '16px', fontWeight: '800' }}>{feedback}</div>}
             </div>
           )}
         </div>
-
-        {showSuccessAlert && (
-          <div style={{ background: savedFilePath.startsWith('✅') ? '#d4edda' : '#f8d7da', color: savedFilePath.startsWith('✅') ? '#155724' : '#721c24', padding: '15px', textAlign: 'center', fontSize: '14px', borderTop: '1px solid #e0e0e0' }}>
-            {savedFilePath}
-          </div>
-        )}
       </div>
     </div>
   )
