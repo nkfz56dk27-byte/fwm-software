@@ -400,7 +400,7 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', marginBottom: '8px' }}>
         {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(g => <div key={g} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12px', color: '#666' }}>{g}</div>)}
       </div>
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: '105px', gap: '8px' }}>{giorni}</div>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: '105px', gap: '18px' }}>{giorni}</div>
     </div>
   )
 }
