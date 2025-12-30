@@ -228,20 +228,20 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
       </div>
       
       {/* MODALI - RIPRISTINATI E COMPLETI */}
-      {showNuovoEvento && (
-        <NuovoEventoModal 
-          campionati={campionati} 
-          onClose={() => setShowNuovoEvento(false)} 
-          onSave={async (titolo, eventoId, dataInizio) => { 
-            const dataFormattata = formatData(dataInizio);
-            await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo} il ${dataFormattata}`, eventoId); 
-            caricaDati(); 
-          }} 
-          utenteCorrente={utenteCorrente} 
-          isMobile={isMobile} 
-        />
-      )}
-      
+{showNuovoEvento && (
+  <NuovoEventoModal 
+    campionati={campionati} 
+    onClose={() => setShowNuovoEvento(false)} 
+    onSave={async (titolo, eventoId, dataInizio) => { 
+      const dataFormattata = formatData(dataInizio);
+      await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo} il ${dataFormattata}`, eventoId); 
+      caricaDati(); 
+    }} 
+    utenteCorrente={utenteCorrente} 
+    isMobile={isMobile} 
+    onRefreshCampionati={caricaDati} // <--- AGGIUNGI QUESTA RIGA QUI
+  />
+)}
       {showGestioneCampionati && (
         <GestioneCampionatiModal 
           campionati={campionati} 
@@ -432,29 +432,31 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
 } // <--- QUESTA CHIUDE IL COMPONENTE CALENDARIOMENSILE
 
 function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick, isMobile }) {
-  // ... (manteniamo la parte mobile invariata)
   if (isMobile) {
-    // codice mobile esistente...
+    // Mantieni qui il tuo codice mobile esistente
   }
-  
+
   return (
     <div style={{ background: 'white', borderRadius: '8px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: '4px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: '120px' }}>
       <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '6px', color: isOggi ? '#007AFF' : '#000', flexShrink: 0 }}>{giorno}</div>
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
         {eventi.map(evento => {
-          const campionato = campionati.find(c => c.id === evento.campionato_id)
-          const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666')
-          const emoji = evento.tipo === 'gara' && campionato ? campionato.emoji : '📅'
-          const sigla = evento.tipo === 'gara' && campionato ? campionato.sigla : 'EVENTO'
-          const prenotazioniEvento = prenotazioni.filter(p => p.evento_id === evento.id)
-          const numPrenotati = prenotazioniEvento.length
-          const maxAccrediti = evento.max_accrediti || 0
+          const campionato = campionati.find(c => c.id === evento.campionato_id);
+          const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666');
+          const emoji = evento.tipo === 'gara' && campionato ? campionato.emoji : '📅';
+          const sigla = evento.tipo === 'gara' && campionato ? campionato.sigla : 'EVENTO';
           
-          let badge = null
-          if (evento.accredito_status === 'da_richiedere') badge = { icon: '🟡', text: 'DA RICHIEDERE', bg: '#FFD60A', color: '#000' }
-          else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
-          else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
-          
+          // Filtriamo le prenotazioni per questo specifico evento
+          const prenotazioniEvento = prenotazioni.filter(p => p.evento_id === evento.id);
+          const numPrenotati = prenotazioniEvento.length;
+          const maxAccrediti = evento.max_accrediti || 0;
+
+          // Gestione Badge Stato
+          let badge = null;
+          if (evento.accredito_status === 'da_richiedere') badge = { icon: '🟡', text: 'DA RICHIEDERE', bg: '#FFD60A', color: '#000' };
+          else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' };
+          else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' };
+
           return (
             <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ 
               padding: '8px', 
@@ -467,22 +469,19 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
               gap: '4px',
               boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
             }}>
-              {/* Riga Categoria/Sigla - Leggermente più grande */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
                 <span>{emoji}</span>
                 <strong style={{ color: colore, letterSpacing: '0.5px' }}>{sigla}</strong>
               </div>
               
-              {/* TITOLO - Ingrandito e più evidente */}
               <div style={{ fontSize: '13px', fontWeight: '800', lineHeight: '1', color: '#1a1a1a' }}>
                 {evento.titolo.toUpperCase()}
               </div>
               
-              {/* FASCIA STATO (es. ACCETTATO) - Ingrandita a tutta larghezza */}
               {badge && (
                 <div style={{ 
                   fontSize: '10px', 
-                  padding: '1px 2px', 
+                  padding: '2px 4px', 
                   background: badge.bg, 
                   color: badge.color, 
                   borderRadius: '4px', 
@@ -495,7 +494,6 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
                 </div>
               )}
               
-              {/* Omini e Conteggio Pass */}
               {maxAccrediti > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', padding: '0 2px' }}>
                   <div style={{ display: 'flex', gap: '2px' }}>
@@ -511,28 +509,30 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
                 </div>
               )}
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
-
 function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobile }) {
-  const [tipo, setTipo] = useState('gara') // 'gara' o 'evento'
-  const [campionatoId, setCampionatoId] = useState(campionati[0]?.id || '')
-  const [titolo, setTitolo] = useState('')
-  const [dataInizio, setDataInizio] = useState('')
-  const [dataFine, setDataFine] = useState('')
-  const [maxAccrediti, setMaxAccrediti] = useState(0)
-  const [accreditoStatus, setAccreditoStatus] = useState('nessuno')
-  const [note, setNote] = useState('')
-  const [colorePersonalizzato, setColorePersonalizzato] = useState('#666666')
-  const [salvando, setSalvando] = useState(false)
-  
-  async function salva() {
-    if (!titolo || !dataInizio) return alert('Compila titolo e data inizio')
-    setSalvando(true)
+  const [tipo, setTipo] = useState('gara');
+  const [campionatoId, setCampionatoId] = useState(campionati[0]?.id || '');
+  const [titolo, setTitolo] = useState('');
+  const [dataInizio, setDataInizio] = useState('');
+  const [dataFine, setDataFine] = useState(''); 
+  const [maxAccrediti, setMaxAccrediti] = useState(0);
+  const [accreditoStatus, setAccreditoStatus] = useState('nessuno'); 
+  const [note, setNote] = useState('');
+  const [colorePersonalizzato, setColorePersonalizzato] = useState('#666666');
+  const [salvando, setSalvando] = useState(false);
+
+  const sInp = { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ccc', marginTop: '5px', fontSize: '15px', color: '#000', fontWeight: '600', boxSizing: 'border-box' };
+  const sLab = { fontSize: '12px', fontWeight: '900', color: '#000', marginTop: '18px', display: 'block', textTransform: 'uppercase' };
+
+  async function salvaEvento() {
+    if (!titolo || !dataInizio) return alert('Manca Titolo o Data');
+    setSalvando(true);
     
     const nuovoEvento = { 
       tipo, 
@@ -540,182 +540,181 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
       titolo, 
       data_inizio: dataInizio, 
       data_fine: dataFine || null, 
-      max_accrediti: maxAccrediti, 
+      max_accrediti: parseInt(maxAccrediti) || 0, 
       accredito_status: accreditoStatus, 
       note, 
-      // Il colore personalizzato viene salvato solo se il tipo è 'evento'
       colore_personalizzato: tipo === 'evento' ? colorePersonalizzato : null, 
-      creato_da: utenteCorrente.username 
-    }
-    
-    const { data: eventoCreato } = await supabase.from('eventi_calendario').insert(nuovoEvento).select().single()
-    await onSave(titolo, eventoCreato?.id, dataInizio)
-    setSalvando(false)
-    onClose()
-  }
-  
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
-      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '550px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
-        
-        {/* HEADER */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold' }}>Nuovo Evento</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666', minWidth: '44px', minHeight: '44px' }}>✕</button>
-        </div>
+      creato_da: utenteCorrente?.username || 'admin'
+    };
 
-        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '30px' }}>
+    try {
+      const { data, error } = await supabase.from('eventi_calendario').insert([nuovoEvento]).select().single();
+      if (error) throw error;
+      await onSave(titolo, data?.id, dataInizio); 
+      onClose();
+    } catch (err) { 
+      alert("Errore: " + err.message); 
+    } finally { 
+      setSalvando(false); 
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+      <div style={{ background: 'white', borderRadius: '20px', width: isMobile ? '100vw' : '500px', maxHeight: '95vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        
+        <div style={{ padding: '20px 30px', borderBottom: '2px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' }}>
+          <b style={{ fontSize: '18px', color: '#000' }}>NUOVO INSERIMENTO</b>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+        </div>
+        
+        <div style={{ flex: 1, overflow: 'auto', padding: '0 30px 30px 30px' }}>
           
-          {/* SELEZIONE TIPO (TAB) */}
-          <div style={{ marginBottom: '25px' }}>
-            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '10px', color: '#666' }}>CATEGORIA EVENTO</div>
-            <div style={{ display: 'flex', background: '#f0f0f0', padding: '4px', borderRadius: '10px', gap: '4px' }}>
-              <button 
-                onClick={() => setTipo('gara')}
-                style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', transition: 'all 0.2s', background: tipo === 'gara' ? 'white' : 'transparent', color: tipo === 'gara' ? '#007AFF' : '#666', boxShadow: tipo === 'gara' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none' }}
-              >🏎️ Gara</button>
-              <button 
-                onClick={() => setTipo('evento')}
-                style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', transition: 'all 0.2s', background: tipo === 'evento' ? 'white' : 'transparent', color: tipo === 'evento' ? '#007AFF' : '#666', boxShadow: tipo === 'evento' ? '0 2px 4px rgba(0,0,0,0.1)' : 'none' }}
-              >📅 Evento</button>
-            </div>
+          <div style={{ display: 'flex', background: '#eee', padding: '5px', borderRadius: '12px', margin: '20px 0' }}>
+            <button onClick={() => setTipo('gara')} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: tipo === 'gara' ? '#fff' : 'transparent', fontWeight: '900', color: '#000', cursor: 'pointer' }}>GARA</button>
+            <button onClick={() => setTipo('evento')} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: 'none', background: tipo === 'evento' ? '#fff' : 'transparent', fontWeight: '900', color: '#000', cursor: 'pointer' }}>EVENTO</button>
           </div>
 
-          {/* CAMPIONATO (Solo se Gara) */}
-          {tipo === 'gara' && (
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Campionato</div>
-              <select value={campionatoId} onChange={e => setCampionatoId(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', cursor: 'pointer' }}>
+          <label style={sLab}>TITOLO EVENTO</label>
+          <input style={sInp} value={titolo} onChange={e => setTitolo(e.target.value)} placeholder="es. GP MONACO" />
+
+          {tipo === 'gara' ? (
+            <div>
+              <label style={sLab}>CATEGORIA</label>
+              <select value={campionatoId} onChange={e => setCampionatoId(e.target.value)} style={sInp}>
                 {campionati.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>)}
               </select>
             </div>
-          )}
-
-          {/* COLORE PERSONALIZZATO (Solo se Altro Evento) */}
-          {tipo === 'evento' && (
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Colore Etichetta</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <input 
-                  type="color" 
-                  value={colorePersonalizzato} 
-                  onChange={e => setColorePersonalizzato(e.target.value)} 
-                  style={{ width: '60px', height: '44px', padding: '2px', border: '2px solid #ddd', borderRadius: '8px', cursor: 'pointer' }} 
-                />
-                <span style={{ fontSize: '14px', color: '#666' }}>Scegli come apparirà nel calendario</span>
-              </div>
+          ) : (
+            <div>
+              <label style={sLab}>COLORE IDENTIFICATIVO</label>
+              <input type="color" value={colorePersonalizzato} onChange={e => setColorePersonalizzato(e.target.value)} style={{ ...sInp, height: '50px', padding: '5px' }} />
             </div>
           )}
 
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Titolo</div>
-            <input type="text" value={titolo} onChange={e => setTitolo(e.target.value)} placeholder="Es: GP Italia" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+          <div style={{ display: 'flex', gap: '15px' }}>
+            <div style={{flex:1}}><label style={sLab}>INIZIO</label><input type="date" style={sInp} value={dataInizio} onChange={e => setDataInizio(e.target.value)} /></div>
+            <div style={{flex:1}}><label style={sLab}>FINE</label><input type="date" style={sInp} value={dataFine} onChange={e => setDataFine(e.target.value)} /></div>
           </div>
 
-          <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Inizio</div>
-              <input type="date" value={dataInizio} onChange={e => setDataInizio(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Fine (opzionale)</div>
-              <input type="date" value={dataFine} onChange={e => setDataFine(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Numero Pass Disponibili (0 = nessuno)</div>
-            <input type="number" min="0" value={maxAccrediti} onChange={e => setMaxAccrediti(parseInt(e.target.value) || 0)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Stato Accredito</div>
-            <select value={accreditoStatus} onChange={e => setAccreditoStatus(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', cursor: 'pointer' }}>
-              <option value="nessuno">Nessuno</option>
-              <option value="da_richiedere">🟡 Dovremmo richiederlo</option>
-              <option value="richiesto">📨 Richiesto</option>
-              <option value="accettato">✅ Accettato</option>
+          <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '2px solid #f0f0f0' }}>
+            <label style={sLab}>STATO BADGE</label>
+            <select style={sInp} value={accreditoStatus} onChange={e => setAccreditoStatus(e.target.value)}>
+              <option value="nessuno"></option> {/* Opzione bianca/vuota */}
+              <option value="da_richiedere">🟡 DA RICHIEDERE</option>
+              <option value="richiesto">📨 RICHIESTO</option>
+              <option value="accettato">✅ ACCETTATO</option>
             </select>
-          </div>
 
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Note (opzionali)</div>
-            <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Informazioni aggiuntive..." style={{ width: '100%', minHeight: '80px', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', fontFamily: 'inherit', resize: 'vertical' }} />
+            <label style={sLab}>MAX PASS</label>
+            <input type="number" style={sInp} value={maxAccrediti} onChange={e => setMaxAccrediti(e.target.value)} />
+
+            <label style={sLab}>NOTE</label>
+            <textarea style={{ ...sInp, height: '60px', resize: 'none' }} value={note} onChange={e => setNote(e.target.value)} />
           </div>
         </div>
 
-        {/* FOOTER */}
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', justifyContent: 'flex-end', padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0' }}>
-          <button onClick={onClose} style={{ padding: isMobile ? '14px' : '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '8px', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Annulla</button>
-          <button onClick={salva} disabled={salvando} style={{ padding: isMobile ? '14px' : '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>{salvando ? '...' : 'Salva Evento'}</button>
+        <div style={{ padding: '20px 30px', borderTop: '2px solid #f0f0f0', display: 'flex', gap: '10px' }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '15px', borderRadius: '12px', border: '2px solid #000', background: '#fff', fontWeight: '900', cursor: 'pointer' }}>ANNULLA</button>
+          <button onClick={salvaEvento} disabled={salvando} style={{ flex: 2, padding: '15px', borderRadius: '12px', border: 'none', background: '#34C759', color: '#fff', fontWeight: '900', cursor: 'pointer' }}>
+            {salvando ? 'SALVANDO...' : 'CONFERMA'}
+          </button>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function GestioneCampionatiModal({ campionati, onClose, onUpdate, isMobile }) {
-  const [lista, setLista] = useState(campionati)
-  const [edit, setEdit] = useState(null)
+  const [edit, setEdit] = useState(null);
+  const sInp = { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', marginTop: '5px', fontSize: '16px', outline: 'none', boxSizing: 'border-box' };
+  const sLab = { fontSize: '11px', fontWeight: 'bold', color: '#666', letterSpacing: '0.5px', marginTop: '10px', display: 'block' };
+
   async function salva() {
-    if (edit.id) await supabase.from('campionati').update({ nome: edit.nome, colore: edit.colore, emoji: edit.emoji, sigla: edit.sigla }).eq('id', edit.id)
-    else await supabase.from('campionati').insert({ nome: edit.nome, colore: edit.colore, emoji: edit.emoji, sigla: edit.sigla, attivo: true })
-    await onUpdate(); setEdit(null)
+    if (!edit.nome || !edit.sigla) return alert("Nome e Sigla sono obbligatori");
+    
+    // Payload mappato esattamente sulle tue colonne Supabase
+    const payload = { 
+      nome: edit.nome, 
+      emoji: edit.emoji, 
+      colore: edit.colore, 
+      sigla: edit.sigla.toUpperCase().trim(),
+      attivo: true // Forza il valore booleano
+    };
+
+    try {
+      if (edit.id) {
+        // UPDATE: Modifica categoria esistente
+        const { error } = await supabase.from('campionati').update(payload).eq('id', edit.id);
+        if (error) throw error;
+      } else {
+        // INSERT: Nuova categoria con ID generato pulito
+        const newId = edit.sigla.toLowerCase().trim().replace(/\s+/g, '-');
+        const { error } = await supabase.from('campionati').insert([{ ...payload, id: newId }]);
+        if (error) throw error;
+      }
+      await onUpdate(); 
+      setEdit(null);
+    } catch (err) {
+      alert("Errore Database: " + err.message);
+    }
   }
-  async function elimina(id) {
-    if (!confirm('Eliminare questo campionato?')) return
-    await supabase.from('campionati').update({ attivo: false }).eq('id', id); await onUpdate()
-  }
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
-      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '600px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold' }}>Gestione Categorie</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666', minWidth: '44px', minHeight: '44px' }}>✕</button>
+      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '550px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <b>Gestione Categorie</b>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '30px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: '25px' }}>
           {edit ? (
             <div>
-              <div style={{ marginBottom: '15px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Nome</div>
-                <input type="text" value={edit.nome} onChange={e => setEdit({...edit, nome: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
-              </div>
-              <div style={{ marginBottom: '15px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Sigla</div>
-                <input type="text" value={edit.sigla} onChange={e => setEdit({...edit, sigla: e.target.value})} placeholder="Es: F1" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
-              </div>
-              <div style={{ marginBottom: '15px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Emoji</div>
-                <select value={edit.emoji} onChange={e => setEdit({...edit, emoji: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', cursor: 'pointer' }}>
-                  {EMOJI_DISPONIBILI.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
-                </select>
-              </div>
-              <div style={{ marginBottom: '15px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Colore</div>
-                <input type="color" value={edit.colore} onChange={e => setEdit({...edit, colore: e.target.value})} style={{ width: '100%', height: '50px', borderRadius: '8px', border: '2px solid #ddd', cursor: 'pointer' }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px' }}>
-                <button onClick={() => setEdit(null)} style={{ flex: 1, padding: isMobile ? '14px' : '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '8px', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Annulla</button>
-                <button onClick={salva} style={{ flex: 1, padding: isMobile ? '14px' : '10px 20px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Salva</button>
-              </div>
+              <label style={sLab}>NOME CATEGORIA</label>
+              <input style={sInp} value={edit.nome} onChange={e => setEdit({...edit, nome: e.target.value})} placeholder="Es. Formula 1" />
+              
+              <label style={sLab}>SIGLA (ID)</label>
+              <input style={sInp} value={edit.sigla} onChange={e => setEdit({...edit, sigla: e.target.value})} placeholder="Es. F1" />
+              
+              <label style={sLab}>EMOJI</label>
+              <select style={sInp} value={edit.emoji} onChange={e => setEdit({...edit, emoji: e.target.value})}>
+                <option value="🏎️">🏎️ Monoposto</option>
+                <option value="🏁">🏁 Bandiera</option>
+                <option value="⚡️">⚡️ Elettrico</option>
+                <option value="🏍️">🏍️ Moto</option>
+                <option value="🚘">🚘 Auto / GT</option>
+              </select>
+              
+              <label style={sLab}>COLORE IDENTIFICATIVO</label>
+              <input type="color" style={{...sInp, height:'45px'}} value={edit.colore} onChange={e => setEdit({...edit, colore: e.target.value})} />
+              
+              <button onClick={salva} style={{ width:'100%', marginTop:'20px', padding:'12px', background:'#34C759', color:'white', border:'none', borderRadius:'10px', fontWeight:'bold', cursor:'pointer' }}>
+                Salva Categoria
+              </button>
+              <button onClick={() => setEdit(null)} style={{ width:'100%', marginTop:'10px', padding:'12px', background:'none', border:'1px solid #ddd', borderRadius:'10px', cursor:'pointer' }}>
+                Annulla
+              </button>
             </div>
           ) : (
             <>
               {campionati.map(c => (
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: '#f5f5f7', borderRadius: '10px', marginBottom: '10px' }}>
-                  <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: c.colore, flexShrink: 0 }}></div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '16px', fontWeight: '600' }}>{c.emoji} {c.nome}</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>{c.sigla}</div>
-                  </div>
-                  <button onClick={() => setEdit(c)} style={{ padding: isMobile ? '10px 14px' : '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: isMobile ? '13px' : '12px', minHeight: isMobile ? '44px' : 'auto' }}>Modifica</button>
-                  <button onClick={() => elimina(c.id)} style={{ padding: isMobile ? '10px 14px' : '6px 12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: isMobile ? '13px' : '12px', minHeight: isMobile ? '44px' : 'auto' }}>Elimina</button>
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px', background: '#f5f5f7', borderRadius: '10px', marginBottom: '8px' }}>
+                  <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: c.colore }}></div>
+                  <div style={{ flex: 1, fontWeight:'600' }}>{c.emoji} {c.nome}</div>
+                  <button onClick={() => setEdit(c)} style={{ padding: '8px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight:'bold' }}>Modifica</button>
                 </div>
               ))}
-              <button onClick={() => setEdit({ nome: '', sigla: '', emoji: '🏎️', colore: '#000000' })} style={{ width: '100%', padding: isMobile ? '14px' : '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: isMobile ? '15px' : '14px', minHeight: isMobile ? '48px' : 'auto' }}>+ Nuova Categoria</button>
+              <button onClick={() => setEdit({ nome: '', sigla: '', emoji: '🏎️', colore: '#ff0000' })} style={{ width: '100%', marginTop: '15px', padding: '14px', background: '#34C759', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor:'pointer' }}>
+                + Nuova Categoria
+              </button>
             </>
           )}
         </div>
       </div>
     </div>
-  )
+  );
 }
+
 
 function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmin, utenteCorrente, onClose, onUpdate, isMobile }) {
   const [modalita, setModalita] = useState('visualizza')
