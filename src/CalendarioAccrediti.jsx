@@ -396,14 +396,40 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
     giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} isOggi={isOggi} onEventoClick={onEventoClick} isMobile={isMobile} />)
   }
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px', marginBottom: '8px' }}>
-        {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(g => <div key={g} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12px', color: '#666' }}>{g}</div>)}
+    <div style={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column' 
+    }}>
+      {/* Intestazione Giorni */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(7, 1fr)', 
+        gap: '8px', 
+        marginBottom: '15px' 
+      }}>
+        {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map(g => (
+          <div key={g} style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12px', color: '#666' }}>
+            {g}
+          </div>
+        ))}
       </div>
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: '105px', gap: '18px' }}>{giorni}</div>
+
+      {/* Griglia Calendario - Questa è la parte che "alza" le celle */}
+      <div style={{ 
+        flex: 1, 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(7, 1fr)', 
+        gridAutoRows: '120px', 
+        gap: '5px', 
+        paddingBottom: '10px', // Crea il vuoto in fondo
+        alignContent: 'start'   // Impedisce alla griglia di allungarsi
+      }}>
+        {giorni}
+      </div>
     </div>
-  )
-}
+  );
+} // <--- QUESTA CHIUDE IL COMPONENTE CALENDARIOMENSILE
 
 function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick, isMobile }) {
   // ... (manteniamo la parte mobile invariata)
