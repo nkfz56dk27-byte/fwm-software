@@ -164,19 +164,56 @@ export default function RitaglioImmagine({ onClose }) {
       canvas.width = dimensions.width
       canvas.height = dimensions.height
       const ctx = canvas.getContext('2d')
-      const scale = dimensions.width / img.width
-      const renderW = dimensions.width
-      const renderH = img.height * scale
-      const realY = (imageOffset.y / DISPLAY_SCALE)
       
-      ctx.fillStyle = "#ffffff"
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(img, 0, realY, renderW, renderH)
+      if (projectMode === 'cover') {
+        // Logica COVER: riempi tutto il canvas
+        ctx.fillStyle = "#ffffff"
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        
+        // Calcola le dimensioni per riempire tutto il canvas
+        const canvasRatio = canvas.width / canvas.height
+        const imgRatio = img.width / img.height
+        
+        let drawWidth, drawHeight, drawX, drawY
+        
+        if (imgRatio > canvasRatio) {
+          // Immagine più larga del canvas
+          drawHeight = canvas.height
+          drawWidth = drawHeight * imgRatio
+          drawX = (canvas.width - drawWidth) / 2
+          drawY = 0
+        } else {
+          // Immagine più alta del canvas
+          drawWidth = canvas.width
+          drawHeight = drawWidth / imgRatio
+          drawX = 0
+          drawY = (canvas.height - drawHeight) / 2
+        }
+        
+        // Applica lo zoom del 5%
+        const zoomFactor = 1.05
+        drawWidth *= zoomFactor
+        drawHeight *= zoomFactor
+        drawX -= (drawWidth - canvas.width) / 2
+        drawY -= (drawHeight - canvas.height) / 2
+        
+        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
+      } else {
+        // Logica NORMALE: come prima
+        const scale = dimensions.width / img.width
+        const renderW = dimensions.width
+        const renderH = img.height * scale
+        const realY = (imageOffset.y / DISPLAY_SCALE)
+        
+        ctx.fillStyle = "#ffffff"
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.drawImage(img, 0, realY, renderW, renderH)
+      }
       
       if (conLogo && logoImgRef.current) {
-        const lW = dimensions.width * 0.45
+        const lW = dimensions.width * 0.38  // Ridotto da 0.45 a 0.38
         const lH = (logoImgRef.current.height / logoImgRef.current.width) * lW
-        ctx.drawImage(logoImgRef.current, (dimensions.width - lW) / 2, dimensions.height - lH - 20, lW, lH)
+        ctx.drawImage(logoImgRef.current, (dimensions.width - lW) / 2, dimensions.height - lH - 45, lW, lH)  // Abbassato da 35 a 45px
       }
       
       const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
@@ -401,20 +438,45 @@ export default function RitaglioImmagine({ onClose }) {
                     style={{ 
                       width: `${displayDim.w}px`, height: `${displayDim.h}px`, background: '#000', position: 'relative', 
                       overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', cursor: isDragging ? 'grabbing' : 'grab',
-                      touchAction: 'none' 
+                      touchAction: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
                     }}
                   >
+                    {/* Immagine normale - non toccare! */}
                     <img src={selectedImage} draggable={false} style={{ 
-  position: 'absolute', 
-  width: '100%', 
-  height: projectMode === 'cover' ? '100%' : 'auto', 
-  top: 0, 
-  left: 0, 
-  objectFit: projectMode === 'cover' ? 'cover' : 'contain',
-  transform: `translateY(${imageOffset.y}px)`, 
-  pointerEvents: 'none' 
-}} />
-                    {conLogo && <div style={{ position: 'absolute', bottom: '6%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src="/Logo_Formula1it.png" style={{ width: '45%', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
+                      position: 'absolute', 
+                      width: '100%', 
+                      height: 'auto', 
+                      top: 0, 
+                      left: 0, 
+                      transform: `translateY(${imageOffset.y}px)`, 
+                      pointerEvents: 'none',
+                      display: projectMode === 'cover' ? 'none' : 'block'
+                    }} />
+                    
+                    {/* Immagine cover - solo per cover */}
+                    {projectMode === 'cover' && (
+                      <img src={selectedImage} draggable={false} style={{ 
+                        position: 'absolute', 
+                        width: '100%', 
+                        height: '100%', 
+                        top: 0, 
+                        left: 0, 
+                        objectFit: 'cover',
+                        objectPosition: 'center',
+                        pointerEvents: 'none',
+                        display: 'block',
+                        margin: 0,
+                        padding: 0,
+                        border: 'none',
+                        boxSizing: 'border-box',
+                        transform: 'scale(1.05)',
+                        transformOrigin: 'center'
+                      }} />
+                    )}
+                    {conLogo && <div style={{ position: 'absolute', bottom: '2%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src="/Logo_Formula1it.png" style={{ width: '38%', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
                   </div>
                   <div style={{ display: 'flex', gap: '12px', marginTop: '40px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
                     <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} style={{ padding: '12px', borderRadius: '14px', border: '1px solid #d1d1d6', fontWeight: '800', background: '#fff', height: '45px' }}>
