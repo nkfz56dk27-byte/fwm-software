@@ -5,7 +5,7 @@ export default function RitaglioImmagine({ onClose }) {
   const [view, setView] = useState('menu')
   const [dimensions, setDimensions] = useState({ width: 1200, height: 729 })
   const [recentProjects, setRecentProjects] = useState([])
-  const [selectedImage, setSelectedImage] = useState(null)
+  const [selectedImage, setSelectedImage] = useState(null) // Forza null all'avvio
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [conLogo, setConLogo] = useState(false)
@@ -17,6 +17,13 @@ export default function RitaglioImmagine({ onClose }) {
   const [projectMode, setProjectMode] = useState('normale') // SOLO per il menu, non tocca il sistema
   const [projectImages, setProjectImages] = useState({ normale: [], cover: [] }) // Separa le foto per progetto
   const [favoriteProjects, setFavoriteProjects] = useState([]) // Progetti preferiti
+
+  // Resetta lo stato all'avvio per sicurezza
+  useEffect(() => {
+    setSelectedImage(null)
+    setView('menu')
+    setImageOffset({ x: 0, y: 0 })
+  }, [])
 
   const fileInputRef = useRef(null)
   const logoImgRef = useRef(null)
