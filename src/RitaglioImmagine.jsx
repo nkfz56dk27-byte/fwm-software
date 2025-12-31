@@ -84,19 +84,6 @@ export default function RitaglioImmagine({ onClose }) {
     }
   }
 
-  // --- Gestione Limiti ---
-  const applyBounds = (newY) => {
-    if (!containerRef.current) return newY
-    const imgElement = containerRef.current.querySelector('img')
-    if (!imgElement) return newY
-    const displayedImgHeight = imgElement.offsetHeight
-    const containerHeight = displayDim.h
-    if (newY > 0) return 0
-    const minOffset = containerHeight - displayedImgHeight
-    if (newY < minOffset) return minOffset
-    return newY
-  }
-
   // --- Drag & Drop e File Processing ---
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
@@ -137,6 +124,28 @@ export default function RitaglioImmagine({ onClose }) {
         ? prev.filter(id => id !== projectId)
         : [...prev, projectId]
     )
+  }
+
+  // Applica bounds diverso per COVER
+  const applyBounds = (newY) => {
+    if (!containerRef.current) return newY
+    const imgElement = containerRef.current.querySelector('img')
+    if (!imgElement) return newY
+    
+    // Se è un progetto cover, usa logica diversa
+    if (projectMode === 'cover') {
+      // In cover, l'immagine riempie tutto il canvas, quindi niente scroll
+      return 0
+    }
+    
+    // Logica normale per progetti normali
+    const displayedImgHeight = (imgElement.naturalHeight * displayDim.w) / imgElement.naturalWidth
+    const containerHeight = displayDim.h
+    
+    if (newY > 0) return 0
+    const minOffset = containerHeight - displayedImgHeight
+    if (minOffset > 0) return 0 
+    return newY < minOffset ? minOffset : newY
   }
 
   const handleDrop = (e) => {
@@ -295,7 +304,12 @@ export default function RitaglioImmagine({ onClose }) {
                     <>
                       <label style={{ fontSize: '11px', fontWeight: '800', color: '#FF3B30', display: 'block', marginBottom: '10px' }}>⭐ PREFERITI</label>
                       {recentProjects.filter(p => favoriteProjects.includes(p.id)).map((p, i) => (
-                        <div key={i} onClick={() => { setDimensions({width: p.width, height: p.height}); setView('editor'); }} 
+                        <div key={i} onClick={() => { 
+                          setDimensions({width: p.width, height: p.height}); 
+                          setView('editor'); 
+                          // Imposta la modalità corretta quando apri il progetto
+                          setProjectMode(p.nome && p.nome.toLowerCase().includes('cover') ? 'cover' : 'normale');
+                        }} 
                              style={{ 
                                cursor: 'pointer', 
                                padding: '14px', 
@@ -320,7 +334,12 @@ export default function RitaglioImmagine({ onClose }) {
                     <>
                       <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '10px', marginTop: favoriteProjects.length > 0 ? '20px' : '0' }}>ALTRI PROGETTI</label>
                       {recentProjects.filter(p => !favoriteProjects.includes(p.id)).map((p, i) => (
-                        <div key={i} onClick={() => { setDimensions({width: p.width, height: p.height}); setView('editor'); }} 
+                        <div key={i} onClick={() => { 
+                          setDimensions({width: p.width, height: p.height}); 
+                          setView('editor'); 
+                          // Imposta la modalità corretta quando apri il progetto
+                          setProjectMode(p.nome && p.nome.toLowerCase().includes('cover') ? 'cover' : 'normale');
+                        }} 
                              style={{ 
                                cursor: 'pointer', 
                                padding: '14px', 
@@ -385,7 +404,16 @@ export default function RitaglioImmagine({ onClose }) {
                       touchAction: 'none' 
                     }}
                   >
-                    <img src={selectedImage} draggable={false} style={{ position: 'absolute', width: '100%', height: 'auto', top: 0, left: 0, transform: `translateY(${imageOffset.y}px)`, pointerEvents: 'none' }} />
+                    <img src={selectedImage} draggable={false} style={{ 
+  position: 'absolute', 
+  width: '100%', 
+  height: projectMode === 'cover' ? '100%' : 'auto', 
+  top: 0, 
+  left: 0, 
+  objectFit: projectMode === 'cover' ? 'cover' : 'contain',
+  transform: `translateY(${imageOffset.y}px)`, 
+  pointerEvents: 'none' 
+}} />
                     {conLogo && <div style={{ position: 'absolute', bottom: '6%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src="/Logo_Formula1it.png" style={{ width: '45%', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
                   </div>
                   <div style={{ display: 'flex', gap: '12px', marginTop: '40px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
