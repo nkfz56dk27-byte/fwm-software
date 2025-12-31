@@ -20,9 +20,14 @@ export default function RitaglioImmagine({ onClose }) {
 
   // Resetta lo stato all'avvio per sicurezza
   useEffect(() => {
+    console.log('RitaglioImmagine: Reset stato iniziale')
     setSelectedImage(null)
     setView('menu')
     setImageOffset({ x: 0, y: 0 })
+    
+    // Pulisce eventuali dati persistenti
+    localStorage.removeItem('ritaglio-immagine-state')
+    sessionStorage.removeItem('ritaglio-immagine-state')
   }, [])
 
   const fileInputRef = useRef(null)
