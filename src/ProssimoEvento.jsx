@@ -221,7 +221,8 @@ export default function ProssimoEvento() {
       borderRadius: '12px',
       padding: '12px',
       minWidth: '280px',
-      maxWidth: '320px'
+      maxWidth: '320px',
+      marginTop: '-20px'
     }}>
       <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#FFF', marginBottom: '6px' }}>
         {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
