@@ -74,7 +74,7 @@ export default function VidaMenu({ onClose }) {
           <div style={{ 
             textAlign: 'center',
             position: 'relative',
-            left: '-24px',
+            left: isMobile ? '-24px' : '-24px',
             top: '0px',
             right: '0px',
             bottom: '0px',
