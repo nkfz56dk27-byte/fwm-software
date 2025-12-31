@@ -6,10 +6,11 @@ import DisponibilitàSVG from "./assets/disponibilità.svg"
 import PressPNG from "./assets/press.png"
 import CestinoSVG from "./assets/cestino.svg"
 import CheckSVG from "./assets/check.svg"
-import RitaglioImmagine from './RitaglioImmagine'
+import PhotoEditor from './PhotoEditor'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
+import ProssimoEvento from './ProssimoEvento.jsx'
 
 import './App.css'
 
@@ -30,7 +31,7 @@ function App() {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [passwordError, setPasswordError] = useState('')
-  const [showRitaglioImmagine, setShowRitaglioImmagine] = useState(false)
+  const [showPhotoEditor, setShowPhotoEditor] = useState(false)
   const [showCalendario, setShowCalendario] = useState(false)
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
@@ -138,9 +139,9 @@ function App() {
     return <ClassificaView classificaId={classificaId} user={user} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
   }
 
-  // ← AGGIUNTO: Render condizionale RitaglioImmagine
-  if (showRitaglioImmagine) {
-    return <RitaglioImmagine onClose={() => setShowRitaglioImmagine(false)} />
+  // ← AGGIUNTO: Render condizionale PhotoEditor
+  if (showPhotoEditor) {
+    return <PhotoEditor onClose={() => setShowPhotoEditor(false)} />
   }
 
   if (showCalendario) {
@@ -151,7 +152,7 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
-  return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+  return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowPhotoEditor(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
 }
 // ===== CLASSIFICA VIEW COMPLETA =====
 function ClassificaView({ classificaId, user, onBack }) {
@@ -1827,85 +1828,35 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
       </div>
 
       <div className="home-cards-wrapper">
-        <div className="home-cards-row">
-          <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer' }}>
-            <div className="card-icon-wrapper">
-              <img
-                src={CoppaSVG}
-                alt="Coppa"
-                style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }}
-              />
-            </div>
-            <h3 className="card-title">CLASSIFICHE</h3>
-            <p className="card-subtitle">
-              {user.ruolo === 'admin' ? 'Gestisci campionati\ne classifiche' : 'Visualizza\nclassifiche'}
-            </p>
-          </div>
-
-          {/* ← MODIFICATO: Aggiunto onClick */}
-          <div className="home-card card-green" onClick={onOpenRitaglio} style={{ cursor: 'pointer' }}>
-            <div className="card-icon-wrapper">
-              <img
-                src={FotoSVG}
-                alt="Foto"
-                style={{ width: "60px", height: "50px", filter: "brightness(0) invert(1)" }}
-              />
-            </div>
-            <h3 className="card-title">RITAGLIO FOTO</h3>
-            <p className="card-subtitle">Ritaglia immagini<br />1200x729 px</p>
-          </div>
-        </div>
-
-        <div className="home-cards-row">
-          {categorieUtente.map(categoria => (
-            <div 
-              key={categoria.id}
-              className="home-card card-purple" 
-              onClick={() => onOpenDisponibilita(categoria)} 
-              style={{ 
-                cursor: 'pointer', 
-                position: 'relative'
-              }}
-            >
-              {notificheNonLetteDisponibilita > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '15px',
-                  right: '15px',
-                  background: '#FF3B30',
-                  color: 'white',
-                  borderRadius: '50%',
-                  width: '32px',
-                  height: '32px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
-                  boxShadow: '0 2px 8px rgba(255,59,48,0.4)',
-                  zIndex: 10
-                }}>
-                  {notificheNonLetteDisponibilita}
+        <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+          {/* CARD PRINCIPALI */}
+          <div style={{ flex: 1 }}>
+            <div className="home-cards-row">
+              <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer' }}>
+                <div className="card-icon-wrapper">
+                  <img
+                    src={CoppaSVG}
+                    alt="Coppa"
+                    style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }}
+                  />
                 </div>
-              )}
-              <div className="card-icon-wrapper">
-                <img
-                  src={DisponibilitàSVG}
-                  alt="Disponibilità"
-                  style={{ width: "70px", height: "60px", filter: "brightness(0) invert(1)" }}
-                />
+                <h3 className="card-title">CLASSIFICHE</h3>
+                <p className="card-subtitle">
+                  {user.ruolo === 'admin' ? 'Gestisci campionati\ne classifiche' : 'Visualizza\nclassifiche'}
+                </p>
               </div>
-              <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
-              <p className="card-subtitle">{categoria.nome}</p>
-            </div>
-          ))}
 
-           <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
-            {notificheNonLetteCalendario > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '15px',
-                right: '15px',
+              {/* ← MODIFICATO: Aggiunto onClick */}
+              <div className="home-card card-green" onClick={onOpenRitaglio} style={{ cursor: 'pointer' }}>
+                <div className="card-icon-wrapper">
+                  <img
+                    src={FotoSVG}
+                    alt="Foto"
+                    style={{ width: "60px", height: "50px", filter: "brightness(0) invert(1)" }}
+                  />
+                </div>
+                <h3 className="card-title">RITAGLIO FOTO</h3>
+                <p className="card-subtitle">Ritaglia immagini<br />1200x729 px</p>
                 background: '#FF3B30',
                 color: 'white',
                 borderRadius: '50%',
@@ -1933,6 +1884,16 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             <p className="card-subtitle">Eventi e Gare<br />per cui richiedere accredito</p>
           </div>
         </div>
+      </div>
+
+      {/* PROSSIMO EVENTO BOX */}
+      <div style={{
+        position: 'absolute',
+        left: '1000px',
+        top: '300px',
+        zIndex: 10
+      }}>
+        <ProssimoEvento />
       </div>
 
       <div className="home-footer">
