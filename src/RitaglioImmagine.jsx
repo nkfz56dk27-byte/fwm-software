@@ -14,6 +14,9 @@ export default function RitaglioImmagine({ onClose }) {
   const [exportFormat, setExportFormat] = useState('image/jpeg')
   const [counterWithLogo, setCounterWithLogo] = useState(1)
   const [counterWithoutLogo, setCounterWithoutLogo] = useState(1)
+  const [projectMode, setProjectMode] = useState('normale') // SOLO per il menu, non tocca il sistema
+  const [projectImages, setProjectImages] = useState({ normale: [], cover: [] }) // Separa le foto per progetto
+  const [favoriteProjects, setFavoriteProjects] = useState([]) // Progetti preferiti
 
   const fileInputRef = useRef(null)
   const logoImgRef = useRef(null)
@@ -47,16 +50,27 @@ export default function RitaglioImmagine({ onClose }) {
     if (data) setRecentProjects(data)
   }
 
-  const startNewProject = async (w, h, nome) => {
-    const width = parseInt(w)
-    const height = parseInt(h)
+  const startNewProject = async (width, height, nome) => {
+    width = parseInt(width)
+    height = parseInt(height)
+    if (!width || !height || width < 100 || height < 100) {
+      setFeedback('⚠️ Inserisci dimensioni valide (minimo 100px)')
+      setTimeout(() => setFeedback(''), 4000)
+      return
+    }
     const projectName = nome.trim() || `${width}x${height}`
+    
+    // Aggiunge "COVER" al nome se la modalità è cover
+    const finalProjectName = projectMode === 'cover' && !projectName.toLowerCase().includes('cover') 
+      ? `${projectName} - COVER` 
+      : projectName
+    
     setDimensions({ width, height })
-
+    
     // Logica di salvataggio su Supabase ripristinata
-    const exists = recentProjects.find(p => p.width === width && p.height === height && p.nome === projectName)
+    const exists = recentProjects.find(p => p.width === width && p.height === height && p.nome === finalProjectName)
     if (!exists) {
-      await supabase.from('progetti_dimensioni').insert([{ width, height, nome: projectName }])
+      await supabase.from('progetti_dimensioni').insert([{ width, height, nome: finalProjectName }])
       fetchCloudProgetti()
     }
     setView('editor')
@@ -89,22 +103,46 @@ export default function RitaglioImmagine({ onClose }) {
     processFile(file)
   }
 
+  const processFile = (file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        // Salva l'immagine nel progetto corretto
+        setProjectImages(prev => ({
+          ...prev,
+          [projectMode]: [...prev[projectMode], e.target.result]
+        }))
+        setSelectedImage(e.target.result)
+        setImageOffset({ x: 0, y: 0 })
+        setView('editor')
+      }
+      img.src = e.target.result
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Pulisce le foto quando si cambia modalità progetto
+  const handleModeChange = (newMode) => {
+    setProjectMode(newMode)
+    setSelectedImage(null) // Pulisce l'immagine corrente
+    setImageOffset({ x: 0, y: 0 })
+  }
+
+  // Gestisce i preferiti
+  const toggleFavorite = (projectId) => {
+    setFavoriteProjects(prev => 
+      prev.includes(projectId) 
+        ? prev.filter(id => id !== projectId)
+        : [...prev, projectId]
+    )
+  }
+
   const handleDrop = (e) => {
     e.preventDefault()
     const file = e.dataTransfer.files?.[0]
     processFile(file)
-  }
-
-  const processFile = (file) => {
-    if (!file || !file.type.startsWith('image/')) return
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setSelectedImage(event.target.result)
-      setImageOffset({ x: 0, y: 0 })
-      setFeedback('')
-      if (view === 'menu') setView('editor')
-    }
-    reader.readAsDataURL(file)
   }
 
   const handleSave = () => {
@@ -191,8 +229,55 @@ export default function RitaglioImmagine({ onClose }) {
           {view === 'menu' ? (
             <div style={{ textAlign: 'center' }}>
               <h2 style={{ fontSize: '26px', fontWeight: '800', marginBottom: '40px' }}>Progetti Condivisi</h2>
+              
               <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '30px' }}>
                 <div style={{ background: '#fff', padding: '35px', borderRadius: '24px', width: '300px' }}>
+                  
+                  {/* SOLO TAB DI SCELTA - NON TOCCA IL SISTEMA */}
+                  <div style={{ 
+                    display: 'flex', 
+                    background: '#F8F9FA', 
+                    borderRadius: '10px', 
+                    padding: '3px', 
+                    marginBottom: '25px',
+                    border: '1px solid #E9ECEF'
+                  }}>
+                    <button 
+                      onClick={() => handleModeChange('normale')}
+                      style={{ 
+                        flex: 1, 
+                        padding: '10px 8px', 
+                        borderRadius: '7px', 
+                        border: 'none', 
+                        background: projectMode === 'normale' ? '#007AFF' : 'transparent', 
+                        color: projectMode === 'normale' ? '#fff' : '#8E8E93', 
+                        fontWeight: '600', 
+                        fontSize: '11px', 
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      NORMALE
+                    </button>
+                    <button 
+                      onClick={() => handleModeChange('cover')}
+                      style={{ 
+                        flex: 1, 
+                        padding: '10px 8px', 
+                        borderRadius: '7px', 
+                        border: 'none', 
+                        background: projectMode === 'cover' ? '#007AFF' : 'transparent', 
+                        color: projectMode === 'cover' ? '#fff' : '#8E8E93', 
+                        fontWeight: '600', 
+                        fontSize: '11px', 
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      COVER
+                    </button>
+                  </div>
+                  
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>NOME PROGETTO</label>
                   <input id="proj_name" type="text" placeholder="Es: Post Facebook" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', marginBottom: '20px' }} />
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>LARGHEZZA (PX)</label>
@@ -202,16 +287,61 @@ export default function RitaglioImmagine({ onClose }) {
                   <StyledButton fullWidth onClick={() => startNewProject(document.getElementById('w').value, document.getElementById('h').value, document.getElementById('proj_name').value)}>Apri Cloud</StyledButton>
                 </div>
 
-                <div style={{ background: '#fff', padding: '35px', borderRadius: '24px', width: '300px', textAlign: 'left' }}>
+                <div style={{ background: '#fff', padding: '35px 35px 35px 50px', borderRadius: '24px', width: '300px', textAlign: 'left', position: 'relative' }}>
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '15px' }}>FORMATI CLOUD</label>
-                  {recentProjects.length > 0 ? recentProjects.map((p, i) => (
-                    <div key={i} onClick={() => { setDimensions({width: p.width, height: p.height}); setView('editor'); }} 
-                         style={{ cursor: 'pointer', padding: '14px', background: '#F2F2F7', marginBottom: '12px', borderRadius: '14px', border: '1px solid transparent', position: 'relative' }}>
-                      <div style={{ fontWeight: '800', fontSize: '13px', color: '#007AFF' }}>{p.nome || 'Senza Nome'}</div>
-                      <div style={{ fontSize: '12px', color: '#8e8e93' }}>{p.width} × {p.height}</div>
-                      <div onClick={(e) => deleteProject(e, p.id)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#FF3B30', fontSize: '18px', fontWeight: 'bold', padding: '5px' }}>✕</div>
-                    </div>
-                  )) : <p style={{ color: '#c7c7cc', fontSize: '14px' }}>Nessun formato salvato</p>}
+                  
+                  {/* SEZIONE PREFERITI */}
+                  {favoriteProjects.length > 0 && (
+                    <>
+                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#FF3B30', display: 'block', marginBottom: '10px' }}>⭐ PREFERITI</label>
+                      {recentProjects.filter(p => favoriteProjects.includes(p.id)).map((p, i) => (
+                        <div key={i} onClick={() => { setDimensions({width: p.width, height: p.height}); setView('editor'); }} 
+                             style={{ 
+                               cursor: 'pointer', 
+                               padding: '14px', 
+                               background: '#FFF8F0', 
+                               marginBottom: '12px', 
+                               borderRadius: '14px', 
+                               border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF', 
+                               position: 'relative' 
+                             }}>
+                          <div style={{ fontWeight: '800', fontSize: '13px', color: '#FF9500' }}>{p.nome || 'Senza Nome'}</div>
+                          <div style={{ fontSize: '12px', color: '#8e8e93' }}>{p.width} × {p.height}</div>
+                          <div style={{ position: 'absolute', left: '-40px', top: '50%', transform: 'translateY(-50%)', fontSize: '20px', cursor: 'pointer', padding: '5px' }} onClick={(e) => { e.stopPropagation(); toggleFavorite(p.id); }}>
+                            ⭐
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  
+                  {/* SEZIONE ALTRI PROGETTI */}
+                  {recentProjects.filter(p => !favoriteProjects.includes(p.id)).length > 0 && (
+                    <>
+                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '10px', marginTop: favoriteProjects.length > 0 ? '20px' : '0' }}>ALTRI PROGETTI</label>
+                      {recentProjects.filter(p => !favoriteProjects.includes(p.id)).map((p, i) => (
+                        <div key={i} onClick={() => { setDimensions({width: p.width, height: p.height}); setView('editor'); }} 
+                             style={{ 
+                               cursor: 'pointer', 
+                               padding: '14px', 
+                               background: '#F2F2F7', 
+                               marginBottom: '12px', 
+                               borderRadius: '14px', 
+                               border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF', 
+                               position: 'relative' 
+                             }}>
+                          <div style={{ fontWeight: '800', fontSize: '13px', color: '#007AFF' }}>{p.nome || 'Senza Nome'}</div>
+                          <div style={{ fontSize: '12px', color: '#8e8e93' }}>{p.width} × {p.height}</div>
+                          <div style={{ position: 'absolute', left: '-40px', top: '50%', transform: 'translateY(-50%)', fontSize: '20px', cursor: 'pointer', padding: '5px' }} onClick={(e) => { e.stopPropagation(); toggleFavorite(p.id); }}>
+                            ☆
+                          </div>
+                          <div onClick={(e) => deleteProject(e, p.id)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#FF3B30', fontSize: '18px', fontWeight: 'bold', padding: '5px' }}>✕</div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                  
+                  {recentProjects.length === 0 && <p style={{ color: '#c7c7cc', fontSize: '14px' }}>Nessun formato salvato</p>}
                 </div>
               </div>
             </div>
