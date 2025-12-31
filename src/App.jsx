@@ -8,6 +8,7 @@ import CestinoSVG from "./assets/cestino.svg"
 import CheckSVG from "./assets/check.svg"
 import VidaPNG from "./assets/vida.png"
 import RitaglioImmagine from './RitaglioImmagine'
+import VidaMenu from './VidaMenu'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
@@ -37,6 +38,7 @@ function App() {
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
+  const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -229,6 +231,11 @@ function App() {
     return <RitaglioImmagine onClose={() => setShowRitaglioImmagine(false)} />
   }
 
+  // ← AGGIUNTO: Render condizionale Vida Menu
+  if (showVidaMenu) {
+    return <VidaMenu onClose={() => setShowVidaMenu(false)} />
+  }
+
   if (showCalendario) {
     return <CalendarioAccrediti utenteCorrente={user} onClose={() => setShowCalendario(false)} onNotificheChange={() => user && user.username && caricaNotificheCalendario(user.username)} />
   }
@@ -237,7 +244,7 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
-  return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+  return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
 }
 // ===== CLASSIFICA VIEW COMPLETA =====
 function ClassificaView({ classificaId, user, isMobile, onBack }) {
@@ -2008,7 +2015,7 @@ function NuovaClassificaModal({ onClose, onSave }) {
 }
 
 /// ===== HOME VIEW =====
-function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
+function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, onOpenVidaMenu, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
   useEffect(() => {
     document.title = "FWM Software - Home"
   }, [])
@@ -2143,13 +2150,16 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
         <div className="home-cards-row">
           <div 
             className="home-card card-red" 
-            onClick={() => window.open('https://www.formula1.it/admin/login.asp', '_blank')} 
+            onClick={() => {
+              console.log('Click su VIDA card');
+              onOpenVidaMenu();
+            }} 
             style={{ cursor: 'pointer' }}
           >
             <div className="card-icon-wrapper">
              <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
             </div>
-            <h3 className="card-title">PANNELLO VIDA</h3>
+            <h3 className="card-title">PANNELLI VIDA</h3>
           </div>
 
           <div 
