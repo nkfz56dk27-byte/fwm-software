@@ -2073,7 +2073,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
               />
             </div>
             <h3 className="card-title">EDITOR FOTO</h3>
-            <p className="card-subtitle">Ritaglia immagini<br />1200x729 px</p>
+            <p className="card-subtitle">Editor proprietario FWM<br />per modifica foto px</p>
           </div>
         </div>
 
