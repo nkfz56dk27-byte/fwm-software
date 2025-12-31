@@ -85,7 +85,7 @@ export default function VidaMenu({ onClose }) {
             height: 'auto'
           }}>
             <div style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: 'bold' }}>
-              PANNELLI VIDA
+          
             </div>
           </div>
           
