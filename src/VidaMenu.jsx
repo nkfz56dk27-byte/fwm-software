@@ -45,7 +45,7 @@ export default function VidaMenu({ onClose }) {
               background: 'none',
               border: 'none',
               color: '#007AFF',
-              fontSize: '20px',
+              fontSize: isMobile ? '14px' : '20px',
               fontWeight: '600',
               cursor: 'pointer',
               padding: '12px 20px',
@@ -72,10 +72,8 @@ export default function VidaMenu({ onClose }) {
           </button>
           
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+            <div style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: 'bold' }}>
               PANNELLI VIDA
-            </div>
-            <div style={{ fontSize: '14px', color: '#666' }}>
             </div>
           </div>
           
@@ -129,7 +127,7 @@ export default function VidaMenu({ onClose }) {
                   objectFit: "contain" 
                 }} />
               </div>
-              <h3 className="card-title" style={{ fontSize: isMobile ? '12px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Formula1.it</h3>
+              <h3 className="card-title" style={{ fontSize: isMobile ? '11px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Formula1.it</h3>
             </div>
 
             {/* Seconda Card VIDA (identica) */}
@@ -161,7 +159,7 @@ export default function VidaMenu({ onClose }) {
                   objectFit: "contain" 
                 }} />
               </div>
-              <h3 className="card-title" style={{ fontSize: isMobile ? '12px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Blogformulae.it</h3>
+              <h3 className="card-title" style={{ fontSize: isMobile ? '11px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Blogformulae.it</h3>
             </div>
           </div>
         </div>
