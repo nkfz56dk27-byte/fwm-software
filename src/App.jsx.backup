@@ -2101,34 +2101,26 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
           {isMobile && (
             <button className="btn-header" onClick={onOpenEventiMobile}>
               {prossimoEvento ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '12px' }}>▼</span>
+                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#fff', opacity: 0.8' }}>
+                    {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
+                     prossimoEvento.giorniMancanti === 1 ? 'DOMANI!' : 
+                     `Tra ${prossimoEvento.giorniMancanti} giorni`}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', opacity: 0.8, whiteSpace: 'nowrap' }}>
-                      {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
-                       prossimoEvento.giorniMancanti === 1 ? 'DOMANI!' : 
-                       `Tra ${prossimoEvento.giorniMancanti} giorni`}
-                    </div>
-                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
-                      {prossimoEvento.titolo}
-                    </div>
+                  <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#fff' }}>
+                    {prossimoEvento.titolo}
                   </div>
-                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '12px' }}>▼</span>
+                  <div style={{ fontSize: '8px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                    <span>Menu</span>
+                    <span style={{ fontSize: '6px' }}>▼</span>
                   </div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '12px' }}>▼</span>
-                  </div>
-                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
-                    📅 Eventi
-                  </div>
-                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '12px' }}>▼</span>
+                <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <div>📅 Eventi</div>
+                  <div style={{ fontSize: '8px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                    <span>Menu</span>
+                    <span style={{ fontSize: '6px' }}>▼</span>
                   </div>
                 </div>
               )}
@@ -2137,7 +2129,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
         </div>
       </div>
 
-      <div className="home-title" style={{ marginTop: '-10px' }}>
+      <div className="home-title">
         <h1 className="title-main">FWM Software</h1>
       </div>
 
