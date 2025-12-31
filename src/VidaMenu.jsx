@@ -51,7 +51,7 @@ export default function VidaMenu({ onClose }) {
               padding: '12px 20px',
               borderRadius: '8px',
               position: 'relative',
-              left: '0px',
+              left: '-12px',
               top: '0px',
               width: 'auto',
               height: 'auto',
@@ -71,7 +71,19 @@ export default function VidaMenu({ onClose }) {
             ← Indietro
           </button>
           
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ 
+            textAlign: 'center',
+            position: 'relative',
+            left: '-24px',
+            top: '0px',
+            right: '0px',
+            bottom: '0px',
+            transform: 'none',
+            margin: '0px',
+            padding: '0px',
+            width: 'auto',
+            height: 'auto'
+          }}>
             <div style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: 'bold' }}>
               PANNELLI VIDA
             </div>
