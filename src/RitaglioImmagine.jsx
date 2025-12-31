@@ -11,7 +11,9 @@ export default function RitaglioImmagine({ onClose }) {
   const [conLogo, setConLogo] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [feedback, setFeedback] = useState('')
-  const [exportFormat, setExportFormat] = useState('image/webp')
+  const [exportFormat, setExportFormat] = useState('image/jpeg')
+  const [counterWithLogo, setCounterWithLogo] = useState(1)
+  const [counterWithoutLogo, setCounterWithoutLogo] = useState(1)
 
   const fileInputRef = useRef(null)
   const logoImgRef = useRef(null)
@@ -25,7 +27,7 @@ export default function RitaglioImmagine({ onClose }) {
     h: dimensions.height * DISPLAY_SCALE
   }
 
-  // --- Sincronizzazione Cloud ---
+  // --- Sincronizzazione Cloud (SUPABASE RIPRISTINATO) ---
   useEffect(() => {
     fetchCloudProgetti()
     const handleResize = () => setWindowWidth(window.innerWidth)
@@ -51,7 +53,7 @@ export default function RitaglioImmagine({ onClose }) {
     const projectName = nome.trim() || `${width}x${height}`
     setDimensions({ width, height })
 
-    // Salvataggio su Supabase
+    // Logica di salvataggio su Supabase ripristinata
     const exists = recentProjects.find(p => p.width === width && p.height === height && p.nome === projectName)
     if (!exists) {
       await supabase.from('progetti_dimensioni').insert([{ width, height, nome: projectName }])
@@ -68,30 +70,39 @@ export default function RitaglioImmagine({ onClose }) {
     }
   }
 
-  // --- Gestione Limiti e Fine Corsa ---
+  // --- Gestione Limiti ---
   const applyBounds = (newY) => {
     if (!containerRef.current) return newY
     const imgElement = containerRef.current.querySelector('img')
     if (!imgElement) return newY
-    
     const displayedImgHeight = imgElement.offsetHeight
     const containerHeight = displayDim.h
-    
     if (newY > 0) return 0
     const minOffset = containerHeight - displayedImgHeight
     if (newY < minOffset) return minOffset
-    
     return newY
   }
 
+  // --- Drag & Drop e File Processing ---
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    processFile(file)
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files?.[0]
+    processFile(file)
+  }
+
+  const processFile = (file) => {
+    if (!file || !file.type.startsWith('image/')) return
     const reader = new FileReader()
     reader.onload = (event) => {
       setSelectedImage(event.target.result)
       setImageOffset({ x: 0, y: 0 })
       setFeedback('')
+      if (view === 'menu') setView('editor')
     }
     reader.readAsDataURL(file)
   }
@@ -122,15 +133,23 @@ export default function RitaglioImmagine({ onClose }) {
       }
       
       const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
+      // Nome file richiesto
+      const fileName = conLogo ? `Foto con logo_${counterWithLogo}.${ext}` : `Foto senza logo_${counterWithoutLogo}.${ext}`
+      
       canvas.toBlob((blob) => {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
-        a.href = url; a.download = `FWM_Export_${Date.now()}.${ext}`; a.click()
+        a.href = url; a.download = fileName; a.click()
         URL.revokeObjectURL(url)
+        if (conLogo) {
+          setCounterWithLogo(counterWithLogo + 1)
+        } else {
+          setCounterWithoutLogo(counterWithoutLogo + 1)
+        }
         setFeedback(`✅ Esportato: ${ext.toUpperCase()}`)
         setIsSaving(false)
         setTimeout(() => setFeedback(''), 4000)
-      }, exportFormat, 0.92)
+      }, exportFormat, 1.0)
     }
   }
 
@@ -153,7 +172,11 @@ export default function RitaglioImmagine({ onClose }) {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif' }}>
+    <div 
+      onDragOver={(e) => e.preventDefault()} 
+      onDrop={handleDrop}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif' }}
+    >
       <div style={{ background: '#F2F2F7', width: isMobile ? '100%' : '900px', borderRadius: isMobile ? 0 : '28px', overflow: 'hidden', maxHeight: '95vh', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
         
         <div style={{ padding: '18px 25px', background: '#fff', borderBottom: '1px solid #e5e5ea', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -196,9 +219,14 @@ export default function RitaglioImmagine({ onClose }) {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <input ref={fileInputRef} type="file" hidden onChange={handleFileSelect} accept="image/*" />
               {!selectedImage ? (
-                <div onClick={() => fileInputRef.current.click()} style={{ width: '100%', maxWidth: '550px', height: '320px', border: '3px dashed #c7c7cc', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: '#fff' }}>
+                <div 
+                  onClick={() => fileInputRef.current.click()} 
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleDrop}
+                  style={{ width: '100%', maxWidth: '550px', height: '320px', border: '3px dashed #c7c7cc', borderRadius: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', background: '#fff' }}
+                >
                   <div style={{ fontSize: '60px' }}>📷</div>
-                  <p style={{ fontWeight: '800', color: '#8e8e93', marginTop: '15px' }}>Carica Foto</p>
+                  <p style={{ fontWeight: '800', color: '#8e8e93', marginTop: '15px' }}>Carica o trascina qui</p>
                 </div>
               ) : (
                 <>
