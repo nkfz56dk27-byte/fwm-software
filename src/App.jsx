@@ -13,6 +13,8 @@ import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
 import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
+import ProssimoEvento from './ProssimoEvento.jsx'
+import EventiMobileMenu from './EventiMobileMenu.jsx'
 
 import './App.css'
 
@@ -39,6 +41,7 @@ function App() {
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
   const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
+  const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -236,6 +239,11 @@ function App() {
     return <VidaMenu onClose={() => setShowVidaMenu(false)} />
   }
 
+  // ← AGGIUNTO: Render condizionale Eventi Mobile
+  if (showEventiMobile) {
+    return <EventiMobileMenu onClose={() => setShowEventiMobile(false)} />
+  }
+
   if (showCalendario) {
     return <CalendarioAccrediti utenteCorrente={user} onClose={() => setShowCalendario(false)} onNotificheChange={() => user && user.username && caricaNotificheCalendario(user.username)} />
   }
@@ -244,7 +252,7 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
-  return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+  return <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
 }
 // ===== CLASSIFICA VIEW COMPLETA =====
 function ClassificaView({ classificaId, user, isMobile, onBack }) {
@@ -2015,7 +2023,57 @@ function NuovaClassificaModal({ onClose, onSave }) {
 }
 
 /// ===== HOME VIEW =====
-function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, onOpenVidaMenu, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
+function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, onOpenVidaMenu, onOpenEventiMobile, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
+  const [prossimoEvento, setProssimoEvento] = useState(null)
+  
+  useEffect(() => {
+    if (isMobile) {
+      caricaProssimoEvento()
+    }
+  }, [isMobile])
+  
+  async function caricaProssimoEvento() {
+    try {
+      const { data: eventi, error } = await supabase
+        .from('eventi_calendario')
+        .select('*')
+        .order('data_inizio')
+      
+      if (!eventi || eventi.length === 0) {
+        setProssimoEvento(null)
+        return
+      }
+      
+      const oggi = new Date()
+      oggi.setHours(0, 0, 0, 0)
+      
+      const eventiFuturi = eventi.filter(evento => {
+        const dataEvento = new Date(evento.data_inizio)
+        return dataEvento >= oggi
+      })
+      
+      if (eventiFuturi.length === 0) {
+        setProssimoEvento(null)
+        return
+      }
+      
+      const prossimo = eventiFuturi[0]
+      const dataProssimo = new Date(prossimo.data_inizio)
+      oggi.setHours(0, 0, 0, 0)
+      dataProssimo.setHours(0, 0, 0, 0)
+      const giorniMancanti = Math.floor((dataProssimo.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
+      
+      setProssimoEvento({
+        ...prossimo,
+        giorniMancanti
+      })
+      
+    } catch (error) {
+      console.error('Errore:', error)
+      setProssimoEvento(null)
+    }
+  }
+  
   useEffect(() => {
     document.title = "FWM Software - Home"
   }, [])
@@ -2040,10 +2098,46 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
               <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
             </svg>
           </button>
+          {isMobile && (
+            <button className="btn-header" onClick={onOpenEventiMobile}>
+              {prossimoEvento ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '12px' }}>▼</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', opacity: 0.8, whiteSpace: 'nowrap' }}>
+                      {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
+                       prossimoEvento.giorniMancanti === 1 ? 'DOMANI!' : 
+                       `Tra ${prossimoEvento.giorniMancanti} giorni`}
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
+                      {prossimoEvento.titolo}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '12px' }}>▼</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '12px' }}>▼</span>
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
+                    📅 Eventi
+                  </div>
+                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '12px' }}>▼</span>
+                  </div>
+                </div>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="home-title">
+      <div className="home-title" style={{ marginTop: '-10px' }}>
         <h1 className="title-main">FWM Software</h1>
       </div>
 
@@ -2173,6 +2267,16 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             <h3 className="card-title">PANNELLO FONTI</h3>
           </div>
         </div>
+      </div>
+
+      {/* PROSSIMO EVENTO BOX */}
+      <div style={{
+        position: 'absolute',
+        left: '1000px',
+        top: '173px',
+        zIndex: 10
+      }}>
+        <ProssimoEvento />
       </div>
 
       <div className="home-footer">
