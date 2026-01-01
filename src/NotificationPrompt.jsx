@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { richiediPermessoNotifiche } from './firebase'
+import { useState } from 'react'
+import { richiediPermessoNotifiche, setUserTags, getPlayerId } from './onesignal'
 import { supabase } from './supabaseClient'
 
 export default function NotificationPrompt({ username, onClose }) {
@@ -7,18 +7,37 @@ export default function NotificationPrompt({ username, onClose }) {
 
   async function handleAccetta() {
     setLoading(true)
-    const token = await richiediPermessoNotifiche()
     
-    if (token) {
-      // Salva il token su Supabase
-      await supabase.from('fcm_tokens').upsert({
+    // Richiedi permesso OneSignal
+    const granted = await richiediPermessoNotifiche()
+    
+    if (granted) {
+      // Imposta tag utente per targeting specifico
+      await setUserTags({
         username: username,
-        token: token,
-        device_info: navigator.userAgent,
-        updated_at: new Date().toISOString()
+        ruolo: 'redattore'
       })
       
-      alert('✅ Notifiche attivate! Riceverai avvisi anche a sito chiuso.')
+      // Ottieni il Player ID
+      const playerId = await getPlayerId()
+      
+      if (playerId) {
+        // Salva il Player ID su Supabase (opzionale, per tracking)
+        try {
+          await supabase.from('onesignal_subscriptions').upsert({
+            username: username,
+            player_id: playerId,
+            device_info: navigator.userAgent,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'username'
+          })
+        } catch (err) {
+          console.log('Info: tabella onesignal_subscriptions non presente')
+        }
+      }
+      
+      alert('✅ Notifiche push attivate! Riceverai avvisi anche a sito chiuso.')
     } else {
       alert('❌ Permesso notifiche negato. Puoi riattivarlo dalle impostazioni del browser.')
     }
