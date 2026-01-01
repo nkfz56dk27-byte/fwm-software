@@ -2300,20 +2300,6 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
             onClick={onSegnaTutteLette} 
             style={{ 
               flex: 1, 
-              padding: '12px', 
-              background: '#34C759', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
-              cursor: 'pointer', 
-              fontWeight: 'bold' 
-            }}
-          >
-            Segna tutte come lette
-          </button>
-          <button 
-            onClick={onClose} 
-            style={{ 
               padding: '12px 30px', 
               background: '#007AFF', 
               color: 'white', 
@@ -2323,7 +2309,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
               fontWeight: 'bold' 
             }}
           >
-            Chiudi
+            Segna tutte come lette
           </button>
         </div>
       </div>
