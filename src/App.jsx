@@ -74,16 +74,19 @@ function App() {
         const checkSupabasePrompt = async () => {
           console.log('🔍 DEBUG: inizio checkSupabasePrompt')
           try {
+            // Genera lo stesso device ID per questo dispositivo
+            const deviceId = btoa(navigator.userAgent + screen.width + screen.height + new Date().getTime()).substring(0, 32)
+            
             const { data } = await supabase
               .from('user_preferences')
               .select('notifications_enabled')
-              .eq('username', user.username)
+              .eq('device_id', deviceId)
               .single()
             
-            console.log('🔍 DEBUG: dati Supabase:', data)
+            console.log('🔍 DEBUG: dati Supabase per device_id:', deviceId, data)
             
             if (data?.notifications_enabled) {
-              console.log('✅ Notifiche già attivate su Supabase')
+              console.log('✅ Notifiche già attivate su Supabase per questo dispositivo')
               localStorage.setItem('notificationPromptShown', 'true')
               return
             }
