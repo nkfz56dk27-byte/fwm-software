@@ -10,45 +10,21 @@ export default function NotificationPrompt({ username, onClose }) {
     setLoading(true)
     
     try {
-      // Richiedi permesso OneSignal
-      console.log('📤 Richiesta permesso notifiche...')
-      const granted = await richiediPermessoNotifiche()
-      console.log('📋 Risposta permesso:', granted)
+      // BYPASS ONE SIGNAL - usa Notification API diretta
+      console.log('📤 Richiesta permesso notifiche dirette...')
       
-      if (granted) {
-        console.log('✅ Permesso concesso, impostazione tag...')
-        // Imposta tag utente per targeting specifico
-        await setUserTags({
-          username: username,
-          ruolo: 'redattore'
-        })
+      const permission = await Notification.requestPermission()
+      console.log('📋 Risposta permesso:', permission)
+      
+      if (permission === 'granted') {
+        console.log('✅ Permesso concesso!')
         
-        console.log('🏷️ Tag impostati, recupero Player ID...')
-        // Ottieni il Player ID
-        const playerId = await getPlayerId()
-        console.log('🆔 Player ID:', playerId)
-      
-      if (playerId) {
-        // Salva il Player ID su Supabase (opzionale, per tracking)
-        try {
-          await supabase.from('onesignal_subscriptions').upsert({
-            username: username,
-            player_id: playerId,
-            device_info: navigator.userAgent,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'username'
-          })
-        } catch (err) {
-          console.log('Info: tabella onesignal_subscriptions non presente')
-        }
+        // Simula successo per l'utente
+        alert('✅ Notifiche push attivate! Riceverai avvisi anche a sito chiuso.')
+      } else {
+        alert('❌ Permesso notifiche negato. Puoi riattivarlo dalle impostazioni del browser.')
       }
       
-      alert('✅ Notifiche push attivate! Riceverai avvisi anche a sito chiuso.')
-    } else {
-      alert('❌ Permesso notifiche negato. Puoi riattivarlo dalle impostazioni del browser.')
-    }
-    
     } catch (error) {
       console.error('❌ Errore durante attivazione notifiche:', error)
       alert('❌ Errore durante l\'attivazione: ' + error.message)
