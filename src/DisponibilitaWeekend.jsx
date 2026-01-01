@@ -279,16 +279,39 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   async function segnaTutteComeLette() {
     try {
+      console.log('🔍 DEBUG: Inizio segnaTutteComeLette')
+      console.log('🔍 DEBUG: utenteCorrente.username:', utenteCorrente?.username)
+      console.log('🔍 DEBUG: notifiche totali:', notifiche.length)
+      
       const nonLette = notifiche.filter(n => !n.letta)
+      console.log('🔍 DEBUG: notifiche non lette:', nonLette.length)
+      
       for (const n of nonLette) {
-        await supabase.from('notifiche_disponibilita_lette').insert({ 
+        console.log('🔍 DEBUG: Inserisco notifica ID:', n.id, 'per utente:', utenteCorrente.username)
+        
+        const { data, error } = await supabase.from('notifiche_disponibilita_lette').insert({ 
           username: utenteCorrente.username, 
           notifica_id: n.id 
         })
+        
+        if (error) {
+          console.error('❌ Errore inserimento notifica letta:', error)
+          // Controlla se è un errore di duplicato (ignora)
+          if (error.code !== '23505') { // 23505 = unique violation
+            throw error
+          }
+        } else {
+          console.log('✅ Notifica marcata come letta:', n.id)
+        }
       }
+      
+      console.log('🔄 DEBUG: Ricarico notifiche...')
       await caricaNotifiche()
+      console.log('✅ DEBUG: segnaTutteComeLette completato')
+      
     } catch (err) {
-      console.error('Errore segna tutte come lette:', err)
+      console.error('❌ Errore segna tutte come lette:', err)
+      alert('❌ Errore durante il salvataggio: ' + err.message)
     }
   }
 
