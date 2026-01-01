@@ -24,14 +24,19 @@ export default function NotificationPrompt({ username, onClose }) {
         
         // Salva su Supabase per backup permanente
         try {
+          // Genera un device ID unico basato su fingerprint
+          const deviceId = btoa(navigator.userAgent + screen.width + screen.height + new Date().getTime()).substring(0, 32)
+          
           await supabase.from('user_preferences').upsert({
             username: username,
+            device_id: deviceId,
+            device_info: navigator.userAgent,
             notifications_enabled: true,
             updated_at: new Date().toISOString()
           }, {
-            onConflict: 'username'
+            onConflict: 'device_id'
           })
-          console.log('✅ Salvato su Supabase')
+          console.log('✅ Salvato su Supabase con device_id:', deviceId)
         } catch (err) {
           console.log('Info: tabella user_preferences non presente o errore Supabase')
         }
