@@ -58,13 +58,15 @@ function App() {
   // Mostra NotificationPrompt dopo il login (una sola volta per sessione)
   useEffect(() => {
     if (user && !mustChangePassword) {
-      // Controlla se l'utente ha già visto il prompt in questa sessione
-      const hasSeenPrompt = sessionStorage.getItem('notificationPromptShown')
+      console.log('👤 Utente loggato, mostro prompt notifiche...')
+      // In sviluppo, mostra sempre il prompt (commenta la riga sottostante in produzione)
+      const hasSeenPrompt = false // sessionStorage.getItem('notificationPromptShown')
       if (!hasSeenPrompt) {
         // Mostra il prompt dopo 2 secondi dal login
         const timer = setTimeout(() => {
+          console.log('🔔 Mostro prompt notifiche...')
           setShowNotificationPrompt(true)
-          sessionStorage.setItem('notificationPromptShown', 'true')
+          // sessionStorage.setItem('notificationPromptShown', 'true')
         }, 2000)
         return () => clearTimeout(timer)
       }
@@ -281,10 +283,16 @@ function App() {
     <>
       <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
       {showNotificationPrompt && (
-        <NotificationPrompt 
-          username={user.username} 
-          onClose={() => setShowNotificationPrompt(false)} 
-        />
+        <>
+          {console.log('🎯 Rendering NotificationPrompt...')}
+          <NotificationPrompt 
+            username={user.username} 
+            onClose={() => {
+              console.log('❌ Chiusura NotificationPrompt')
+              setShowNotificationPrompt(false)
+            }} 
+          />
+        </>
       )}
     </>
   )
