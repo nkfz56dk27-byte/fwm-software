@@ -19,7 +19,23 @@ export default function NotificationPrompt({ username, onClose }) {
       if (permission === 'granted') {
         console.log('✅ Permesso concesso!')
         
-        // Simula successo per l'utente
+        // Salva su localStorage
+        localStorage.setItem('notificationPromptShown', 'true')
+        
+        // Salva su Supabase per backup permanente
+        try {
+          await supabase.from('user_preferences').upsert({
+            username: username,
+            notifications_enabled: true,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'username'
+          })
+          console.log('✅ Salvato su Supabase')
+        } catch (err) {
+          console.log('Info: tabella user_preferences non presente o errore Supabase')
+        }
+        
         alert('✅ Notifiche push attivate! Riceverai avvisi anche a sito chiuso.')
       } else {
         alert('❌ Permesso notifiche negato. Puoi riattivarlo dalle impostazioni del browser.')
