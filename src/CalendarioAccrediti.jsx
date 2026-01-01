@@ -120,11 +120,41 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   }
   
   async function segnaTutteComeLette() {
-    const nonLette = notifiche.filter(n => !n.letta)
-    for (const n of nonLette) {
-      await supabase.from('notifiche_lette').insert({ username: utenteCorrente.username, notifica_id: n.id })
+    try {
+      console.log('🔍 DEBUG CALENDARIO: Inizio segnaTutteComeLette')
+      console.log('🔍 DEBUG CALENDARIO: utenteCorrente.username:', utenteCorrente?.username)
+      console.log('🔍 DEBUG CALENDARIO: notifiche totali:', notifiche.length)
+      
+      const nonLette = notifiche.filter(n => !n.letta)
+      console.log('🔍 DEBUG CALENDARIO: notifiche non lette:', nonLette.length)
+      
+      for (const n of nonLette) {
+        console.log('🔍 DEBUG CALENDARIO: Inserisco notifica ID:', n.id, 'per utente:', utenteCorrente.username)
+        
+        const { data, error } = await supabase.from('notifiche_lette').insert({ 
+          username: utenteCorrente.username, 
+          notifica_id: n.id 
+        })
+        
+        if (error) {
+          console.error('❌ Errore inserimento notifica letta (CALENDARIO):', error)
+          // Controlla se è un errore di duplicato (ignora)
+          if (error.code !== '23505') { // 23505 = unique violation
+            throw error
+          }
+        } else {
+          console.log('✅ Notifica marcata come letta (CALENDARIO):', n.id)
+        }
+      }
+      
+      console.log('🔄 DEBUG CALENDARIO: Ricarico notifiche...')
+      await caricaNotifiche()
+      console.log('✅ DEBUG CALENDARIO: segnaTutteComeLette completato')
+      
+    } catch (err) {
+      console.error('❌ Errore segna tutte come lette (CALENDARIO):', err)
+      alert('❌ Errore durante il salvataggio: ' + err.message)
     }
-    await caricaNotifiche()
   }
   
   async function cancellaTutte() {
