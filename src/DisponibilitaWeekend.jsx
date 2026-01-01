@@ -1808,27 +1808,273 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
         return
       }
 
-      // Genera canvas con alta risoluzione
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        logging: false,
-        useCORS: true
-      })
+      // Su mobile: crea una versione desktop-style per export
+      const isMobile = window.innerWidth <= 768
+      let exportElement = element
+      let originalStyle = null
       
-      // Converti in JPEG
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
+      if (isMobile) {
+        // Clona l'elemento e crea una versione desktop-style
+        exportElement = element.cloneNode(true)
+        
+        // Rimuovi stili mobile e applica stili desktop
+        exportElement.style.cssText = `
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: auto !important;
+          height: auto !important;
+          background: white !important;
+          padding: 40px !important;
+          z-index: 99999 !important;
+          transform: none !important;
+          visibility: visible !important;
+          display: block !important;
+          min-width: 1200px !important;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+          font-size: 14px !important;
+          line-height: 1.4 !important;
+          box-sizing: border-box !important;
+        `
+        
+        // Riorganizza header su mobile
+        const headerElements = exportElement.querySelectorAll('div[style*="text-align: center"]')
+        const titleElement = Array.from(headerElements).find(el => 
+          el.style.fontSize === '42px' || el.textContent.includes('Gran Premio')
+        )
+        const dateElement = Array.from(headerElements).find(el => 
+          el.style.fontSize === '18px' || el.textContent.match(/\d{1,2}\s+\w+\s+\d{4}/)
+        )
+        
+        // Trova le info weekend (footer)
+        const footerElements = exportElement.querySelectorAll('div')
+        const infoWeekendElement = Array.from(footerElements).find(el => 
+          el.textContent.includes('Redattori:') || 
+          el.textContent.includes('Articoli:') ||
+          el.style.marginTop === '6px'
+        )
+        
+        if (titleElement && dateElement) {
+          // Crea header unificato con titolo, data e info weekend
+          const unifiedHeader = document.createElement('div')
+          unifiedHeader.style.cssText = `
+            text-align: center !important;
+            margin-bottom: 15px !important;
+            font-size: 20px !important;
+            font-weight: bold !important;
+            color: #000 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            flex-wrap: nowrap !important;
+          `
+          
+          // Riga 1: Titolo | Data
+          const titleRow = document.createElement('div')
+          titleRow.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 15px !important;
+            font-size: 24px !important;
+          `
+          titleRow.innerHTML = `
+            <span>${titleElement.textContent.trim()}</span>
+            <span style="font-size: 18px; font-weight: normal;">|</span>
+            <span style="font-size: 18px; font-weight: normal;">${dateElement.textContent.trim()}</span>
+          `
+          
+          // Riga 2: Info weekend
+          let infoText = ''
+          if (infoWeekendElement) {
+            infoText = infoWeekendElement.textContent.trim()
+          }
+          
+          const infoRow = document.createElement('div')
+          infoRow.style.cssText = `
+            font-size: 14px !important;
+            font-weight: normal !important;
+            color: #666 !important;
+            text-align: center !important;
+          `
+          infoRow.textContent = infoText
+          
+          unifiedHeader.appendChild(titleRow)
+          unifiedHeader.appendChild(infoRow)
+          
+          // Sostituisci gli header originali nel clone
+          if (titleElement.parentNode) {
+            titleElement.parentNode.replaceChild(unifiedHeader, titleElement)
+          }
+          if (dateElement.parentNode && dateElement.parentNode !== unifiedHeader.parentNode) {
+            dateElement.parentNode.removeChild(dateElement)
+          }
+          
+          // Rimuovi il footer originale se esiste
+          if (infoWeekendElement && infoWeekendElement.parentNode) {
+            infoWeekendElement.parentNode.removeChild(infoWeekendElement)
+          }
+        }
+        
+        // Forza stili desktop su tutti gli elementi del clone
+        const allElements = exportElement.querySelectorAll('*')
+        allElements.forEach(el => {
+          // Salta header per mantenere stili originali
+          if (el.closest('div[style*="text-align: center"]') || 
+              el.closest('div[style*="marginBottom:"]')) {
+            return
+          }
+          
+          el.style.setProperty('font-family', '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', 'important')
+          el.style.setProperty('line-height', '1.4', 'important')
+          el.style.setProperty('box-sizing', 'border-box', 'important')
+        })
+        
+        // Aggiungi il clone temporaneamente al DOM
+        exportElement.id = 'export-table-temp'
+        document.body.appendChild(exportElement)
+        
+        // Forza il reflow
+        await new Promise(resolve => setTimeout(resolve, 300))
+      } else {
+        // Desktop: rendi visibile l'elemento originale (COMPRIME IL CODICE DESKTOP)
+        originalStyle = element.style.cssText
+        element.style.cssText = `
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: auto !important;
+          height: auto !important;
+          background: white !important;
+          padding: 40px !important;
+          z-index: 99999 !important;
+          transform: none !important;
+          visibility: visible !important;
+          display: block !important;
+          min-width: 800px !important;
+        `
+        
+        await new Promise(resolve => setTimeout(resolve, 300))
+      }
       
-      // Download
-      const link = document.createElement('a')
-      const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '') + '_' + 
-                        new Date().toTimeString().split(' ')[0].replace(/:/g, '')
-      link.download = `${weekend.nome_gp.replace(/\s+/g, '_')}_Tabella_${timestamp}.jpg`
-      link.href = dataUrl
-      link.click()
+      // Scorri fino all'inizio
+      window.scrollTo(0, 0)
       
-      alert('✅ Tabella esportata con successo!')
-      onClose()
+      if (isMobile) {
+        // MOBILE: Calcola dimensioni reali del contenuto
+        const contentWidth = exportElement.scrollWidth
+        const contentHeight = exportElement.scrollHeight
+        
+        // Usa dimensioni del contenuto, ma assicura che siano abbastanza grandi
+        const canvasWidth = Math.max(contentWidth, 2365)
+        const canvasHeight = Math.max(contentHeight, 1452)
+        
+        // Genera canvas con dimensioni del contenuto completo
+        const canvas = await html2canvas(exportElement, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          logging: false,
+          useCORS: true,
+          allowTaint: true,
+          width: canvasWidth,
+          height: canvasHeight,
+          windowWidth: canvasWidth,
+          windowHeight: canvasHeight,
+          scrollX: 0,
+          scrollY: 0,
+          x: 0,
+          y: 0
+        })
+        
+        // Rimuovi clone temporaneo
+        if (exportElement.parentNode) {
+          document.body.removeChild(exportElement)
+        }
+        
+        // Se il canvas è più grande di 4730x2904, ridimensiona l'immagine
+        if (canvas.width > 4730 || canvas.height > 2904) {
+          // Crea un nuovo canvas con le dimensioni esatte 4730x2904
+          const resizedCanvas = document.createElement('canvas')
+          resizedCanvas.width = 4730
+          resizedCanvas.height = 2904
+          const ctx = resizedCanvas.getContext('2d')
+          
+          // Disegna l'immagine originale ridimensionata
+          const img = new Image()
+          img.onload = function() {
+            ctx.fillStyle = '#ffffff'
+            ctx.fillRect(0, 0, 4730, 2904)
+            
+            // Calcola scaling per mantenere aspect ratio
+            const scale = Math.min(4730 / img.width, 2904 / img.height)
+            const scaledWidth = img.width * scale
+            const scaledHeight = img.height * scale
+            const x = (4730 - scaledWidth) / 2
+            const y = (2904 - scaledHeight) / 2
+            
+            ctx.drawImage(img, x, y, scaledWidth, scaledHeight)
+            
+            // Converti in JPEG
+            const finalDataUrl = resizedCanvas.toDataURL('image/jpeg', 0.95)
+            
+            // Download con dimensioni corrette
+            const link = document.createElement('a')
+            const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '') + '_' + 
+                              new Date().toTimeString().split(' ')[0].replace(/:/g, '')
+            link.download = `${weekend.nome_gp.replace(/\s+/g, '_')}_Tabella_${timestamp}.jpg`
+            link.href = finalDataUrl
+            link.click()
+            
+            alert('✅ Tabella esportata con successo!')
+            onClose()
+          }
+          img.src = canvas.toDataURL('image/jpeg', 0.95)
+          return // Esci per evitare doppio download
+        } else {
+          // Canvas già delle dimensioni giuste
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
+          const link = document.createElement('a')
+          const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '') + '_' + 
+                            new Date().toTimeString().split(' ')[0].replace(/:/g, '')
+          link.download = `${weekend.nome_gp.replace(/\s+/g, '_')}_Tabella_${timestamp}.jpg`
+          link.href = dataUrl
+          link.click()
+          
+          alert('✅ Tabella esportata con successo!')
+          onClose()
+        }
+      } else {
+        // DESKTOP: Forza dimensioni esatte 4730x2904
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          logging: false,
+          useCORS: true,
+          width: 2365, // 4730/2 per scale 2
+          height: 1452, // 2904/2 per scale 2
+          windowWidth: 2365,
+          windowHeight: 1452
+        })
+        
+        // Ripristina stile originale
+        element.style.cssText = originalStyle
+        
+        // Converti in JPEG
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
+        
+        // Download
+        const link = document.createElement('a')
+        const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '') + '_' + 
+                          new Date().toTimeString().split(' ')[0].replace(/:/g, '')
+        link.download = `${weekend.nome_gp.replace(/\s+/g, '_')}_Tabella_${timestamp}.jpg`
+        link.href = dataUrl
+        link.click()
+        
+        alert('✅ Tabella esportata con successo!')
+        onClose()
+      }
     } catch (error) {
       console.error('Errore export:', error)
       alert('❌ Errore durante l\'esportazione: ' + error.message)
