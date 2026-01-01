@@ -52,24 +52,24 @@ function App() {
   
   // Inizializza OneSignal all'avvio dell'app (una sola volta)
   useEffect(() => {
-    // Disabilitato temporaneamente per debug
-    console.log('🔔 OneSignal disabilitato temporaneamente')
-    // initializeOneSignal()
+    initializeOneSignal()
   }, [])
   
   // Mostra NotificationPrompt dopo il login (una sola volta per sessione)
   useEffect(() => {
     if (user && !mustChangePassword) {
-      console.log('👤 Utente loggato - prompt notifiche disabilitato')
-      // DISABILITATO TEMPORANEAMENTE
-      // const hasSeenPrompt = false // sessionStorage.getItem('notificationPromptShown')
-      // if (!hasSeenPrompt) {
-      //   const timer = setTimeout(() => {
-      //     console.log('🔔 Mostro prompt notifiche...')
-      //     setShowNotificationPrompt(true)
-      //   }, 2000)
-      //   return () => clearTimeout(timer)
-      // }
+      console.log('👤 Utente loggato, mostro prompt notifiche...')
+      // In sviluppo, mostra sempre il prompt (commenta la riga sottostante in produzione)
+      const hasSeenPrompt = false // sessionStorage.getItem('notificationPromptShown')
+      if (!hasSeenPrompt) {
+        // Mostra il prompt dopo 2 secondi dal login
+        const timer = setTimeout(() => {
+          console.log('🔔 Mostro prompt notifiche...')
+          setShowNotificationPrompt(true)
+          // sessionStorage.setItem('notificationPromptShown', 'true')
+        }, 2000)
+        return () => clearTimeout(timer)
+      }
     }
   }, [user, mustChangePassword])
   
