@@ -1,7 +1,7 @@
 // Configurazione OneSignal per notifiche push cross-platform
 // Supporta: iOS Safari, macOS, Windows, Android
 
-const ONESIGNAL_APP_ID = '929f6f6156-9a35-4a5f-900c-4e77e881e899'
+const ONESIGNAL_APP_ID = import.meta.env.VITE_ONESIGNAL_APP_ID || '929f6f6156-9a35-4a5f-900c-4e77e881e899'
 
 let oneSignalInitialized = false
 
@@ -222,9 +222,29 @@ export async function getPlayerId() {
   try {
     if (!oneSignalInitialized) return null
     
-    const playerId = await window.OneSignalDeferred.push(async function(OneSignal) {
-      return await OneSignal.User.PushSubscription.id
+    console.log('🔍 Recupero Player ID...')
+    
+    // In localhost, ritorna null per evitare blocchi
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (isLocalhost) {
+      console.log('⚠️ localhost - Player ID non disponibile')
+      return null
+    }
+    
+    // Aggiungi timeout per evitare blocchi
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout recupero Player ID')), 5000)
     })
+    
+    const playerId = await Promise.race([
+      window.OneSignalDeferred.push(async function(OneSignal) {
+        console.log('📱 Chiamata OneSignal.User.PushSubscription.id...')
+        const id = await OneSignal.User.PushSubscription.id
+        console.log('🆔 Player ID ricevuto:', id)
+        return id
+      }),
+      timeoutPromise
+    ])
     
     return playerId
   } catch (error) {
