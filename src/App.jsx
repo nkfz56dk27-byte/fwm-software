@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { initializeOneSignal } from './onesignal'
+import { notificaClassificaAggiornata } from './pushNotifications'
+import NotificationPrompt from './NotificationPrompt'
 import CoppaSVG from "./assets/coppa.svg"
 import FotoSVG from "./assets/foto.svg"
 import DisponibilitàSVG from "./assets/disponibilità.svg"
@@ -43,6 +45,7 @@ function App() {
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
   const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
   const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Prompt notifiche push
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -51,6 +54,22 @@ function App() {
   useEffect(() => {
     initializeOneSignal()
   }, [])
+  
+  // Mostra NotificationPrompt dopo il login (una sola volta per sessione)
+  useEffect(() => {
+    if (user && !mustChangePassword) {
+      // Controlla se l'utente ha già visto il prompt in questa sessione
+      const hasSeenPrompt = sessionStorage.getItem('notificationPromptShown')
+      if (!hasSeenPrompt) {
+        // Mostra il prompt dopo 2 secondi dal login
+        const timer = setTimeout(() => {
+          setShowNotificationPrompt(true)
+          sessionStorage.setItem('notificationPromptShown', 'true')
+        }, 2000)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [user, mustChangePassword])
   
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
@@ -258,7 +277,17 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
-  return <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+  return (
+    <>
+      <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+      {showNotificationPrompt && (
+        <NotificationPrompt 
+          username={user.username} 
+          onClose={() => setShowNotificationPrompt(false)} 
+        />
+      )}
+    </>
+  )
 }
 // ===== CLASSIFICA VIEW COMPLETA =====
 function ClassificaView({ classificaId, user, isMobile, onBack }) {
@@ -313,6 +342,13 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
       if (!error) {
         setClassifica(nuovaClassifica)
         setShowSetup(false)
+        
+        // INVIA NOTIFICA PUSH per classifica aggiornata (solo se utente NON è sul sito)
+        await notificaClassificaAggiornata(
+          nuovaClassifica.nome,
+          'Nuovi risultati disponibili'
+        )
+        
         caricaClassifica()
       } else {
         console.error('Errore salvataggio classifica:', error)
