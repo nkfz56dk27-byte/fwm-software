@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { inviaNotificaPush } from './utils/notifiche'
+import { notificaNuovoEvento, notificaModificaPass } from './pushNotifications'
 
 const CAMPIONATI_DEFAULT = [
   { id: 'f1', nome: 'Formula 1', colore: '#E10600', emoji: '🏎️', sigla: 'F1' },
@@ -550,6 +550,14 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
     try {
       const { data, error } = await supabase.from('eventi_calendario').insert([nuovoEvento]).select().single();
       if (error) throw error;
+      
+      // INVIA NOTIFICA PUSH per nuovo evento (solo se utente NON è sul sito)
+      await notificaNuovoEvento(
+        titolo,
+        dataInizio,
+        '' // circuito opzionale
+      );
+      
       await onSave(titolo, data?.id, dataInizio); 
       onClose();
     } catch (err) { 
@@ -745,7 +753,17 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
   
   async function salva() {
     setSalvando(true)
+    
+    // Verifica se max_accrediti è cambiato
+    const maxAccreditiCambiato = edit.max_accrediti !== evento.max_accrediti
+    
     await supabase.from('eventi_calendario').update({ titolo: edit.titolo, data_inizio: edit.data_inizio, data_fine: edit.data_fine || null, max_accrediti: edit.max_accrediti || 0, accredito_status: edit.accredito_status, note: edit.note }).eq('id', edit.id)
+    
+    // INVIA NOTIFICA PUSH se i pass sono stati modificati (solo se utente NON è sul sito)
+    if (maxAccreditiCambiato) {
+      await notificaModificaPass(edit.titolo, edit.max_accrediti || 0)
+    }
+    
     await onUpdate(`Evento ${edit.titolo} modificato`); setSalvando(false); setModalita('visualizza')
   }
   
