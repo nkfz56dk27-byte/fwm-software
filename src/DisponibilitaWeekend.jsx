@@ -297,8 +297,10 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         if (error) {
           console.error('❌ Errore inserimento notifica letta:', error)
           // Controlla se è un errore di duplicato (ignora)
-          if (error.code !== '23505') { // 23505 = unique violation
+          if (error.code !== '23505' && error.status !== 409) { // 23505 = unique violation, 409 = conflict
             throw error
+          } else {
+            console.log('ℹ️ Notifica già marcata come letta, ignoro:', n.id)
           }
         } else {
           console.log('✅ Notifica marcata come letta:', n.id)
