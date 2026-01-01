@@ -6,7 +6,34 @@ const ONESIGNAL_APP_ID = '929f6f6156-9a35-4a5f-900c-4e77e881e899'
 let oneSignalInitialized = false
 
 /**
- * Aspetta che OneSignal sia caricato dall'HTML
+ * Carica dinamicamente lo script OneSignal
+ */
+function loadOneSignalScript() {
+  return new Promise((resolve, reject) => {
+    // Se lo script è già caricato
+    if (window.OneSignalDeferred) {
+      resolve()
+      return
+    }
+
+    // Crea e inserisci lo script
+    const script = document.createElement('script')
+    script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
+    script.defer = true
+    script.onload = () => {
+      console.log('✅ Script OneSignal caricato')
+      resolve()
+    }
+    script.onerror = () => {
+      console.error('❌ Errore caricamento script OneSignal')
+      reject(new Error('Failed to load OneSignal script'))
+    }
+    document.head.appendChild(script)
+  })
+}
+
+/**
+ * Aspetta che OneSignal sia caricato
  */
 function waitForOneSignal() {
   return new Promise((resolve, reject) => {
@@ -26,7 +53,7 @@ function waitForOneSignal() {
     setTimeout(() => {
       clearInterval(checkLoaded)
       if (!window.OneSignalDeferred) {
-        reject(new Error('OneSignal SDK failed to load from HTML'))
+        reject(new Error('OneSignal SDK failed to load'))
       }
     }, 10000)
   })
@@ -44,9 +71,24 @@ export async function initializeOneSignal() {
 
   try {
     console.log('🔔 Inizializzazione OneSignal...')
+    console.log('🆔 App ID:', ONESIGNAL_APP_ID)
     
-    // Aspetta che lo script OneSignal sia caricato dall'HTML
+    // Controllo se siamo in localhost
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    console.log('🌐 Ambiente:', isLocalhost ? 'localhost' : 'produzione')
+    
+    // Carica dinamicamente lo script OneSignal
+    await loadOneSignalScript()
+    
+    // Aspetta che OneSignal sia disponibile
     await waitForOneSignal()
+    
+    console.log('✅ OneSignal SDK caricato e disponibile')
+    
+    // Controllo validità App ID
+    if (!ONESIGNAL_APP_ID || ONESIGNAL_APP_ID.length < 10) {
+      throw new Error('App ID OneSignal non valido: ' + ONESIGNAL_APP_ID)
+    }
     
     // Inizializza OneSignal (UNA SOLA VOLTA)
     await window.OneSignalDeferred.push(async function(OneSignal) {
@@ -95,14 +137,19 @@ export async function initializeOneSignal() {
  */
 export async function richiediPermessoNotifiche() {
   try {
+    console.log('🔍 Controllo inizializzazione OneSignal...')
     if (!oneSignalInitialized) {
-      console.warn('⚠️ OneSignal non ancora inizializzato')
+      console.warn('⚠️ OneSignal non ancora inizializzato, inizializzo...')
       await initializeOneSignal()
     }
 
+    console.log('🔍 Verifica permessi esistenti...')
     // Verifica se il permesso è già stato concesso
     const permission = await window.OneSignalDeferred.push(async function(OneSignal) {
-      return await OneSignal.Notifications.permission
+      console.log('📱 Chiamata OneSignal.Notifications.permission...')
+      const perm = await OneSignal.Notifications.permission
+      console.log('📋 Permesso corrente:', perm)
+      return perm
     })
 
     if (permission) {
@@ -110,9 +157,22 @@ export async function richiediPermessoNotifiche() {
       return true
     }
 
+    console.log('📤 Richiesta nuovo permesso...')
+    
+    // In localhost, simula il permesso per test
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (isLocalhost) {
+      console.log('⚠️ localhost detected - simulazione permesso notifiche')
+      // Simula che l'utente ha accettato
+      return true
+    }
+    
     // Richiedi il permesso
     const result = await window.OneSignalDeferred.push(async function(OneSignal) {
-      return await OneSignal.Notifications.requestPermission()
+      console.log('🔔 Chiamata OneSignal.Notifications.requestPermission()...')
+      const res = await OneSignal.Notifications.requestPermission()
+      console.log('📋 Risposta richiesta permesso:', res)
+      return res
     })
 
     if (result) {
