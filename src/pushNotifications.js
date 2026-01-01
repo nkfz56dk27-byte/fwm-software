@@ -123,12 +123,14 @@ export async function inviaNotificaPush(options) {
  * Invia notifica per aggiornamento classifica
  * @param {string} nomeClassifica - Nome della classifica aggiornata
  * @param {string} dettagli - Dettagli dell'aggiornamento (opzionale)
+ * @param {string[]} targetUsers - Array di username specifici (opzionale)
  */
-export async function notificaClassificaAggiornata(nomeClassifica, dettagli = '') {
+export async function notificaClassificaAggiornata(nomeClassifica, dettagli = '', targetUsers = []) {
   return await inviaNotificaPush({
-    titolo: '🏁 Classifica Aggiornata',
-    messaggio: `${nomeClassifica}${dettagli ? ': ' + dettagli : ''}`,
+    titolo: `🏁 ${nomeClassifica} aggiornata 📊`,
+    messaggio: `La classifica ${nomeClassifica} è stata aggiornata${dettagli ? ': ' + dettagli : ''}`,
     tipo: NOTIFICATION_TYPES.CLASSIFICA_AGGIORNATA,
+    targetUsers: targetUsers,
     data: {
       classifica: nomeClassifica,
       dettagli: dettagli
@@ -158,6 +160,58 @@ export async function notificaDisponibilitaWeekend(nomeWeekend, redattore, nuovo
 }
 
 /**
+ * Invia notifica quando viene creato un nuovo weekend
+ * @param {string} nomeWeekend - Nome del weekend creato
+ */
+export async function notificaNuovoWeekend(nomeWeekend) {
+  return await inviaNotificaPush({
+    titolo: '📅 È stato creato un nuovo weekend GP',
+    messaggio: `Da adesso è possibile selezionare la propria disponibilità per ${nomeWeekend}`,
+    tipo: NOTIFICATION_TYPES.NUOVO_EVENTO,
+    data: {
+      weekend: nomeWeekend,
+      tipo: 'nuovo_weekend'
+    }
+  })
+}
+
+/**
+ * Invia notifica quando qualcuno seleziona articoli
+ * @param {string} username - Nome dell'utente che ha selezionato
+ * @param {string} nomeWeekend - Nome del weekend
+ * @param {number} numeroArticoli - Numero di articoli selezionati
+ */
+export async function notificaSelezioneArticoli(username, nomeWeekend, numeroArticoli) {
+  return await inviaNotificaPush({
+    titolo: '📝 Articoli selezionati',
+    messaggio: `${username} ha selezionato ${numeroArticoli} articoli per il weekend ${nomeWeekend}`,
+    tipo: NOTIFICATION_TYPES.MODIFICA_PASS,
+    data: {
+      username: username,
+      weekend: nomeWeekend,
+      articoli: numeroArticoli,
+      tipo: 'selezione_articoli'
+    }
+  })
+}
+
+/**
+ * Invia notifica quando gli articoli di un giorno finiscono
+ * @param {string} nomeGiorno - Nome del giorno
+ */
+export async function notificaArticoliFiniti(nomeGiorno) {
+  return await inviaNotificaPush({
+    titolo: '🏁 Disponibilità completata',
+    messaggio: `La disponibilità per ${nomeGiorno} è completa`,
+    tipo: NOTIFICATION_TYPES.DISPONIBILITA_WEEKEND,
+    data: {
+      giorno: nomeGiorno,
+      tipo: 'disponibilita_completa'
+    }
+  })
+}
+
+/**
  * Invia notifica per nuovo evento nel calendario accrediti
  * @param {string} nomeEvento - Nome dell'evento
  * @param {string} data - Data dell'evento
@@ -165,13 +219,67 @@ export async function notificaDisponibilitaWeekend(nomeWeekend, redattore, nuovo
  */
 export async function notificaNuovoEvento(nomeEvento, data, circuito = '') {
   return await inviaNotificaPush({
-    titolo: '📅 Nuovo Evento Aggiunto',
-    messaggio: `${nomeEvento} - ${data}${circuito ? ' @ ' + circuito : ''}`,
+    titolo: '� È stato creato un nuovo evento',
+    messaggio: `È stato creato un nuovo evento ${nomeEvento} in data ${data}📆`,
     tipo: NOTIFICATION_TYPES.NUOVO_EVENTO,
     data: {
       evento: nomeEvento,
       data: data,
       circuito: circuito
+    }
+  })
+}
+
+/**
+ * Invia notifica quando lo stato disponibilità si aggiorna a RICHIESTO
+ * @param {string} nomeEvento - Nome dell'evento
+ */
+export async function notificaStatoRichiesto(nomeEvento) {
+  return await inviaNotificaPush({
+    titolo: '⏰ Stato accrediti aggiornato',
+    messaggio: `Lo stato accrediti per ${nomeEvento} è stato aggiornato a RICHIESTO, prenota ora il tuo pass`,
+    tipo: NOTIFICATION_TYPES.MODIFICA_PASS,
+    data: {
+      evento: nomeEvento,
+      stato: 'RICHIESTO',
+      tipo: 'stato_richiesto'
+    }
+  })
+}
+
+/**
+ * Invia notifica quando lo stato disponibilità si aggiorna a CONFERMATO
+ * @param {string} nomeEvento - Nome dell'evento
+ */
+export async function notificaStatoConfermato(nomeEvento) {
+  return await inviaNotificaPush({
+    titolo: '✅ Stato accrediti aggiornato',
+    messaggio: `Lo stato accrediti per ${nomeEvento} è stato aggiornato a CONFERMATO, prenota ora il tuo pass`,
+    tipo: NOTIFICATION_TYPES.MODIFICA_PASS,
+    data: {
+      evento: nomeEvento,
+      stato: 'CONFERMATO',
+      tipo: 'stato_confermato'
+    }
+  })
+}
+
+/**
+ * Invia notifica quando qualcuno prenota il pass
+ * @param {string} username - Nome dell'utente che ha prenotato
+ * @param {string} nomeEvento - Nome dell'evento
+ * @param {number} accreditiRimasti - Numero di accrediti rimasti
+ */
+export async function notificaPrenotazionePass(username, nomeEvento, accreditiRimasti) {
+  return await inviaNotificaPush({
+    titolo: '🎫 Pass prenotato',
+    messaggio: `${username} ha prenotato un pass per l'evento ${nomeEvento}. Sono rimasti ancora ${accreditiRimasti} accrediti. È possibile!`,
+    tipo: NOTIFICATION_TYPES.MODIFICA_PASS,
+    data: {
+      username: username,
+      evento: nomeEvento,
+      accrediti_rimasti: accreditiRimasti,
+      tipo: 'prenotazione_pass'
     }
   })
 }
