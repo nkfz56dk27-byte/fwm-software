@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
+import { initializeOneSignal } from './onesignal'
+import { notificaClassificaAggiornata } from './pushNotifications'
+import NotificationPrompt from './NotificationPrompt'
 import CoppaSVG from "./assets/coppa.svg"
 import FotoSVG from "./assets/foto.svg"
 import DisponibilitàSVG from "./assets/disponibilità.svg"
@@ -8,10 +11,13 @@ import CestinoSVG from "./assets/cestino.svg"
 import CheckSVG from "./assets/check.svg"
 import VidaPNG from "./assets/vida.png"
 import RitaglioImmagine from './RitaglioImmagine'
+import VidaMenu from './VidaMenu'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
 import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
+import ProssimoEvento from './ProssimoEvento.jsx'
+import EventiMobileMenu from './EventiMobileMenu.jsx'
 
 import './App.css'
 
@@ -37,9 +43,33 @@ function App() {
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
+  const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
+  const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Prompt notifiche push
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  
+  // Inizializza OneSignal all'avvio dell'app (una sola volta)
+  useEffect(() => {
+    initializeOneSignal()
+  }, [])
+  
+  // Mostra NotificationPrompt dopo il login (una sola volta per sessione)
+  useEffect(() => {
+    if (user && !mustChangePassword) {
+      // Controlla se l'utente ha già visto il prompt in questa sessione
+      const hasSeenPrompt = sessionStorage.getItem('notificationPromptShown')
+      if (!hasSeenPrompt) {
+        // Mostra il prompt dopo 2 secondi dal login
+        const timer = setTimeout(() => {
+          setShowNotificationPrompt(true)
+          sessionStorage.setItem('notificationPromptShown', 'true')
+        }, 2000)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [user, mustChangePassword])
   
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
@@ -229,6 +259,16 @@ function App() {
     return <RitaglioImmagine onClose={() => setShowRitaglioImmagine(false)} />
   }
 
+  // ← AGGIUNTO: Render condizionale Vida Menu
+  if (showVidaMenu) {
+    return <VidaMenu onClose={() => setShowVidaMenu(false)} />
+  }
+
+  // ← AGGIUNTO: Render condizionale Eventi Mobile
+  if (showEventiMobile) {
+    return <EventiMobileMenu onClose={() => setShowEventiMobile(false)} />
+  }
+
   if (showCalendario) {
     return <CalendarioAccrediti utenteCorrente={user} onClose={() => setShowCalendario(false)} onNotificheChange={() => user && user.username && caricaNotificheCalendario(user.username)} />
   }
@@ -237,7 +277,17 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
-  return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+  return (
+    <>
+      <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+      {showNotificationPrompt && (
+        <NotificationPrompt 
+          username={user.username} 
+          onClose={() => setShowNotificationPrompt(false)} 
+        />
+      )}
+    </>
+  )
 }
 // ===== CLASSIFICA VIEW COMPLETA =====
 function ClassificaView({ classificaId, user, isMobile, onBack }) {
@@ -292,6 +342,13 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
       if (!error) {
         setClassifica(nuovaClassifica)
         setShowSetup(false)
+        
+        // INVIA NOTIFICA PUSH per classifica aggiornata (solo se utente NON è sul sito)
+        await notificaClassificaAggiornata(
+          nuovaClassifica.nome,
+          'Nuovi risultati disponibili'
+        )
+        
         caricaClassifica()
       } else {
         console.error('Errore salvataggio classifica:', error)
@@ -616,6 +673,8 @@ function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRima
 
 // ===== INSERIMENTO RISULTATI GP =====
 function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave }) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [pilotaSelezionato, setPilotaSelezionato] = useState(null);
   const [step, setStep] = useState(gpPreselezionato ? 1 : 0)
   const [nomeGP, setNomeGP] = useState('')
   const [tipoWeekend, setTipoWeekend] = useState('standard')
@@ -769,12 +828,72 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
 
       <div style={{ marginBottom: '30px' }}>
         <h3 style={{ marginBottom: '15px', fontWeight: '600' }}>Inserisci posizioni:</h3>
-        {pilotiAttivi.map((pilota, i) => (
-          <div key={pilota.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
-            <div style={{ flex: 1, fontWeight: '600' }}>{pilota.nome}</div>
-            <input type="number" min="1" max="20" value={risultati[pilota.id] || ''} onChange={(e) => setRisultati({ ...risultati, [pilota.id]: parseInt(e.target.value) || 0 })} placeholder="Pos" style={{ width: '80px', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', textAlign: 'center' }} />
-          </div>
-        ))}
+        
+        {/* BARRA DI RICERCA PILOTA */}
+        <div style={{ position: 'sticky', top: '-40px', background: 'white', zIndex: 10, paddingBottom: '15px', marginTop: '-10px' }}>
+          <input 
+            type="text"
+            placeholder="🔍 Cerca pilota per nome..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: '12px',
+              border: '2px solid #007AFF',
+              fontSize: '16px',
+              outline: 'none',
+              boxShadow: '0 4px 12px rgba(0,122,255,0.1)'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {pilotiAttivi
+            .filter(p => p.nome.toLowerCase().includes(searchTerm.toLowerCase()))
+            .map((pilota) => {
+              const isSelezionato = pilotaSelezionato === pilota.id;
+              return (
+                <div 
+                  key={pilota.id} 
+                  onClick={() => setPilotaSelezionato(pilota.id)}
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '15px', 
+                    padding: '12px', 
+                    background: isSelezionato ? 'rgba(0, 0, 0, 0.15)' : '#f8f8f8', // EVIDENZIAZIONE SCURA
+                    borderRadius: '12px',
+                    border: isSelezionato ? '1px solid #333' : '1px solid transparent',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ flex: 1, fontWeight: isSelezionato ? '800' : '600', color: isSelezionato ? '#000' : '#333' }}>
+                    {pilota.nome}
+                  </div>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    max="20" 
+                    value={risultati[pilota.id] || ''} 
+                    onFocus={() => setPilotaSelezionato(pilota.id)}
+                    onChange={(e) => setRisultati({ ...risultati, [pilota.id]: parseInt(e.target.value) || 0 })} 
+                    placeholder="Pos" 
+                    style={{ 
+                      width: '80px', 
+                      padding: '10px', 
+                      borderRadius: '8px', 
+                      border: '1px solid #ddd', 
+                      textAlign: 'center',
+                      fontWeight: 'bold',
+                      background: 'white'
+                    }} 
+                  />
+                </div>
+              );
+            })}
+        </div>
       </div>
 
       {classifica.punti_pole_attivo && (
@@ -1552,37 +1671,109 @@ function SetupIniziale({ classifica, onSave, onBack }) {
         </div>
       </div>
 
-      {step === 0 && (
+    {step === 0 && (
         <div>
           <h1 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>Inserisci i piloti e i team in {classifica.nome}</h1>
+          
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome Pilota</label>
             <input type="text" value={nomePilota} onChange={(e) => setNomePilota(e.target.value)} placeholder="es. Max Verstappen" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
           </div>
+
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Team</label>
             <input type="text" value={teamPilota} onChange={(e) => setTeamPilota(e.target.value)} placeholder="es. Red Bull Racing" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
           </div>
+
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Colore</label>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Colore Team</label>
             <input type="color" value={colorePilota} onChange={(e) => setColorePilota(e.target.value)} style={{ width: '100%', height: '50px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer' }} />
           </div>
-          <button onClick={aggiungiPilota} style={{ width: '100%', padding: '15px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>Aggiungi Pilota</button>
+
+          <button onClick={aggiungiPilota} style={{ width: '100%', padding: '15px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>
+            Aggiungi Pilota
+          </button>
+
           {piloti.length > 0 && (
-            <div style={{ marginBottom: '20px' }}>
-              <h3>Piloti: {piloti.length}</h3>
-              {piloti.map(p => (
-                <div key={p.id} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '10px', background: '#f8f8f8', borderRadius: '8px', marginBottom: '8px' }}>
-                  <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: p.colore }}></div>
-                  <div><strong>{p.nome}</strong> - {p.team}</div>
-                </div>
-              ))}
+            <div style={{ marginBottom: '25px' }}>
+              <h3 style={{ marginBottom: '15px', fontSize: '18px', borderBottom: '2px solid #f0f0f0', paddingBottom: '8px' }}>
+                Piloti inseriti: {piloti.length}
+              </h3>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
+                {piloti.map((p) => (
+                  <div key={p.id} style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    padding: '12px', 
+                    background: '#f8f9fa', 
+                    borderRadius: '12px', 
+                    marginBottom: '10px',
+                    border: '1px solid #eee'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <div style={{ 
+                        width: '28px', 
+                        height: '28px', 
+                        borderRadius: '50%', 
+                        background: p.colore, 
+                        border: '2px solid white', 
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)' 
+                      }}></div>
+                      <div style={{ fontSize: '15px', color: '#333' }}>
+                        <strong>{p.nome}</strong> <span style={{ opacity: 0.7, marginLeft: '5px' }}>({p.team})</span>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={() => setPiloti(piloti.filter(item => item.id !== p.id))}
+                      title="Rimuovi pilota"
+                      style={{ 
+                        background: 'none', 
+                        color: 'red', 
+                        border: 'none', 
+                        borderRadius: '10%', 
+                        width: '26px', 
+                        height: '26px', 
+                        cursor: 'pointer', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        fontSize: '30px', 
+                        fontWeight: 'bold',
+                        transition: 'transform 0.1s active'
+                      }}
+                      onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.9)'}
+                      onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-          <button onClick={() => setStep(1)} disabled={piloti.length === 0} style={{ width: '100%', padding: '15px', background: piloti.length > 0 ? '#007AFF' : '#ccc', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: piloti.length > 0 ? 'pointer' : 'not-allowed' }}>Avanti</button>
+
+          <button 
+            onClick={() => setStep(1)} 
+            disabled={piloti.length === 0} 
+            style={{ 
+              width: '100%', 
+              padding: '15px', 
+              background: piloti.length > 0 ? '#34C759' : '#ccc', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '15px', 
+              fontSize: '18px', 
+              fontWeight: 'bold', 
+              cursor: piloti.length > 0 ? 'pointer' : 'not-allowed',
+              marginTop: '10px'
+            }}
+          >
+            Avanti
+          </button>
         </div>
       )}
-
       {step === 1 && (
         <div>
           <h1 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>Configurazione Stagione</h1>
@@ -1603,11 +1794,21 @@ function SetupIniziale({ classifica, onSave, onBack }) {
       {step === 2 && (
         <div>
           <h1 style={{ fontSize: '28px', marginBottom: '20px', textAlign: 'center' }}>Inserisci il calendario dei GP</h1>
-          <p style={{ textAlign: 'center', color: '#FF9500', marginBottom: '30px', fontWeight: '600' }}>GP inseriti: {gp.length} / {numeroGP}</p>
+          <p style={{ textAlign: 'center', color: '#FF9500', marginBottom: '30px', fontWeight: '600' }}>
+            GP inseriti: {gp.length} / {numeroGP}
+          </p>
+
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome GP</label>
-            <input type="text" value={nomeGP} onChange={(e) => setNomeGP(e.target.value)} placeholder="es. Bahrain" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
+            <input 
+              type="text" 
+              value={nomeGP} 
+              onChange={(e) => setNomeGP(e.target.value)} 
+              placeholder="es. Bahrain" 
+              style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} 
+            />
           </div>
+
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Tipo Weekend:</label>
             <div style={{ display: 'grid', gap: '10px' }}>
@@ -1622,21 +1823,81 @@ function SetupIniziale({ classifica, onSave, onBack }) {
               </button>
             </div>
           </div>
-          <button onClick={aggiungiGP} disabled={gp.length >= numeroGP || !nomeGP} style={{ width: '100%', padding: '15px', background: gp.length < numeroGP && nomeGP ? '#007AFF' : '#ccc', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: gp.length < numeroGP && nomeGP ? 'pointer' : 'not-allowed', marginBottom: '20px' }}>Aggiungi GP</button>
+
+          <button 
+            onClick={aggiungiGP} 
+            disabled={gp.length >= numeroGP || !nomeGP} 
+            style={{ 
+              width: '100%', 
+              padding: '15px', 
+              background: gp.length < numeroGP && nomeGP ? '#007AFF' : '#ccc', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '15px', 
+              fontSize: '18px', 
+              fontWeight: 'bold', 
+              cursor: gp.length < numeroGP && nomeGP ? 'pointer' : 'not-allowed', 
+              marginBottom: '30px' 
+            }}
+          >
+            Aggiungi GP
+          </button>
+
           {gp.length > 0 && (
-            <div style={{ marginBottom: '20px', maxHeight: '200px', overflowY: 'auto' }}>
-              {gp.map((g, i) => (
-                <div key={g.id} style={{ padding: '12px', background: '#f8f8f8', borderRadius: '8px', marginBottom: '8px' }}>
-                  <strong>{i + 1}.</strong> {g.nome} {g.tipo_weekend === 'sprintF1' ? '⚡️' : g.tipo_weekend === 'f2' ? '🏎️' : '🏆'}
-                </div>
-              ))}
+            <div style={{ marginBottom: '25px' }}>
+              <h3 style={{ marginBottom: '10px', fontSize: '16px', color: '#666' }}>Calendario:</h3>
+              <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
+                {gp.map((g, i) => (
+                  <div key={g.id} style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    padding: '12px', 
+                    background: '#f8f9fa', 
+                    borderRadius: '10px', 
+                    marginBottom: '8px',
+                    border: '1px solid #eee'
+                  }}>
+                    <div style={{ fontSize: '15px' }}>
+                      <strong style={{ color: '#007AFF', marginRight: '8px' }}>{i + 1}.</strong> 
+                      {g.nome} {g.tipo_weekend === 'sprintF1' ? '⚡️' : g.tipo_weekend === 'f2' ? '🏎️' : '🏆'}
+                    </div>
+
+                    <button 
+                      onClick={() => setGp(gp.filter(item => item.id !== g.id))}
+                      style={{ 
+                        background: 'none', color: 'red', border: 'none', borderRadius: '10%', 
+                        width: '26px', height: '26px', cursor: 'pointer', display: 'flex', 
+                        alignItems: 'center', justifyContent: 'center', fontSize: '30px', fontWeight: 'bold'
+                      }}
+                    >✕</button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-          <button onClick={confermaESalva} disabled={gp.length < numeroGP} style={{ width: '100%', padding: '15px', background: gp.length === numeroGP ? '#007AFF' : '#ccc', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: gp.length === numeroGP ? 'pointer' : 'not-allowed' }}>Conferma e continua</button>
+
+          <button 
+            onClick={confermaESalva} 
+            disabled={gp.length < numeroGP} 
+            style={{ 
+              width: '100%', 
+              padding: '15px', 
+              background: gp.length === numeroGP ? '#34C759' : '#ccc', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '15px', 
+              fontSize: '18px', 
+              fontWeight: 'bold', 
+              cursor: gp.length === numeroGP ? 'pointer' : 'not-allowed' 
+            }}
+          >
+            Conferma e continua
+          </button>
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ===== MENU CLASSIFICHE =====
@@ -1804,7 +2065,57 @@ function NuovaClassificaModal({ onClose, onSave }) {
 }
 
 /// ===== HOME VIEW =====
-function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
+function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, onOpenVidaMenu, onOpenEventiMobile, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
+  const [prossimoEvento, setProssimoEvento] = useState(null)
+  
+  useEffect(() => {
+    if (isMobile) {
+      caricaProssimoEvento()
+    }
+  }, [isMobile])
+  
+  async function caricaProssimoEvento() {
+    try {
+      const { data: eventi, error } = await supabase
+        .from('eventi_calendario')
+        .select('*')
+        .order('data_inizio')
+      
+      if (!eventi || eventi.length === 0) {
+        setProssimoEvento(null)
+        return
+      }
+      
+      const oggi = new Date()
+      oggi.setHours(0, 0, 0, 0)
+      
+      const eventiFuturi = eventi.filter(evento => {
+        const dataEvento = new Date(evento.data_inizio)
+        return dataEvento >= oggi
+      })
+      
+      if (eventiFuturi.length === 0) {
+        setProssimoEvento(null)
+        return
+      }
+      
+      const prossimo = eventiFuturi[0]
+      const dataProssimo = new Date(prossimo.data_inizio)
+      oggi.setHours(0, 0, 0, 0)
+      dataProssimo.setHours(0, 0, 0, 0)
+      const giorniMancanti = Math.floor((dataProssimo.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
+      
+      setProssimoEvento({
+        ...prossimo,
+        giorniMancanti
+      })
+      
+    } catch (error) {
+      console.error('Errore:', error)
+      setProssimoEvento(null)
+    }
+  }
+  
   useEffect(() => {
     document.title = "FWM Software - Home"
   }, [])
@@ -1829,10 +2140,46 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
               <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
             </svg>
           </button>
+          {isMobile && (
+            <button className="btn-header" onClick={onOpenEventiMobile}>
+              {prossimoEvento ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '12px' }}>▼</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', opacity: 0.8, whiteSpace: 'nowrap' }}>
+                      {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
+                       prossimoEvento.giorniMancanti === 1 ? 'DOMANI!' : 
+                       `Tra ${prossimoEvento.giorniMancanti} giorni`}
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
+                      {prossimoEvento.titolo}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '12px' }}>▼</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '12px' }}>▼</span>
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
+                    📅 Eventi
+                  </div>
+                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '12px' }}>▼</span>
+                  </div>
+                </div>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="home-title">
+      <div className="home-title" style={{ marginTop: '-10px' }}>
         <h1 className="title-main">FWM Software</h1>
       </div>
 
@@ -1861,8 +2208,8 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
                 style={{ width: "60px", height: "50px", filter: "brightness(0) invert(1)" }}
               />
             </div>
-            <h3 className="card-title">RITAGLIO FOTO</h3>
-            <p className="card-subtitle">Ritaglia immagini<br />1200x729 px</p>
+            <h3 className="card-title">EDITOR FOTO</h3>
+            <p className="card-subtitle">Editor proprietario FWM<br />per modifica foto</p>
           </div>
         </div>
 
@@ -1939,13 +2286,16 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
         <div className="home-cards-row">
           <div 
             className="home-card card-red" 
-            onClick={() => window.open('https://www.formula1.it/admin/login.asp', '_blank')} 
+            onClick={() => {
+              console.log('Click su VIDA card');
+              onOpenVidaMenu();
+            }} 
             style={{ cursor: 'pointer' }}
           >
             <div className="card-icon-wrapper">
              <img src={VidaPNG} alt="Vida Logo" style={{ width: "60px", height: "60px", filter: "brightness(0) invert(1)", objectFit: "contain" }} />
             </div>
-            <h3 className="card-title">PANNELLO VIDA</h3>
+            <h3 className="card-title">PANNELLI VIDA</h3>
           </div>
 
           <div 
@@ -1959,6 +2309,16 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMenu, onOpe
             <h3 className="card-title">PANNELLO FONTI</h3>
           </div>
         </div>
+      </div>
+
+      {/* PROSSIMO EVENTO BOX */}
+      <div style={{
+        position: 'absolute',
+        left: '1000px',
+        top: '173px',
+        zIndex: 10
+      }}>
+        <ProssimoEvento />
       </div>
 
       <div className="home-footer">
