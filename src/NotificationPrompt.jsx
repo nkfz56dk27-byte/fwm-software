@@ -6,20 +6,27 @@ export default function NotificationPrompt({ username, onClose }) {
   const [loading, setLoading] = useState(false)
 
   async function handleAccetta() {
+    console.log('🚀 Inizio attivazione notifiche...')
     setLoading(true)
     
-    // Richiedi permesso OneSignal
-    const granted = await richiediPermessoNotifiche()
-    
-    if (granted) {
-      // Imposta tag utente per targeting specifico
-      await setUserTags({
-        username: username,
-        ruolo: 'redattore'
-      })
+    try {
+      // Richiedi permesso OneSignal
+      console.log('📤 Richiesta permesso notifiche...')
+      const granted = await richiediPermessoNotifiche()
+      console.log('📋 Risposta permesso:', granted)
       
-      // Ottieni il Player ID
-      const playerId = await getPlayerId()
+      if (granted) {
+        console.log('✅ Permesso concesso, impostazione tag...')
+        // Imposta tag utente per targeting specifico
+        await setUserTags({
+          username: username,
+          ruolo: 'redattore'
+        })
+        
+        console.log('🏷️ Tag impostati, recupero Player ID...')
+        // Ottieni il Player ID
+        const playerId = await getPlayerId()
+        console.log('🆔 Player ID:', playerId)
       
       if (playerId) {
         // Salva il Player ID su Supabase (opzionale, per tracking)
@@ -40,6 +47,11 @@ export default function NotificationPrompt({ username, onClose }) {
       alert('✅ Notifiche push attivate! Riceverai avvisi anche a sito chiuso.')
     } else {
       alert('❌ Permesso notifiche negato. Puoi riattivarlo dalle impostazioni del browser.')
+    }
+    
+    } catch (error) {
+      console.error('❌ Errore durante attivazione notifiche:', error)
+      alert('❌ Errore durante l\'attivazione: ' + error.message)
     }
     
     setLoading(false)
