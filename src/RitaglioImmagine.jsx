@@ -448,7 +448,8 @@ export default function RitaglioImmagine({ onClose }) {
                     <img src={selectedImage} draggable={false} style={{ 
                       position: 'absolute', 
                       width: '100%', 
-                      height: 'auto', 
+                      height: '100%', 
+                      objectFit: 'cover',
                       top: 0, 
                       left: 0, 
                       transform: `translateY(${imageOffset.y}px)`, 
