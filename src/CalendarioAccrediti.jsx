@@ -99,12 +99,42 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   }
   
   async function caricaNotifiche() {
-    const { data: tutteNotifiche } = await supabase.from('notifiche_calendario').select('*').order('created_at', { ascending: false }).limit(50)
-    const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', utenteCorrente.username)
-    const idsLette = new Set((lette || []).map(l => l.notifica_id))
-    const notificheConStato = (tutteNotifiche || []).map(n => ({ ...n, letta: idsLette.has(n.id) }))
-    setNotifiche(notificheConStato)
-    if (onNotificheChange) onNotificheChange()
+    try {
+      console.log('🔍 DEBUG CALENDARIO: Inizio caricaNotifiche')
+      console.log('🔍 DEBUG CALENDARIO: utenteCorrente.username:', utenteCorrente?.username)
+      
+      const { data: tutteNotifiche } = await supabase.from('notifiche_calendario').select('*').order('created_at', { ascending: false }).limit(50)
+      console.log('🔍 DEBUG CALENDARIO: notifiche totali caricate:', tutteNotifiche?.length || 0)
+      
+      const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', utenteCorrente.username)
+      console.log('🔍 DEBUG CALENDARIO: notifiche lette caricate:', lette?.length || 0)
+      
+      const idsLette = new Set((lette || []).map(l => l.notifica_id))
+      console.log('🔍 DEBUG CALENDARIO: IDs lette:', Array.from(idsLette))
+      
+      const notificheConStato = (tutteNotifiche || []).map(n => ({ ...n, letta: idsLette.has(n.id) }))
+      const nonLette = notificheConStato.filter(n => !n.letta)
+      console.log('🔍 DEBUG CALENDARIO: notifiche non lette calcolate:', nonLette.length)
+      
+      setNotifiche(notificheConStato)
+      
+      // FORZA RICARICAMENTO DELLE NOTIFICHE NELLA HOME
+      if (onNotificheChange) {
+        console.log('🔄 DEBUG CALENDARIO: Chiamo onNotificheChange per aggiornare Home')
+        onNotificheChange()
+      }
+      
+      // AGGIUNTA: Forza ricaricamento anche via evento custom
+      window.dispatchEvent(new CustomEvent('notificheAggiornate', { 
+        detail: { 
+          calendarioNonLette: nonLette.length 
+        } 
+      }))
+      
+      console.log('✅ DEBUG CALENDARIO: caricaNotifiche completato')
+    } catch (err) {
+      console.error('❌ Errore caricaNotifiche (CALENDARIO):', err)
+    }
   }
   
   async function creaNotifica(tipo, messaggio, evento_id = null) {
@@ -139,8 +169,10 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
         if (error) {
           console.error('❌ Errore inserimento notifica letta (CALENDARIO):', error)
           // Controlla se è un errore di duplicato (ignora)
-          if (error.code !== '23505') { // 23505 = unique violation
+          if (error.code !== '23505' && error.status !== 409) { // 23505 = unique violation, 409 = conflict
             throw error
+          } else {
+            console.log('ℹ️ Notifica già marcata come letta (CALENDARIO), ignoro:', n.id)
           }
         } else {
           console.log('✅ Notifica marcata come letta (CALENDARIO):', n.id)
