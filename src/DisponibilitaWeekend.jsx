@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
-import { useNotificheRealtime } from './notificationService'
 
 // ===== MAPPING UTENTE → REDATTORE =====
 const UTENTE_TO_REDATTORE = {
@@ -151,13 +150,6 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   const isAdmin = utenteCorrente?.ruolo === 'admin'
   const isMobile = windowWidth <= 768
   const nomeRedattore = UTENTE_TO_REDATTORE[utenteCorrente?.username] || utenteCorrente?.nomeCompleto || ''
-
-  // Hook per notifiche real-time
-  useNotificheRealtime('disponibilita', (payload) => {
-    console.log('📬 Aggiornamento disponibilità rilevato:', payload)
-    caricaWeekends() // Ricarica i dati
-    caricaNotifiche() // Ricarica le notifiche locali
-  })
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth)
