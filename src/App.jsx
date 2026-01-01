@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
+import { initializeOneSignal } from './onesignal'
+import { notificaClassificaAggiornata } from './pushNotifications'
+import NotificationPrompt from './NotificationPrompt'
 import CoppaSVG from "./assets/coppa.svg"
 import FotoSVG from "./assets/foto.svg"
 import DisponibilitàSVG from "./assets/disponibilità.svg"
@@ -42,9 +45,79 @@ function App() {
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
   const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
   const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Prompt notifiche push
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  
+  // Inizializza OneSignal all'avvio dell'app (una sola volta)
+  useEffect(() => {
+    initializeOneSignal()
+  }, [])
+  
+  // Mostra NotificationPrompt dopo il login (una sola volta per sessione)
+  useEffect(() => {
+    console.log('🔍 DEBUG: useEffect eseguito')
+    console.log('🔍 DEBUG: user:', user)
+    console.log('🔍 DEBUG: mustChangePassword:', mustChangePassword)
+    
+    if (user && !mustChangePassword) {
+      console.log('👤 Utente loggato, controllo se mostrare prompt notifiche...')
+      
+      // FORZA MOSTRA PROMPT PER TEST (commenta in produzione)
+      const hasSeenPrompt = false // localStorage.getItem('notificationPromptShown')
+      console.log('🔍 DEBUG: hasSeenPrompt:', hasSeenPrompt)
+      
+      if (!hasSeenPrompt) {
+        console.log('🔍 DEBUG: entro nell\'if !hasSeenPrompt')
+        // Controlla su Supabase se l'utente ha già attivato le notifiche
+        const checkSupabasePrompt = async () => {
+          console.log('🔍 DEBUG: inizio checkSupabasePrompt')
+          try {
+            const { data } = await supabase
+              .from('user_preferences')
+              .select('notifications_enabled')
+              .eq('username', user.username)
+              .single()
+            
+            console.log('🔍 DEBUG: dati Supabase:', data)
+            
+            if (data?.notifications_enabled) {
+              console.log('✅ Notifiche già attivate su Supabase')
+              localStorage.setItem('notificationPromptShown', 'true')
+              return
+            }
+            
+            // Mostra il prompt dopo 2 secondi
+            console.log('🔍 DEBUG: imposto timer per mostrare prompt')
+            const timer = setTimeout(() => {
+              console.log('🔔 Mostro prompt notifiche...')
+              setShowNotificationPrompt(true)
+              console.log('🔍 DEBUG: setShowNotificationPrompt(true) chiamato')
+            }, 2000)
+            return () => clearTimeout(timer)
+            
+          } catch (error) {
+            console.log('Info: tabella user_preferences non presente o errore, mostro prompt')
+            console.log('🔍 DEBUG: errore Supabase:', error)
+            // Fallback: mostra il prompt
+            const timer = setTimeout(() => {
+              console.log('🔔 Mostro prompt notifiche (fallback)...')
+              setShowNotificationPrompt(true)
+              console.log('🔍 DEBUG: setShowNotificationPrompt(true) chiamato (fallback)')
+            }, 2000)
+            return () => clearTimeout(timer)
+          }
+        }
+        
+        checkSupabasePrompt()
+      } else {
+        console.log('✅ Prompt notifiche già mostrato in questa sessione')
+      }
+    } else {
+      console.log('🔍 DEBUG: condizioni non soddisfatte - user o mustChangePassword')
+    }
+  }, [user, mustChangePassword])
   
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
@@ -252,7 +325,23 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
-  return <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+  return (
+    <>
+      <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+      {showNotificationPrompt && (
+        <>
+          {console.log('🎯 Rendering NotificationPrompt...')}
+          <NotificationPrompt 
+            username={user.username} 
+            onClose={() => {
+              console.log('❌ Chiusura NotificationPrompt')
+              setShowNotificationPrompt(false)
+            }} 
+          />
+        </>
+      )}
+    </>
+  )
 }
 // ===== CLASSIFICA VIEW COMPLETA =====
 function ClassificaView({ classificaId, user, isMobile, onBack }) {
@@ -307,6 +396,13 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
       if (!error) {
         setClassifica(nuovaClassifica)
         setShowSetup(false)
+        
+        // INVIA NOTIFICA PUSH per classifica aggiornata (solo se utente NON è sul sito)
+        await notificaClassificaAggiornata(
+          nuovaClassifica.nome,
+          'Nuovi risultati disponibili'
+        )
+        
         caricaClassifica()
       } else {
         console.error('Errore salvataggio classifica:', error)
