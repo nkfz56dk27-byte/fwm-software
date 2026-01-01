@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
+import { initializeOneSignal } from './onesignal'
 import CoppaSVG from "./assets/coppa.svg"
 import FotoSVG from "./assets/foto.svg"
 import DisponibilitàSVG from "./assets/disponibilità.svg"
@@ -45,6 +46,11 @@ function App() {
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
+  
+  // Inizializza OneSignal all'avvio dell'app (una sola volta)
+  useEffect(() => {
+    initializeOneSignal()
+  }, [])
   
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
