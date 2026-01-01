@@ -1,8 +1,8 @@
 // Sistema di notifiche push intelligente
 // Invia notifiche SOLO quando l'utente NON è sul sito
 
-const ONESIGNAL_APP_ID = '929f6f6156-9a35-4a5f-900c-4e77e881e899'
-const ONESIGNAL_REST_API_KEY = 'os_v2_app_skpw6vu2gvff7eamjz36rapithmhbxuxj3oed2uosta3aqfgyr45gwu6jq4r4dwxh2o3ahtlndft7lz42mvqlqb6ek2nstrnpd5o7ba'
+const ONESIGNAL_APP_ID = import.meta.env.VITE_ONESIGNAL_APP_ID || '929f6f6156-9a35-4a5f-900c-4e77e881e899'
+const ONESIGNAL_REST_API_KEY = import.meta.env.VITE_ONESIGNAL_REST_API_KEY || 'os_v2_app_skpw6vu2gvff7eamjz36rapithmhbxuxj3oed2uosta3aqfgyr45gwu6jq4r4dwxh2o3ahtlndft7lz42mvqlqb6ek2nstrnpd5o7ba'
 
 /**
  * TIPI DI NOTIFICHE SUPPORTATE
