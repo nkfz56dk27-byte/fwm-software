@@ -197,17 +197,50 @@ export default function RitaglioImmagine({ onClose }) {
         drawX -= (drawWidth - canvas.width) / 2
         drawY -= (drawHeight - canvas.height) / 2
         
-        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
-      } else {
-        // Logica NORMALE: come prima
-        const scale = dimensions.width / img.width
-        const renderW = dimensions.width
-        const renderH = img.height * scale
-        const realY = (imageOffset.y / DISPLAY_SCALE)
+        // Applica l'offset Y del drag anche alla modalità cover
+        const realY = drawY + (imageOffset.y / DISPLAY_SCALE)
         
-        ctx.fillStyle = "#ffffff"
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-        ctx.drawImage(img, 0, realY, renderW, renderH)
+        ctx.drawImage(img, drawX, realY, drawWidth, drawHeight)
+      } else {
+        // Logica NORMALE: diversa per mobile vs desktop
+        if (isMobile) {
+          // MOBILE: usa objectFit: 'cover' per evitare bordi neri
+          const containerRatio = dimensions.width / dimensions.height
+          const imageRatio = img.width / img.height
+          
+          let renderW, renderH, drawX, drawY
+          
+          if (imageRatio > containerRatio) {
+            // Immagine più larga del contenitore → usa altezza piena
+            renderH = dimensions.height
+            renderW = renderH * imageRatio
+            drawX = (dimensions.width - renderW) / 2
+            drawY = 0
+          } else {
+            // Immagine più alta del contenitore → usa larghezza piena
+            renderW = dimensions.width
+            renderH = renderW / imageRatio
+            drawX = 0
+            drawY = (dimensions.height - renderH) / 2
+          }
+          
+          // Applica l'offset Y del drag
+          const realY = (imageOffset.y / DISPLAY_SCALE) + drawY
+          
+          ctx.fillStyle = "#ffffff"
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(img, drawX, realY, renderW, renderH)
+        } else {
+          // DESKTOP: logica originale (non toccare!)
+          const scale = dimensions.width / img.width
+          const renderW = dimensions.width
+          const renderH = img.height * scale
+          const realY = (imageOffset.y / DISPLAY_SCALE)
+          
+          ctx.fillStyle = "#ffffff"
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(img, 0, realY, renderW, renderH)
+        }
       }
       
       if (conLogo && logoImgRef.current) {
