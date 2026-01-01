@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
+import { notificaDisponibilitaWeekend } from './pushNotifications'
 
 // ===== MAPPING UTENTE → REDATTORE =====
 const UTENTE_TO_REDATTORE = {
@@ -792,6 +793,14 @@ if (conferma && articoliSelezionati.size > 0) {
     messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
     weekend_id: weekend.id
   })
+  
+  // INVIA NOTIFICA PUSH (solo se utente NON è sul sito)
+  await notificaDisponibilitaWeekend(
+    weekend.nome_gp,
+    nomeRedattore,
+    'disponibile'
+  )
+  
   // Forza ricarica notifiche per farle apparire subito
   window.dispatchEvent(new Event('ricarica-notifiche'))
 }
@@ -1973,7 +1982,7 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
         
         // Genera canvas con dimensioni del contenuto completo
         const canvas = await html2canvas(exportElement, {
-          scale: 5, // OTTIMALE: alta qualità senza superare limiti
+          scale: 2,
           backgroundColor: '#ffffff',
           logging: false,
           useCORS: true,
@@ -2014,13 +2023,10 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
             const x = (4730 - scaledWidth) / 2
             const y = (2904 - scaledHeight) / 2
             
-            // Usa imageSmoothingEnabled per MASSIMA qualità
-            ctx.imageSmoothingEnabled = true
-            ctx.imageSmoothingQuality = 'high'
             ctx.drawImage(img, x, y, scaledWidth, scaledHeight)
             
-            // Converti in JPEG con MASSIMA qualità
-            const finalDataUrl = resizedCanvas.toDataURL('image/jpeg', 1.0) // MASSIMA qualità
+            // Converti in JPEG
+            const finalDataUrl = resizedCanvas.toDataURL('image/jpeg', 0.95)
             
             // Download con dimensioni corrette
             const link = document.createElement('a')
@@ -2030,21 +2036,22 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
             link.href = finalDataUrl
             link.click()
             
-            alert('✅ Tabella esportata con MASSIMA qualità!')
+            alert('✅ Tabella esportata con successo!')
             onClose()
           }
-          img.src = canvas.toDataURL('image/jpeg', 1.0) // MASSIMA qualità anche qui
+          img.src = canvas.toDataURL('image/jpeg', 0.95)
           return // Esci per evitare doppio download
         } else {
           // Canvas già delle dimensioni giuste
-          const dataUrl = canvas.toDataURL('image/jpeg', 1.0) // MASSIMA qualità
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
           const link = document.createElement('a')
-          const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '') + '_' + new Date().toTimeString().split(' ')[0].replace(/:/g, '')
+          const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '') + '_' + 
+                            new Date().toTimeString().split(' ')[0].replace(/:/g, '')
           link.download = `${weekend.nome_gp.replace(/\s+/g, '_')}_Tabella_${timestamp}.jpg`
           link.href = dataUrl
           link.click()
           
-          alert('✅ Tabella esportata con MASSIMA qualità!')
+          alert('✅ Tabella esportata con successo!')
           onClose()
         }
       } else {
