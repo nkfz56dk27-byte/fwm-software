@@ -130,27 +130,50 @@ function App() {
 
   async function caricaNotificheCalendario(username) {
     try {
-      const { data: notifiche } = await supabase.from('notifiche_calendario').select('id')
+      console.log('🔍 DEBUG HOME: Inizio caricaNotificheCalendario')
+      console.log('🔍 DEBUG HOME: username:', username)
+      
+      const { data: notifiche } = await supabase.from('notifiche_calendario').select('*').order('created_at', { ascending: false }).limit(50)
+      console.log('🔍 DEBUG HOME: notifiche totali caricate:', notifiche?.length || 0)
+      
       const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', username)
+      console.log('🔍 DEBUG HOME: notifiche lette caricate:', lette?.length || 0)
+      
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
+      console.log('🔍 DEBUG HOME: IDs lette:', Array.from(idsLette))
+      
       const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id))
+      console.log('🔍 DEBUG HOME: notifiche non lette calcolate:', nonLette.length)
+      
       setNotificheNonLetteCalendario(nonLette.length)
-    } catch (e) {}
+      console.log('✅ DEBUG HOME: caricaNotificheCalendario completato')
+    } catch (e) {
+      console.error('❌ Errore caricaNotificheCalendario (HOME):', e)
+    }
   }
 
   async function caricaNotificheDisponibilita(username) {
     try {
+      console.log('🔍 DEBUG HOME: Inizio caricaNotificheDisponibilita')
+      console.log('🔍 DEBUG HOME: username:', username)
+      console.log('🔍 DEBUG HOME: isAdmin:', user?.ruolo === 'admin')
+      
       const isAdmin = user?.ruolo === 'admin'
       
-      // 1. Carica tutte le notifiche
+      // 1. Carica tutte le notifiche (con limite e ordinamento come Disponibilità)
       const { data: tutteNotifiche } = await supabase
         .from('notifiche_disponibilita')
-        .select('id, weekend_id')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      
+      console.log('🔍 DEBUG HOME: notifiche totali caricate:', tutteNotifiche?.length || 0)
       
       let notificheFiltrate = tutteNotifiche || []
       
       // 2. Se NON admin: filtra per categorie
       if (!isAdmin) {
+        console.log('🔍 DEBUG HOME: Filtro per categorie utente')
         // Carica categorie utente
         const { data: gruppiUtente } = await supabase
           .from('gruppi_redattori')
@@ -158,6 +181,7 @@ function App() {
           .eq('username', username)
         
         const categorieIds = (gruppiUtente || []).map(g => g.categoria_id).filter(Boolean)
+        console.log('🔍 DEBUG HOME: categorieIds:', categorieIds)
         
         // Carica weekend di quelle categorie
         let queryWeekend = supabase.from('weekend').select('id')
@@ -170,11 +194,13 @@ function App() {
         
         const { data: weekendConsentiti } = await queryWeekend
         const weekendIdsConsentiti = new Set((weekendConsentiti || []).map(w => w.id))
+        console.log('🔍 DEBUG HOME: weekendIdsConsentiti:', Array.from(weekendIdsConsentiti))
         
         // Filtra notifiche
         notificheFiltrate = notificheFiltrate.filter(n => 
           !n.weekend_id || weekendIdsConsentiti.has(n.weekend_id)
         )
+        console.log('🔍 DEBUG HOME: notifiche dopo filtro categorie:', notificheFiltrate.length)
       }
       
       // 3. Conta notifiche NON lette
@@ -183,10 +209,16 @@ function App() {
         .select('notifica_id')
         .eq('username', username)
       
+      console.log('🔍 DEBUG HOME: notifiche lette caricate:', lette?.length || 0)
+      
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
+      console.log('🔍 DEBUG HOME: IDs lette:', Array.from(idsLette))
+      
       const nonLette = notificheFiltrate.filter(n => !idsLette.has(n.id))
+      console.log('🔍 DEBUG HOME: notifiche non lette calcolate:', nonLette.length)
       
       setNotificheNonLetteDisponibilita(nonLette.length)
+      console.log('✅ DEBUG HOME: caricaNotificheDisponibilita completato')
     } catch (e) {
       console.error('[HOME] Errore caricamento notifiche disponibilità:', e)
     }
@@ -203,6 +235,16 @@ function App() {
         caricaNotificheCalendario(user.username)
         caricaNotificheDisponibilita(user.username)
       }, 30000)
+      
+      // AGGIUNTA: Ascolta eventi custom da Calendario/Disponibilità
+      const handleNotificheAggiornate = (event) => {
+        console.log('🔄 HOME: Ricevuto evento notificheAggiornate', event.detail)
+        // Forza ricaricamento immediato delle notifiche
+        caricaNotificheCalendario(user.username)
+        caricaNotificheDisponibilita(user.username)
+      }
+      
+      window.addEventListener('notificheAggiornate', handleNotificheAggiornate)
       
       // REALTIME SUBSCRIPTION per notifiche disponibilità
       const channelDisponibilita = supabase
@@ -230,6 +272,7 @@ function App() {
       return () => {
         clearInterval(interval)
         supabase.removeChannel(channelDisponibilita)
+        window.removeEventListener('notificheAggiornate', handleNotificheAggiornate)
         console.log('[HOME] Subscription realtime notifiche rimossa')
       }
     }
