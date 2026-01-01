@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { notificaNuovoEvento, notificaModificaPass } from './pushNotifications'
+import { notificaNuovoEvento, notificaModificaPass, notificaPersonalizzata } from './pushNotifications'
 
 const CAMPIONATI_DEFAULT = [
   { id: 'f1', nome: 'Formula 1', colore: '#E10600', emoji: '🏎️', sigla: 'F1' },
@@ -109,7 +109,8 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   
   async function creaNotifica(tipo, messaggio, evento_id = null) {
     await supabase.from('notifiche_calendario').insert({ tipo, messaggio, evento_id })
-    await inviaNotificaPush(messaggio)
+    // Invia notifica push personalizzata (solo se utente NON è sul sito)
+    await notificaPersonalizzata('📅 Calendario Accrediti', messaggio)
     await caricaNotifiche()
   }
   
