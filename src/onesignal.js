@@ -6,6 +6,33 @@ const ONESIGNAL_APP_ID = '929f6f6156-9a35-4a5f-900c-4e77e881e899'
 let oneSignalInitialized = false
 
 /**
+ * Aspetta che OneSignal sia caricato dall'HTML
+ */
+function waitForOneSignal() {
+  return new Promise((resolve, reject) => {
+    if (window.OneSignalDeferred) {
+      resolve()
+      return
+    }
+
+    const checkLoaded = setInterval(() => {
+      if (window.OneSignalDeferred) {
+        clearInterval(checkLoaded)
+        resolve()
+      }
+    }, 100)
+    
+    // Timeout dopo 10 secondi
+    setTimeout(() => {
+      clearInterval(checkLoaded)
+      if (!window.OneSignalDeferred) {
+        reject(new Error('OneSignal SDK failed to load from HTML'))
+      }
+    }, 10000)
+  })
+}
+
+/**
  * Inizializza OneSignal per le notifiche push
  * Da chiamare una sola volta all'avvio dell'app
  */
@@ -16,11 +43,26 @@ export async function initializeOneSignal() {
   }
 
   try {
-    // Carica OneSignal SDK
-    await loadOneSignalSDK()
+    console.log('🔔 Inizializzazione OneSignal...')
     
-    // Inizializza OneSignal
+    // Aspetta che lo script OneSignal sia caricato dall'HTML
+    await waitForOneSignal()
+    
+    // Inizializza OneSignal (UNA SOLA VOLTA)
     await window.OneSignalDeferred.push(async function(OneSignal) {
+      // Controlla se è già inizializzato
+      try {
+        const currentPermission = await OneSignal.Notifications.permission
+        if (currentPermission !== undefined) {
+          console.log('✅ OneSignal già inizializzato dal sistema')
+          oneSignalInitialized = true
+          return
+        }
+      } catch (e) {
+        // Non è ancora inizializzato, procediamo
+      }
+
+      // Inizializza
       await OneSignal.init({
         appId: ONESIGNAL_APP_ID,
         safari_web_id: 'web.onesignal.auto.929f6f6156-9a35-4a5f-900c-4e77e881e899',
@@ -44,35 +86,6 @@ export async function initializeOneSignal() {
   } catch (error) {
     console.error('❌ Errore inizializzazione OneSignal:', error)
   }
-}
-
-/**
- * Carica dinamicamente l'SDK di OneSignal
- */
-function loadOneSignalSDK() {
-  return new Promise((resolve, reject) => {
-    // Controlla se OneSignal è già caricato
-    if (window.OneSignalDeferred) {
-      resolve()
-      return
-    }
-
-    // Lo script è già nel DOM (index.html), aspetta che si carichi
-    const checkLoaded = setInterval(() => {
-      if (window.OneSignalDeferred) {
-        clearInterval(checkLoaded)
-        resolve()
-      }
-    }, 100)
-    
-    // Timeout dopo 10 secondi
-    setTimeout(() => {
-      clearInterval(checkLoaded)
-      if (!window.OneSignalDeferred) {
-        reject(new Error('OneSignal SDK failed to load'))
-      }
-    }, 10000)
-  })
 }
 
 /**
