@@ -57,13 +57,21 @@ function loadOneSignalSDK() {
       return
     }
 
-    // Crea lo script tag
-    const script = document.createElement('script')
-    script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
-    script.defer = true
-    script.onload = resolve
-    script.onerror = reject
-    document.head.appendChild(script)
+    // Lo script è già nel DOM (index.html), aspetta che si carichi
+    const checkLoaded = setInterval(() => {
+      if (window.OneSignalDeferred) {
+        clearInterval(checkLoaded)
+        resolve()
+      }
+    }, 100)
+    
+    // Timeout dopo 10 secondi
+    setTimeout(() => {
+      clearInterval(checkLoaded)
+      if (!window.OneSignalDeferred) {
+        reject(new Error('OneSignal SDK failed to load'))
+      }
+    }, 10000)
   })
 }
 
