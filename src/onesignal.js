@@ -1,7 +1,7 @@
 // Configurazione OneSignal per notifiche push cross-platform
 // Supporta: iOS Safari, macOS, Windows, Android
 
-const ONESIGNAL_APP_ID = '929f6f156-9a35-4a5f-900c-4e77e881e899'
+const ONESIGNAL_APP_ID = '929f6f6156-9a35-4a5f-900c-4e77e881e899'
 
 let oneSignalInitialized = false
 
@@ -23,7 +23,7 @@ export async function initializeOneSignal() {
     await window.OneSignalDeferred.push(async function(OneSignal) {
       await OneSignal.init({
         appId: ONESIGNAL_APP_ID,
-        safari_web_id: 'web.onesignal.auto.929f6f156-9a35-4a5f-900c-4e77e881e899',
+        safari_web_id: 'web.onesignal.auto.929f6f6156-9a35-4a5f-900c-4e77e881e899',
         notifyButton: {
           enable: false // Non mostriamo il bottone di OneSignal, usiamo il nostro
         },
