@@ -50,9 +50,13 @@ export default function VidaMenu({ onClose }) {
               background: 'none',
               border: 'none',
               color: '#007AFF',
-              fontSize: isMobile ? '14px' : '18px',
+              fontSize: isMobile ? '14px' : '16px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              alignSelf: isMobile ? 'flex-start' : 'auto',
+              minHeight: isMobile ? '44px' : 'auto',
+              padding: isMobile ? '8px 0' : '0',
+              textAlign: 'left'
             }}
           >
             ← Indietro
@@ -271,9 +275,13 @@ function TextFormatterPanel({ onClose }) {
               background: 'none',
               border: 'none',
               color: '#007AFF',
-              fontSize: isMobile ? '14px' : '18px',
+              fontSize: isMobile ? '14px' : '16px',
               fontWeight: 'bold',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              alignSelf: isMobile ? 'flex-start' : 'auto',
+              minHeight: isMobile ? '44px' : 'auto',
+              padding: isMobile ? '8px 0' : '0',
+              textAlign: 'left'
             }}
           >
             ← Indietro
