@@ -81,6 +81,30 @@ function App() {
         await waitForOneSignal()
         console.log('✅ OneSignal script caricato')
         
+        // Controlla se è già inizializzato verificando il context
+        try {
+          const contextCheck = window.OneSignal?.context
+          if (contextCheck && contextCheck.appId) {
+            console.log('✅ OneSignal già configurato, skip init')
+            window.OneSignalInitialized = true
+            return
+          }
+        } catch (e) {
+          // Context non accessibile, procedi con init
+        }
+        
+        // Verifica anche se Session esiste (altro indicatore di init)
+        try {
+          if (window.OneSignal?.Session) {
+            console.log('✅ OneSignal Session già presente, skip init')
+            window.OneSignalInitialized = true
+            return
+          }
+        } catch (e) {
+          // Session non accessibile, procedi con init
+        }
+        
+        console.log('🚀 Procedo con init OneSignal...')
         await window.OneSignal.init({
           appId: '929f6f6156-9a35-4a5f-900c-4e77e881e899',
           allowLocalhostAsSecureOrigin: true,
@@ -91,6 +115,7 @@ function App() {
         console.log('✅ OneSignal inizializzato con Service Worker!')
       } catch (e) {
         console.error('❌ Errore init OneSignal:', e)
+        // Anche se fallisce, segna come inizializzato per non riprovare
         window.OneSignalInitialized = true
       }
     }
