@@ -29,8 +29,8 @@ export default function VidaMenu({ onClose }) {
         borderRadius: '20px',
         width: isMobile ? '95vw' : '90vw',
         maxWidth: isMobile ? '95vw' : '800px',
-        height: isMobile ? '70vh' : '80vh',
-        maxHeight: isMobile ? '70vh' : '600px',
+        height: isMobile ? '85vh' : '80vh',
+        maxHeight: isMobile ? '85vh' : '600px',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'
@@ -38,7 +38,7 @@ export default function VidaMenu({ onClose }) {
         {/* Header */}
         <div className="gestione-header" style={{ 
           background: '#f8f9fa',
-          padding: isMobile ? '10px 15px' : '20px 30px'
+          padding: isMobile ? '12px 15px' : '20px 30px'
         }}>
           <button className="btn-back" onClick={onClose}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
@@ -54,7 +54,7 @@ export default function VidaMenu({ onClose }) {
         {/* Content */}
         <div style={{
           flex: 1,
-          padding: isMobile ? '10px' : '40px',
+          padding: isMobile ? '20px' : '40px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -67,7 +67,7 @@ export default function VidaMenu({ onClose }) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: isMobile ? '10px' : '30px',
+            gap: isMobile ? '15px' : '30px',
             width: '100%',
             maxWidth: '600px'
           }}>
@@ -88,31 +88,31 @@ export default function VidaMenu({ onClose }) {
                   cursor: 'pointer',
                   width: isMobile ? 'calc(50% - 4px)' : '190px',
                   maxWidth: isMobile ? 'calc(50% - 4px)' : '190px',
-                  height: isMobile ? '85px' : '190px',
+                  height: isMobile ? '135px' : '190px',
                   margin: '0',
                   flexShrink: '0',
                   flexGrow: '0',
                   display: 'flex',
                   position: 'relative',
-                  padding: isMobile ? '6px 4px' : '18px 12px',
-                  gap: isMobile ? '3px' : '10px',
+                  padding: isMobile ? '10px 6px' : '18px 12px',
+                  gap: isMobile ? '6px' : '10px',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
               >
                 <div className="card-icon-wrapper" style={{ 
-                  width: isMobile ? '36px' : '75px',
-                  height: isMobile ? '36px' : '75px'
+                  width: isMobile ? '50px' : '75px',
+                  height: isMobile ? '50px' : '75px'
                 }}>
                   <img src={VidaPNG} alt="Vida Logo" style={{ 
-                    width: isMobile ? "22px" : "60px", 
-                    height: isMobile ? "22px" : "60px", 
+                    width: isMobile ? "32px" : "60px", 
+                    height: isMobile ? "32px" : "60px", 
                     filter: "brightness(0) invert(1)", 
                     objectFit: "contain" 
                   }} />
                 </div>
-                <h3 className="card-title" style={{ fontSize: isMobile ? '9px' : '16px', lineHeight: isMobile ? '1.1' : '1.2' }}>Formula1.it</h3>
+                <h3 className="card-title" style={{ fontSize: isMobile ? '12px' : '16px', lineHeight: isMobile ? '1.1' : '1.2' }}>Formula1.it</h3>
               </div>
 
               {/* Seconda Card VIDA (Blogformulae.it) */}
@@ -123,31 +123,31 @@ export default function VidaMenu({ onClose }) {
                   cursor: 'pointer',
                   width: isMobile ? 'calc(50% - 4px)' : '190px',
                   maxWidth: isMobile ? 'calc(50% - 4px)' : '190px',
-                  height: isMobile ? '85px' : '190px',
+                  height: isMobile ? '135px' : '190px',
                   margin: '0',
                   flexShrink: '0',
                   flexGrow: '0',
                   display: 'flex',
                   position: 'relative',
-                  padding: isMobile ? '6px 4px' : '18px 12px',
-                  gap: isMobile ? '3px' : '10px',
+                  padding: isMobile ? '10px 6px' : '18px 12px',
+                  gap: isMobile ? '6px' : '10px',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
               >
                 <div className="card-icon-wrapper" style={{ 
-                  width: isMobile ? '36px' : '75px',
-                  height: isMobile ? '36px' : '75px'
+                  width: isMobile ? '50px' : '75px',
+                  height: isMobile ? '50px' : '75px'
                 }}>
                   <img src={VidaPNG} alt="Vida Logo" style={{ 
-                    width: isMobile ? "22px" : "60px", 
-                    height: isMobile ? "22px" : "60px", 
+                    width: isMobile ? "32px" : "60px", 
+                    height: isMobile ? "32px" : "60px", 
                     filter: "brightness(0) invert(1)", 
                     objectFit: "contain" 
                   }} />
                 </div>
-                <h3 className="card-title" style={{ fontSize: isMobile ? '9px' : '16px', lineHeight: isMobile ? '1.1' : '1.2' }}>Blogformulae.it</h3>
+                <h3 className="card-title" style={{ fontSize: isMobile ? '12px' : '16px', lineHeight: isMobile ? '1.1' : '1.2' }}>Blogformulae.it</h3>
               </div>
             </div>
 
@@ -159,28 +159,28 @@ export default function VidaMenu({ onClose }) {
                 cursor: 'pointer',
                 width: isMobile ? '100%' : '190px',
                 maxWidth: isMobile ? '100%' : '190px',
-                height: isMobile ? '85px' : '190px',
+                height: isMobile ? '135px' : '190px',
                 margin: '0',
                 flexShrink: '0',
                 flexGrow: '0',
                 display: 'flex',
                 position: 'relative',
-                padding: isMobile ? '6px 4px' : '18px 12px',
-                gap: isMobile ? '3px' : '10px',
+                padding: isMobile ? '10px 6px' : '18px 12px',
+                gap: isMobile ? '6px' : '10px',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
             >
               <div className="card-icon-wrapper" style={{ 
-                width: isMobile ? '36px' : '75px',
-                height: isMobile ? '36px' : '75px'
+                width: isMobile ? '50px' : '75px',
+                height: isMobile ? '50px' : '75px'
               }}>
-                <svg width={isMobile ? "22" : "60"} height={isMobile ? "22" : "60"} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: "brightness(0) invert(1)" }}>
+                <svg width={isMobile ? "32" : "60"} height={isMobile ? "32" : "60"} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: "brightness(0) invert(1)" }}>
                   <path d="M3 5h18M7 9h10M5 13h14M8 17h8M11 21h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <h3 className="card-title" style={{ fontSize: isMobile ? '9px' : '16px', lineHeight: isMobile ? '1.1' : '1.2' }}>Formattatore Testo</h3>
+              <h3 className="card-title" style={{ fontSize: isMobile ? '12px' : '16px', lineHeight: isMobile ? '1.1' : '1.2' }}>Formattatore Testo</h3>
             </div>
           </div>
         </div>
@@ -242,7 +242,7 @@ function TextFormatterPanel({ onClose }) {
         {/* Header */}
         <div className="gestione-header" style={{ 
           background: '#f8f9fa',
-          padding: isMobile ? '10px 15px' : '20px 30px'
+          padding: isMobile ? '12px 15px' : '20px 30px'
         }}>
           <button className="btn-back" onClick={onClose}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
