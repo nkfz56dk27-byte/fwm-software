@@ -260,12 +260,17 @@ export async function getPlayerId() {
  */
 export async function setUserTags(tags) {
   try {
+    console.log('🔍 DEBUG PUSH: Inizio setUserTags')
+    console.log('🔍 DEBUG PUSH: oneSignalInitialized:', oneSignalInitialized)
+    console.log('🔍 DEBUG PUSH: tags da impostare:', tags)
+    
     if (!oneSignalInitialized) {
       console.warn('⚠️ OneSignal non inizializzato')
       return
     }
 
     await window.OneSignalDeferred.push(async function(OneSignal) {
+      console.log('🔍 DEBUG PUSH: Chiamata OneSignal.User.addTags')
       await OneSignal.User.addTags(tags)
     })
     
