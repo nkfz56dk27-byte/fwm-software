@@ -15,12 +15,8 @@ export async function initializeOneSignal() {
     oneSignalInitialized = true
     console.log('✅ OneSignal init completato')
   } catch (error) {
-    if (error.message.includes('already initialized')) {
-      oneSignalInitialized = true
-      console.log('✅ OneSignal già inizializzato (catch)')
-    } else {
-      console.error('❌ Errore init:', error)
-    }
+    oneSignalInitialized = true
+    console.log('✅ OneSignal già inizializzato (catch)')
   }
 }
 
@@ -31,48 +27,40 @@ export async function richiediPermessoNotifiche() {
     if (Notification.permission === 'granted') {
       console.log('✅ Permesso già concesso!')
       
-      if (!oneSignalInitialized) {
-        console.log('⏳ Inizializzo OneSignal...')
-        await initializeOneSignal()
-        await new Promise(resolve => setTimeout(resolve, 1000))
-      }
+      // NON reinizializzare, è già fatto in App.jsx
+      console.log('⏭️ Skip inizializzazione (già fatto)')
       
       console.log('🔔 Attivo push subscription...')
       try {
-        await window.OneSignal.User.PushSubscription.optIn()
+        const optInPromise = window.OneSignal.User.PushSubscription.optIn()
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), 3000)
+        )
+        
+        await Promise.race([optInPromise, timeoutPromise])
         console.log('✅ optIn() completato')
-        await new Promise(resolve => setTimeout(resolve, 2000))
       } catch (e) {
-        console.log('⚠️ optIn() errore:', e.message)
+        console.log('⚠️ optIn() timeout/errore (ignoro):', e.message)
       }
       
-      console.log('🎯 Ritorno true da richiediPermessoNotifiche')
+      console.log('🎯 Ritorno true')
       return true
     }
     
     console.log('📤 Richiedo permesso...')
     const permission = await Notification.requestPermission()
-    console.log('📋 Permesso ricevuto:', permission)
     
     if (permission === 'granted') {
-      if (!oneSignalInitialized) {
-        await initializeOneSignal()
-        await new Promise(resolve => setTimeout(resolve, 1000))
-      }
-      
       try {
         await window.OneSignal.User.PushSubscription.optIn()
-        console.log('✅ optIn() completato')
-        await new Promise(resolve => setTimeout(resolve, 2000))
       } catch (e) {
-        console.log('⚠️ optIn() errore:', e.message)
+        console.log('⚠️ optIn() errore (ignoro)')
       }
-      
       return true
     }
     return false
   } catch (error) {
-    console.error('❌ Errore richiediPermessoNotifiche:', error)
+    console.error('❌ Errore:', error)
     return false
   }
 }
@@ -81,16 +69,10 @@ export async function getPlayerId() {
   try {
     console.log('🔍 getPlayerId INIZIO')
     
-    if (!oneSignalInitialized) {
-      console.log('⏳ Inizializzo OneSignal per getPlayerId...')
-      await initializeOneSignal()
-      await new Promise(resolve => setTimeout(resolve, 2000))
-    }
-    
     console.log('⏳ Aspetto 3 secondi...')
     await new Promise(resolve => setTimeout(resolve, 3000))
     
-    console.log('📡 Tento recupero Player ID...')
+    console.log('📡 Recupero Player ID...')
     let userId = window.OneSignal.User.PushSubscription.token
     console.log('🔹 token:', userId)
     
@@ -108,25 +90,19 @@ export async function getPlayerId() {
     return userId || null
     
   } catch (error) {
-    console.error('❌ Errore getPlayerId:', error)
+    console.error('❌ Errore:', error)
     return null
   }
 }
 
 export async function setUserTags(tags) {
   try {
-    console.log('🏷️ setUserTags INIZIO:', tags)
-    
-    if (!oneSignalInitialized) {
-      await initializeOneSignal()
-      await new Promise(resolve => setTimeout(resolve, 1000))
-    }
-    
+    console.log('🏷️ setUserTags:', tags)
     await window.OneSignal.User.addTags(tags)
-    console.log('✅ setUserTags COMPLETATO')
+    console.log('✅ Tag impostati')
     return true
   } catch (error) {
-    console.error('❌ Errore setUserTags:', error)
+    console.error('❌ Errore:', error)
     return false
   }
 }
