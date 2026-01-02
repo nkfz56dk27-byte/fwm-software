@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import VidaPNG from "./assets/vida.png"
-import textFormatterIcon from "./assets/text-formatter.svg"
 import TextFormatterPanel from "./TextFormatterPanel"
 
 export default function VidaMenu({ onClose }) {
@@ -201,12 +200,9 @@ export default function VidaMenu({ onClose }) {
                 width: isMobile ? '50px !important' : '75px !important',
                 height: isMobile ? '50px !important' : '75px !important'
               }}>
-                <img src={textFormatterIcon} alt="Formattatore Testo" style={{ 
-                  width: isMobile ? "32px !important" : "60px", 
-                  height: isMobile ? "32px !important" : "60px", 
-                  filter: "brightness(0) invert(1)", 
-                  objectFit: "contain" 
-                }} />
+                <svg width={isMobile ? "32" : "60"} height={isMobile ? "32" : "60"} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: "brightness(0) invert(1)" }}>
+                  <path d="M3 5h18M7 9h10M5 13h14M8 17h8M11 21h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
               <h3 className="card-title" style={{ fontSize: isMobile ? '11px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Formattatore Testo</h3>
             </div>
