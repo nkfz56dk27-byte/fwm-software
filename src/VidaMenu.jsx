@@ -36,41 +36,17 @@ export default function VidaMenu({ onClose }) {
         overflow: 'hidden'
       }}>
         {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '20px 25px',
-          borderBottom: '1px solid #e0e0e0',
-          background: '#f8f9fa'
-        }}>
+        <div className="gestione-header" style={{ background: '#f8f9fa' }}>
           <button className="btn-back" onClick={onClose}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
               <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
             </svg>
             Indietro
           </button>
-          
-          <div style={{ 
-            textAlign: 'center',
-            position: 'relative',
-            left: isMobile ? '-24px' : '-24px',
-            top: '0px',
-            right: '0px',
-            bottom: '0px',
-            transform: 'none',
-            margin: '0px',
-            padding: '0px',
-            width: 'auto',
-            height: 'auto'
-          }}>
-            <div style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: 'bold' }}>
-          
-            </div>
-          </div>
-          
+          <h1 className="gestione-title" style={{ visibility: 'hidden' }}>Menu Vida</h1>
           <div style={{ width: '80px' }}></div>
         </div>
+        <div className="divider"></div>
 
         {/* Content */}
         <div style={{
@@ -240,29 +216,17 @@ function TextFormatterPanel({ onClose }) {
         overflow: 'hidden'
       }}>
         {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '20px 25px',
-          borderBottom: '1px solid #e0e0e0',
-          background: '#f8f9fa'
-        }}>
+        <div className="gestione-header" style={{ background: '#f8f9fa' }}>
           <button className="btn-back" onClick={onClose}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
               <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
             </svg>
             Indietro
           </button>
-          
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: 'bold' }}>
-              Formattatore Testo Automatico
-            </div>
-          </div>
-          
+          <h1 className="gestione-title">Formattatore Testo Automatico</h1>
           <div style={{ width: '80px' }}></div>
         </div>
+        <div className="divider"></div>
 
         {/* Content */}
         <div style={{
