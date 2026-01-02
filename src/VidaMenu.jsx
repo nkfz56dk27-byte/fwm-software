@@ -44,22 +44,11 @@ export default function VidaMenu({ onClose }) {
           borderBottom: '1px solid #e0e0e0',
           background: '#f8f9fa'
         }}>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#007AFF',
-              fontSize: isMobile ? '14px' : '16px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              alignSelf: isMobile ? 'flex-start' : 'auto',
-              minHeight: isMobile ? '44px' : 'auto',
-              padding: isMobile ? '8px 0' : '0',
-              textAlign: 'left'
-            }}
-          >
-            ← Indietro
+          <button className="btn-back" onClick={onClose}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+            Indietro
           </button>
           
           <div style={{ 
@@ -98,84 +87,74 @@ export default function VidaMenu({ onClose }) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: '40px',
+            gap: '60px',
             width: '100%'
           }}>
-            {/* Prima riga: Formula1.it e Blogformulae.it affiancati */}
-            <div style={{
-              display: 'flex',
-              flexDirection: isMobile ? 'column' : 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '40px',
-              width: '100%'
-            }}>
-              {/* Prima Card VIDA */}
-              <div 
-                className="home-card card-red" 
-                onClick={() => window.open('https://www.formula1.it/admin/login.asp', '_blank')} 
-                style={{ 
-                  cursor: 'pointer',
-                  width: isMobile ? '100% !important' : '190px !important',
-                  maxWidth: isMobile ? '100% !important' : '190px !important',
-                  height: isMobile ? '135px !important' : '190px !important',
-                  margin: '0 !important',
-                  flexShrink: '0 !important',
-                  flexGrow: '0 !important',
-                  display: 'flex !important',
-                  position: 'relative !important',
-                  padding: isMobile ? '10px 6px !important' : '18px 12px !important',
-                  gap: isMobile ? '6px !important' : '10px !important'
-                }}
-              >
-                <div className="card-icon-wrapper" style={{ 
-                  width: isMobile ? '50px !important' : '75px !important',
-                  height: isMobile ? '50px !important' : '75px !important'
-                }}>
-                  <img src={VidaPNG} alt="Vida Logo" style={{ 
-                    width: isMobile ? "32px !important" : "60px", 
-                    height: isMobile ? "32px !important" : "60px", 
-                    filter: "brightness(0) invert(1)", 
-                    objectFit: "contain" 
-                  }} />
-                </div>
-                <h3 className="card-title" style={{ fontSize: isMobile ? '11px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Formula1.it</h3>
+            {/* Prima Card VIDA */}
+            <div 
+              className="home-card card-red" 
+              onClick={() => window.open('https://www.formula1.it/admin/login.asp', '_blank')} 
+              style={{ 
+                cursor: 'pointer',
+                width: isMobile ? '100% !important' : '190px !important',
+                maxWidth: isMobile ? '100% !important' : '190px !important',
+                height: isMobile ? '135px !important' : '190px !important',
+                margin: '0 !important',
+                flexShrink: '0 !important',
+                flexGrow: '0 !important',
+                display: 'flex !important',
+                position: 'relative !important',
+                padding: isMobile ? '10px 6px !important' : '18px 12px !important',
+                gap: isMobile ? '6px !important' : '10px !important'
+              }}
+            >
+              <div className="card-icon-wrapper" style={{ 
+                width: isMobile ? '50px !important' : '75px !important',
+                height: isMobile ? '50px !important' : '75px !important'
+              }}>
+                <img src={VidaPNG} alt="Vida Logo" style={{ 
+                  width: isMobile ? "32px !important" : "60px", 
+                  height: isMobile ? "32px !important" : "60px", 
+                  filter: "brightness(0) invert(1)", 
+                  objectFit: "contain" 
+                }} />
               </div>
-
-              {/* Seconda Card VIDA (Blogformulae.it) */}
-              <div 
-                className="home-card card-red" 
-                onClick={() => window.open('https://www.blogformulae.it/admin/login.asp', '_blank')} 
-                style={{ 
-                  cursor: 'pointer',
-                  width: isMobile ? '100% !important' : '190px !important',
-                  maxWidth: isMobile ? '100% !important' : '190px !important',
-                  height: isMobile ? '135px !important' : '190px !important',
-                  margin: '0 !important',
-                  flexShrink: '0 !important',
-                  flexGrow: '0 !important',
-                  display: 'flex !important',
-                  position: 'relative !important',
-                  padding: isMobile ? '10px 6px !important' : '18px 12px !important',
-                  gap: isMobile ? '6px !important' : '10px !important'
-                }}
-              >
-                <div className="card-icon-wrapper" style={{ 
-                  width: isMobile ? '50px !important' : '75px !important',
-                  height: isMobile ? '50px !important' : '75px !important'
-                }}>
-                  <img src={VidaPNG} alt="Vida Logo" style={{ 
-                    width: isMobile ? "32px !important" : "60px", 
-                    height: isMobile ? "32px !important" : "60px", 
-                    filter: "brightness(0) invert(1)", 
-                    objectFit: "contain" 
-                  }} />
-                </div>
-                <h3 className="card-title" style={{ fontSize: isMobile ? '11px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Blogformulae.it</h3>
-              </div>
+              <h3 className="card-title" style={{ fontSize: isMobile ? '11px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Formula1.it</h3>
             </div>
 
-            {/* Seconda riga: Formattatore Testo centrato sotto */}
+            {/* Seconda Card VIDA (identica) */}
+            <div 
+              className="home-card card-red" 
+              onClick={() => window.open('https://www.blogformulae.it/admin/login.asp', '_blank')} 
+              style={{ 
+                cursor: 'pointer',
+                width: isMobile ? '100% !important' : '190px !important',
+                maxWidth: isMobile ? '100% !important' : '190px !important',
+                height: isMobile ? '135px !important' : '190px !important',
+                margin: '0 !important',
+                flexShrink: '0 !important',
+                flexGrow: '0 !important',
+                display: 'flex !important',
+                position: 'relative !important',
+                padding: isMobile ? '10px 6px !important' : '18px 12px !important',
+                gap: isMobile ? '6px !important' : '10px !important'
+              }}
+            >
+              <div className="card-icon-wrapper" style={{ 
+                width: isMobile ? '50px !important' : '75px !important',
+                height: isMobile ? '50px !important' : '75px !important'
+              }}>
+                <img src={VidaPNG} alt="Vida Logo" style={{ 
+                  width: isMobile ? "32px !important" : "60px", 
+                  height: isMobile ? "32px !important" : "60px", 
+                  filter: "brightness(0) invert(1)", 
+                  objectFit: "contain" 
+                }} />
+              </div>
+              <h3 className="card-title" style={{ fontSize: isMobile ? '11px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Blogformulae.it</h3>
+            </div>
+
+            {/* Terza Card VIDA - Formattatore Testo */}
             <div 
               className="home-card card-red" 
               onClick={() => setShowTextFormatter(true)} 
@@ -247,7 +226,7 @@ function TextFormatterPanel({ onClose }) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 10000
+      zIndex: 10001
     }}>
       <div style={{
         background: '#ffffff',
@@ -269,22 +248,11 @@ function TextFormatterPanel({ onClose }) {
           borderBottom: '1px solid #e0e0e0',
           background: '#f8f9fa'
         }}>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#007AFF',
-              fontSize: isMobile ? '14px' : '16px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              alignSelf: isMobile ? 'flex-start' : 'auto',
-              minHeight: isMobile ? '44px' : 'auto',
-              padding: isMobile ? '8px 0' : '0',
-              textAlign: 'left'
-            }}
-          >
-            ← Indietro
+          <button className="btn-back" onClick={onClose}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+            Indietro
           </button>
           
           <div style={{ textAlign: 'center' }}>
@@ -406,7 +374,7 @@ function TextFormatterPanel({ onClose }) {
                 <li>Mette in grassetto max 9 parole/frasi SEO</li>
                 <li>Mette in corsivo le dichiarazioni tra virgolette</li>
                 <li>Elimina paragrafi simili o ripetuti</li>
-                <li>Rimuove paragrafi vuoti <p>&nbsp;</p></li>
+                <li>Rimuove paragrafi vuoti &lt;p&gt;&amp;nbsp;&lt;/p&gt;</li>
               </ul>
             </div>
           </div>
