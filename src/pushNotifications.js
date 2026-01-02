@@ -39,14 +39,29 @@ export async function inviaNotificaPush(options) {
     targetUsers = [] // Se vuoto, invia a tutti
   } = options
 
-  // IMPORTANTE: Verifica se l'utente è SUL SITO
-  // Se la tab è visibile, NON inviare la notifica push
-  if (!document.hidden) {
-    console.log('✅ Utente sul sito - notifica push NON inviata (usa notifiche interne)')
-    return { success: false, reason: 'user_on_site' }
-  }
-
   try {
+    console.log('📤 DEBUG PUSH: Inizio invio notifica')
+    console.log('📤 DEBUG PUSH: document.hidden:', document.hidden)
+    console.log('📤 DEBUG PUSH: targetUsers:', targetUsers)
+    console.log('📤 DEBUG PUSH: titolo:', titolo)
+    console.log('📤 DEBUG PUSH: messaggio:', messaggio)
+
+    // IMPORTANTE: Verifica se l'utente è SUL SITO
+    // Se la tab è visibile, NON inviare la notifica push
+    if (!document.hidden) {
+      console.log('✅ Utente sul sito - notifica push NON inviata (usa notifiche interne)')
+      return { success: false, reason: 'user_on_site', useInternal: true }
+    }
+
+    console.log('📤 DEBUG PUSH: Utente non sul sito, procedo con invio push')
+    console.log('📤 DEBUG PUSH: CONTROLLO UTENTE SUL SITO STESSO PANELLO')
+    
+    // AGGIUNTA: Se chi crea l'evento è già sul sito, non inviare push
+    if (skipIfUserOnSite && document.hidden === false) {
+      console.log('⚠️ Creatore evento già sul sito - non invio notifica push')
+      return { success: false, reason: 'creator_on_site' }
+    }
+    
     console.log('📤 Invio notifica push:', { titolo, messaggio, tipo })
 
     const requestBody = {
@@ -105,6 +120,8 @@ export async function inviaNotificaPush(options) {
     })
 
     const result = await response.json()
+
+    console.log('📤 DEBUG PUSH: Risposta OneSignal:', result)
 
     if (response.ok) {
       console.log('✅ Notifica push inviata con successo!', result)
