@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { richiediPermessoNotifiche, setUserTags, getPlayerId } from './onesignal'
-import { supabase } from './supabaseClient'
+import { saveCurrentDevice } from './deviceManager'
 
 export default function NotificationPrompt({ username, onClose }) {
   const [loading, setLoading] = useState(false)
@@ -10,48 +10,41 @@ export default function NotificationPrompt({ username, onClose }) {
     setLoading(true)
     
     try {
-      // BYPASS ONE SIGNAL - usa Notification API diretta
-      console.log('📤 Richiesta permesso notifiche dirette...')
+      // Richiedi permesso OneSignal
+      console.log('🔔 Richiesta permesso notifiche OneSignal...')
+      const granted = await richiediPermessoNotifiche()
       
-      const permission = await Notification.requestPermission()
-      console.log('📋 Risposta permesso:', permission)
-      
-      if (permission === 'granted') {
+      if (granted) {
         console.log('✅ Permesso concesso!')
+        
+        // Ottieni Player ID OneSignal
+        console.log('🔍 Recupero Player ID OneSignal...')
+        const playerId = await getPlayerId()
+        console.log('📱 Player ID ottenuto:', playerId)
+        
+        // Salva dispositivo su Supabase con player_id
+        console.log('💾 Salvo dispositivo su Supabase...')
+        const saved = await saveCurrentDevice(username, playerId)
+        
+        if (saved) {
+          console.log('✅ Dispositivo salvato su Supabase!')
+        } else {
+          console.warn('⚠️ Errore salvataggio dispositivo, ma notifiche attive')
+        }
+        
+        // Imposta tag OneSignal per targeting
+        try {
+          await setUserTags({ 
+            username: username,
+            ruolo: 'redattore'
+          })
+          console.log('✅ Tag OneSignal impostati per utente:', username)
+        } catch (tagError) {
+          console.error('❌ Errore impostazione tag OneSignal:', tagError)
+        }
         
         // Salva su localStorage
         localStorage.setItem('notificationPromptShown', 'true')
-        
-        // Salva su Supabase per backup permanente
-        try {
-          // Genera un device ID unico basato su fingerprint
-          const deviceId = btoa(navigator.userAgent + screen.width + screen.height + new Date().getTime()).substring(0, 32)
-          
-          await supabase.from('user_preferences').upsert({
-            username: username,
-            device_id: deviceId,
-            device_info: navigator.userAgent,
-            notifications_enabled: true,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'device_id'
-          })
-          console.log('✅ Salvato su Supabase con device_id:', deviceId)
-          
-          // IMPORTANTE: Imposta i tag OneSignal per targeting
-          try {
-            const { setUserTags } = await import('./onesignal.js')
-            await setUserTags({ 
-              username: username,
-              ruolo: 'redattore'
-            })
-            console.log('✅ Tag OneSignal impostati per utente:', username)
-          } catch (tagError) {
-            console.error('❌ Errore impostazione tag OneSignal:', tagError)
-          }
-        } catch (err) {
-          console.log('Info: tabella user_preferences non presente o errore Supabase')
-        }
         
         alert('✅ Notifiche push attivate! Riceverai avvisi anche a sito chiuso.')
       } else {
