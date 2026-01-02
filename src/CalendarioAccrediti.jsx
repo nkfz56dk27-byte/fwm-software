@@ -139,8 +139,8 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   
   async function creaNotifica(tipo, messaggio, evento_id = null) {
     await supabase.from('notifiche_calendario').insert({ tipo, messaggio, evento_id })
-    // Invia notifica push personalizzata (solo se utente NON è sul sito)
-    await notificaPersonalizzata('📅 Calendario Accrediti', messaggio)
+    // Invia notifica push personalizzata (sistema intelligente multi-device)
+    await notificaPersonalizzata('📅 Calendario Accrediti', messaggio, [], utenteCorrente.username)
     await caricaNotifiche()
   }
   
@@ -614,11 +614,12 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
       const { data, error } = await supabase.from('eventi_calendario').insert([nuovoEvento]).select().single();
       if (error) throw error;
       
-      // INVIA NOTIFICA PUSH per nuovo evento (solo se utente NON è sul sito)
+      // INVIA NOTIFICA PUSH per nuovo evento (sistema intelligente multi-device)
       await notificaNuovoEvento(
         titolo,
         dataInizio,
-        '' // circuito opzionale
+        '', // circuito opzionale
+        utenteCorrente?.username  // ← Sistema multi-device: invia solo ad altri dispositivi
       );
       
       await onSave(titolo, data?.id, dataInizio); 
@@ -822,9 +823,9 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     
     await supabase.from('eventi_calendario').update({ titolo: edit.titolo, data_inizio: edit.data_inizio, data_fine: edit.data_fine || null, max_accrediti: edit.max_accrediti || 0, accredito_status: edit.accredito_status, note: edit.note }).eq('id', edit.id)
     
-    // INVIA NOTIFICA PUSH se i pass sono stati modificati (solo se utente NON è sul sito)
+    // INVIA NOTIFICA PUSH se i pass sono stati modificati (sistema intelligente multi-device)
     if (maxAccreditiCambiato) {
-      await notificaModificaPass(edit.titolo, edit.max_accrediti || 0)
+      await notificaModificaPass(edit.titolo, edit.max_accrediti || 0, utenteCorrente?.username)
     }
     
     await onUpdate(`Evento ${edit.titolo} modificato`); setSalvando(false); setModalita('visualizza')
