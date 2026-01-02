@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { initializeOneSignal } from './onesignal'
+import { initTabTracker } from './tabTracker'
+import { updateDeviceActivity } from './deviceManager'
 import { notificaClassificaAggiornata } from './pushNotifications'
 import NotificationPrompt from './NotificationPrompt'
 import CoppaSVG from "./assets/coppa.svg"
@@ -50,9 +52,10 @@ function App() {
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   
-  // Inizializza OneSignal all'avvio dell'app (una sola volta)
+  // Inizializza OneSignal e TabTracker all'avvio dell'app (una sola volta)
   useEffect(() => {
     initializeOneSignal()
+    initTabTracker()
   }, [])
   
   // Mostra NotificationPrompt dopo il login (una sola volta per sessione)
@@ -121,6 +124,21 @@ function App() {
       console.log('🔍 DEBUG: condizioni non soddisfatte - user o mustChangePassword')
     }
   }, [user, mustChangePassword])
+  
+  // Aggiorna attività del dispositivo ogni 5 minuti (per sistema multi-device)
+  useEffect(() => {
+    if (!user) return
+    
+    // Aggiorna immediatamente
+    updateDeviceActivity(user.username)
+    
+    // Poi aggiorna ogni 5 minuti
+    const interval = setInterval(() => {
+      updateDeviceActivity(user.username)
+    }, 5 * 60 * 1000) // 5 minuti
+    
+    return () => clearInterval(interval)
+  }, [user])
   
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
@@ -443,10 +461,11 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         setClassifica(nuovaClassifica)
         setShowSetup(false)
         
-        // INVIA NOTIFICA PUSH per classifica aggiornata (solo se utente NON è sul sito)
+        // INVIA NOTIFICA PUSH per classifica aggiornata (sistema intelligente multi-device)
         await notificaClassificaAggiornata(
           nuovaClassifica.nome,
-          'Nuovi risultati disponibili'
+          'Nuovi risultati disponibili',
+          user.username  // ← Sistema multi-device: invia solo ad altri dispositivi
         )
         
         caricaClassifica()
