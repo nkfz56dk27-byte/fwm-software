@@ -240,3 +240,47 @@ export async function getCurrentPlayerId() {
     return null
   }
 }
+
+/**
+ * Aggiorna player_id quando diventa disponibile (background task)
+ * Utile per Safari iOS che non genera subito il player_id
+ * @param {string} username
+ * @returns {Promise<boolean>}
+ */
+export async function updatePlayerIdWhenReady(username) {
+  const deviceId = getCurrentDeviceId()
+  
+  console.log('🔄 Background: Inizio check Player ID...')
+  
+  // Prova ogni 2 secondi per 30 secondi
+  for (let i = 0; i < 15; i++) {
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    try {
+      const playerId = await getPlayerId()
+      
+      if (playerId) {
+        console.log('✅ Background: Player ID disponibile:', playerId)
+        
+        await supabase
+          .from('user_preferences')
+          .update({ 
+            player_id: playerId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('device_id', deviceId)
+          .eq('username', username)
+        
+        console.log('✅ Background: Player ID aggiornato su Supabase!')
+        return true
+      }
+      
+      console.log(`🔄 Background: Tentativo ${i+1}/15...`)
+    } catch (e) {
+      console.log(`⚠️ Background: Errore tentativo ${i+1}:`, e.message)
+    }
+  }
+  
+  console.log('⚠️ Background: Player ID non disponibile dopo 30 secondi')
+  return false
+}
