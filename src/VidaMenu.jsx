@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import VidaPNG from "./assets/vida.png"
-import TextFormatterSVG from "./assets/text-formatter.svg"
+import textFormatterIcon from "./assets/text-formatter.svg"
 import TextFormatterPanel from "./TextFormatterPanel"
 
 export default function VidaMenu({ onClose }) {
@@ -201,10 +201,10 @@ export default function VidaMenu({ onClose }) {
                 width: isMobile ? '50px !important' : '75px !important',
                 height: isMobile ? '50px !important' : '75px !important'
               }}>
-                <TextFormatterSVG style={{ 
+                <img src={textFormatterIcon} alt="Formattatore Testo" style={{ 
                   width: isMobile ? "32px !important" : "60px", 
                   height: isMobile ? "32px !important" : "60px", 
-                  color: "white", 
+                  filter: "brightness(0) invert(1)", 
                   objectFit: "contain" 
                 }} />
               </div>
