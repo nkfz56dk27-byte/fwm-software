@@ -20,6 +20,26 @@ export async function initializeOneSignal() {
 
 export async function richiediPermessoNotifiche() {
   try {
+    // CONTROLLA SE GIÀ CONCESSO
+    if (Notification.permission === 'granted') {
+      console.log('✅ Permesso già concesso!')
+      
+      if (!oneSignalInitialized) {
+        await initializeOneSignal()
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+      
+      try {
+        await window.OneSignal.User.PushSubscription.optIn()
+        console.log('✅ Push subscription attivata')
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      } catch (e) {
+        console.log('⚠️ Subscription già attiva')
+      }
+      
+      return true
+    }
+    
     const permission = await Notification.requestPermission()
     
     if (permission === 'granted') {
@@ -28,13 +48,12 @@ export async function richiediPermessoNotifiche() {
         await new Promise(resolve => setTimeout(resolve, 1000))
       }
       
-      // FORZA SUBSCRIPTION PUSH
       try {
         await window.OneSignal.User.PushSubscription.optIn()
         console.log('✅ Push subscription attivata')
         await new Promise(resolve => setTimeout(resolve, 2000))
       } catch (e) {
-        console.log('⚠️ Subscription già attiva o errore:', e.message)
+        console.log('⚠️ Subscription già attiva')
       }
       
       return true
@@ -53,10 +72,8 @@ export async function getPlayerId() {
       await new Promise(resolve => setTimeout(resolve, 2000))
     }
     
-    // Aspetta che subscription sia pronta
     await new Promise(resolve => setTimeout(resolve, 3000))
     
-    // Prova a ottenere subscription token
     let userId = window.OneSignal.User.PushSubscription.token
     
     if (!userId) {
