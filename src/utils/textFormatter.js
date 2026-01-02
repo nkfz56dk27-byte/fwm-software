@@ -12,7 +12,12 @@
 
 // Funzione principale per elaborare HTML come il prompt ChatGPT
 export function elaboraTestoComeChatGPT(htmlInput) {
-  if (!htmlInput || typeof htmlInput !== 'string') return htmlInput;
+  if (!htmlInput || typeof htmlInput !== 'string') {
+    return {
+      htmlElaborato: htmlInput,
+      modifiche: []
+    };
+  }
   
   let risultato = htmlInput;
   const modificheApportate = [];
@@ -152,11 +157,6 @@ export function convertiInJSX(testoFormattato) {
 
 // Funzione completa che restituisce JSX ready
 export function formattaTestoPerJSX(testo) {
-  const formattato = formattaTesto(testo);
-  return convertiInJSX(formattato);
-}
-
-// Hook React per usare facilmente il formatting
-export function useTestoFormattato(testo) {
-  return formattaTestoPerJSX(testo);
+  const elaborato = elaboraTestoComeChatGPT(testo);
+  return convertiInJSX(elaborato.htmlElaborato);
 }
