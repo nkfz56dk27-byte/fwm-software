@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { initializeOneSignal } from './onesignal'
 import { initTabTracker } from './tabTracker'
 import { updateDeviceActivity } from './deviceManager'
 import { notificaClassificaAggiornata } from './pushNotifications'
@@ -54,7 +53,24 @@ function App() {
   
   // Inizializza OneSignal e TabTracker all'avvio dell'app (una sola volta)
   useEffect(() => {
-    initializeOneSignal()
+    // Inizializza OneSignal direttamente
+    const initOneSignal = async () => {
+      if (window.OneSignalInitialized) return
+      
+      try {
+        await window.OneSignal.init({
+          appId: '929f6f6156-9a35-4a5f-900c-4e77e881e899',
+          allowLocalhostAsSecureOrigin: true,
+        })
+        window.OneSignalInitialized = true
+        console.log('✅ OneSignal inizializzato correttamente')
+      } catch (e) {
+        console.log('⚠️ OneSignal già inizializzato')
+        window.OneSignalInitialized = true
+      }
+    }
+    
+    initOneSignal()
     initTabTracker()
   }, [])
   
