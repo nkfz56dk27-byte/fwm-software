@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import VidaPNG from "./assets/vida.png"
-import TextFormatterPanel from "./TextFormatterPanel"
+import TextFormatterPanel from "./TextFormatterPanel.jsx"
 
 export default function VidaMenu({ onClose }) {
   console.log('VidaMenu renderizzato');
