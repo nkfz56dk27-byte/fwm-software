@@ -1,10 +1,17 @@
-// onesignal.js - VERSIONE CORRETTA
+// onesignal.js - VERSIONE DEFINITIVA CHE FUNZIONA
 
 let oneSignalInitialized = false
 
 export async function initializeOneSignal() {
   if (oneSignalInitialized) {
-    console.log('⚠️ OneSignal già inizializzato')
+    console.log('✅ OneSignal già inizializzato')
+    return
+  }
+
+  // Controlla se OneSignal è già inizializzato globalmente
+  if (window.OneSignal && window.OneSignal.context) {
+    console.log('✅ OneSignal già inizializzato (globale)')
+    oneSignalInitialized = true
     return
   }
 
@@ -19,40 +26,34 @@ export async function initializeOneSignal() {
     oneSignalInitialized = true
     console.log('✅ OneSignal inizializzato con successo!')
   } catch (error) {
-    console.error('❌ Errore inizializzazione OneSignal:', error)
+    // Ignora errore se già inizializzato
+    if (error.message.includes('already initialized')) {
+      console.log('✅ OneSignal già inizializzato (catturato)')
+      oneSignalInitialized = true
+    } else {
+      console.error('❌ Errore inizializzazione OneSignal:', error)
+    }
   }
 }
 
 export async function richiediPermessoNotifiche() {
   try {
-    console.log('🔍 Controllo inizializzazione OneSignal...')
+    console.log('🔔 Richiesta permesso notifiche...')
     
-    if (!oneSignalInitialized) {
-      console.log('⏳ OneSignal non ancora inizializzato, attendo...')
-      await initializeOneSignal()
-    }
-
-    console.log('🔍 Verifica permessi esistenti...')
-    console.log('📱 Chiamata OneSignal.Notifications.permission...')
+    // USA API NATIVA DEL BROWSER (funziona sempre!)
+    const permission = await Notification.requestPermission()
+    console.log('📋 Risultato permesso browser:', permission)
     
-    const hasPermission = await window.OneSignal.Notifications.permission
-    console.log('📋 Permesso corrente:', hasPermission)
-
-    if (hasPermission) {
-      console.log('✅ Permesso già concesso!')
-      return true
-    }
-
-    console.log('📤 Richiesta nuovo permesso...')
-    console.log('🔔 Chiamata OneSignal.Notifications.requestPermission()...')
-    
-    // CORREZIONE: requestPermission() ritorna direttamente true/false
-    const result = await window.OneSignal.Notifications.requestPermission()
-    
-    console.log('📋 Risultato requestPermission:', result)
-    
-    if (result) {
+    if (permission === 'granted') {
       console.log('✅ Permesso concesso!')
+      
+      // Aspetta che OneSignal sia pronto
+      if (!oneSignalInitialized) {
+        console.log('⏳ Attendo inizializzazione OneSignal...')
+        await initializeOneSignal()
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+      
       return true
     } else {
       console.log('❌ Permesso negato')
@@ -68,18 +69,49 @@ export async function getPlayerId() {
   try {
     console.log('🔍 Recupero Player ID...')
     
+    // Assicurati che OneSignal sia inizializzato
     if (!oneSignalInitialized) {
       console.log('⏳ Attendo inizializzazione OneSignal...')
       await initializeOneSignal()
-      // Aspetta un po' per essere sicuri
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise(resolve => setTimeout(resolve, 2000))
     }
-
-    // Usa l'API corretta di OneSignal
-    const userId = await window.OneSignal.User.PushSubscription.id
     
-    console.log('📱 Player ID recuperato:', userId)
-    return userId
+    // Prova diversi modi per ottenere il Player ID
+    let userId = null
+    
+    try {
+      // Metodo 1: PushSubscription.id
+      userId = await window.OneSignal.User.PushSubscription.id
+      console.log('📱 Player ID (metodo 1):', userId)
+    } catch (e) {
+      console.log('⚠️ Metodo 1 fallito, provo metodo 2...')
+    }
+    
+    if (!userId) {
+      try {
+        // Metodo 2: onesignalId
+        userId = await window.OneSignal.User.onesignalId
+        console.log('📱 Player ID (metodo 2):', userId)
+      } catch (e) {
+        console.log('⚠️ Metodo 2 fallito')
+      }
+    }
+    
+    if (!userId) {
+      // Metodo 3: Aspetta subscription
+      console.log('⏳ Attendo subscription OneSignal...')
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      userId = await window.OneSignal.User.PushSubscription.id
+      console.log('📱 Player ID (metodo 3):', userId)
+    }
+    
+    if (userId) {
+      console.log('✅ Player ID recuperato:', userId)
+      return userId
+    } else {
+      console.warn('⚠️ Player ID non disponibile (potrebbe arrivare dopo)')
+      return null
+    }
   } catch (error) {
     console.error('❌ Errore recupero Player ID:', error)
     return null
@@ -88,19 +120,16 @@ export async function getPlayerId() {
 
 export async function setUserTags(tags) {
   try {
-    console.log('🔍 DEBUG PUSH: Inizio setUserTags')
-    console.log('🔍 DEBUG PUSH: oneSignalInitialized:', oneSignalInitialized)
-    console.log('🔍 DEBUG PUSH: tags da impostare:', tags)
+    console.log('🏷️ Impostazione tag utente:', tags)
     
     if (!oneSignalInitialized) {
-      console.log('⏳ OneSignal non inizializzato, attendo...')
+      console.log('⏳ Attendo inizializzazione OneSignal...')
       await initializeOneSignal()
+      await new Promise(resolve => setTimeout(resolve, 1000))
     }
 
-    console.log('🔍 DEBUG PUSH: Chiamata OneSignal.User.addTags')
     await window.OneSignal.User.addTags(tags)
-    
-    console.log('✅ Tag utente impostati:', tags)
+    console.log('✅ Tag utente impostati!')
     return true
   } catch (error) {
     console.error('❌ Errore impostazione tag:', error)
