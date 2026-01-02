@@ -819,11 +819,12 @@ if (conferma && articoliSelezionati.size > 0) {
     weekend_id: weekend.id
   })
   
-  // INVIA NOTIFICA PUSH (solo se utente NON è sul sito)
+  // INVIA NOTIFICA PUSH (sistema intelligente multi-device)
   await notificaDisponibilitaWeekend(
     weekend.nome_gp,
     nomeRedattore,
-    'disponibile'
+    'disponibile',
+    utenteCorrente?.username  // ← Sistema multi-device: invia solo ad altri dispositivi
   )
   
   // Forza ricarica notifiche per farle apparire subito
