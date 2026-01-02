@@ -37,6 +37,18 @@ export default function NotificationPrompt({ username, onClose }) {
             onConflict: 'device_id'
           })
           console.log('✅ Salvato su Supabase con device_id:', deviceId)
+          
+          // IMPORTANTE: Imposta i tag OneSignal per targeting
+          try {
+            const { setUserTags } = await import('./onesignal.js')
+            await setUserTags({ 
+              username: username,
+              ruolo: 'redattore'
+            })
+            console.log('✅ Tag OneSignal impostati per utente:', username)
+          } catch (tagError) {
+            console.error('❌ Errore impostazione tag OneSignal:', tagError)
+          }
         } catch (err) {
           console.log('Info: tabella user_preferences non presente o errore Supabase')
         }
