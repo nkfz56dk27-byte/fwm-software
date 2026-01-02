@@ -52,23 +52,28 @@ function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   
   // Inizializza OneSignal e TabTracker all'avvio dell'app (una sola volta)
-  useEffect(() => {
-    // Inizializza OneSignal direttamente
-    const initOneSignal = async () => {
-      if (window.OneSignalInitialized) return
-      
-      try {
-        await window.OneSignal.init({
-          appId: '929f6f6156-9a35-4a5f-900c-4e77e881e899',
-          allowLocalhostAsSecureOrigin: true,
-        })
-        window.OneSignalInitialized = true
-        console.log('✅ OneSignal inizializzato correttamente')
-      } catch (e) {
-        console.log('⚠️ OneSignal già inizializzato')
-        window.OneSignalInitialized = true
-      }
+ useEffect(() => {
+  const initOneSignal = async () => {
+    if (window.OneSignalInitialized) return
+    
+    try {
+      await window.OneSignal.init({
+        appId: '929f6f6156-9a35-4a5f-900c-4e77e881e899',
+        allowLocalhostAsSecureOrigin: true,
+        serviceWorkerPath: '/OneSignalSDKWorker.js',  // ← AGGIUNGI QUESTA RIGA!
+        serviceWorkerParam: { scope: '/' }             // ← E QUESTA!
+      })
+      window.OneSignalInitialized = true
+      console.log('✅ OneSignal inizializzato')
+    } catch (e) {
+      console.log('⚠️ Errore:', e)
+      window.OneSignalInitialized = true
     }
+  }
+  
+  initOneSignal()
+  initTabTracker()
+}, [])
     
     initOneSignal()
     initTabTracker()
