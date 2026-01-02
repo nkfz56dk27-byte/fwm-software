@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import VidaPNG from "./assets/vida.png"
-import TextFormatterPanel from "./TextFormatterPanel.jsx"
+import TestoFormattato from './TestoFormattato';
+import { elaboraTestoComeChatGPT } from './utils/textFormatter';
 
 export default function VidaMenu({ onClose }) {
   console.log('VidaMenu renderizzato');
@@ -211,9 +212,210 @@ export default function VidaMenu({ onClose }) {
       </div>
       
       {/* Pannello Formattatore Testo */}
-      {showTextFormatter && (
-        <TextFormatterPanel onClose={() => setShowTextFormatter(false)} />
-      )}
+      {showTextFormatter && <TextFormatterPanel onClose={() => setShowTextFormatter(false)} />}
     </div>
   )
+}
+
+// Componente TextFormatterPanel inline
+function TextFormatterPanel({ onClose }) {
+  const [htmlInput, setHtmlInput] = useState('');
+  const [mostraModifiche, setMostraModifiche] = useState(true);
+  const [result, setResult] = useState(null);
+  
+  // Detect mobile
+  const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 768 : false;
+
+  const handleElabora = () => {
+    if (!htmlInput.trim()) return;
+    
+    const elaborato = elaboraTestoComeChatGPT(htmlInput);
+    setResult(elaborato);
+  };
+
+  const handleCopy = () => {
+    if (result) {
+      navigator.clipboard.writeText(result.htmlElaborato);
+      alert('HTML copiato negli appunti!');
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.8)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 10001
+    }}>
+      <div style={{
+        background: '#ffffff',
+        borderRadius: '20px',
+        width: '95vw',
+        maxWidth: '900px',
+        height: '90vh',
+        maxHeight: '700px',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '20px 25px',
+          borderBottom: '1px solid #e0e0e0',
+          background: '#f8f9fa'
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#007AFF',
+              fontSize: isMobile ? '14px' : '20px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              position: 'relative',
+              left: '-12px'
+            }}
+          >
+            ← Indietro
+          </button>
+          
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: 'bold' }}>
+              Formattatore Testo Automatico
+            </div>
+          </div>
+          
+          <div style={{ width: '80px' }}></div>
+        </div>
+
+        {/* Content */}
+        <div style={{
+          flex: 1,
+          padding: isMobile ? '20px' : '30px',
+          overflowY: 'auto',
+          background: '#f5f5f5'
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Input Section */}
+            <div style={{ background: 'white', padding: '20px', borderRadius: '12px' }}>
+              <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>HTML da elaborare:</h3>
+              <textarea
+                value={htmlInput}
+                onChange={(e) => setHtmlInput(e.target.value)}
+                placeholder="Incolla qui il tuo HTML da formattare..."
+                style={{ 
+                  width: '100%', 
+                  height: '150px', 
+                  padding: '12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontFamily: 'monospace',
+                  resize: 'vertical'
+                }}
+              />
+              
+              <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+                <button
+                  onClick={handleElabora}
+                  disabled={!htmlInput.trim()}
+                  style={{
+                    background: htmlInput.trim() ? '#dc2626' : '#9ca3af',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: htmlInput.trim() ? 'pointer' : 'not-allowed'
+                  }}
+                >
+                  Elabora Testo
+                </button>
+                
+                <button
+                  onClick={() => setMostraModifiche(!mostraModifiche)}
+                  style={{
+                    background: mostraModifiche ? '#059669' : '#6b7280',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {mostraModifiche ? 'Nascondi' : 'Mostra'} Modifiche
+                </button>
+              </div>
+            </div>
+
+            {/* Result Section */}
+            {result && (
+              <div style={{ background: 'white', padding: '20px', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ margin: 0, color: '#333' }}>HTML Elaborato:</h3>
+                  <button
+                    onClick={handleCopy}
+                    style={{
+                      background: '#2563eb',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    📋 Copia HTML
+                  </button>
+                </div>
+                
+                <div style={{ 
+                  border: '1px solid #ddd', 
+                  borderRadius: '8px', 
+                  padding: '15px',
+                  background: '#fafafa',
+                  maxHeight: '300px',
+                  overflowY: 'auto'
+                }}>
+                  <TestoFormattato 
+                    htmlInput={htmlInput} 
+                    mostraModifiche={mostraModifiche}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Instructions */}
+            <div style={{ background: 'white', padding: '20px', borderRadius: '12px' }}>
+              <h3 style={{ margin: '0 0 15px 0', color: '#333' }}>Cosa fa questo strumento:</h3>
+              <ul style={{ margin: 0, paddingLeft: '20px', color: '#666', lineHeight: '1.6' }}>
+                <li>Corregge solo errori di sintassi e forme errate</li>
+                <li>Divide paragrafi troppo lunghi</li>
+                <li>Sistema frasi contorte con tono giornalistico</li>
+                <li>Toglie tag strong dai header</li>
+                <li>Mette in grassetto max 9 parole/frasi SEO</li>
+                <li>Mette in corsivo le dichiarazioni tra virgolette</li>
+                <li>Elimina paragrafi simili o ripetuti</li>
+                <li>Rimuove paragrafi vuoti &lt;p&gt;&amp;nbsp;&lt;/p&gt;</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
