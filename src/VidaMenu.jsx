@@ -1,7 +1,12 @@
+import React, { useState } from 'react';
 import VidaPNG from "./assets/vida.png"
+import TextFormatterSVG from "./assets/text-formatter.svg"
+import TextFormatterPanel from "./TextFormatterPanel"
 
 export default function VidaMenu({ onClose }) {
   console.log('VidaMenu renderizzato');
+  
+  const [showTextFormatter, setShowTextFormatter] = useState(false);
   
   // Detect mobile
   const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 768 : false;
@@ -173,9 +178,46 @@ export default function VidaMenu({ onClose }) {
               </div>
               <h3 className="card-title" style={{ fontSize: isMobile ? '11px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Blogformulae.it</h3>
             </div>
+
+            {/* Terza Card VIDA - Formattatore Testo */}
+            <div 
+              className="home-card card-red" 
+              onClick={() => setShowTextFormatter(true)} 
+              style={{ 
+                cursor: 'pointer',
+                width: isMobile ? '100% !important' : '190px !important',
+                maxWidth: isMobile ? '100% !important' : '190px !important',
+                height: isMobile ? '135px !important' : '190px !important',
+                margin: '0 !important',
+                flexShrink: '0 !important',
+                flexGrow: '0 !important',
+                display: 'flex !important',
+                position: 'relative !important',
+                padding: isMobile ? '10px 6px !important' : '18px 12px !important',
+                gap: isMobile ? '6px !important' : '10px !important'
+              }}
+            >
+              <div className="card-icon-wrapper" style={{ 
+                width: isMobile ? '50px !important' : '75px !important',
+                height: isMobile ? '50px !important' : '75px !important'
+              }}>
+                <TextFormatterSVG style={{ 
+                  width: isMobile ? "32px !important" : "60px", 
+                  height: isMobile ? "32px !important" : "60px", 
+                  color: "white", 
+                  objectFit: "contain" 
+                }} />
+              </div>
+              <h3 className="card-title" style={{ fontSize: isMobile ? '11px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto' }}>Formattatore Testo</h3>
+            </div>
           </div>
         </div>
       </div>
+      
+      {/* Pannello Formattatore Testo */}
+      {showTextFormatter && (
+        <TextFormatterPanel onClose={() => setShowTextFormatter(false)} />
+      )}
     </div>
   )
 }
