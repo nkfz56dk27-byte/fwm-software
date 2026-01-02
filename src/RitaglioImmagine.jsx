@@ -23,18 +23,47 @@ export default function RitaglioImmagine({ onClose }) {
   const logoImgRef = useRef(null)
   const containerRef = useRef(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
+  const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 800)
 
   const isMobile = windowWidth <= 768
-  const DISPLAY_SCALE = isMobile ? 0.35 : 0.6
-  const displayDim = {
-    w: dimensions.width * DISPLAY_SCALE,
-    h: dimensions.height * DISPLAY_SCALE
+  
+  // FIX MOBILE: Container adattato allo schermo invece di scalare canvas
+  const displayDim = isMobile ? (() => {
+    // Su mobile: riempi 90% larghezza schermo e adatta altezza
+    const maxWidth = windowWidth * 0.9
+    const maxHeight = windowHeight * 0.6 // Max 60% altezza schermo
+    const canvasAspect = dimensions.width / dimensions.height
+    
+    let w = maxWidth
+    let h = w / canvasAspect
+    
+    // Se altezza esce dallo schermo, scala per altezza
+    if (h > maxHeight) {
+      h = maxHeight
+      w = h * canvasAspect
+    }
+    
+    console.log('📱 MOBILE displayDim:', {
+      screen: `${windowWidth}×${windowHeight}`,
+      canvas: `${dimensions.width}×${dimensions.height}`,
+      canvasAspect: canvasAspect.toFixed(2),
+      container: `${w.toFixed(0)}×${h.toFixed(0)}`
+    })
+    
+    return { w, h }
+  })() : {
+    // DESKTOP: Logica originale (NON TOCCARE!)
+    w: dimensions.width * 0.6,
+    h: dimensions.height * 0.6
   }
 
   // --- Sincronizzazione Cloud (SUPABASE RIPRISTINATO) ---
   useEffect(() => {
     fetchCloudProgetti()
-    const handleResize = () => setWindowWidth(window.innerWidth)
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth)
+      setWindowHeight(window.innerHeight)
+    }
     window.addEventListener('resize', handleResize)
     const img = new Image()
     img.src = '/Logo_Formula1it.png'
@@ -238,6 +267,9 @@ export default function RitaglioImmagine({ onClose }) {
         
         // FIX MOBILE: Gestione diversa per foto scalate per width o height
         if (isMobile) {
+          // Calcola scala display dinamicamente
+          const displayScale = displayDim.w / dimensions.width
+          
           const imgAspect = img.width / img.height
           const canvasAspect = canvas.width / canvas.height
           
@@ -256,7 +288,7 @@ export default function RitaglioImmagine({ onClose }) {
             renderH = img.height * scale
             // Converti offset centrato in offset da top
             const centerOffset = -(renderH - canvas.height) / 2
-            realY = (imageOffset.y / DISPLAY_SCALE) + centerOffset
+            realY = (imageOffset.y / displayScale) + centerOffset
           }
           
           ctx.fillStyle = "#ffffff"
@@ -264,10 +296,11 @@ export default function RitaglioImmagine({ onClose }) {
           ctx.drawImage(img, 0, realY, renderW, renderH)
         } else {
           // DESKTOP: Logica originale (NON TOCCARE!)
+          const displayScale = displayDim.w / dimensions.width
           const scale = dimensions.width / img.width
           const renderW = dimensions.width
           const renderH = img.height * scale
-          const realY = (imageOffset.y / DISPLAY_SCALE)
+          const realY = (imageOffset.y / displayScale)
           
           ctx.fillStyle = "#ffffff"
           ctx.fillRect(0, 0, canvas.width, canvas.height)
