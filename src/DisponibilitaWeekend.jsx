@@ -340,7 +340,6 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
               onClick={() => setShowNotifiche(true)} 
               style={{ 
                 justifyContent: 'center',
-                alignItems: 'center',
                 position: 'relative',
                 display: 'flex', 
                 alignItems: 'center', 
@@ -819,12 +818,11 @@ if (conferma && articoliSelezionati.size > 0) {
     weekend_id: weekend.id
   })
   
-  // INVIA NOTIFICA PUSH (sistema intelligente multi-device)
+  // INVIA NOTIFICA PUSH (solo se utente NON è sul sito)
   await notificaDisponibilitaWeekend(
     weekend.nome_gp,
     nomeRedattore,
-    'disponibile',
-    utenteCorrente?.username  // ← Sistema multi-device: invia solo ad altri dispositivi
+    'disponibile'
   )
   
   // Forza ricarica notifiche per farle apparire subito
