@@ -60,8 +60,27 @@ function App() {
         return
       }
       
+      // Aspetta che OneSignal sia caricato
+      const waitForOneSignal = () => {
+        return new Promise((resolve) => {
+          if (window.OneSignal) {
+            resolve()
+          } else {
+            const checkInterval = setInterval(() => {
+              if (window.OneSignal) {
+                clearInterval(checkInterval)
+                resolve()
+              }
+            }, 100)
+          }
+        })
+      }
+      
       try {
-        console.log('🚀 Inizializzo OneSignal...')
+        console.log('⏳ Attendo caricamento OneSignal...')
+        await waitForOneSignal()
+        console.log('✅ OneSignal script caricato')
+        
         await window.OneSignal.init({
           appId: '929f6f6156-9a35-4a5f-900c-4e77e881e899',
           allowLocalhostAsSecureOrigin: true,
