@@ -28,7 +28,7 @@ export default function VidaMenu({ onClose }) {
         background: '#ffffff',
         borderRadius: '20px',
         width: isMobile ? '95vw' : '90vw',
-        maxWidth: isMobile ? '95vw' : '800px',
+        maxWidth: isMobile ? '95vw' : '700px',
         height: isMobile ? '85vh' : '80vh',
         maxHeight: isMobile ? '85vh' : '600px',
         display: 'flex',
@@ -74,11 +74,12 @@ export default function VidaMenu({ onClose }) {
             {/* Prima riga: Formula1.it e Blogformulae.it affiancati */}
             <div style={{
               display: 'flex',
-              flexDirection: 'row',
+              flexDirection: isMobile ? 'column' : 'row',
               alignItems: 'center',
               justifyContent: 'center',
               gap: isMobile ? '8px' : '25px',
-              width: '100%'
+              width: '100%',
+              maxWidth: '700px'
             }}>
               {/* Prima Card VIDA */}
               <div 
@@ -86,9 +87,9 @@ export default function VidaMenu({ onClose }) {
                 onClick={() => window.open('https://www.formula1.it/admin/login.asp', '_blank')} 
                 style={{ 
                   cursor: 'pointer',
-                  width: isMobile ? 'calc(50% - 4px)' : '190px',
-                  maxWidth: isMobile ? 'calc(50% - 4px)' : '190px',
-                  height: isMobile ? '135px' : '190px',
+                  width: isMobile ? '100% !important' : '190px',
+                  maxWidth: isMobile ? '100% !important' : '190px',
+                  height: isMobile ? '135px !important' : '190px',
                   margin: '0',
                   flexShrink: '0',
                   flexGrow: '0',
@@ -121,9 +122,9 @@ export default function VidaMenu({ onClose }) {
                 onClick={() => window.open('https://www.blogformulae.it/admin/login.asp', '_blank')} 
                 style={{ 
                   cursor: 'pointer',
-                  width: isMobile ? 'calc(50% - 4px)' : '190px',
-                  maxWidth: isMobile ? 'calc(50% - 4px)' : '190px',
-                  height: isMobile ? '135px' : '190px',
+                  width: isMobile ? '100% !important' : '190px',
+                  maxWidth: isMobile ? '100% !important' : '190px',
+                  height: isMobile ? '135px !important' : '190px',
                   margin: '0',
                   flexShrink: '0',
                   flexGrow: '0',
