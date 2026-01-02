@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { richiediPermessoNotifiche, setUserTags, getPlayerId } from './onesignal'
-import { saveCurrentDevice } from './deviceManager'
+import { saveCurrentDevice, updatePlayerIdWhenReady } from './deviceManager'
 
 export default function NotificationPrompt({ username, onClose }) {
   const [loading, setLoading] = useState(false)
@@ -28,6 +28,14 @@ export default function NotificationPrompt({ username, onClose }) {
         
         if (saved) {
           console.log('✅ Dispositivo salvato su Supabase!')
+          
+          // Se player_id è null, prova ad aggiornarlo in background
+          if (!playerId) {
+            console.log('🔄 Player ID null, avvio check in background...')
+            updatePlayerIdWhenReady(username).then(() => {
+              console.log('🔄 Background: Player ID check completato')
+            })
+          }
         } else {
           console.warn('⚠️ Errore salvataggio dispositivo, ma notifiche attive')
         }
