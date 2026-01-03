@@ -81,27 +81,16 @@ function App() {
         await waitForOneSignal()
         console.log('✅ OneSignal script caricato')
         
-        // Controlla se è già inizializzato verificando il context
-        try {
-          const contextCheck = window.OneSignal?.context
-          if (contextCheck && contextCheck.appId) {
-            console.log('✅ OneSignal già configurato, skip init')
-            window.OneSignalInitialized = true
-            return
-          }
-        } catch (e) {
-          // Context non accessibile, procedi con init
-        }
+        // Controlla se Service Worker è già registrato
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        const hasOneSignalSW = registrations.some(reg => 
+          reg.active?.scriptURL?.includes('OneSignal')
+        )
         
-        // Verifica anche se Session esiste (altro indicatore di init)
-        try {
-          if (window.OneSignal?.Session) {
-            console.log('✅ OneSignal Session già presente, skip init')
-            window.OneSignalInitialized = true
-            return
-          }
-        } catch (e) {
-          // Session non accessibile, procedi con init
+        if (hasOneSignalSW) {
+          console.log('✅ Service Worker OneSignal già registrato, skip init')
+          window.OneSignalInitialized = true
+          return
         }
         
         console.log('🚀 Procedo con init OneSignal...')
