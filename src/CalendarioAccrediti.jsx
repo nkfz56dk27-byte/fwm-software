@@ -21,6 +21,15 @@ const EMOJI_DISPONIBILI = [
 
 const MESI_ITALIANO = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 
+// Funzione per formattare orario HH:MM (senza secondi)
+function formatOrario(orario) {
+  if (!orario) return null
+  // Se è già in formato HH:MM, ritorna così
+  if (orario.length === 5) return orario
+  // Se è HH:MM:SS, taglia i secondi
+  return orario.substring(0, 5)
+}
+
 export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotificheChange }) {
   const [campionati, setCampionati] = useState([])
   const [eventi, setEventi] = useState([])
@@ -434,7 +443,7 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
                     {evento.titolo}
                     {evento.orario && (
                       <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal', color: isOggi ? 'rgba(255,255,255,0.8)' : '#007AFF' }}>
-                        ⏰ {evento.orario}
+                        ⏰ {formatOrario(evento.orario)}
                       </span>
                     )}
                   </div>
@@ -545,7 +554,7 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
               
               {evento.orario && (
                 <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#007AFF', marginTop: '3px' }}>
-                  ⏰ {evento.orario}
+                  ⏰ {formatOrario(evento.orario)}
                 </div>
               )}
               
@@ -921,7 +930,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
           <div style={{ marginBottom: '20px' }}>
             📅 {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
             {evento.data_fine && ` - ${new Date(evento.data_fine).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}`}
-            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}>⏰ {evento.orario}</span>}
+            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}>⏰ {formatOrario(evento.orario)}</span>}
           </div>
           {maxAccrediti > 0 && <div style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f7', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>👤 Pass ({numPrenotati}/{maxAccrediti})</div>
