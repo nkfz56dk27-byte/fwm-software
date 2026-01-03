@@ -40,6 +40,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   const [meseCorrente, setMeseCorrente] = useState(new Date())
   const [showNuovoEvento, setShowNuovoEvento] = useState(false)
   const [showGestioneCampionati, setShowGestioneCampionati] = useState(false)
+  const [showImportaWeekend, setShowImportaWeekend] = useState(false)
   const [showNotifiche, setShowNotifiche] = useState(false)
   const [eventoSelezionato, setEventoSelezionato] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
@@ -268,6 +269,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
             {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
           </button>
           {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Categorie</button>}
+          {isAdmin && <button onClick={() => setShowImportaWeekend(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#5856D6', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>📅 Weekend</button>}
           <button onClick={() => setShowNuovoEvento(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Nuovo</button>
         </div>
       </div>
@@ -317,6 +319,16 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
           onClose={() => setShowGestioneCampionati(false)} 
           onUpdate={caricaDati} 
           isMobile={isMobile} 
+        />
+      )}
+      
+      {showImportaWeekend && (
+        <ImportaWeekendGP
+          campionati={campionati}
+          onClose={() => setShowImportaWeekend(false)}
+          onSave={caricaDati}
+          utenteCorrente={utenteCorrente}
+          isMobile={isMobile}
         />
       )}
       
@@ -977,6 +989,199 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
         <div style={{ padding: '15px', borderTop: '1px solid #e0e0e0' }}>
           <button onClick={onSegnaTutteLette} style={{ width: '100%', padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>Segna tutte come lette</button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobile }) {
+  const [campionatoId, setCampionatoId] = useState(campionati[0]?.id || '')
+  const [nomeGP, setNomeGP] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  
+  // Tutte le possibili sessioni con checkbox
+  const [sessioni, setSessioni] = useState({
+    fp1: { enabled: false, nome: 'FP1', data: '', orario: '' },
+    fp2: { enabled: false, nome: 'FP2', data: '', orario: '' },
+    fp3: { enabled: false, nome: 'FP3', data: '', orario: '' },
+    qualifiche: { enabled: false, nome: 'Qualifiche', data: '', orario: '' },
+    sprint: { enabled: false, nome: 'Sprint', data: '', orario: '' },
+    sprintQualifiche: { enabled: false, nome: 'Sprint Qualifiche', data: '', orario: '' },
+    gara: { enabled: false, nome: 'Gara', data: '', orario: '' },
+    featureRace: { enabled: false, nome: 'Feature Race', data: '', orario: '' },
+    gara2: { enabled: false, nome: 'Gara 2', data: '', orario: '' },
+    gara3: { enabled: false, nome: 'Gara 3', data: '', orario: '' },
+    qualifiche2: { enabled: false, nome: 'Qualifiche 2', data: '', orario: '' }
+  })
+  
+  function toggleSessione(key) {
+    setSessioni(prev => ({
+      ...prev,
+      [key]: { ...prev[key], enabled: !prev[key].enabled }
+    }))
+  }
+  
+  function updateSessione(key, field, value) {
+    setSessioni(prev => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value }
+    }))
+  }
+  
+  async function salvaWeekend() {
+    if (!nomeGP.trim()) {
+      alert('Inserisci il nome del GP!')
+      return
+    }
+    
+    // Conta sessioni abilitate
+    const sessioniDaSalvare = Object.entries(sessioni).filter(([_, s]) => s.enabled)
+    
+    if (sessioniDaSalvare.length === 0) {
+      alert('Seleziona almeno una sessione!')
+      return
+    }
+    
+    // Verifica che ogni sessione abilitata abbia la data
+    const sessioniSenzaData = sessioniDaSalvare.filter(([_, s]) => !s.data)
+    if (sessioniSenzaData.length > 0) {
+      alert('Compila la data per tutte le sessioni selezionate!')
+      return
+    }
+    
+    setSalvando(true)
+    
+    try {
+      // Prepara array di eventi da inserire
+      const eventiDaCreare = sessioniDaSalvare.map(([key, sessione]) => ({
+        tipo: 'gara',
+        campionato_id: campionatoId,
+        titolo: `${nomeGP} - ${sessione.nome}`,
+        data_inizio: sessione.data,
+        data_fine: sessione.data, // Stesso giorno
+        orario: sessione.orario || null,
+        max_accrediti: 0,
+        accredito_status: 'nessuno',
+        note: '',
+        colore_personalizzato: null,
+        creato_da: utenteCorrente?.username || 'admin'
+      }))
+      
+      // Inserisci tutti gli eventi in un colpo
+      const { error } = await supabase
+        .from('eventi_calendario')
+        .insert(eventiDaCreare)
+      
+      if (error) throw error
+      
+      alert(`✅ Weekend "${nomeGP}" creato con ${eventiDaCreare.length} sessioni!`)
+      await onSave()
+      onClose()
+      
+    } catch (err) {
+      alert('Errore: ' + err.message)
+    } finally {
+      setSalvando(false)
+    }
+  }
+  
+  const sInp = { width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px', boxSizing: 'border-box' }
+  const sLab = { fontSize: '11px', fontWeight: '600', color: '#666', marginBottom: '4px', display: 'block' }
+  
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
+      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '650px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
+        
+        {/* Header */}
+        <div style={{ padding: '20px 25px', borderBottom: '2px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <b style={{ fontSize: '18px' }}>📅 IMPORTA WEEKEND GP</b>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+        </div>
+        
+        {/* Content */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 25px' }}>
+          
+          {/* Campionato */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={sLab}>CAMPIONATO</label>
+            <select value={campionatoId} onChange={e => setCampionatoId(e.target.value)} style={sInp}>
+              {campionati.map(c => (
+                <option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Nome GP */}
+          <div style={{ marginBottom: '25px' }}>
+            <label style={sLab}>NOME GP</label>
+            <input 
+              type="text" 
+              style={sInp} 
+              value={nomeGP} 
+              onChange={e => setNomeGP(e.target.value)} 
+              placeholder="es: GP Monaco"
+            />
+          </div>
+          
+          {/* Sessioni */}
+          <div style={{ borderTop: '2px solid #f0f0f0', paddingTop: '20px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '15px', color: '#666' }}>SESSIONI</div>
+            
+            {Object.entries(sessioni).map(([key, sessione]) => (
+              <div key={key} style={{ 
+                marginBottom: '12px', 
+                padding: '12px', 
+                background: sessione.enabled ? '#F0F9FF' : '#f9f9f9', 
+                borderRadius: '8px',
+                border: sessione.enabled ? '2px solid #007AFF' : '1px solid #ddd'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: sessione.enabled ? '10px' : '0' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={sessione.enabled} 
+                    onChange={() => toggleSessione(key)}
+                    style={{ marginRight: '10px', width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: '600', fontSize: '14px' }}>{sessione.nome}</span>
+                </div>
+                
+                {sessione.enabled && (
+                  <div style={{ display: 'flex', gap: '10px', marginLeft: '28px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ ...sLab, fontSize: '10px' }}>Data</label>
+                      <input 
+                        type="date" 
+                        style={sInp} 
+                        value={sessione.data}
+                        onChange={e => updateSessione(key, 'data', e.target.value)}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ ...sLab, fontSize: '10px' }}>Orario (opz.)</label>
+                      <input 
+                        type="time" 
+                        style={sInp} 
+                        value={sessione.orario}
+                        onChange={e => updateSessione(key, 'orario', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <div style={{ padding: '20px 25px', borderTop: '2px solid #f0f0f0', display: 'flex', gap: '10px' }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '10px', border: '2px solid #000', background: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
+            ANNULLA
+          </button>
+          <button onClick={salvaWeekend} disabled={salvando} style={{ flex: 2, padding: '14px', borderRadius: '10px', border: 'none', background: salvando ? '#ccc' : '#5856D6', color: '#fff', fontWeight: 'bold', cursor: salvando ? 'not-allowed' : 'pointer' }}>
+            {salvando ? 'SALVANDO...' : 'SALVA WEEKEND'}
+          </button>
+        </div>
+        
       </div>
     </div>
   )
