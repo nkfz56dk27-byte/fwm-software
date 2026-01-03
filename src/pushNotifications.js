@@ -1,5 +1,7 @@
-// Sistema di notifiche push intelligente
-// Invia notifiche SOLO quando l'utente NON è sul sito
+// Sistema di notifiche push intelligente MULTI-DEVICE
+// Invia notifiche SOLO agli ALTRI dispositivi dell'utente (non quello corrente)
+
+import { getOtherDevicePlayerIds } from './deviceManager'
 
 const ONESIGNAL_APP_ID = import.meta.env.VITE_ONESIGNAL_APP_ID || '32bc9e36-a2ac-449c-a07c-70168b9b3e37'
 const ONESIGNAL_REST_API_KEY = import.meta.env.VITE_ONESIGNAL_REST_API_KEY || 'os_v2_app_skpw6vu2gvff7eamjz36rapithmhbxuxj3oed2uosta3aqfgyr45gwu6jq4r4dwxh2o3ahtlndft7lz42mvqlqb6ek2nstrnpd5o7ba'
@@ -16,8 +18,7 @@ export const NOTIFICATION_TYPES = {
 }
 
 /**
- * Invia una notifica push a tutti gli utenti
- * La notifica viene inviata SOLO se l'utente NON è sul sito (tab nascosto/chiuso)
+ * Invia una notifica push intelligente multi-device
  * 
  * @param {Object} options - Opzioni della notifica
  * @param {string} options.titolo - Titolo della notifica
@@ -26,6 +27,7 @@ export const NOTIFICATION_TYPES = {
  * @param {string} options.url - URL di destinazione al click (opzionale)
  * @param {Object} options.data - Dati aggiuntivi (opzionale)
  * @param {string[]} options.targetUsers - Array di username specifici (opzionale, invia a tutti se vuoto)
+ * @param {string} options.currentUsername - Username dell'utente corrente (opzionale, esclude i suoi dispositivi)
  * 
  * @returns {Promise<Object>} Risposta dell'API OneSignal
  */
@@ -36,33 +38,15 @@ export async function inviaNotificaPush(options) {
     tipo,
     url = 'https://fwm-software.vercel.app',
     data = {},
-    targetUsers = [] // Se vuoto, invia a tutti
+    targetUsers = [], // Se vuoto, invia a tutti
+    currentUsername = null // Se specificato, ESCLUDE i dispositivi di questo utente
   } = options
 
   try {
-    console.log('📤 DEBUG PUSH: Inizio invio notifica')
-    console.log('📤 DEBUG PUSH: document.hidden:', document.hidden)
-    console.log('📤 DEBUG PUSH: targetUsers:', targetUsers)
-    console.log('📤 DEBUG PUSH: titolo:', titolo)
-    console.log('📤 DEBUG PUSH: messaggio:', messaggio)
-
-    // IMPORTANTE: Verifica se l'utente è SUL SITO
-    // Se la tab è visibile, NON inviare la notifica push
-    if (!document.hidden) {
-      console.log('✅ Utente sul sito - notifica push NON inviata (usa notifiche interne)')
-      return { success: false, reason: 'user_on_site', useInternal: true }
-    }
-
-    console.log('📤 DEBUG PUSH: Utente non sul sito, procedo con invio push')
-    console.log('📤 DEBUG PUSH: CONTROLLO UTENTE SUL SITO STESSO PANELLO')
-    
-    // AGGIUNTA: Se chi crea l'evento è già sul sito, non inviare push
-    if (skipIfUserOnSite && document.hidden === false) {
-      console.log('⚠️ Creatore evento già sul sito - non invio notifica push')
-      return { success: false, reason: 'creator_on_site' }
-    }
-    
-    console.log('📤 Invio notifica push:', { titolo, messaggio, tipo })
+    console.log('📤 PUSH: Inizio invio notifica')
+    console.log('📤 PUSH: currentUsername:', currentUsername)
+    console.log('📤 PUSH: targetUsers:', targetUsers)
+    console.log('📤 PUSH: titolo:', titolo)
 
     const requestBody = {
       app_id: ONESIGNAL_APP_ID,
@@ -74,16 +58,12 @@ export async function inviaNotificaPush(options) {
         timestamp: new Date().toISOString(),
         ...data
       },
-      // Icona e badge
       chrome_web_icon: '/press.png',
       firefox_icon: '/press.png',
       chrome_web_badge: '/press.png',
-      // Suono
       ios_sound: 'default',
       android_sound: 'default',
-      // Priorità
       priority: 10,
-      // Web push options
       web_buttons: [
         {
           id: 'open',
@@ -94,12 +74,28 @@ export async function inviaNotificaPush(options) {
       ]
     }
 
-    // Se targetUsers è specificato, invia solo a quegli utenti
-    if (targetUsers.length > 0) {
+    // SISTEMA MULTI-DEVICE: Se currentUsername è specificato, 
+    // invia SOLO agli ALTRI dispositivi dell'utente (non quello corrente)
+    if (currentUsername) {
+      console.log('📤 PUSH: Modalità multi-device per utente:', currentUsername)
+      
+      const otherPlayerIds = await getOtherDevicePlayerIds(currentUsername)
+      console.log('📤 PUSH: Altri dispositivi trovati:', otherPlayerIds.length, otherPlayerIds)
+      
+      if (otherPlayerIds.length === 0) {
+        console.log('ℹ️ PUSH: Nessun altro dispositivo trovato, skip invio')
+        return { success: false, reason: 'no_other_devices' }
+      }
+      
+      // Invia SOLO a questi player_id specifici
+      requestBody.include_player_ids = otherPlayerIds
+      console.log('✅ PUSH: Invio a', otherPlayerIds.length, 'dispositivi')
+      
+    } else if (targetUsers.length > 0) {
       // Usa i tag per targetizzare utenti specifici
+      console.log('📤 PUSH: Targeting utenti specifici:', targetUsers)
       requestBody.filters = targetUsers.map((username, index) => {
         const filter = { field: 'tag', key: 'username', relation: '=', value: username }
-        // Aggiungi OR tra i filtri (tranne per l'ultimo)
         if (index < targetUsers.length - 1) {
           return [filter, { operator: 'OR' }]
         }
@@ -107,6 +103,7 @@ export async function inviaNotificaPush(options) {
       }).flat()
     } else {
       // Invia a tutti gli utenti iscritti
+      console.log('📤 PUSH: Invio a TUTTI gli utenti')
       requestBody.included_segments = ['All']
     }
 
@@ -233,12 +230,14 @@ export async function notificaArticoliFiniti(nomeGiorno) {
  * @param {string} nomeEvento - Nome dell'evento
  * @param {string} data - Data dell'evento
  * @param {string} circuito - Nome del circuito (opzionale)
+ * @param {string} currentUsername - Username utente corrente (opzionale, esclude i suoi dispositivi)
  */
-export async function notificaNuovoEvento(nomeEvento, data, circuito = '') {
+export async function notificaNuovoEvento(nomeEvento, data, circuito = '', currentUsername = null) {
   return await inviaNotificaPush({
-    titolo: '� È stato creato un nuovo evento',
+    titolo: '🏁 È stato creato un nuovo evento',
     messaggio: `È stato creato un nuovo evento ${nomeEvento} in data ${data}📆`,
     tipo: NOTIFICATION_TYPES.NUOVO_EVENTO,
+    currentUsername: currentUsername, // Sistema multi-device
     data: {
       evento: nomeEvento,
       data: data,
@@ -306,11 +305,18 @@ export async function notificaPrenotazionePass(username, nomeEvento, accreditiRi
  * @param {string} nomeEvento - Nome dell'evento
  * @param {number} passDisponibili - Numero di pass disponibili
  */
-export async function notificaModificaPass(nomeEvento, passDisponibili) {
+/**
+ * Invia notifica per modifica pass disponibili
+ * @param {string} nomeEvento - Nome dell'evento
+ * @param {number} passDisponibili - Numero di pass disponibili
+ * @param {string} currentUsername - Username utente corrente (opzionale, esclude i suoi dispositivi)
+ */
+export async function notificaModificaPass(nomeEvento, passDisponibili, currentUsername = null) {
   return await inviaNotificaPush({
     titolo: '🎫 Pass Disponibili Modificati',
     messaggio: `${nomeEvento}: ${passDisponibili} pass disponibili`,
     tipo: NOTIFICATION_TYPES.MODIFICA_PASS,
+    currentUsername: currentUsername, // Sistema multi-device
     data: {
       evento: nomeEvento,
       pass_disponibili: passDisponibili
@@ -324,12 +330,20 @@ export async function notificaModificaPass(nomeEvento, passDisponibili) {
  * @param {string} messaggio - Messaggio della notifica
  * @param {string[]} targetUsers - Array di username (opzionale)
  */
-export async function notificaPersonalizzata(titolo, messaggio, targetUsers = []) {
+/**
+ * Invia notifica personalizzata
+ * @param {string} titolo - Titolo della notifica
+ * @param {string} messaggio - Messaggio della notifica
+ * @param {string[]} targetUsers - Array di username (opzionale)
+ * @param {string} currentUsername - Username utente corrente (opzionale, esclude i suoi dispositivi)
+ */
+export async function notificaPersonalizzata(titolo, messaggio, targetUsers = [], currentUsername = null) {
   return await inviaNotificaPush({
     titolo: titolo,
     messaggio: messaggio,
     tipo: 'personalizzata',
-    targetUsers: targetUsers
+    targetUsers: targetUsers,
+    currentUsername: currentUsername // Sistema multi-device
   })
 }
 
