@@ -99,11 +99,15 @@ function App() {
           allowLocalhostAsSecureOrigin: true,
           serviceWorkerPath: '/OneSignalSDKWorker.js',
           serviceWorkerParam: { scope: '/' },
+          notifyButton: {
+            enable: false // Disabilita bell icon
+          },
           promptOptions: {
             slidedown: {
-              enabled: false // Disabilita prompt nativo OneSignal
+              enabled: false // Disabilita slidedown
             }
           }
+          // autoRegister: true (default) - lasciare OneSignal registrare quando pronto
         })
         window.OneSignalInitialized = true
         console.log('✅ OneSignal inizializzato con Service Worker!')
