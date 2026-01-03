@@ -14,7 +14,7 @@ import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
 import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
-import EventiMobileMenu from './EventiMobileMenu_CLEAN.jsx'
+import EventiMobileMenu from './EventiMobileMenu.jsx'
 
 import './App.css'
 
