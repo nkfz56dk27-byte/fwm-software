@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { initTabTracker } from './tabTracker'
-import { updateDeviceActivity } from './deviceManager'
+import { updateDeviceActivity, getCurrentDeviceId } from './deviceManager'
 import { notificaClassificaAggiornata } from './pushNotifications'
 import NotificationPrompt from './NotificationPrompt'
 import CoppaSVG from "./assets/coppa.svg"
@@ -98,7 +98,12 @@ function App() {
           appId: '32bc9e36-a2ac-449c-a07c-70168b9b3e37',
           allowLocalhostAsSecureOrigin: true,
           serviceWorkerPath: '/OneSignalSDKWorker.js',
-          serviceWorkerParam: { scope: '/' }
+          serviceWorkerParam: { scope: '/' },
+          promptOptions: {
+            slidedown: {
+              enabled: false // Disabilita prompt nativo OneSignal
+            }
+          }
         })
         window.OneSignalInitialized = true
         console.log('✅ OneSignal inizializzato con Service Worker!')
@@ -122,8 +127,7 @@ function App() {
     if (user && !mustChangePassword) {
       console.log('👤 Utente loggato, controllo se mostrare prompt notifiche...')
       
-      // FORZA MOSTRA PROMPT PER TEST (commenta in produzione)
-      const hasSeenPrompt = false // localStorage.getItem('notificationPromptShown')
+      const hasSeenPrompt = localStorage.getItem('notificationPromptShown')
       console.log('🔍 DEBUG: hasSeenPrompt:', hasSeenPrompt)
       
       if (!hasSeenPrompt) {
@@ -132,8 +136,8 @@ function App() {
         const checkSupabasePrompt = async () => {
           console.log('🔍 DEBUG: inizio checkSupabasePrompt')
           try {
-            // Genera lo stesso device ID per questo dispositivo
-            const deviceId = btoa(navigator.userAgent + screen.width + screen.height + new Date().getTime()).substring(0, 32)
+            // USA device ID CORRENTE (stesso generato da deviceManager)
+            const deviceId = getCurrentDeviceId()
             
             const { data } = await supabase
               .from('user_preferences')
@@ -145,7 +149,6 @@ function App() {
             
             if (data?.notifications_enabled) {
               console.log('✅ Notifiche già attivate su Supabase per questo dispositivo')
-              localStorage.setItem('notificationPromptShown', 'true')
               return
             }
             
