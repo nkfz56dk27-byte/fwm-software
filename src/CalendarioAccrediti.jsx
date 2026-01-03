@@ -998,6 +998,7 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
   const [campionatoId, setCampionatoId] = useState(campionati[0]?.id || '')
   const [nomeGP, setNomeGP] = useState('')
   const [salvando, setSalvando] = useState(false)
+  const [sessioniPersonalizzate, setSessioniPersonalizzate] = useState([]) // Nuove sessioni create dall'utente
   
   // Tutte le possibili sessioni con checkbox
   const [sessioni, setSessioni] = useState({
@@ -1028,16 +1029,47 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
     }))
   }
   
+  function aggiungiSessionePersonalizzata() {
+    const nuovaSessione = {
+      id: Date.now(),
+      nome: '',
+      data: '',
+      orario: ''
+    }
+    setSessioniPersonalizzate(prev => [...prev, nuovaSessione])
+  }
+  
+  function rimuoviSessionePersonalizzata(id) {
+    setSessioniPersonalizzate(prev => prev.filter(s => s.id !== id))
+  }
+  
+  function updateSessionePersonalizzata(id, field, value) {
+    setSessioniPersonalizzate(prev => 
+      prev.map(s => s.id === id ? { ...s, [field]: value } : s)
+    )
+  }
+  
   async function salvaWeekend() {
     if (!nomeGP.trim()) {
       alert('Inserisci il nome del GP!')
       return
     }
     
-    // Conta sessioni abilitate
+    // Conta sessioni predefinite abilitate
     const sessioniDaSalvare = Object.entries(sessioni).filter(([_, s]) => s.enabled)
     
-    if (sessioniDaSalvare.length === 0) {
+    // Valida sessioni personalizzate (devono avere nome e data)
+    const sessioniPersonalizzateValide = sessioniPersonalizzate.filter(s => s.nome.trim() && s.data)
+    const sessioniPersonalizzateInvalide = sessioniPersonalizzate.filter(s => !s.nome.trim() || !s.data)
+    
+    if (sessioniPersonalizzateInvalide.length > 0) {
+      alert('Compila nome e data per tutte le sessioni personalizzate!')
+      return
+    }
+    
+    const totaleSessioni = sessioniDaSalvare.length + sessioniPersonalizzateValide.length
+    
+    if (totaleSessioni === 0) {
       alert('Seleziona almeno una sessione!')
       return
     }
@@ -1052,13 +1084,13 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
     setSalvando(true)
     
     try {
-      // Prepara array di eventi da inserire
-      const eventiDaCreare = sessioniDaSalvare.map(([key, sessione]) => ({
+      // Prepara array eventi predefiniti
+      const eventiPredefiniti = sessioniDaSalvare.map(([key, sessione]) => ({
         tipo: 'gara',
         campionato_id: campionatoId,
         titolo: `${nomeGP} - ${sessione.nome}`,
         data_inizio: sessione.data,
-        data_fine: sessione.data, // Stesso giorno
+        data_fine: sessione.data,
         orario: sessione.orario || null,
         max_accrediti: 0,
         accredito_status: 'nessuno',
@@ -1066,6 +1098,24 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
         colore_personalizzato: null,
         creato_da: utenteCorrente?.username || 'admin'
       }))
+      
+      // Prepara array eventi personalizzati
+      const eventiPersonalizzati = sessioniPersonalizzateValide.map(sessione => ({
+        tipo: 'gara',
+        campionato_id: campionatoId,
+        titolo: `${nomeGP} - ${sessione.nome}`,
+        data_inizio: sessione.data,
+        data_fine: sessione.data,
+        orario: sessione.orario || null,
+        max_accrediti: 0,
+        accredito_status: 'nessuno',
+        note: '',
+        colore_personalizzato: null,
+        creato_da: utenteCorrente?.username || 'admin'
+      }))
+      
+      // Unisci tutti gli eventi
+      const eventiDaCreare = [...eventiPredefiniti, ...eventiPersonalizzati]
       
       // Inserisci tutti gli eventi in un colpo
       const { error } = await supabase
@@ -1169,6 +1219,73 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
                 )}
               </div>
             ))}
+            
+            {/* Sessioni Personalizzate */}
+            {sessioniPersonalizzate.map(sessione => (
+              <div key={sessione.id} style={{ 
+                marginBottom: '12px', 
+                padding: '12px', 
+                background: (sessione.nome && sessione.data) ? '#F0F9FF' : '#f9f9f9',
+                borderRadius: '8px',
+                border: (sessione.nome && sessione.data) ? '2px solid #007AFF' : '1px solid #ddd'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Nome sessione (es: Feature Race, Sprint Race...)"
+                    value={sessione.nome}
+                    onChange={e => updateSessionePersonalizzata(sessione.id, 'nome', e.target.value)}
+                    style={{ ...sInp, fontWeight: '600', flex: 1, marginRight: '10px' }}
+                  />
+                  <button 
+                    onClick={() => rimuoviSessionePersonalizzata(sessione.id)}
+                    style={{ background: '#FF3B30', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ ...sLab, fontSize: '10px' }}>Data</label>
+                    <input 
+                      type="date" 
+                      style={sInp} 
+                      value={sessione.data}
+                      onChange={e => updateSessionePersonalizzata(sessione.id, 'data', e.target.value)}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ ...sLab, fontSize: '10px' }}>Orario (opz.)</label>
+                    <input 
+                      type="time" 
+                      style={sInp} 
+                      value={sessione.orario}
+                      onChange={e => updateSessionePersonalizzata(sessione.id, 'orario', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {/* Pulsante Aggiungi Sessione */}
+            <button 
+              onClick={aggiungiSessionePersonalizzata}
+              style={{ 
+                width: '100%', 
+                padding: '12px', 
+                background: '#fff', 
+                border: '2px dashed #007AFF', 
+                borderRadius: '8px', 
+                color: '#007AFF', 
+                fontWeight: 'bold', 
+                cursor: 'pointer',
+                fontSize: '14px',
+                marginTop: '8px'
+              }}
+            >
+              ➕ Aggiungi Altra Sessione
+            </button>
           </div>
         </div>
         
