@@ -69,8 +69,13 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     }
     setCampionati(campionatiDB)
     
-    // 2. Caricamento Eventi
-    const { data: eventiDB } = await supabase.from('eventi_calendario').select('*').order('data_inizio')
+    // 2. Caricamento Eventi - ordinati per data e poi per orario
+    const { data: eventiDB } = await supabase
+      .from('eventi_calendario')
+      .select('*')
+      .order('data_inizio')
+      .order('orario', { nullsFirst: false })
+    
     setEventi(eventiDB || [])
     
     // 3. Caricamento Utenti
@@ -396,6 +401,12 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
       
       // Confronto puramente testuale (il più affidabile per le date YYYY-MM-DD)
       return dataCorrenteStr >= inizio && dataCorrenteStr <= fine;
+    }).sort((a, b) => {
+      // Ordina per orario: eventi senza orario vanno alla fine
+      if (!a.orario && !b.orario) return 0
+      if (!a.orario) return 1
+      if (!b.orario) return -1
+      return a.orario.localeCompare(b.orario)
     });
 
     // Debug per il 31 Dicembre (lo vedrai nella console del browser F12)
@@ -477,7 +488,15 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
   for (let i = 0; i < offset; i++) giorni.push(<div key={`empty-${i}`} style={{ background: '#f9f9f9', borderRadius: '6px' }}></div>)
   for (let giorno = 1; giorno <= ultimoGiorno; giorno++) {
     const dataStr = `${anno}-${String(meseNum + 1).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
-    const eventiGiorno = eventi.filter(e => dataStr >= e.data_inizio && dataStr <= (e.data_fine || e.data_inizio))
+    const eventiGiorno = eventi
+      .filter(e => dataStr >= e.data_inizio && dataStr <= (e.data_fine || e.data_inizio))
+      .sort((a, b) => {
+        // Ordina per orario: eventi senza orario vanno alla fine
+        if (!a.orario && !b.orario) return 0
+        if (!a.orario) return 1
+        if (!b.orario) return -1
+        return a.orario.localeCompare(b.orario)
+      })
     const isOggi = new Date().toDateString() === new Date(anno, meseNum, giorno).toDateString()
     giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} isOggi={isOggi} onEventoClick={onEventoClick} isMobile={isMobile} />)
   }
