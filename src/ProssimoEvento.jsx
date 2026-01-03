@@ -392,6 +392,7 @@ export default function ProssimoEvento() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {evento.titolo}
+                    {evento.orario && <span style={{ marginLeft: '6px', color: '#00D9FF' }}>⏰ {evento.orario.substring(0, 5)}</span>}
                   </div>
                   <div style={{ fontSize: '9px', color: '#FFF' }}>
                     {evento.giorniMancanti === 1 ? 'DOMANI' : `+${evento.giorniMancanti} giorni`} • {evento.dataBreve}
