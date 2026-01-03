@@ -1163,7 +1163,7 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
         
         {/* Header */}
         <div style={{ padding: '20px 25px', borderBottom: '2px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <b style={{ fontSize: '18px' }}>📅 IMPORTA WEEKEND GP</b>
+          <b style={{ fontSize: '18px' }}>INSERISCI ORARI WEEKEND GP</b>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
         </div>
         
