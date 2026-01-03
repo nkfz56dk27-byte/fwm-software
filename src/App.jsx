@@ -95,7 +95,7 @@ function App() {
         
         console.log('🚀 Procedo con init OneSignal...')
         await window.OneSignal.init({
-          appId: '929f6f6156-9a35-4a5f-900c-4e77e881e899',
+          appId: '32bc9e36-a2ac-449c-a07c-70168b9b3e37',
           allowLocalhostAsSecureOrigin: true,
           serviceWorkerPath: '/OneSignalSDKWorker.js',
           serviceWorkerParam: { scope: '/' }
