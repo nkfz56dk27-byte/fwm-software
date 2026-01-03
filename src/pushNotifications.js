@@ -4,7 +4,7 @@
 import { getOtherDevicePlayerIds } from './deviceManager'
 
 const ONESIGNAL_APP_ID = import.meta.env.VITE_ONESIGNAL_APP_ID || '32bc9e36-a2ac-449c-a07c-70168b9b3e37'
-const ONESIGNAL_REST_API_KEY = import.meta.env.VITE_ONESIGNAL_REST_API_KEY || 'os_v2_app_skpw6vu2gvff7eamjz36rapithmhbxuxj3oed2uosta3aqfgyr45gwu6jq4r4dwxh2o3ahtlndft7lz42mvqlqb6ek2nstrnpd5o7ba'
+// NOTA: REST_API_KEY è nel backend (/api/send-notification.js) per sicurezza
 
 /**
  * TIPI DI NOTIFICHE SUPPORTATE
@@ -49,7 +49,6 @@ export async function inviaNotificaPush(options) {
     console.log('📤 PUSH: titolo:', titolo)
 
     const requestBody = {
-      app_id: ONESIGNAL_APP_ID,
       headings: { it: titolo, en: titolo },
       contents: { it: messaggio, en: messaggio },
       url: url,
@@ -107,11 +106,10 @@ export async function inviaNotificaPush(options) {
       requestBody.included_segments = ['All']
     }
 
-    const response = await fetch('https://api.onesignal.com/notifications', {
+    const response = await fetch('/api/send-notification', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Key ${ONESIGNAL_REST_API_KEY}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestBody)
     })
