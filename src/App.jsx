@@ -101,16 +101,8 @@ function App() {
           serviceWorkerParam: { scope: '/' },
           notifyButton: {
             enable: false // Disabilita bell icon
-          },
-          promptOptions: {
-            slidedown: {
-              enabled: true, // Abilitato MA...
-              autoPrompt: false, // ...NON mostrare automaticamente
-              actionMessage: "Vuoi ricevere notifiche push?",
-              acceptButtonText: "Consenti",
-              cancelButtonText: "No grazie"
-            }
           }
+          // Usiamo Notification.requestPermission() diretto, non slidedown
         })
         window.OneSignalInitialized = true
         console.log('✅ OneSignal inizializzato con Service Worker!')
