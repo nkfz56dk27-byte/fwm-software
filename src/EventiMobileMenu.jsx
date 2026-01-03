@@ -11,6 +11,13 @@ const CAMPIONATI_DEFAULT = [
   { id: 'fe', nome: 'Formula E', colore: '#0098DB', emoji: '⚡', sigla: 'FE' }
 ]
 
+// Funzione per formattare orario HH:MM (senza secondi)
+function formatOrario(orario) {
+  if (!orario) return null
+  if (orario.length === 5) return orario
+  return orario.substring(0, 5)
+}
+
 export default function EventiMobileMenu({ onClose }) {
   const [prossimoEvento, setProssimoEvento] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -28,7 +35,7 @@ export default function EventiMobileMenu({ onClose }) {
       
       // Carica eventi, prenotazioni e utenti in parallelo
       const [eventiResponse, prenotazioniResponse, utentiResponse] = await Promise.all([
-        supabase.from('eventi_calendario').select('*').order('data_inizio'),
+        supabase.from('eventi_calendario').select('*').order('data_inizio').order('orario', { nullsFirst: false }),
         supabase.from('prenotazioni_accrediti').select('*'),
         supabase.from('utenti').select('username, nome, cognome')
       ])
@@ -64,12 +71,20 @@ export default function EventiMobileMenu({ onClose }) {
       dataProssimo.setHours(0, 0, 0, 0)
       const giorniMancantiProssimo = Math.floor((dataProssimo.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
       
-      // Trova tutti gli eventi dello stesso giorno del prossimo evento
-      const eventiStessoGiorno = eventiFuturi.filter(evento => {
-        const dataEvento = new Date(evento.data_inizio)
-        dataEvento.setHours(0, 0, 0, 0)
-        return dataEvento.getTime() === dataProssimo.getTime()
-      })
+      // Trova tutti gli eventi dello stesso giorno del prossimo evento e ordinali per orario
+      const eventiStessoGiorno = eventiFuturi
+        .filter(evento => {
+          const dataEvento = new Date(evento.data_inizio)
+          dataEvento.setHours(0, 0, 0, 0)
+          return dataEvento.getTime() === dataProssimo.getTime()
+        })
+        .sort((a, b) => {
+          // Ordina per orario: eventi senza orario vanno alla fine
+          if (!a.orario && !b.orario) return 0
+          if (!a.orario) return 1
+          if (!b.orario) return -1
+          return a.orario.localeCompare(b.orario)
+        })
       
       // Calcola le prenotazioni per tutti gli eventi dello stesso giorno
       const prenotatiConNomi = []
@@ -112,7 +127,13 @@ export default function EventiMobileMenu({ onClose }) {
         .slice(0, 2)
       
       const prossimiEventi = giorniDisponibili.flatMap(giorni => {
-        const eventiDelGiorno = eventiPerGiorno[giorni]
+        const eventiDelGiorno = eventiPerGiorno[giorni].sort((a, b) => {
+          // Ordina per orario: eventi senza orario vanno alla fine
+          if (!a.orario && !b.orario) return 0
+          if (!a.orario) return 1
+          if (!b.orario) return -1
+          return a.orario.localeCompare(b.orario)
+        })
         
         return eventiDelGiorno.map((evento, index) => {
           const campionato = CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)
@@ -255,8 +276,15 @@ export default function EventiMobileMenu({ onClose }) {
                 <span style={{ fontSize: '22px' }}>
                   {CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.emoji || '📅'}
                 </span>
-                <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#FFF' }}>
-                  {evento.titolo}
+                <div>
+                  <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#FFF' }}>
+                    {evento.titolo}
+                  </div>
+                  {evento.orario && (
+                    <div style={{ fontSize: '12px', color: '#00D9FF', fontWeight: 'bold', marginTop: '2px' }}>
+                      ⏰ {formatOrario(evento.orario)}
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -391,8 +419,9 @@ export default function EventiMobileMenu({ onClose }) {
                 }}>
                   <span style={{ fontSize: '14px' }}>{evento.emojiCampionato}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {evento.titolo}
+                      {evento.orario && <span style={{ marginLeft: '6px', color: '#00D9FF' }}>⏰ {formatOrario(evento.orario)}</span>}
                     </div>
                     <div style={{ fontSize: '10px', color: '#FFF' }}>
                       {evento.giorniMancanti === 1 ? 'DOMANI' : `+${evento.giorniMancanti} giorni`} • {evento.dataBreve}
