@@ -8,41 +8,53 @@ export async function initializeOneSignal() {
 
 export async function richiediPermessoNotifiche() {
   try {
-    // IMPORTANTE: Su iOS PWA, DEVE usare il prompt nativo OneSignal!
-    // Chiamiamo Slidedown.promptPush che mostra il prompt OneSignal
-    console.log('🔔 Triggero prompt nativo OneSignal...')
+    console.log('🔔 Richiesta permesso notifiche...')
     
-    try {
-      // Questo mostrerà il prompt nativo OneSignal
-      await window.OneSignal.Slidedown.promptPush()
-      console.log('✅ Prompt nativo OneSignal triggerato!')
+    // Se già concesso, registra OneSignal e ritorna
+    if (Notification.permission === 'granted') {
+      console.log('✅ Permesso già concesso!')
       
-      // Aspetta che l'utente risponda
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Aspetta e prova a registrare su OneSignal
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
-      // Verifica se ha accettato
-      if (Notification.permission === 'granted') {
-        console.log('✅ Permesso concesso!')
-        return true
-      } else {
-        console.log('❌ Permesso negato')
-        return false
-      }
-    } catch (e) {
-      console.log('⚠️ Slidedown non disponibile, uso fallback:', e.message)
-      
-      // Fallback: richiesta diretta
-      if (Notification.permission === 'granted') {
-        console.log('✅ Permesso già concesso!')
-        return true
+      try {
+        await window.OneSignal.User.PushSubscription.optIn()
+        console.log('✅ OneSignal subscription registrata!')
+      } catch (e) {
+        console.log('ℹ️ optIn non disponibile:', e.message)
       }
       
-      const permission = await Notification.requestPermission()
-      return permission === 'granted'
+      return true
     }
     
+    // Richiedi permesso browser NATIVO (funziona sempre)
+    console.log('📱 Richiesta permesso browser nativo...')
+    const permission = await Notification.requestPermission()
+    console.log('📱 Permesso risposta:', permission)
+    
+    if (permission === 'granted') {
+      console.log('✅ Permesso browser concesso!')
+      
+      // Aspetta che OneSignal sia pronto
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Registra su OneSignal
+      try {
+        await window.OneSignal.User.PushSubscription.optIn()
+        console.log('✅ OneSignal subscription registrata!')
+      } catch (e) {
+        console.log('ℹ️ optIn fallito:', e.message)
+        // Non è critico, continua comunque
+      }
+      
+      return true
+    }
+    
+    console.log('❌ Permesso browser negato')
+    return false
+    
   } catch (error) {
-    console.error('❌ Errore:', error)
+    console.error('❌ Errore richiesta permesso:', error)
     return false
   }
 }
