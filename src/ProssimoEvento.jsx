@@ -257,6 +257,7 @@ export default function ProssimoEvento() {
             </span>
             <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#FFF' }}>
               {evento.titolo}
+              {evento.orario && <span style={{ marginLeft: '6px', color: '#00D9FF', fontSize: '12px' }}>⏰ {evento.orario.substring(0, 5)}</span>}
             </div>
           </div>
           
