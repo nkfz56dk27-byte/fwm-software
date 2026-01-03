@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
-import { notificaDisponibilitaWeekend } from './pushNotifications'
 
 // ===== MAPPING UTENTE → REDATTORE =====
 const UTENTE_TO_REDATTORE = {
@@ -817,13 +816,6 @@ if (conferma && articoliSelezionati.size > 0) {
     messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
     weekend_id: weekend.id
   })
-  
-  // INVIA NOTIFICA PUSH (solo se utente NON è sul sito)
-  await notificaDisponibilitaWeekend(
-    weekend.nome_gp,
-    nomeRedattore,
-    'disponibile'
-  )
   
   // Forza ricarica notifiche per farle apparire subito
   window.dispatchEvent(new Event('ricarica-notifiche'))
