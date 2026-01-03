@@ -14,7 +14,7 @@ import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
 import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
-import EventiMobileMenu from './EventiMobileMenu.jsx'
+import EventiMobileMenu from './EventiMobileMenu_CLEAN.jsx'
 
 import './App.css'
 
@@ -2093,6 +2093,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
         .from('eventi_calendario')
         .select('*')
         .order('data_inizio')
+        .order('orario', { nullsFirst: false })
       
       if (!eventi || eventi.length === 0) {
         setProssimoEvento(null)
@@ -2112,7 +2113,21 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
         return
       }
       
-      const prossimo = eventiFuturi[0]
+      // Ordina per data e poi per orario
+      const eventiOrdinati = eventiFuturi.sort((a, b) => {
+        const dataA = new Date(a.data_inizio)
+        const dataB = new Date(b.data_inizio)
+        if (dataA.getTime() !== dataB.getTime()) {
+          return dataA.getTime() - dataB.getTime()
+        }
+        // Se stessa data, ordina per orario
+        if (!a.orario && !b.orario) return 0
+        if (!a.orario) return 1
+        if (!b.orario) return -1
+        return a.orario.localeCompare(b.orario)
+      })
+      
+      const prossimo = eventiOrdinati[0]
       const dataProssimo = new Date(prossimo.data_inizio)
       oggi.setHours(0, 0, 0, 0)
       dataProssimo.setHours(0, 0, 0, 0)
