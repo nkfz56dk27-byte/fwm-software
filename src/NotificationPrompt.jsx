@@ -10,15 +10,16 @@ export default function NotificationPrompt({ username, onClose }) {
     setLoading(true)
     
     try {
-      // Richiedi permesso OneSignal (triggerà il prompt nativo)
+      // Richiedi permesso (ora usa Notification.requestPermission diretto)
       console.log('🔔 Richiesta permesso notifiche OneSignal...')
       const granted = await richiediPermessoNotifiche()
+      console.log('📱 Risultato richiesta permesso:', granted)
       
       if (granted) {
-        console.log('✅ Permesso concesso!')
+        console.log('✅ Permesso concesso! Continuo...')
         
-        // Aspetta 3 secondi per dare tempo a OneSignal di generare player_id
-        console.log('⏳ Attendo generazione player_id...')
+        // Aspetta 3 secondi per dare tempo a OneSignal di registrarsi
+        console.log('⏳ Attendo 3 secondi per registrazione OneSignal...')
         await new Promise(resolve => setTimeout(resolve, 3000))
         
         // Ottieni Player ID OneSignal
@@ -29,9 +30,12 @@ export default function NotificationPrompt({ username, onClose }) {
         // Salva dispositivo su Supabase (anche se player_id è null inizialmente)
         console.log('💾 Salvo dispositivo su Supabase...')
         const saved = await saveCurrentDevice(username, playerId)
+        console.log('💾 Risultato salvataggio:', saved)
         
         if (saved) {
           console.log('✅ Dispositivo salvato su Supabase!')
+        } else {
+          console.error('❌ Errore salvataggio dispositivo!')
         }
         
         // SEMPRE avvia background update (importante per iOS)
@@ -45,6 +49,7 @@ export default function NotificationPrompt({ username, onClose }) {
         })
         
         // Imposta tag OneSignal per targeting
+        console.log('🏷️ Imposto tag OneSignal...')
         try {
           await setUserTags({ 
             username: username,
@@ -57,22 +62,26 @@ export default function NotificationPrompt({ username, onClose }) {
         
         // Salva su localStorage
         localStorage.setItem('notificationPromptShown', 'true')
+        console.log('✅ Salvato notificationPromptShown in localStorage')
         
         console.log('✅ Attivazione completata!')
         
         // Chiudi il popup
+        console.log('🔚 Chiudo popup...')
         onClose()
       } else {
-        console.warn('❌ Permesso notifiche negato')
+        console.warn('❌ Permesso notifiche negato dall\'utente')
         onClose()
       }
       
     } catch (error) {
       console.error('❌ Errore durante attivazione notifiche:', error)
+      console.error('❌ Stack:', error.stack)
       onClose()
     }
     
     setLoading(false)
+    console.log('🔚 handleAccetta completato')
   }
 
   return (
