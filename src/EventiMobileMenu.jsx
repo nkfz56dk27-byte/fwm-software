@@ -269,9 +269,9 @@ export default function EventiMobileMenu({ onClose }) {
             {prossimoEvento.dataFormattata}
           </div>
           
-          {/* MOSTRA TUTTI GLI EVENTI DEL GIORNO */}
-          {prossimoEvento.eventiStessoGiorno && prossimoEvento.eventiStessoGiorno.map((evento, index) => (
-            <div key={evento.id} style={{ marginBottom: index < prossimoEvento.eventiStessoGiorno.length - 1 ? '10px' : '0' }}>
+          {/* MOSTRA TUTTI GLI EVENTI FUTURI IN ORDINE CRONOLOGICO */}
+          {prossimoEvento.tuttiEventiFuturi && prossimoEvento.tuttiEventiFuturi.map((evento, index) => (
+            <div key={evento.id} style={{ marginBottom: index < prossimoEvento.tuttiEventiFuturi.length - 1 ? '12px' : '0' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                 <span style={{ fontSize: '22px' }}>
                   {CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.emoji || '📅'}
@@ -280,11 +280,9 @@ export default function EventiMobileMenu({ onClose }) {
                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#FFF' }}>
                     {evento.titolo}
                   </div>
-                  {evento.orario && (
-                    <div style={{ fontSize: '12px', color: '#00D9FF', fontWeight: 'bold', marginTop: '2px' }}>
-                      ⏰ {formatOrario(evento.orario)}
-                    </div>
-                  )}
+                  <div style={{ fontSize: '12px', color: '#00D9FF', fontWeight: 'bold', marginTop: '2px' }}>
+                    📅 {evento.dataBreve} {evento.orario && `⏰ ${formatOrario(evento.orario)}`}
+                  </div>
                 </div>
               </div>
               
@@ -357,7 +355,7 @@ export default function EventiMobileMenu({ onClose }) {
               )}
               
               {/* ACCREDITI SOLO PER L'ULTIMO EVENTO - SOLO SE CI SONO PRENOTAZIONI */}
-              {index === prossimoEvento.eventiStessoGiorno.length - 1 && (prossimoEvento.accettati > 0 || prossimoEvento.richiesti > 0) && (
+              {index === prossimoEvento.tuttiEventiFuturi.length - 1 && (prossimoEvento.accettati > 0 || prossimoEvento.richiesti > 0) && (
                 <div style={{ marginBottom: '4px' }}>
                   <div style={{ display: 'flex', gap: '4px', fontSize: '11px', marginBottom: '4px' }}>
                     {prossimoEvento.accettati > 0 && (
@@ -388,50 +386,6 @@ export default function EventiMobileMenu({ onClose }) {
             </div>
           ))}
         </div>
-        
-        {/* PROSSIMI EVENTI */}
-        {prossimoEvento.prossimiEventi && prossimoEvento.prossimiEventi.length > 0 && (
-          <div style={{ 
-            background: 'rgba(255, 255, 255, 0.1)', 
-            borderRadius: '8px', 
-            padding: '12px'
-          }}>
-            <div style={{ 
-              fontSize: '12px', 
-              fontWeight: 'bold', 
-              color: '#FFF', 
-              marginBottom: '6px',
-              textAlign: 'center'
-            }}>
-              PROSSIMI EVENTI
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              {prossimoEvento.prossimiEventi.map((evento, i) => (
-                <div key={i} style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '6px',
-                  fontSize: '11px',
-                  color: '#FFF',
-                  padding: '3px 5px',
-                  borderRadius: '4px',
-                  background: 'rgba(255,255,255,0.1)'
-                }}>
-                  <span style={{ fontSize: '14px' }}>{evento.emojiCampionato}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {evento.titolo}
-                      {evento.orario && <span style={{ marginLeft: '6px', color: '#00D9FF' }}>⏰ {formatOrario(evento.orario)}</span>}
-                    </div>
-                    <div style={{ fontSize: '10px', color: '#FFF' }}>
-                      {evento.giorniMancanti === 1 ? 'DOMANI' : `+${evento.giorniMancanti} giorni`} • {evento.dataBreve}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
         
         {/* FRECCIA IN BASSO */}
         <div style={{ 
