@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { initTabTracker } from './tabTracker'
-import { updateDeviceActivity, getCurrentDeviceId } from './deviceManager'
-import { notificaClassificaAggiornata } from './pushNotifications'
-import NotificationPrompt from './NotificationPrompt'
 import CoppaSVG from "./assets/coppa.svg"
 import FotoSVG from "./assets/foto.svg"
 import DisponibilitàSVG from "./assets/disponibilità.svg"
@@ -46,156 +42,9 @@ function App() {
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
   const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
   const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
-  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Prompt notifiche push
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
-  
-  // Inizializza OneSignal e TabTracker all'avvio dell'app (una sola volta)
-  useEffect(() => {
-    // Inizializza OneSignal con Service Worker esplicito
-    const initOneSignal = async () => {
-      if (window.OneSignalInitialized) {
-        console.log('⏭️ OneSignal già inizializzato')
-        return
-      }
-      
-      // Aspetta che OneSignal sia caricato
-      const waitForOneSignal = () => {
-        return new Promise((resolve) => {
-          if (window.OneSignal) {
-            resolve()
-          } else {
-            const checkInterval = setInterval(() => {
-              if (window.OneSignal) {
-                clearInterval(checkInterval)
-                resolve()
-              }
-            }, 100)
-          }
-        })
-      }
-      
-      try {
-        console.log('⏳ Attendo caricamento OneSignal...')
-        await waitForOneSignal()
-        console.log('✅ OneSignal script caricato')
-        
-        // Controlla se Service Worker è già registrato
-        const registrations = await navigator.serviceWorker.getRegistrations()
-        const hasOneSignalSW = registrations.some(reg => 
-          reg.active?.scriptURL?.includes('OneSignal')
-        )
-        
-        if (hasOneSignalSW) {
-          console.log('✅ Service Worker OneSignal già registrato, skip init')
-          window.OneSignalInitialized = true
-          return
-        }
-        
-        console.log('🚀 Procedo con init OneSignal...')
-        await window.OneSignal.init({
-          appId: '32bc9e36-a2ac-449c-a07c-70168b9b3e37',
-          allowLocalhostAsSecureOrigin: true,
-          serviceWorkerPath: '/OneSignalSDKWorker.js',
-          serviceWorkerParam: { scope: '/' },
-          notifyButton: {
-            enable: false // Disabilita bell icon
-          }
-          // Usiamo Notification.requestPermission() diretto, non slidedown
-        })
-        window.OneSignalInitialized = true
-        console.log('✅ OneSignal inizializzato con Service Worker!')
-      } catch (e) {
-        console.error('❌ Errore init OneSignal:', e)
-        // Anche se fallisce, segna come inizializzato per non riprovare
-        window.OneSignalInitialized = true
-      }
-    }
-    
-    initOneSignal()
-    initTabTracker()
-  }, [])
-  
-  // Mostra NotificationPrompt dopo il login (una sola volta per sessione)
-  useEffect(() => {
-    console.log('🔍 DEBUG: useEffect eseguito')
-    console.log('🔍 DEBUG: user:', user)
-    console.log('🔍 DEBUG: mustChangePassword:', mustChangePassword)
-    
-    if (user && !mustChangePassword) {
-      console.log('👤 Utente loggato, controllo se mostrare prompt notifiche...')
-      
-      const hasSeenPrompt = localStorage.getItem('notificationPromptShown')
-      console.log('🔍 DEBUG: hasSeenPrompt:', hasSeenPrompt)
-      
-      if (!hasSeenPrompt) {
-        console.log('🔍 DEBUG: entro nell\'if !hasSeenPrompt')
-        // Controlla su Supabase se l'utente ha già attivato le notifiche
-        const checkSupabasePrompt = async () => {
-          console.log('🔍 DEBUG: inizio checkSupabasePrompt')
-          try {
-            // USA device ID CORRENTE (stesso generato da deviceManager)
-            const deviceId = getCurrentDeviceId()
-            
-            const { data } = await supabase
-              .from('user_preferences')
-              .select('notifications_enabled')
-              .eq('device_id', deviceId)
-              .single()
-            
-            console.log('🔍 DEBUG: dati Supabase per device_id:', deviceId, data)
-            
-            if (data?.notifications_enabled) {
-              console.log('✅ Notifiche già attivate su Supabase per questo dispositivo')
-              return
-            }
-            
-            // Mostra il prompt dopo 2 secondi
-            console.log('🔍 DEBUG: imposto timer per mostrare prompt')
-            const timer = setTimeout(() => {
-              console.log('🔔 Mostro prompt notifiche...')
-              setShowNotificationPrompt(true)
-              console.log('🔍 DEBUG: setShowNotificationPrompt(true) chiamato')
-            }, 2000)
-            return () => clearTimeout(timer)
-            
-          } catch (error) {
-            console.log('Info: tabella user_preferences non presente o errore, mostro prompt')
-            console.log('🔍 DEBUG: errore Supabase:', error)
-            // Fallback: mostra il prompt
-            const timer = setTimeout(() => {
-              console.log('🔔 Mostro prompt notifiche (fallback)...')
-              setShowNotificationPrompt(true)
-              console.log('🔍 DEBUG: setShowNotificationPrompt(true) chiamato (fallback)')
-            }, 2000)
-            return () => clearTimeout(timer)
-          }
-        }
-        
-        checkSupabasePrompt()
-      } else {
-        console.log('✅ Prompt notifiche già mostrato in questa sessione')
-      }
-    } else {
-      console.log('🔍 DEBUG: condizioni non soddisfatte - user o mustChangePassword')
-    }
-  }, [user, mustChangePassword])
-  
-  // Aggiorna attività del dispositivo ogni 5 minuti (per sistema multi-device)
-  useEffect(() => {
-    if (!user) return
-    
-    // Aggiorna immediatamente
-    updateDeviceActivity(user.username)
-    
-    // Poi aggiorna ogni 5 minuti
-    const interval = setInterval(() => {
-      updateDeviceActivity(user.username)
-    }, 5 * 60 * 1000) // 5 minuti
-    
-    return () => clearInterval(interval)
-  }, [user])
   
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
@@ -449,18 +298,6 @@ function App() {
   return (
     <>
       <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
-      {showNotificationPrompt && (
-        <>
-          {console.log('🎯 Rendering NotificationPrompt...')}
-          <NotificationPrompt 
-            username={user.username} 
-            onClose={() => {
-              console.log('❌ Chiusura NotificationPrompt')
-              setShowNotificationPrompt(false)
-            }} 
-          />
-        </>
-      )}
     </>
   )
 }
