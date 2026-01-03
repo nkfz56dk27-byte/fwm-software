@@ -10,37 +10,39 @@ export default function NotificationPrompt({ username, onClose }) {
     setLoading(true)
     
     try {
-      // Richiedi permesso OneSignal
+      // Richiedi permesso OneSignal (triggerà il prompt nativo)
       console.log('🔔 Richiesta permesso notifiche OneSignal...')
       const granted = await richiediPermessoNotifiche()
       
       if (granted) {
         console.log('✅ Permesso concesso!')
         
+        // Aspetta 3 secondi per dare tempo a OneSignal di generare player_id
+        console.log('⏳ Attendo generazione player_id...')
+        await new Promise(resolve => setTimeout(resolve, 3000))
+        
         // Ottieni Player ID OneSignal
         console.log('🔍 Recupero Player ID OneSignal...')
         const playerId = await getPlayerId()
         console.log('📱 Player ID ottenuto:', playerId)
         
-        // Salva dispositivo su Supabase con player_id (anche se null)
+        // Salva dispositivo su Supabase (anche se player_id è null inizialmente)
         console.log('💾 Salvo dispositivo su Supabase...')
         const saved = await saveCurrentDevice(username, playerId)
         
         if (saved) {
           console.log('✅ Dispositivo salvato su Supabase!')
-          
-          // SEMPRE avvia background update per iOS/Safari
-          console.log('🔄 Avvio background check Player ID...')
-          updatePlayerIdWhenReady(username).then((updated) => {
-            if (updated) {
-              console.log('✅ Background: Player ID aggiornato!')
-            } else {
-              console.log('⚠️ Background: Player ID non disponibile')
-            }
-          })
-        } else {
-          console.warn('⚠️ Errore salvataggio dispositivo')
         }
+        
+        // SEMPRE avvia background update (importante per iOS)
+        console.log('🔄 Avvio background check Player ID (30 secondi)...')
+        updatePlayerIdWhenReady(username).then((updated) => {
+          if (updated) {
+            console.log('✅ Background: Player ID aggiornato!')
+          } else {
+            console.log('⚠️ Background: Player ID non disponibile dopo 30s')
+          }
+        })
         
         // Imposta tag OneSignal per targeting
         try {
@@ -50,11 +52,13 @@ export default function NotificationPrompt({ username, onClose }) {
           })
           console.log('✅ Tag OneSignal impostati per utente:', username)
         } catch (tagError) {
-          console.error('❌ Errore impostazione tag OneSignal:', tagError)
+          console.log('ℹ️ Tag OneSignal non impostati:', tagError.message)
         }
         
         // Salva su localStorage
         localStorage.setItem('notificationPromptShown', 'true')
+        
+        console.log('✅ Attivazione completata!')
         
         // Chiudi il popup
         onClose()
