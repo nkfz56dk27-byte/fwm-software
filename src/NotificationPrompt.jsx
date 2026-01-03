@@ -22,22 +22,24 @@ export default function NotificationPrompt({ username, onClose }) {
         const playerId = await getPlayerId()
         console.log('📱 Player ID ottenuto:', playerId)
         
-        // Salva dispositivo su Supabase con player_id
+        // Salva dispositivo su Supabase con player_id (anche se null)
         console.log('💾 Salvo dispositivo su Supabase...')
         const saved = await saveCurrentDevice(username, playerId)
         
         if (saved) {
           console.log('✅ Dispositivo salvato su Supabase!')
           
-          // Se player_id è null, prova ad aggiornarlo in background
-          if (!playerId) {
-            console.log('🔄 Player ID null, avvio check in background...')
-            updatePlayerIdWhenReady(username).then(() => {
-              console.log('🔄 Background: Player ID check completato')
-            })
-          }
+          // SEMPRE avvia background update per iOS/Safari
+          console.log('🔄 Avvio background check Player ID...')
+          updatePlayerIdWhenReady(username).then((updated) => {
+            if (updated) {
+              console.log('✅ Background: Player ID aggiornato!')
+            } else {
+              console.log('⚠️ Background: Player ID non disponibile')
+            }
+          })
         } else {
-          console.warn('⚠️ Errore salvataggio dispositivo, ma notifiche attive')
+          console.warn('⚠️ Errore salvataggio dispositivo')
         }
         
         // Imposta tag OneSignal per targeting
@@ -54,18 +56,19 @@ export default function NotificationPrompt({ username, onClose }) {
         // Salva su localStorage
         localStorage.setItem('notificationPromptShown', 'true')
         
-        alert('✅ Notifiche push attivate! Riceverai avvisi anche a sito chiuso.')
+        // Chiudi il popup
+        onClose()
       } else {
-        alert('❌ Permesso notifiche negato. Puoi riattivarlo dalle impostazioni del browser.')
+        console.warn('❌ Permesso notifiche negato')
+        onClose()
       }
       
     } catch (error) {
       console.error('❌ Errore durante attivazione notifiche:', error)
-      alert('❌ Errore durante l\'attivazione: ' + error.message)
+      onClose()
     }
     
     setLoading(false)
-    onClose()
   }
 
   return (
