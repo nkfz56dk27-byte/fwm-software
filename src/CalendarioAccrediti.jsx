@@ -274,7 +274,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
             {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
           </button>
           {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Categorie</button>}
-          {isAdmin && <button onClick={() => setShowImportaWeekend(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#5856D6', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>📅 Weekend</button>}
+          {isAdmin && <button onClick={() => setShowImportaWeekend(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#5856D6', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Weekend</button>}
           <button onClick={() => setShowNuovoEvento(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Nuovo</button>
         </div>
       </div>
@@ -466,7 +466,7 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
                     {evento.titolo}
                     {evento.orario && (
                       <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal', color: isOggi ? 'rgba(255,255,255,0.8)' : '#007AFF' }}>
-                        ⏰ {formatOrario(evento.orario)}
+                         {formatOrario(evento.orario)}
                       </span>
                     )}
                   </div>
@@ -585,7 +585,7 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
               
               {evento.orario && (
                 <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#007AFF', marginTop: '3px' }}>
-                  ⏰ {formatOrario(evento.orario)}
+                   {formatOrario(evento.orario)}
                 </div>
               )}
               
@@ -959,9 +959,9 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
           <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>{evento.titolo}</div>
           {b && <div style={{ marginBottom: '20px', padding: '15px', background: b.bg, color: b.color, borderRadius: '10px', fontWeight: 'bold' }}>{b.icon} {b.text}</div>}
           <div style={{ marginBottom: '20px' }}>
-            📅 {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
+            {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
             {evento.data_fine && ` - ${new Date(evento.data_fine).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}`}
-            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}>⏰ {formatOrario(evento.orario)}</span>}
+            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}> {formatOrario(evento.orario)}</span>}
           </div>
           {maxAccrediti > 0 && <div style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f7', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>👤 Pass ({numPrenotati}/{maxAccrediti})</div>
