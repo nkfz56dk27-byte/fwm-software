@@ -11,8 +11,21 @@ export async function richiediPermessoNotifiche() {
     if (Notification.permission === 'granted') {
       console.log('✅ Permesso già concesso!')
       
-      // Aspetta che OneSignal sia pronto
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Aspetta che OneSignal sia pronto e registralo
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // IMPORTANTE: Registra esplicitamente OneSignal
+      try {
+        await window.OneSignal.Slidedown.promptPush()
+      } catch (e) {
+        console.log('ℹ️ Slidedown.promptPush non disponibile')
+      }
+      
+      try {
+        await window.OneSignal.User.PushSubscription.optIn()
+      } catch (e) {
+        console.log('ℹ️ PushSubscription.optIn non disponibile')
+      }
       
       return true
     }
@@ -20,7 +33,16 @@ export async function richiediPermessoNotifiche() {
     const permission = await Notification.requestPermission()
     
     if (permission === 'granted') {
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // IMPORTANTE: Registra esplicitamente OneSignal dopo permesso
+      try {
+        await window.OneSignal.User.PushSubscription.optIn()
+        console.log('✅ OneSignal subscription registrata!')
+      } catch (e) {
+        console.log('ℹ️ Errore optIn:', e.message)
+      }
+      
       return true
     }
     return false
@@ -34,9 +56,9 @@ export async function getPlayerId() {
   try {
     console.log('🔍 Attendo subscription OneSignal...')
     
-    // Aspetta fino a 10 secondi che appaia un ID
-    for (let i = 0; i < 20; i++) {
-      await new Promise(resolve => setTimeout(resolve, 500))
+    // Aspetta fino a 30 secondi che appaia un ID (importante per iOS PWA)
+    for (let i = 0; i < 30; i++) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
       
       let userId = null
       
@@ -61,10 +83,10 @@ export async function getPlayerId() {
         return userId
       }
       
-      console.log(`⏳ Tentativo ${i+1}/20...`)
+      console.log(`⏳ Tentativo ${i+1}/30...`)
     }
     
-    console.log('⚠️ Player ID non trovato dopo 10 secondi')
+    console.log('⚠️ Player ID non trovato dopo 30 secondi')
     return null
     
   } catch (error) {
