@@ -69,13 +69,8 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     }
     setCampionati(campionatiDB)
     
-    // 2. Caricamento Eventi - ordinati per data e poi per orario
-    const { data: eventiDB } = await supabase
-      .from('eventi_calendario')
-      .select('*')
-      .order('data_inizio')
-      .order('orario', { nullsFirst: false })
-    
+    // 2. Caricamento Eventi
+    const { data: eventiDB } = await supabase.from('eventi_calendario').select('*').order('data_inizio')
     setEventi(eventiDB || [])
     
     // 3. Caricamento Utenti
@@ -274,7 +269,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
             {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
           </button>
           {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Categorie</button>}
-          {isAdmin && <button onClick={() => setShowImportaWeekend(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#5856D6', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Weekend</button>}
+          {isAdmin && <button onClick={() => setShowImportaWeekend(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#5856D6', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>📅 Weekend</button>}
           <button onClick={() => setShowNuovoEvento(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Nuovo</button>
         </div>
       </div>
@@ -401,12 +396,6 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
       
       // Confronto puramente testuale (il più affidabile per le date YYYY-MM-DD)
       return dataCorrenteStr >= inizio && dataCorrenteStr <= fine;
-    }).sort((a, b) => {
-      // Ordina per orario: eventi senza orario vanno alla fine
-      if (!a.orario && !b.orario) return 0
-      if (!a.orario) return 1
-      if (!b.orario) return -1
-      return a.orario.localeCompare(b.orario)
     });
 
     // Debug per il 31 Dicembre (lo vedrai nella console del browser F12)
@@ -466,7 +455,7 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
                     {evento.titolo}
                     {evento.orario && (
                       <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal', color: isOggi ? 'rgba(255,255,255,0.8)' : '#007AFF' }}>
-                         {formatOrario(evento.orario)}
+                        ⏰ {formatOrario(evento.orario)}
                       </span>
                     )}
                   </div>
@@ -488,15 +477,7 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
   for (let i = 0; i < offset; i++) giorni.push(<div key={`empty-${i}`} style={{ background: '#f9f9f9', borderRadius: '6px' }}></div>)
   for (let giorno = 1; giorno <= ultimoGiorno; giorno++) {
     const dataStr = `${anno}-${String(meseNum + 1).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
-    const eventiGiorno = eventi
-      .filter(e => dataStr >= e.data_inizio && dataStr <= (e.data_fine || e.data_inizio))
-      .sort((a, b) => {
-        // Ordina per orario: eventi senza orario vanno alla fine
-        if (!a.orario && !b.orario) return 0
-        if (!a.orario) return 1
-        if (!b.orario) return -1
-        return a.orario.localeCompare(b.orario)
-      })
+    const eventiGiorno = eventi.filter(e => dataStr >= e.data_inizio && dataStr <= (e.data_fine || e.data_inizio))
     const isOggi = new Date().toDateString() === new Date(anno, meseNum, giorno).toDateString()
     giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} isOggi={isOggi} onEventoClick={onEventoClick} isMobile={isMobile} />)
   }
@@ -585,7 +566,7 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
               
               {evento.orario && (
                 <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#007AFF', marginTop: '3px' }}>
-                   {formatOrario(evento.orario)}
+                  ⏰ {formatOrario(evento.orario)}
                 </div>
               )}
               
@@ -959,9 +940,9 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
           <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>{evento.titolo}</div>
           {b && <div style={{ marginBottom: '20px', padding: '15px', background: b.bg, color: b.color, borderRadius: '10px', fontWeight: 'bold' }}>{b.icon} {b.text}</div>}
           <div style={{ marginBottom: '20px' }}>
-            {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
+            📅 {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
             {evento.data_fine && ` - ${new Date(evento.data_fine).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}`}
-            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}> {formatOrario(evento.orario)}</span>}
+            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}>⏰ {formatOrario(evento.orario)}</span>}
           </div>
           {maxAccrediti > 0 && <div style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f7', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>👤 Pass ({numPrenotati}/{maxAccrediti})</div>
@@ -1017,7 +998,6 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
   const [campionatoId, setCampionatoId] = useState(campionati[0]?.id || '')
   const [nomeGP, setNomeGP] = useState('')
   const [salvando, setSalvando] = useState(false)
-  const [sessioniPersonalizzate, setSessioniPersonalizzate] = useState([]) // Nuove sessioni create dall'utente
   
   // Tutte le possibili sessioni con checkbox
   const [sessioni, setSessioni] = useState({
@@ -1048,47 +1028,16 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
     }))
   }
   
-  function aggiungiSessionePersonalizzata() {
-    const nuovaSessione = {
-      id: Date.now(),
-      nome: '',
-      data: '',
-      orario: ''
-    }
-    setSessioniPersonalizzate(prev => [...prev, nuovaSessione])
-  }
-  
-  function rimuoviSessionePersonalizzata(id) {
-    setSessioniPersonalizzate(prev => prev.filter(s => s.id !== id))
-  }
-  
-  function updateSessionePersonalizzata(id, field, value) {
-    setSessioniPersonalizzate(prev => 
-      prev.map(s => s.id === id ? { ...s, [field]: value } : s)
-    )
-  }
-  
   async function salvaWeekend() {
     if (!nomeGP.trim()) {
       alert('Inserisci il nome del GP!')
       return
     }
     
-    // Conta sessioni predefinite abilitate
+    // Conta sessioni abilitate
     const sessioniDaSalvare = Object.entries(sessioni).filter(([_, s]) => s.enabled)
     
-    // Valida sessioni personalizzate (devono avere nome e data)
-    const sessioniPersonalizzateValide = sessioniPersonalizzate.filter(s => s.nome.trim() && s.data)
-    const sessioniPersonalizzateInvalide = sessioniPersonalizzate.filter(s => !s.nome.trim() || !s.data)
-    
-    if (sessioniPersonalizzateInvalide.length > 0) {
-      alert('Compila nome e data per tutte le sessioni personalizzate!')
-      return
-    }
-    
-    const totaleSessioni = sessioniDaSalvare.length + sessioniPersonalizzateValide.length
-    
-    if (totaleSessioni === 0) {
+    if (sessioniDaSalvare.length === 0) {
       alert('Seleziona almeno una sessione!')
       return
     }
@@ -1103,13 +1052,13 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
     setSalvando(true)
     
     try {
-      // Prepara array eventi predefiniti
-      const eventiPredefiniti = sessioniDaSalvare.map(([key, sessione]) => ({
+      // Prepara array di eventi da inserire
+      const eventiDaCreare = sessioniDaSalvare.map(([key, sessione]) => ({
         tipo: 'gara',
         campionato_id: campionatoId,
         titolo: `${nomeGP} - ${sessione.nome}`,
         data_inizio: sessione.data,
-        data_fine: sessione.data,
+        data_fine: sessione.data, // Stesso giorno
         orario: sessione.orario || null,
         max_accrediti: 0,
         accredito_status: 'nessuno',
@@ -1117,24 +1066,6 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
         colore_personalizzato: null,
         creato_da: utenteCorrente?.username || 'admin'
       }))
-      
-      // Prepara array eventi personalizzati
-      const eventiPersonalizzati = sessioniPersonalizzateValide.map(sessione => ({
-        tipo: 'gara',
-        campionato_id: campionatoId,
-        titolo: `${nomeGP} - ${sessione.nome}`,
-        data_inizio: sessione.data,
-        data_fine: sessione.data,
-        orario: sessione.orario || null,
-        max_accrediti: 0,
-        accredito_status: 'nessuno',
-        note: '',
-        colore_personalizzato: null,
-        creato_da: utenteCorrente?.username || 'admin'
-      }))
-      
-      // Unisci tutti gli eventi
-      const eventiDaCreare = [...eventiPredefiniti, ...eventiPersonalizzati]
       
       // Inserisci tutti gli eventi in un colpo
       const { error } = await supabase
@@ -1163,7 +1094,7 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
         
         {/* Header */}
         <div style={{ padding: '20px 25px', borderBottom: '2px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <b style={{ fontSize: '18px' }}>INSERISCI ORARI WEEKEND GP</b>
+          <b style={{ fontSize: '18px' }}>📅 IMPORTA WEEKEND GP</b>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
         </div>
         
@@ -1238,73 +1169,6 @@ function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobil
                 )}
               </div>
             ))}
-            
-            {/* Sessioni Personalizzate */}
-            {sessioniPersonalizzate.map(sessione => (
-              <div key={sessione.id} style={{ 
-                marginBottom: '12px', 
-                padding: '12px', 
-                background: (sessione.nome && sessione.data) ? '#F0F9FF' : '#f9f9f9',
-                borderRadius: '8px',
-                border: (sessione.nome && sessione.data) ? '2px solid #007AFF' : '1px solid #ddd'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <input 
-                    type="text" 
-                    placeholder="Nome sessione (es: Feature Race, Sprint Race...)"
-                    value={sessione.nome}
-                    onChange={e => updateSessionePersonalizzata(sessione.id, 'nome', e.target.value)}
-                    style={{ ...sInp, fontWeight: '600', flex: 1, marginRight: '10px' }}
-                  />
-                  <button 
-                    onClick={() => rimuoviSessionePersonalizzata(sessione.id)}
-                    style={{ background: '#FF3B30', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
-                  >
-                    ✕
-                  </button>
-                </div>
-                
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ ...sLab, fontSize: '10px' }}>Data</label>
-                    <input 
-                      type="date" 
-                      style={sInp} 
-                      value={sessione.data}
-                      onChange={e => updateSessionePersonalizzata(sessione.id, 'data', e.target.value)}
-                    />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ ...sLab, fontSize: '10px' }}>Orario (opz.)</label>
-                    <input 
-                      type="time" 
-                      style={sInp} 
-                      value={sessione.orario}
-                      onChange={e => updateSessionePersonalizzata(sessione.id, 'orario', e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-            
-            {/* Pulsante Aggiungi Sessione */}
-            <button 
-              onClick={aggiungiSessionePersonalizzata}
-              style={{ 
-                width: '100%', 
-                padding: '12px', 
-                background: '#fff', 
-                border: '2px dashed #007AFF', 
-                borderRadius: '8px', 
-                color: '#007AFF', 
-                fontWeight: 'bold', 
-                cursor: 'pointer',
-                fontSize: '14px',
-                marginTop: '8px'
-              }}
-            >
-              ➕ Aggiungi Altra Sessione
-            </button>
           </div>
         </div>
         
