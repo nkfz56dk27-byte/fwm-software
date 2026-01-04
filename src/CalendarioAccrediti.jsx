@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { notificaNuovoEvento, notificaModificaPass, notificaPersonalizzata } from './pushNotifications'
 
 const CAMPIONATI_DEFAULT = [
   { id: 'f1', nome: 'Formula 1', colore: '#E10600', emoji: '🏎️', sigla: 'F1' },
@@ -99,18 +98,46 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   }
   
   async function caricaNotifiche() {
-    const { data: tutteNotifiche } = await supabase.from('notifiche_calendario').select('*').order('created_at', { ascending: false }).limit(50)
-    const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', utenteCorrente.username)
-    const idsLette = new Set((lette || []).map(l => l.notifica_id))
-    const notificheConStato = (tutteNotifiche || []).map(n => ({ ...n, letta: idsLette.has(n.id) }))
-    setNotifiche(notificheConStato)
-    if (onNotificheChange) onNotificheChange()
+    try {
+      console.log('🔍 DEBUG CALENDARIO: Inizio caricaNotifiche')
+      console.log('🔍 DEBUG CALENDARIO: utenteCorrente.username:', utenteCorrente?.username)
+      
+      const { data: tutteNotifiche } = await supabase.from('notifiche_calendario').select('*').order('created_at', { ascending: false }).limit(50)
+      console.log('🔍 DEBUG CALENDARIO: notifiche totali caricate:', tutteNotifiche?.length || 0)
+      
+      const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', utenteCorrente.username)
+      console.log('🔍 DEBUG CALENDARIO: notifiche lette caricate:', lette?.length || 0)
+      
+      const idsLette = new Set((lette || []).map(l => l.notifica_id))
+      console.log('🔍 DEBUG CALENDARIO: IDs lette:', Array.from(idsLette))
+      
+      const notificheConStato = (tutteNotifiche || []).map(n => ({ ...n, letta: idsLette.has(n.id) }))
+      const nonLette = notificheConStato.filter(n => !n.letta)
+      console.log('🔍 DEBUG CALENDARIO: notifiche non lette calcolate:', nonLette.length)
+      
+      setNotifiche(notificheConStato)
+      
+      // FORZA RICARICAMENTO DELLE NOTIFICHE NELLA HOME
+      if (onNotificheChange) {
+        console.log('🔄 DEBUG CALENDARIO: Chiamo onNotificheChange per aggiornare Home')
+        onNotificheChange()
+      }
+      
+      // AGGIUNTA: Forza ricaricamento anche via evento custom
+      window.dispatchEvent(new CustomEvent('notificheAggiornate', { 
+        detail: { 
+          calendarioNonLette: nonLette.length 
+        } 
+      }))
+      
+      console.log('✅ DEBUG CALENDARIO: caricaNotifiche completato')
+    } catch (err) {
+      console.error('❌ Errore caricaNotifiche (CALENDARIO):', err)
+    }
   }
   
   async function creaNotifica(tipo, messaggio, evento_id = null) {
     await supabase.from('notifiche_calendario').insert({ tipo, messaggio, evento_id })
-    // Invia notifica push personalizzata (solo se utente NON è sul sito)
-    await notificaPersonalizzata('📅 Calendario Accrediti', messaggio)
     await caricaNotifiche()
   }
   
@@ -120,11 +147,43 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   }
   
   async function segnaTutteComeLette() {
-    const nonLette = notifiche.filter(n => !n.letta)
-    for (const n of nonLette) {
-      await supabase.from('notifiche_lette').insert({ username: utenteCorrente.username, notifica_id: n.id })
+    try {
+      console.log('🔍 DEBUG CALENDARIO: Inizio segnaTutteComeLette')
+      console.log('🔍 DEBUG CALENDARIO: utenteCorrente.username:', utenteCorrente?.username)
+      console.log('🔍 DEBUG CALENDARIO: notifiche totali:', notifiche.length)
+      
+      const nonLette = notifiche.filter(n => !n.letta)
+      console.log('🔍 DEBUG CALENDARIO: notifiche non lette:', nonLette.length)
+      
+      for (const n of nonLette) {
+        console.log('🔍 DEBUG CALENDARIO: Inserisco notifica ID:', n.id, 'per utente:', utenteCorrente.username)
+        
+        const { data, error } = await supabase.from('notifiche_lette').insert({ 
+          username: utenteCorrente.username, 
+          notifica_id: n.id 
+        })
+        
+        if (error) {
+          console.error('❌ Errore inserimento notifica letta (CALENDARIO):', error)
+          // Controlla se è un errore di duplicato (ignora)
+          if (error.code !== '23505' && error.status !== 409) { // 23505 = unique violation, 409 = conflict
+            throw error
+          } else {
+            console.log('ℹ️ Notifica già marcata come letta (CALENDARIO), ignoro:', n.id)
+          }
+        } else {
+          console.log('✅ Notifica marcata come letta (CALENDARIO):', n.id)
+        }
+      }
+      
+      console.log('🔄 DEBUG CALENDARIO: Ricarico notifiche...')
+      await caricaNotifiche()
+      console.log('✅ DEBUG CALENDARIO: segnaTutteComeLette completato')
+      
+    } catch (err) {
+      console.error('❌ Errore segna tutte come lette (CALENDARIO):', err)
+      alert('❌ Errore durante il salvataggio: ' + err.message)
     }
-    await caricaNotifiche()
   }
   
   async function cancellaTutte() {
@@ -373,6 +432,11 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
                 }}>
                   <div style={{ fontSize: '14px', fontWeight: 'bold', color: isOggi ? 'white' : '#333' }}>
                     {evento.titolo}
+                    {evento.orario && (
+                      <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal', color: isOggi ? 'rgba(255,255,255,0.8)' : '#007AFF' }}>
+                        ⏰ {evento.orario}
+                      </span>
+                    )}
                   </div>
                 </div>
               )
@@ -479,6 +543,12 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
                 {evento.titolo.toUpperCase()}
               </div>
               
+              {evento.orario && (
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#007AFF', marginTop: '3px' }}>
+                  ⏰ {evento.orario}
+                </div>
+              )}
+              
               {badge && (
                 <div style={{ 
                   fontSize: '10px', 
@@ -522,6 +592,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
   const [titolo, setTitolo] = useState('');
   const [dataInizio, setDataInizio] = useState('');
   const [dataFine, setDataFine] = useState(''); 
+  const [orario, setOrario] = useState(''); // NUOVO: orario opzionale (formato HH:MM)
   const [maxAccrediti, setMaxAccrediti] = useState(0);
   const [accreditoStatus, setAccreditoStatus] = useState('nessuno'); 
   const [note, setNote] = useState('');
@@ -540,7 +611,8 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
       campionato_id: tipo === 'gara' ? campionatoId : null, 
       titolo, 
       data_inizio: dataInizio, 
-      data_fine: dataFine || null, 
+      data_fine: dataFine || null,
+      orario: orario || null, // NUOVO: orario opzionale (es: "14:30")
       max_accrediti: parseInt(maxAccrediti) || 0, 
       accredito_status: accreditoStatus, 
       note, 
@@ -551,13 +623,6 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
     try {
       const { data, error } = await supabase.from('eventi_calendario').insert([nuovoEvento]).select().single();
       if (error) throw error;
-      
-      // INVIA NOTIFICA PUSH per nuovo evento (solo se utente NON è sul sito)
-      await notificaNuovoEvento(
-        titolo,
-        dataInizio,
-        '' // circuito opzionale
-      );
       
       await onSave(titolo, data?.id, dataInizio); 
       onClose();
@@ -604,6 +669,20 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
           <div style={{ display: 'flex', gap: '15px' }}>
             <div style={{flex:1}}><label style={sLab}>INIZIO</label><input type="date" style={sInp} value={dataInizio} onChange={e => setDataInizio(e.target.value)} /></div>
             <div style={{flex:1}}><label style={sLab}>FINE</label><input type="date" style={sInp} value={dataFine} onChange={e => setDataFine(e.target.value)} /></div>
+          </div>
+
+          <div style={{marginTop: '15px'}}>
+            <label style={sLab}>ORARIO (Opzionale) - Fuso Italia</label>
+            <input 
+              type="time" 
+              style={sInp} 
+              value={orario} 
+              onChange={e => setOrario(e.target.value)}
+              placeholder="es: 14:30"
+            />
+            <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>
+              💡 Lascia vuoto se non conosci l'orario
+            </div>
           </div>
 
           <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '2px solid #f0f0f0' }}>
@@ -758,12 +837,15 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     // Verifica se max_accrediti è cambiato
     const maxAccreditiCambiato = edit.max_accrediti !== evento.max_accrediti
     
-    await supabase.from('eventi_calendario').update({ titolo: edit.titolo, data_inizio: edit.data_inizio, data_fine: edit.data_fine || null, max_accrediti: edit.max_accrediti || 0, accredito_status: edit.accredito_status, note: edit.note }).eq('id', edit.id)
-    
-    // INVIA NOTIFICA PUSH se i pass sono stati modificati (solo se utente NON è sul sito)
-    if (maxAccreditiCambiato) {
-      await notificaModificaPass(edit.titolo, edit.max_accrediti || 0)
-    }
+    await supabase.from('eventi_calendario').update({ 
+      titolo: edit.titolo, 
+      data_inizio: edit.data_inizio, 
+      data_fine: edit.data_fine || null, 
+      orario: edit.orario || null, // NUOVO: orario opzionale
+      max_accrediti: edit.max_accrediti || 0, 
+      accredito_status: edit.accredito_status, 
+      note: edit.note 
+    }).eq('id', edit.id)
     
     await onUpdate(`Evento ${edit.titolo} modificato`); setSalvando(false); setModalita('visualizza')
   }
@@ -786,6 +868,13 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
               </div>
               <div style={{ flex: 1 }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Fine</div>
                 <input type="date" value={edit.data_fine || ''} onChange={e => setEdit({...edit, data_fine: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Orario (Opzionale) - Fuso Italia</div>
+              <input type="time" value={edit.orario || ''} onChange={e => setEdit({...edit, orario: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+              <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>
+                💡 Lascia vuoto se non conosci l'orario
               </div>
             </div>
             {isAdmin && <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Numero Pass Disponibili (0 = nessun limite)</div>
@@ -829,7 +918,11 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '30px' }}>
           <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>{evento.titolo}</div>
           {b && <div style={{ marginBottom: '20px', padding: '15px', background: b.bg, color: b.color, borderRadius: '10px', fontWeight: 'bold' }}>{b.icon} {b.text}</div>}
-          <div style={{ marginBottom: '20px' }}>📅 {new Date(evento.data_inizio).toLocaleDateString()} {evento.data_fine && `- ${new Date(evento.data_fine).toLocaleDateString()}`}</div>
+          <div style={{ marginBottom: '20px' }}>
+            📅 {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
+            {evento.data_fine && ` - ${new Date(evento.data_fine).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}`}
+            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}>⏰ {evento.orario}</span>}
+          </div>
           {maxAccrediti > 0 && <div style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f7', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>👤 Pass ({numPrenotati}/{maxAccrediti})</div>
             {slots.map((p, i) => (

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
-import { notificaDisponibilitaWeekend } from './pushNotifications'
 
 // ===== MAPPING UTENTE → REDATTORE =====
 const UTENTE_TO_REDATTORE = {
@@ -279,16 +278,41 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   async function segnaTutteComeLette() {
     try {
+      console.log('🔍 DEBUG: Inizio segnaTutteComeLette')
+      console.log('🔍 DEBUG: utenteCorrente.username:', utenteCorrente?.username)
+      console.log('🔍 DEBUG: notifiche totali:', notifiche.length)
+      
       const nonLette = notifiche.filter(n => !n.letta)
+      console.log('🔍 DEBUG: notifiche non lette:', nonLette.length)
+      
       for (const n of nonLette) {
-        await supabase.from('notifiche_disponibilita_lette').insert({ 
+        console.log('🔍 DEBUG: Inserisco notifica ID:', n.id, 'per utente:', utenteCorrente.username)
+        
+        const { data, error } = await supabase.from('notifiche_disponibilita_lette').insert({ 
           username: utenteCorrente.username, 
           notifica_id: n.id 
         })
+        
+        if (error) {
+          console.error('❌ Errore inserimento notifica letta:', error)
+          // Controlla se è un errore di duplicato (ignora)
+          if (error.code !== '23505' && error.status !== 409) { // 23505 = unique violation, 409 = conflict
+            throw error
+          } else {
+            console.log('ℹ️ Notifica già marcata come letta, ignoro:', n.id)
+          }
+        } else {
+          console.log('✅ Notifica marcata come letta:', n.id)
+        }
       }
+      
+      console.log('🔄 DEBUG: Ricarico notifiche...')
       await caricaNotifiche()
+      console.log('✅ DEBUG: segnaTutteComeLette completato')
+      
     } catch (err) {
-      console.error('Errore segna tutte come lette:', err)
+      console.error('❌ Errore segna tutte come lette:', err)
+      alert('❌ Errore durante il salvataggio: ' + err.message)
     }
   }
 
@@ -315,7 +339,6 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
               onClick={() => setShowNotifiche(true)} 
               style={{ 
                 justifyContent: 'center',
-                alignItems: 'center',
                 position: 'relative',
                 display: 'flex', 
                 alignItems: 'center', 
@@ -793,13 +816,6 @@ if (conferma && articoliSelezionati.size > 0) {
     messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
     weekend_id: weekend.id
   })
-  
-  // INVIA NOTIFICA PUSH (solo se utente NON è sul sito)
-  await notificaDisponibilitaWeekend(
-    weekend.nome_gp,
-    nomeRedattore,
-    'disponibile'
-  )
   
   // Forza ricarica notifiche per farle apparire subito
   window.dispatchEvent(new Event('ricarica-notifiche'))
@@ -2300,20 +2316,6 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
             onClick={onSegnaTutteLette} 
             style={{ 
               flex: 1, 
-              padding: '12px', 
-              background: '#34C759', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
-              cursor: 'pointer', 
-              fontWeight: 'bold' 
-            }}
-          >
-            Segna tutte come lette
-          </button>
-          <button 
-            onClick={onClose} 
-            style={{ 
               padding: '12px 30px', 
               background: '#007AFF', 
               color: 'white', 
@@ -2323,7 +2325,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
               fontWeight: 'bold' 
             }}
           >
-            Chiudi
+            Segna tutte come lette
           </button>
         </div>
       </div>

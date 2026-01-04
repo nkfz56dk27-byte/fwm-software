@@ -33,7 +33,7 @@ export default function ProssimoEvento() {
       
       // Carica eventi, prenotazioni e utenti in parallelo
       const [eventiResponse, prenotazioniResponse, utentiResponse] = await Promise.all([
-        supabase.from('eventi_calendario').select('*').order('data_inizio'),
+        supabase.from('eventi_calendario').select('*').order('data_inizio').order('orario', { nullsFirst: false }),
         supabase.from('prenotazioni_accrediti').select('*'),
         supabase.from('utenti').select('username, nome, cognome')
       ])
@@ -66,7 +66,21 @@ export default function ProssimoEvento() {
         return
       }
       
-      const prossimo = eventiFuturi[0]
+      // Ordina per data e poi per orario
+      const eventiOrdinati = eventiFuturi.sort((a, b) => {
+        const dataA = new Date(a.data_inizio)
+        const dataB = new Date(b.data_inizio)
+        if (dataA.getTime() !== dataB.getTime()) {
+          return dataA.getTime() - dataB.getTime()
+        }
+        // Se stessa data, ordina per orario
+        if (!a.orario && !b.orario) return 0
+        if (!a.orario) return 1
+        if (!b.orario) return -1
+        return a.orario.localeCompare(b.orario)
+      })
+      
+      const prossimo = eventiOrdinati[0]
       
       console.log('ProssimoEvento - Evento selezionato:', prossimo)
       console.log('ProssimoEvento - max_accrediti:', prossimo.max_accrediti)
@@ -243,6 +257,7 @@ export default function ProssimoEvento() {
             </span>
             <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#FFF' }}>
               {evento.titolo}
+              {evento.orario && <span style={{ marginLeft: '6px', color: '#00D9FF', fontSize: '12px' }}> {evento.orario.substring(0, 5)}</span>}
             </div>
           </div>
           
@@ -378,6 +393,7 @@ export default function ProssimoEvento() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {evento.titolo}
+                    {evento.orario && <span style={{ marginLeft: '6px', color: '#00D9FF' }}> {evento.orario.substring(0, 5)}</span>}
                   </div>
                   <div style={{ fontSize: '9px', color: '#FFF' }}>
                     {evento.giorniMancanti === 1 ? 'DOMANI' : `+${evento.giorniMancanti} giorni`} • {evento.dataBreve}
