@@ -15,6 +15,7 @@ import GestioneCategorie from './GestioneCategorie.jsx'
 import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
 import EventiMobileMenu from './EventiMobileMenu.jsx'
+import { notificaClassificaAggiornata } from './src/pushNotifications.js'
 
 import './App.css'
 
