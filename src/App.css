@@ -11,6 +11,47 @@ body {
   overflow: hidden;
 }
 
+/* ===== TESTO FORMATTATO ===== */
+.testo-formattato {
+  line-height: 1.6;
+}
+
+.testo-formattato strong {
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.testo-formattato em {
+  font-style: italic;
+  color: #059669;
+}
+
+.modifiche-apportate {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.modifiche-apportate h4 {
+  margin: 0 0 10px 0;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.modifiche-apportate ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.modifiche-apportate li {
+  margin: 5px 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
 /* ===== LOGIN & PASSWORD CHANGE ===== */
 .login-container {
   position: fixed;

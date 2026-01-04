@@ -17,23 +17,53 @@ export default function RitaglioImmagine({ onClose }) {
   const [projectMode, setProjectMode] = useState('normale') // SOLO per il menu, non tocca il sistema
   const [projectImages, setProjectImages] = useState({ normale: [], cover: [] }) // Separa le foto per progetto
   const [favoriteProjects, setFavoriteProjects] = useState([]) // Progetti preferiti
+  const [mobileImgStyle, setMobileImgStyle] = useState({ width: '100%', height: 'auto' }) // FIX MOBILE: dimensioni immagine
 
   const fileInputRef = useRef(null)
   const logoImgRef = useRef(null)
   const containerRef = useRef(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
+  const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 800)
 
   const isMobile = windowWidth <= 768
-  const DISPLAY_SCALE = isMobile ? 0.35 : 0.6
-  const displayDim = {
-    w: dimensions.width * DISPLAY_SCALE,
-    h: dimensions.height * DISPLAY_SCALE
+  
+  // FIX MOBILE: Container adattato allo schermo invece di scalare canvas
+  const displayDim = isMobile ? (() => {
+    // Su mobile: riempi 90% larghezza schermo e adatta altezza
+    const maxWidth = windowWidth * 0.9
+    const maxHeight = windowHeight * 0.6 // Max 60% altezza schermo
+    const canvasAspect = dimensions.width / dimensions.height
+    
+    let w = maxWidth
+    let h = w / canvasAspect
+    
+    // Se altezza esce dallo schermo, scala per altezza
+    if (h > maxHeight) {
+      h = maxHeight
+      w = h * canvasAspect
+    }
+    
+    console.log('📱 MOBILE displayDim:', {
+      screen: `${windowWidth}×${windowHeight}`,
+      canvas: `${dimensions.width}×${dimensions.height}`,
+      canvasAspect: canvasAspect.toFixed(2),
+      container: `${w.toFixed(0)}×${h.toFixed(0)}`
+    })
+    
+    return { w, h }
+  })() : {
+    // DESKTOP: Logica originale (NON TOCCARE!)
+    w: dimensions.width * 0.6,
+    h: dimensions.height * 0.6
   }
 
   // --- Sincronizzazione Cloud (SUPABASE RIPRISTINATO) ---
   useEffect(() => {
     fetchCloudProgetti()
-    const handleResize = () => setWindowWidth(window.innerWidth)
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth)
+      setWindowHeight(window.innerHeight)
+    }
     window.addEventListener('resize', handleResize)
     const img = new Image()
     img.src = '/Logo_Formula1it.png'
@@ -102,7 +132,11 @@ export default function RitaglioImmagine({ onClose }) {
           [projectMode]: [...prev[projectMode], e.target.result]
         }))
         setSelectedImage(e.target.result)
+        
+        // Reset offset e style mobile
         setImageOffset({ x: 0, y: 0 })
+        setMobileImgStyle({ width: '100%', height: 'auto' })
+        
         setView('editor')
       }
       img.src = e.target.result
@@ -138,7 +172,37 @@ export default function RitaglioImmagine({ onClose }) {
       return 0
     }
     
-    // Logica normale per progetti normali
+    // FIX MOBILE: Gestione corretta per foto orizzontali E verticali
+    if (isMobile && projectMode === 'normale') {
+      const imgAspect = imgElement.naturalWidth / imgElement.naturalHeight
+      const containerAspect = displayDim.w / displayDim.h
+      
+      let actualImgHeight, actualImgWidth
+      
+      if (imgAspect > containerAspect) {
+        // Foto ORIZZONTALE → scalata per HEIGHT
+        actualImgHeight = displayDim.h
+        actualImgWidth = actualImgHeight * imgAspect
+      } else {
+        // Foto VERTICALE → scalata per WIDTH  
+        actualImgWidth = displayDim.w
+        actualImgHeight = actualImgWidth / imgAspect
+      }
+      
+      // Calcola i limiti (immagine centrata)
+      const maxOffset = (actualImgHeight - displayDim.h) / 2
+      
+      // Se l'immagine riempie esattamente → nessun trascinamento
+      if (maxOffset <= 0) return 0
+      
+      // Limita il trascinamento
+      if (newY > maxOffset) return maxOffset
+      if (newY < -maxOffset) return -maxOffset
+      
+      return newY
+    }
+    
+    // DESKTOP: Logica originale (NON TOCCARE!)
     const displayedImgHeight = (imgElement.naturalHeight * displayDim.w) / imgElement.naturalWidth
     const containerHeight = displayDim.h
     
@@ -199,15 +263,49 @@ export default function RitaglioImmagine({ onClose }) {
         
         ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
       } else {
-        // Logica NORMALE: come prima
-        const scale = dimensions.width / img.width
-        const renderW = dimensions.width
-        const renderH = img.height * scale
-        const realY = (imageOffset.y / DISPLAY_SCALE)
+        // Logica NORMALE
         
-        ctx.fillStyle = "#ffffff"
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-        ctx.drawImage(img, 0, realY, renderW, renderH)
+        // FIX MOBILE: Gestione diversa per foto scalate per width o height
+        if (isMobile) {
+          // Calcola scala display dinamicamente
+          const displayScale = displayDim.w / dimensions.width
+          
+          const imgAspect = img.width / img.height
+          const canvasAspect = canvas.width / canvas.height
+          
+          let renderW, renderH, realY
+          
+          if (imgAspect > canvasAspect) {
+            // Foto ORIZZONTALE → scalata per HEIGHT su schermo
+            const scale = dimensions.height / img.height
+            renderW = img.width * scale
+            renderH = dimensions.height
+            realY = 0  // Nessun trascinamento verticale (riempie esattamente l'altezza)
+          } else {
+            // Foto VERTICALE → scalata per WIDTH su schermo  
+            const scale = dimensions.width / img.width
+            renderW = dimensions.width
+            renderH = img.height * scale
+            // Converti offset centrato in offset da top
+            const centerOffset = -(renderH - canvas.height) / 2
+            realY = (imageOffset.y / displayScale) + centerOffset
+          }
+          
+          ctx.fillStyle = "#ffffff"
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(img, 0, realY, renderW, renderH)
+        } else {
+          // DESKTOP: Logica originale (NON TOCCARE!)
+          const displayScale = displayDim.w / dimensions.width
+          const scale = dimensions.width / img.width
+          const renderW = dimensions.width
+          const renderH = img.height * scale
+          const realY = (imageOffset.y / displayScale)
+          
+          ctx.fillStyle = "#ffffff"
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+          ctx.drawImage(img, 0, realY, renderW, renderH)
+        }
       }
       
       if (conLogo && logoImgRef.current) {
@@ -444,17 +542,55 @@ export default function RitaglioImmagine({ onClose }) {
                       justifyContent: 'center'
                     }}
                   >
-                    {/* Immagine normale - non toccare! */}
-                    <img src={selectedImage} draggable={false} style={{ 
-                      position: 'absolute', 
-                      width: '100%', 
-                      height: 'auto', 
-                      top: 0, 
-                      left: 0, 
-                      transform: `translateY(${imageOffset.y}px)`, 
-                      pointerEvents: 'none',
-                      display: projectMode === 'cover' ? 'none' : 'block'
-                    }} />
+                    {/* Immagine normale */}
+                    <img 
+                      src={selectedImage} 
+                      draggable={false}
+                      onLoad={(e) => {
+                        if (isMobile && projectMode === 'normale') {
+                          // FIX MOBILE: Calcola dimensioni per riempire TUTTO (object-fit: cover)
+                          const img = e.target
+                          const imgAspect = img.naturalWidth / img.naturalHeight
+                          const containerAspect = displayDim.w / displayDim.h
+                          
+                          console.log('📐 Mobile image loaded:', {
+                            imgAspect: imgAspect.toFixed(2),
+                            containerAspect: containerAspect.toFixed(2),
+                            imgNatural: `${img.naturalWidth}×${img.naturalHeight}`,
+                            container: `${displayDim.w}×${displayDim.h}`
+                          })
+                          
+                          if (imgAspect > containerAspect) {
+                            // ORIZZONTALE → scala per HEIGHT
+                            console.log('✅ ORIZZONTALE → scala per HEIGHT')
+                            setMobileImgStyle({ width: 'auto', height: '100%' })
+                          } else {
+                            // VERTICALE → scala per WIDTH
+                            console.log('✅ VERTICALE → scala per WIDTH')
+                            setMobileImgStyle({ width: '100%', height: 'auto' })
+                          }
+                        }
+                      }}
+                      style={{ 
+                        position: 'absolute', 
+                        ...(isMobile && projectMode === 'normale' ? {
+                          // MOBILE: Usa dimensioni dallo state
+                          ...mobileImgStyle,
+                          left: '50%',
+                          top: '50%',
+                          transform: `translate(-50%, calc(-50% + ${imageOffset.y}px))`
+                        } : {
+                          // DESKTOP: Logica originale (NON TOCCARE!)
+                          width: '100%',
+                          height: 'auto',
+                          top: 0,
+                          left: 0,
+                          transform: `translateY(${imageOffset.y}px)`
+                        }),
+                        pointerEvents: 'none',
+                        display: projectMode === 'cover' ? 'none' : 'block'
+                      }} 
+                    />
                     
                     {/* Immagine cover - solo per cover */}
                     {projectMode === 'cover' && (

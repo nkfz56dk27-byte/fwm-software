@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { initializeOneSignal } from './onesignal'
-import { notificaClassificaAggiornata } from './pushNotifications'
-import NotificationPrompt from './NotificationPrompt'
 import CoppaSVG from "./assets/coppa.svg"
 import FotoSVG from "./assets/foto.svg"
 import DisponibilitàSVG from "./assets/disponibilità.svg"
@@ -45,31 +42,9 @@ function App() {
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
   const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
   const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
-  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Prompt notifiche push
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
-  
-  // Inizializza OneSignal all'avvio dell'app (una sola volta)
-  useEffect(() => {
-    initializeOneSignal()
-  }, [])
-  
-  // Mostra NotificationPrompt dopo il login (una sola volta per sessione)
-  useEffect(() => {
-    if (user && !mustChangePassword) {
-      // Controlla se l'utente ha già visto il prompt in questa sessione
-      const hasSeenPrompt = sessionStorage.getItem('notificationPromptShown')
-      if (!hasSeenPrompt) {
-        // Mostra il prompt dopo 2 secondi dal login
-        const timer = setTimeout(() => {
-          setShowNotificationPrompt(true)
-          sessionStorage.setItem('notificationPromptShown', 'true')
-        }, 2000)
-        return () => clearTimeout(timer)
-      }
-    }
-  }, [user, mustChangePassword])
   
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768)
@@ -79,27 +54,50 @@ function App() {
 
   async function caricaNotificheCalendario(username) {
     try {
-      const { data: notifiche } = await supabase.from('notifiche_calendario').select('id')
+      console.log('🔍 DEBUG HOME: Inizio caricaNotificheCalendario')
+      console.log('🔍 DEBUG HOME: username:', username)
+      
+      const { data: notifiche } = await supabase.from('notifiche_calendario').select('*').order('created_at', { ascending: false }).limit(50)
+      console.log('🔍 DEBUG HOME: notifiche totali caricate:', notifiche?.length || 0)
+      
       const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', username)
+      console.log('🔍 DEBUG HOME: notifiche lette caricate:', lette?.length || 0)
+      
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
+      console.log('🔍 DEBUG HOME: IDs lette:', Array.from(idsLette))
+      
       const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id))
+      console.log('🔍 DEBUG HOME: notifiche non lette calcolate:', nonLette.length)
+      
       setNotificheNonLetteCalendario(nonLette.length)
-    } catch (e) {}
+      console.log('✅ DEBUG HOME: caricaNotificheCalendario completato')
+    } catch (e) {
+      console.error('❌ Errore caricaNotificheCalendario (HOME):', e)
+    }
   }
 
   async function caricaNotificheDisponibilita(username) {
     try {
+      console.log('🔍 DEBUG HOME: Inizio caricaNotificheDisponibilita')
+      console.log('🔍 DEBUG HOME: username:', username)
+      console.log('🔍 DEBUG HOME: isAdmin:', user?.ruolo === 'admin')
+      
       const isAdmin = user?.ruolo === 'admin'
       
-      // 1. Carica tutte le notifiche
+      // 1. Carica tutte le notifiche (con limite e ordinamento come Disponibilità)
       const { data: tutteNotifiche } = await supabase
         .from('notifiche_disponibilita')
-        .select('id, weekend_id')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      
+      console.log('🔍 DEBUG HOME: notifiche totali caricate:', tutteNotifiche?.length || 0)
       
       let notificheFiltrate = tutteNotifiche || []
       
       // 2. Se NON admin: filtra per categorie
       if (!isAdmin) {
+        console.log('🔍 DEBUG HOME: Filtro per categorie utente')
         // Carica categorie utente
         const { data: gruppiUtente } = await supabase
           .from('gruppi_redattori')
@@ -107,6 +105,7 @@ function App() {
           .eq('username', username)
         
         const categorieIds = (gruppiUtente || []).map(g => g.categoria_id).filter(Boolean)
+        console.log('🔍 DEBUG HOME: categorieIds:', categorieIds)
         
         // Carica weekend di quelle categorie
         let queryWeekend = supabase.from('weekend').select('id')
@@ -119,11 +118,13 @@ function App() {
         
         const { data: weekendConsentiti } = await queryWeekend
         const weekendIdsConsentiti = new Set((weekendConsentiti || []).map(w => w.id))
+        console.log('🔍 DEBUG HOME: weekendIdsConsentiti:', Array.from(weekendIdsConsentiti))
         
         // Filtra notifiche
         notificheFiltrate = notificheFiltrate.filter(n => 
           !n.weekend_id || weekendIdsConsentiti.has(n.weekend_id)
         )
+        console.log('🔍 DEBUG HOME: notifiche dopo filtro categorie:', notificheFiltrate.length)
       }
       
       // 3. Conta notifiche NON lette
@@ -132,10 +133,16 @@ function App() {
         .select('notifica_id')
         .eq('username', username)
       
+      console.log('🔍 DEBUG HOME: notifiche lette caricate:', lette?.length || 0)
+      
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
+      console.log('🔍 DEBUG HOME: IDs lette:', Array.from(idsLette))
+      
       const nonLette = notificheFiltrate.filter(n => !idsLette.has(n.id))
+      console.log('🔍 DEBUG HOME: notifiche non lette calcolate:', nonLette.length)
       
       setNotificheNonLetteDisponibilita(nonLette.length)
+      console.log('✅ DEBUG HOME: caricaNotificheDisponibilita completato')
     } catch (e) {
       console.error('[HOME] Errore caricamento notifiche disponibilità:', e)
     }
@@ -152,6 +159,16 @@ function App() {
         caricaNotificheCalendario(user.username)
         caricaNotificheDisponibilita(user.username)
       }, 30000)
+      
+      // AGGIUNTA: Ascolta eventi custom da Calendario/Disponibilità
+      const handleNotificheAggiornate = (event) => {
+        console.log('🔄 HOME: Ricevuto evento notificheAggiornate', event.detail)
+        // Forza ricaricamento immediato delle notifiche
+        caricaNotificheCalendario(user.username)
+        caricaNotificheDisponibilita(user.username)
+      }
+      
+      window.addEventListener('notificheAggiornate', handleNotificheAggiornate)
       
       // REALTIME SUBSCRIPTION per notifiche disponibilità
       const channelDisponibilita = supabase
@@ -179,6 +196,7 @@ function App() {
       return () => {
         clearInterval(interval)
         supabase.removeChannel(channelDisponibilita)
+        window.removeEventListener('notificheAggiornate', handleNotificheAggiornate)
         console.log('[HOME] Subscription realtime notifiche rimossa')
       }
     }
@@ -280,12 +298,6 @@ function App() {
   return (
     <>
       <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMenu={() => setShowClassificheMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
-      {showNotificationPrompt && (
-        <NotificationPrompt 
-          username={user.username} 
-          onClose={() => setShowNotificationPrompt(false)} 
-        />
-      )}
     </>
   )
 }
@@ -343,10 +355,11 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         setClassifica(nuovaClassifica)
         setShowSetup(false)
         
-        // INVIA NOTIFICA PUSH per classifica aggiornata (solo se utente NON è sul sito)
+        // INVIA NOTIFICA PUSH per classifica aggiornata (sistema intelligente multi-device)
         await notificaClassificaAggiornata(
           nuovaClassifica.nome,
-          'Nuovi risultati disponibili'
+          'Nuovi risultati disponibili',
+          user.username  // ← Sistema multi-device: invia solo ad altri dispositivi
         )
         
         caricaClassifica()
@@ -2080,6 +2093,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
         .from('eventi_calendario')
         .select('*')
         .order('data_inizio')
+        .order('orario', { nullsFirst: false })
       
       if (!eventi || eventi.length === 0) {
         setProssimoEvento(null)
@@ -2099,7 +2113,21 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
         return
       }
       
-      const prossimo = eventiFuturi[0]
+      // Ordina per data e poi per orario
+      const eventiOrdinati = eventiFuturi.sort((a, b) => {
+        const dataA = new Date(a.data_inizio)
+        const dataB = new Date(b.data_inizio)
+        if (dataA.getTime() !== dataB.getTime()) {
+          return dataA.getTime() - dataB.getTime()
+        }
+        // Se stessa data, ordina per orario
+        if (!a.orario && !b.orario) return 0
+        if (!a.orario) return 1
+        if (!b.orario) return -1
+        return a.orario.localeCompare(b.orario)
+      })
+      
+      const prossimo = eventiOrdinati[0]
       const dataProssimo = new Date(prossimo.data_inizio)
       oggi.setHours(0, 0, 0, 0)
       dataProssimo.setHours(0, 0, 0, 0)
