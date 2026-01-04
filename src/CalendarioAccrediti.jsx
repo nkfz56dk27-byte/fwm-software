@@ -432,6 +432,11 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
                 }}>
                   <div style={{ fontSize: '14px', fontWeight: 'bold', color: isOggi ? 'white' : '#333' }}>
                     {evento.titolo}
+                    {evento.orario && (
+                      <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal', color: isOggi ? 'rgba(255,255,255,0.8)' : '#007AFF' }}>
+                        ⏰ {evento.orario}
+                      </span>
+                    )}
                   </div>
                 </div>
               )
@@ -538,6 +543,12 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
                 {evento.titolo.toUpperCase()}
               </div>
               
+              {evento.orario && (
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#007AFF', marginTop: '3px' }}>
+                  ⏰ {evento.orario}
+                </div>
+              )}
+              
               {badge && (
                 <div style={{ 
                   fontSize: '10px', 
@@ -581,6 +592,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
   const [titolo, setTitolo] = useState('');
   const [dataInizio, setDataInizio] = useState('');
   const [dataFine, setDataFine] = useState(''); 
+  const [orario, setOrario] = useState(''); // NUOVO: orario opzionale (formato HH:MM)
   const [maxAccrediti, setMaxAccrediti] = useState(0);
   const [accreditoStatus, setAccreditoStatus] = useState('nessuno'); 
   const [note, setNote] = useState('');
@@ -599,7 +611,8 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
       campionato_id: tipo === 'gara' ? campionatoId : null, 
       titolo, 
       data_inizio: dataInizio, 
-      data_fine: dataFine || null, 
+      data_fine: dataFine || null,
+      orario: orario || null, // NUOVO: orario opzionale (es: "14:30")
       max_accrediti: parseInt(maxAccrediti) || 0, 
       accredito_status: accreditoStatus, 
       note, 
@@ -656,6 +669,20 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
           <div style={{ display: 'flex', gap: '15px' }}>
             <div style={{flex:1}}><label style={sLab}>INIZIO</label><input type="date" style={sInp} value={dataInizio} onChange={e => setDataInizio(e.target.value)} /></div>
             <div style={{flex:1}}><label style={sLab}>FINE</label><input type="date" style={sInp} value={dataFine} onChange={e => setDataFine(e.target.value)} /></div>
+          </div>
+
+          <div style={{marginTop: '15px'}}>
+            <label style={sLab}>ORARIO (Opzionale) - Fuso Italia</label>
+            <input 
+              type="time" 
+              style={sInp} 
+              value={orario} 
+              onChange={e => setOrario(e.target.value)}
+              placeholder="es: 14:30"
+            />
+            <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>
+              💡 Lascia vuoto se non conosci l'orario
+            </div>
           </div>
 
           <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '2px solid #f0f0f0' }}>
@@ -810,7 +837,15 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     // Verifica se max_accrediti è cambiato
     const maxAccreditiCambiato = edit.max_accrediti !== evento.max_accrediti
     
-    await supabase.from('eventi_calendario').update({ titolo: edit.titolo, data_inizio: edit.data_inizio, data_fine: edit.data_fine || null, max_accrediti: edit.max_accrediti || 0, accredito_status: edit.accredito_status, note: edit.note }).eq('id', edit.id)
+    await supabase.from('eventi_calendario').update({ 
+      titolo: edit.titolo, 
+      data_inizio: edit.data_inizio, 
+      data_fine: edit.data_fine || null, 
+      orario: edit.orario || null, // NUOVO: orario opzionale
+      max_accrediti: edit.max_accrediti || 0, 
+      accredito_status: edit.accredito_status, 
+      note: edit.note 
+    }).eq('id', edit.id)
     
     await onUpdate(`Evento ${edit.titolo} modificato`); setSalvando(false); setModalita('visualizza')
   }
@@ -833,6 +868,13 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
               </div>
               <div style={{ flex: 1 }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Fine</div>
                 <input type="date" value={edit.data_fine || ''} onChange={e => setEdit({...edit, data_fine: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Orario (Opzionale) - Fuso Italia</div>
+              <input type="time" value={edit.orario || ''} onChange={e => setEdit({...edit, orario: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+              <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>
+                💡 Lascia vuoto se non conosci l'orario
               </div>
             </div>
             {isAdmin && <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Numero Pass Disponibili (0 = nessun limite)</div>
@@ -876,7 +918,11 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '30px' }}>
           <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>{evento.titolo}</div>
           {b && <div style={{ marginBottom: '20px', padding: '15px', background: b.bg, color: b.color, borderRadius: '10px', fontWeight: 'bold' }}>{b.icon} {b.text}</div>}
-          <div style={{ marginBottom: '20px' }}>📅 {new Date(evento.data_inizio).toLocaleDateString()} {evento.data_fine && `- ${new Date(evento.data_fine).toLocaleDateString()}`}</div>
+          <div style={{ marginBottom: '20px' }}>
+            📅 {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
+            {evento.data_fine && ` - ${new Date(evento.data_fine).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}`}
+            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}>⏰ {evento.orario}</span>}
+          </div>
           {maxAccrediti > 0 && <div style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f7', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>👤 Pass ({numPrenotati}/{maxAccrediti})</div>
             {slots.map((p, i) => (
