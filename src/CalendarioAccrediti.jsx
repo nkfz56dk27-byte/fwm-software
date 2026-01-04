@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { notificaNuovoEvento, notificaModificaPass, notificaPersonalizzata } from './pushNotifications'
 
 const CAMPIONATI_DEFAULT = [
   { id: 'f1', nome: 'Formula 1', colore: '#E10600', emoji: '🏎️', sigla: 'F1' },
@@ -22,6 +21,15 @@ const EMOJI_DISPONIBILI = [
 
 const MESI_ITALIANO = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 
+// Funzione per formattare orario HH:MM (senza secondi)
+function formatOrario(orario) {
+  if (!orario) return null
+  // Se è già in formato HH:MM, ritorna così
+  if (orario.length === 5) return orario
+  // Se è HH:MM:SS, taglia i secondi
+  return orario.substring(0, 5)
+}
+
 export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotificheChange }) {
   const [campionati, setCampionati] = useState([])
   const [eventi, setEventi] = useState([])
@@ -32,6 +40,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   const [meseCorrente, setMeseCorrente] = useState(new Date())
   const [showNuovoEvento, setShowNuovoEvento] = useState(false)
   const [showGestioneCampionati, setShowGestioneCampionati] = useState(false)
+  const [showImportaWeekend, setShowImportaWeekend] = useState(false)
   const [showNotifiche, setShowNotifiche] = useState(false)
   const [eventoSelezionato, setEventoSelezionato] = useState(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
@@ -60,8 +69,13 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     }
     setCampionati(campionatiDB)
     
-    // 2. Caricamento Eventi
-    const { data: eventiDB } = await supabase.from('eventi_calendario').select('*').order('data_inizio')
+    // 2. Caricamento Eventi - ordinati per data e poi per orario
+    const { data: eventiDB } = await supabase
+      .from('eventi_calendario')
+      .select('*')
+      .order('data_inizio')
+      .order('orario', { nullsFirst: false })
+    
     setEventi(eventiDB || [])
     
     // 3. Caricamento Utenti
@@ -139,8 +153,6 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   
   async function creaNotifica(tipo, messaggio, evento_id = null) {
     await supabase.from('notifiche_calendario').insert({ tipo, messaggio, evento_id })
-    // Invia notifica push personalizzata (sistema intelligente multi-device)
-    await notificaPersonalizzata('📅 Calendario Accrediti', messaggio, [], utenteCorrente.username)
     await caricaNotifiche()
   }
   
@@ -262,6 +274,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
             {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
           </button>
           {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Categorie</button>}
+          {isAdmin && <button onClick={() => setShowImportaWeekend(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#5856D6', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Weekend</button>}
           <button onClick={() => setShowNuovoEvento(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Nuovo</button>
         </div>
       </div>
@@ -311,6 +324,16 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
           onClose={() => setShowGestioneCampionati(false)} 
           onUpdate={caricaDati} 
           isMobile={isMobile} 
+        />
+      )}
+      
+      {showImportaWeekend && (
+        <ImportaWeekendGP
+          campionati={campionati}
+          onClose={() => setShowImportaWeekend(false)}
+          onSave={caricaDati}
+          utenteCorrente={utenteCorrente}
+          isMobile={isMobile}
         />
       )}
       
@@ -378,6 +401,12 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
       
       // Confronto puramente testuale (il più affidabile per le date YYYY-MM-DD)
       return dataCorrenteStr >= inizio && dataCorrenteStr <= fine;
+    }).sort((a, b) => {
+      // Ordina per orario: eventi senza orario vanno alla fine
+      if (!a.orario && !b.orario) return 0
+      if (!a.orario) return 1
+      if (!b.orario) return -1
+      return a.orario.localeCompare(b.orario)
     });
 
     // Debug per il 31 Dicembre (lo vedrai nella console del browser F12)
@@ -435,6 +464,11 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
                 }}>
                   <div style={{ fontSize: '14px', fontWeight: 'bold', color: isOggi ? 'white' : '#333' }}>
                     {evento.titolo}
+                    {evento.orario && (
+                      <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal', color: isOggi ? 'rgba(255,255,255,0.8)' : '#007AFF' }}>
+                         {formatOrario(evento.orario)}
+                      </span>
+                    )}
                   </div>
                 </div>
               )
@@ -454,7 +488,15 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
   for (let i = 0; i < offset; i++) giorni.push(<div key={`empty-${i}`} style={{ background: '#f9f9f9', borderRadius: '6px' }}></div>)
   for (let giorno = 1; giorno <= ultimoGiorno; giorno++) {
     const dataStr = `${anno}-${String(meseNum + 1).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
-    const eventiGiorno = eventi.filter(e => dataStr >= e.data_inizio && dataStr <= (e.data_fine || e.data_inizio))
+    const eventiGiorno = eventi
+      .filter(e => dataStr >= e.data_inizio && dataStr <= (e.data_fine || e.data_inizio))
+      .sort((a, b) => {
+        // Ordina per orario: eventi senza orario vanno alla fine
+        if (!a.orario && !b.orario) return 0
+        if (!a.orario) return 1
+        if (!b.orario) return -1
+        return a.orario.localeCompare(b.orario)
+      })
     const isOggi = new Date().toDateString() === new Date(anno, meseNum, giorno).toDateString()
     giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} isOggi={isOggi} onEventoClick={onEventoClick} isMobile={isMobile} />)
   }
@@ -541,6 +583,12 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
                 {evento.titolo.toUpperCase()}
               </div>
               
+              {evento.orario && (
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#007AFF', marginTop: '3px' }}>
+                   {formatOrario(evento.orario)}
+                </div>
+              )}
+              
               {badge && (
                 <div style={{ 
                   fontSize: '10px', 
@@ -584,6 +632,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
   const [titolo, setTitolo] = useState('');
   const [dataInizio, setDataInizio] = useState('');
   const [dataFine, setDataFine] = useState(''); 
+  const [orario, setOrario] = useState(''); // NUOVO: orario opzionale (formato HH:MM)
   const [maxAccrediti, setMaxAccrediti] = useState(0);
   const [accreditoStatus, setAccreditoStatus] = useState('nessuno'); 
   const [note, setNote] = useState('');
@@ -602,7 +651,8 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
       campionato_id: tipo === 'gara' ? campionatoId : null, 
       titolo, 
       data_inizio: dataInizio, 
-      data_fine: dataFine || null, 
+      data_fine: dataFine || null,
+      orario: orario || null, // NUOVO: orario opzionale (es: "14:30")
       max_accrediti: parseInt(maxAccrediti) || 0, 
       accredito_status: accreditoStatus, 
       note, 
@@ -613,14 +663,6 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
     try {
       const { data, error } = await supabase.from('eventi_calendario').insert([nuovoEvento]).select().single();
       if (error) throw error;
-      
-      // INVIA NOTIFICA PUSH per nuovo evento (sistema intelligente multi-device)
-      await notificaNuovoEvento(
-        titolo,
-        dataInizio,
-        '', // circuito opzionale
-        utenteCorrente?.username  // ← Sistema multi-device: invia solo ad altri dispositivi
-      );
       
       await onSave(titolo, data?.id, dataInizio); 
       onClose();
@@ -667,6 +709,20 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
           <div style={{ display: 'flex', gap: '15px' }}>
             <div style={{flex:1}}><label style={sLab}>INIZIO</label><input type="date" style={sInp} value={dataInizio} onChange={e => setDataInizio(e.target.value)} /></div>
             <div style={{flex:1}}><label style={sLab}>FINE</label><input type="date" style={sInp} value={dataFine} onChange={e => setDataFine(e.target.value)} /></div>
+          </div>
+
+          <div style={{marginTop: '15px'}}>
+            <label style={sLab}>ORARIO (Opzionale) - Fuso Italia</label>
+            <input 
+              type="time" 
+              style={sInp} 
+              value={orario} 
+              onChange={e => setOrario(e.target.value)}
+              placeholder="es: 14:30"
+            />
+            <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>
+              💡 Lascia vuoto se non conosci l'orario
+            </div>
           </div>
 
           <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '2px solid #f0f0f0' }}>
@@ -821,12 +877,15 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     // Verifica se max_accrediti è cambiato
     const maxAccreditiCambiato = edit.max_accrediti !== evento.max_accrediti
     
-    await supabase.from('eventi_calendario').update({ titolo: edit.titolo, data_inizio: edit.data_inizio, data_fine: edit.data_fine || null, max_accrediti: edit.max_accrediti || 0, accredito_status: edit.accredito_status, note: edit.note }).eq('id', edit.id)
-    
-    // INVIA NOTIFICA PUSH se i pass sono stati modificati (sistema intelligente multi-device)
-    if (maxAccreditiCambiato) {
-      await notificaModificaPass(edit.titolo, edit.max_accrediti || 0, utenteCorrente?.username)
-    }
+    await supabase.from('eventi_calendario').update({ 
+      titolo: edit.titolo, 
+      data_inizio: edit.data_inizio, 
+      data_fine: edit.data_fine || null, 
+      orario: edit.orario || null, // NUOVO: orario opzionale
+      max_accrediti: edit.max_accrediti || 0, 
+      accredito_status: edit.accredito_status, 
+      note: edit.note 
+    }).eq('id', edit.id)
     
     await onUpdate(`Evento ${edit.titolo} modificato`); setSalvando(false); setModalita('visualizza')
   }
@@ -849,6 +908,13 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
               </div>
               <div style={{ flex: 1 }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Fine</div>
                 <input type="date" value={edit.data_fine || ''} onChange={e => setEdit({...edit, data_fine: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Orario (Opzionale) - Fuso Italia</div>
+              <input type="time" value={edit.orario || ''} onChange={e => setEdit({...edit, orario: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+              <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>
+                💡 Lascia vuoto se non conosci l'orario
               </div>
             </div>
             {isAdmin && <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Numero Pass Disponibili (0 = nessun limite)</div>
@@ -892,7 +958,11 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '30px' }}>
           <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>{evento.titolo}</div>
           {b && <div style={{ marginBottom: '20px', padding: '15px', background: b.bg, color: b.color, borderRadius: '10px', fontWeight: 'bold' }}>{b.icon} {b.text}</div>}
-          <div style={{ marginBottom: '20px' }}>📅 {new Date(evento.data_inizio).toLocaleDateString()} {evento.data_fine && `- ${new Date(evento.data_fine).toLocaleDateString()}`}</div>
+          <div style={{ marginBottom: '20px' }}>
+            {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
+            {evento.data_fine && ` - ${new Date(evento.data_fine).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}`}
+            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}> {formatOrario(evento.orario)}</span>}
+          </div>
           {maxAccrediti > 0 && <div style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f7', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>👤 Pass ({numPrenotati}/{maxAccrediti})</div>
             {slots.map((p, i) => (
@@ -938,6 +1008,352 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
         <div style={{ padding: '15px', borderTop: '1px solid #e0e0e0' }}>
           <button onClick={onSegnaTutteLette} style={{ width: '100%', padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>Segna tutte come lette</button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function ImportaWeekendGP({ campionati, onClose, onSave, utenteCorrente, isMobile }) {
+  const [campionatoId, setCampionatoId] = useState(campionati[0]?.id || '')
+  const [nomeGP, setNomeGP] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [sessioniPersonalizzate, setSessioniPersonalizzate] = useState([]) // Nuove sessioni create dall'utente
+  
+  // Tutte le possibili sessioni con checkbox
+  const [sessioni, setSessioni] = useState({
+    fp1: { enabled: false, nome: 'FP1', data: '', orario: '' },
+    fp2: { enabled: false, nome: 'FP2', data: '', orario: '' },
+    fp3: { enabled: false, nome: 'FP3', data: '', orario: '' },
+    qualifiche: { enabled: false, nome: 'Qualifiche', data: '', orario: '' },
+    sprint: { enabled: false, nome: 'Sprint', data: '', orario: '' },
+    sprintQualifiche: { enabled: false, nome: 'Sprint Qualifiche', data: '', orario: '' },
+    gara: { enabled: false, nome: 'Gara', data: '', orario: '' },
+    featureRace: { enabled: false, nome: 'Feature Race', data: '', orario: '' },
+    gara2: { enabled: false, nome: 'Gara 2', data: '', orario: '' },
+    gara3: { enabled: false, nome: 'Gara 3', data: '', orario: '' },
+    qualifiche2: { enabled: false, nome: 'Qualifiche 2', data: '', orario: '' }
+  })
+  
+  function toggleSessione(key) {
+    setSessioni(prev => ({
+      ...prev,
+      [key]: { ...prev[key], enabled: !prev[key].enabled }
+    }))
+  }
+  
+  function updateSessione(key, field, value) {
+    setSessioni(prev => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value }
+    }))
+  }
+  
+  function aggiungiSessionePersonalizzata() {
+    const nuovaSessione = {
+      id: Date.now(),
+      nome: '',
+      data: '',
+      orario: ''
+    }
+    setSessioniPersonalizzate(prev => [...prev, nuovaSessione])
+  }
+  
+  function rimuoviSessionePersonalizzata(id) {
+    setSessioniPersonalizzate(prev => prev.filter(s => s.id !== id))
+  }
+  
+  function updateSessionePersonalizzata(id, field, value) {
+    setSessioniPersonalizzate(prev => 
+      prev.map(s => s.id === id ? { ...s, [field]: value } : s)
+    )
+  }
+  
+  async function salvaWeekend() {
+    if (!nomeGP.trim()) {
+      alert('Inserisci il nome del GP!')
+      return
+    }
+    
+    // Conta sessioni predefinite abilitate
+    const sessioniDaSalvare = Object.entries(sessioni).filter(([_, s]) => s.enabled)
+    
+    // Valida sessioni personalizzate (devono avere nome e data)
+    const sessioniPersonalizzateValide = sessioniPersonalizzate.filter(s => s.nome.trim() && s.data)
+    const sessioniPersonalizzateInvalide = sessioniPersonalizzate.filter(s => !s.nome.trim() || !s.data)
+    
+    if (sessioniPersonalizzateInvalide.length > 0) {
+      alert('Compila nome e data per tutte le sessioni personalizzate!')
+      return
+    }
+    
+    const totaleSessioni = sessioniDaSalvare.length + sessioniPersonalizzateValide.length
+    
+    if (totaleSessioni === 0) {
+      alert('Seleziona almeno una sessione!')
+      return
+    }
+    
+    // Verifica che ogni sessione abilitata abbia la data
+    const sessioniSenzaData = sessioniDaSalvare.filter(([_, s]) => !s.data)
+    if (sessioniSenzaData.length > 0) {
+      alert('Compila la data per tutte le sessioni selezionate!')
+      return
+    }
+    
+    setSalvando(true)
+    
+    try {
+      // Prepara array eventi predefiniti
+      const eventiPredefiniti = sessioniDaSalvare.map(([key, sessione]) => ({
+        tipo: 'gara',
+        campionato_id: campionatoId,
+        titolo: `${nomeGP} - ${sessione.nome}`,
+        data_inizio: sessione.data,
+        data_fine: sessione.data,
+        orario: sessione.orario || null,
+        max_accrediti: 0,
+        accredito_status: 'nessuno',
+        note: '',
+        colore_personalizzato: null,
+        creato_da: utenteCorrente?.username || 'admin'
+      }))
+      
+      // Prepara array eventi personalizzati
+      const eventiPersonalizzati = sessioniPersonalizzateValide.map(sessione => ({
+        tipo: 'gara',
+        campionato_id: campionatoId,
+        titolo: `${nomeGP} - ${sessione.nome}`,
+        data_inizio: sessione.data,
+        data_fine: sessione.data,
+        orario: sessione.orario || null,
+        max_accrediti: 0,
+        accredito_status: 'nessuno',
+        note: '',
+        colore_personalizzato: null,
+        creato_da: utenteCorrente?.username || 'admin'
+      }))
+      
+      // Unisci tutti gli eventi
+      const eventiDaCreare = [...eventiPredefiniti, ...eventiPersonalizzati]
+      
+      console.log('📅 Salvando weekend:', {
+        nomeGP,
+        totaleEventi: eventiDaCreare.length,
+        eventi: eventiDaCreare
+      })
+      
+      // INSERISCI UNO PER UNO per evitare problemi con batch insert
+      let eventiCreati = 0
+      let primoEventoId = null
+      
+      for (const evento of eventiDaCreare) {
+        const { data, error } = await supabase
+          .from('eventi_calendario')
+          .insert([evento])
+          .select()
+          .single()
+        
+        if (error) {
+          console.error('❌ Errore inserimento evento:', evento.titolo, error)
+          throw error
+        }
+        
+        if (eventiCreati === 0 && data) {
+          primoEventoId = data.id
+        }
+        
+        eventiCreati++
+        console.log(`✅ Evento ${eventiCreati}/${eventiDaCreare.length} creato:`, evento.titolo)
+      }
+      
+      // CREA NOTIFICA
+      const campionato = campionati.find(c => c.id === campionatoId)
+      const messaggioNotifica = `${campionato?.emoji || '📅'} Weekend "${nomeGP}" creato con ${eventiCreati} sessioni`
+      
+      await supabase.from('notifiche_calendario').insert({
+        messaggio: messaggioNotifica,
+        evento_id: primoEventoId
+      })
+      
+      console.log('🔔 Notifica creata:', messaggioNotifica)
+      
+      alert(`✅ Weekend "${nomeGP}" creato con successo!\n${eventiCreati} sessioni salvate.`)
+      
+      await onSave() // Ricarica i dati
+      onClose()
+      
+    } catch (err) {
+      console.error('❌ Errore completo:', err)
+      alert('Errore durante il salvataggio: ' + err.message)
+    } finally {
+      setSalvando(false)
+    }
+  }
+  
+  const sInp = { width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '14px', boxSizing: 'border-box' }
+  const sLab = { fontSize: '11px', fontWeight: '600', color: '#666', marginBottom: '4px', display: 'block' }
+  
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
+      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '650px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
+        
+        {/* Header */}
+        <div style={{ padding: '20px 25px', borderBottom: '2px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <b style={{ fontSize: '18px' }}>INSERISCI ORARI WEEKEND GP</b>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+        </div>
+        
+        {/* Content */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 25px' }}>
+          
+          {/* Campionato */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={sLab}>CAMPIONATO</label>
+            <select value={campionatoId} onChange={e => setCampionatoId(e.target.value)} style={sInp}>
+              {campionati.map(c => (
+                <option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>
+              ))}
+            </select>
+          </div>
+          
+          {/* Nome GP */}
+          <div style={{ marginBottom: '25px' }}>
+            <label style={sLab}>NOME GP</label>
+            <input 
+              type="text" 
+              style={sInp} 
+              value={nomeGP} 
+              onChange={e => setNomeGP(e.target.value)} 
+              placeholder="es: GP Monaco"
+            />
+          </div>
+          
+          {/* Sessioni */}
+          <div style={{ borderTop: '2px solid #f0f0f0', paddingTop: '20px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '15px', color: '#666' }}>SESSIONI</div>
+            
+            {Object.entries(sessioni).map(([key, sessione]) => (
+              <div key={key} style={{ 
+                marginBottom: '12px', 
+                padding: '12px', 
+                background: sessione.enabled ? '#F0F9FF' : '#f9f9f9', 
+                borderRadius: '8px',
+                border: sessione.enabled ? '2px solid #007AFF' : '1px solid #ddd'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: sessione.enabled ? '10px' : '0' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={sessione.enabled} 
+                    onChange={() => toggleSessione(key)}
+                    style={{ marginRight: '10px', width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: '600', fontSize: '14px' }}>{sessione.nome}</span>
+                </div>
+                
+                {sessione.enabled && (
+                  <div style={{ display: 'flex', gap: '10px', marginLeft: '28px' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ ...sLab, fontSize: '10px' }}>Data</label>
+                      <input 
+                        type="date" 
+                        style={sInp} 
+                        value={sessione.data}
+                        onChange={e => updateSessione(key, 'data', e.target.value)}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ ...sLab, fontSize: '10px' }}>Orario (opz.)</label>
+                      <input 
+                        type="time" 
+                        style={sInp} 
+                        value={sessione.orario}
+                        onChange={e => updateSessione(key, 'orario', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            
+            {/* Sessioni Personalizzate */}
+            {sessioniPersonalizzate.map(sessione => (
+              <div key={sessione.id} style={{ 
+                marginBottom: '12px', 
+                padding: '12px', 
+                background: (sessione.nome && sessione.data) ? '#F0F9FF' : '#f9f9f9',
+                borderRadius: '8px',
+                border: (sessione.nome && sessione.data) ? '2px solid #007AFF' : '1px solid #ddd'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Nome sessione (es: Feature Race, Sprint Race...)"
+                    value={sessione.nome}
+                    onChange={e => updateSessionePersonalizzata(sessione.id, 'nome', e.target.value)}
+                    style={{ ...sInp, fontWeight: '600', flex: 1, marginRight: '10px' }}
+                  />
+                  <button 
+                    onClick={() => rimuoviSessionePersonalizzata(sessione.id)}
+                    style={{ background: '#FF3B30', color: 'white', border: 'none', borderRadius: '6px', padding: '8px 12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '12px' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ ...sLab, fontSize: '10px' }}>Data</label>
+                    <input 
+                      type="date" 
+                      style={sInp} 
+                      value={sessione.data}
+                      onChange={e => updateSessionePersonalizzata(sessione.id, 'data', e.target.value)}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ ...sLab, fontSize: '10px' }}>Orario (opz.)</label>
+                    <input 
+                      type="time" 
+                      style={sInp} 
+                      value={sessione.orario}
+                      onChange={e => updateSessionePersonalizzata(sessione.id, 'orario', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {/* Pulsante Aggiungi Sessione */}
+            <button 
+              onClick={aggiungiSessionePersonalizzata}
+              style={{ 
+                width: '100%', 
+                padding: '12px', 
+                background: '#fff', 
+                border: '2px dashed #007AFF', 
+                borderRadius: '8px', 
+                color: '#007AFF', 
+                fontWeight: 'bold', 
+                cursor: 'pointer',
+                fontSize: '14px',
+                marginTop: '8px'
+              }}
+            >
+              ➕ Aggiungi Altra Sessione
+            </button>
+          </div>
+        </div>
+        
+        {/* Footer */}
+        <div style={{ padding: '20px 25px', borderTop: '2px solid #f0f0f0', display: 'flex', gap: '10px' }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '10px', border: '2px solid #000', background: '#fff', fontWeight: 'bold', cursor: 'pointer' }}>
+            ANNULLA
+          </button>
+          <button onClick={salvaWeekend} disabled={salvando} style={{ flex: 2, padding: '14px', borderRadius: '10px', border: 'none', background: salvando ? '#ccc' : '#5856D6', color: '#fff', fontWeight: 'bold', cursor: salvando ? 'not-allowed' : 'pointer' }}>
+            {salvando ? 'SALVANDO...' : 'SALVA WEEKEND'}
+          </button>
+        </div>
+        
       </div>
     </div>
   )
