@@ -33,6 +33,13 @@ body {
   transform: translateZ(0);
   /* Fix per flexbox Safari */
   min-height: 100vh;
+  /* Fallback per Safari */
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
 }
 
 .login-card {
