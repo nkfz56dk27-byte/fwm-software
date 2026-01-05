@@ -18,6 +18,8 @@ export default function RitaglioImmagine({ onClose }) {
   const [projectImages, setProjectImages] = useState({ normale: [], cover: [] }) // Separa le foto per progetto
   const [favoriteProjects, setFavoriteProjects] = useState([]) // Progetti preferiti
   const [mobileImgStyle, setMobileImgStyle] = useState({ width: '100%', height: 'auto' }) // FIX MOBILE: dimensioni immagine
+  const [showCenterCross, setShowCenterCross] = useState(false) // Croce di centratura
+  const [canvasBackground, setCanvasBackground] = useState('#000000') // Colore delle strisce del canvas
 
   const fileInputRef = useRef(null)
   const logoImgRef = useRef(null)
@@ -534,7 +536,7 @@ export default function RitaglioImmagine({ onClose }) {
                     }}
                     onTouchEnd={() => setIsDragging(false)}
                     style={{ 
-                      width: `${displayDim.w}px`, height: `${displayDim.h}px`, background: '#000', position: 'relative', 
+                      width: `${displayDim.w}px`, height: `${displayDim.h}px`, background: canvasBackground, position: 'relative', 
                       overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', cursor: isDragging ? 'grabbing' : 'grab',
                       touchAction: 'none',
                       display: 'flex',
@@ -613,13 +615,85 @@ export default function RitaglioImmagine({ onClose }) {
                       }} />
                     )}
                     {conLogo && <div style={{ position: 'absolute', bottom: '2%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src="/Logo_Formula1it.png" style={{ width: '38%', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
+                    
+                    {/* Croce di centratura */}
+                    {showCenterCross && (
+                      <div style={{ 
+                        position: 'absolute', 
+                        top: 0, 
+                        left: 0, 
+                        right: 0, 
+                        bottom: 0, 
+                        pointerEvents: 'none',
+                        zIndex: 10
+                      }}>
+                        {/* Linea orizzontale */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: 0,
+                          right: 0,
+                          height: '1px',
+                          background: 'rgba(255, 0, 0, 0.8)',
+                          transform: 'translateY(-0.5px)'
+                        }} />
+                        {/* Linea verticale */}
+                        <div style={{
+                          position: 'absolute',
+                          left: '50%',
+                          top: 0,
+                          bottom: 0,
+                          width: '1px',
+                          background: 'rgba(255, 0, 0, 0.8)',
+                          transform: 'translateX(-0.5px)'
+                        }} />
+                        {/* Cerchio centrale */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          width: '20px',
+                          height: '20px',
+                          border: '2px solid rgba(255, 0, 0, 0.8)',
+                          borderRadius: '50%',
+                          transform: 'translate(-50%, -50%)'
+                        }} />
+                      </div>
+                    )}
+                  </div>
+                  {/* Bottone luminosità fuori dal canvas, all'altezza del canvas in alto a destra */}
+                  <div style={{ position: 'relative', width: `${displayDim.w}px` }}>
+                    <button
+                      onClick={() => setCanvasBackground(canvasBackground === '#000000' ? '#FFFFFF' : '#000000')}
+                      style={{
+                        position: 'absolute',
+                        top: '-480px',
+                        right: '-50px',
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        border: '2px solid #d1d1d6',
+                        background: canvasBackground === '#000000' ? '#000000' : '#FFFFFF',
+                        color: canvasBackground === '#000000' ? '#FFFFFF' : '#000000',
+                        fontSize: '18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {canvasBackground === '#000000' ? '🌙' : '☀️'}
+                    </button>
                   </div>
                   <div style={{ display: 'flex', gap: '12px', marginTop: '40px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
                     <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} style={{ padding: '12px', borderRadius: '14px', border: '1px solid #d1d1d6', fontWeight: '800', background: '#fff', height: '45px' }}>
                       <option value="image/webp">WEBP</option>
                       <option value="image/jpeg">JPEG</option>
                     </select>
-                    <StyledButton variant={conLogo ? 'success' : 'secondary'} onClick={() => setConLogo(!conLogo)}>{conLogo ? '✅ Logo' : '➕ Logo'}</StyledButton>
+                    <StyledButton variant={showCenterCross ? 'success' : 'secondary'} onClick={() => { console.log('Croce clicked'); setShowCenterCross(!showCenterCross); }} style={{ minWidth: '120px', fontSize: '14px' }}>{showCenterCross ? 'Centro ON' : 'Centro OFF'}</StyledButton>
+                    <StyledButton variant={conLogo ? 'success' : 'secondary'} onClick={() => setConLogo(!conLogo)}>{conLogo ? '➕ Logo' : '➕ Logo'}</StyledButton>
                     <StyledButton variant="warning" onClick={() => fileInputRef.current.click()}>Nuova Foto</StyledButton>
                     <StyledButton variant="primary" onClick={handleSave} disabled={isSaving}>{isSaving ? '⏳...' : 'Salva'}</StyledButton>
                   </div>
