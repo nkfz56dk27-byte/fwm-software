@@ -1041,11 +1041,17 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
               {evento.programmazione_weekend && (
                 <div style={{ fontSize: '10px', fontWeight: 'normal', color: '#333', marginTop: '2px', lineHeight: '1.3' }}>
                   <button 
-                    onMouseDown={(e) => {
+                    onClick={(e) => {
+                      e.stopPropagation() // Impedisce la propagazione alla card madre
+                      e.preventDefault() // Blocca comportamenti di default
                       const currentExpanded = e.target.dataset.expanded === 'true';
                       e.target.dataset.expanded = !currentExpanded;
                       const detailsDiv = e.target.nextElementSibling;
                       detailsDiv.style.display = currentExpanded ? 'none' : 'block';
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation() // Blocca anche al mousedown
+                      e.preventDefault()
                     }}
                     style={{ 
                       background: 'none', 
