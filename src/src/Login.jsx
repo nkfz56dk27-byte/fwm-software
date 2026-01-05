@@ -109,7 +109,7 @@ function Login({ onLoginSuccess }) {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !username.trim() || !password.trim()}
             style={{
               width: '100%',
               padding: '14px',
@@ -119,7 +119,9 @@ function Login({ onLoginSuccess }) {
               borderRadius: '8px',
               fontSize: '16px',
               fontWeight: '600',
-              cursor: loading ? 'not-allowed' : 'pointer'
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: (loading || !username.trim() || !password.trim()) ? 0.6 : 1,
+              pointerEvents: (loading || !username.trim() || !password.trim()) ? 'none' : 'auto'
             }}
           >
             {loading ? 'Accesso...' : 'Accedi'}
