@@ -13,6 +13,11 @@ function Login({ onLoginSuccess }) {
     setLoading(true)
 
     try {
+      // Verifica che localStorage sia disponibile
+      if (typeof window !== 'undefined' && !window.localStorage) {
+        throw new Error('LocalStorage non disponibile. Controlla le impostazioni di Safari.')
+      }
+
       const { data, error } = await supabase
         .from('utenti')
         .select('*')
@@ -20,7 +25,20 @@ function Login({ onLoginSuccess }) {
         .eq('password', password)
         .single()
 
-      if (error || !data) {
+      if (error) {
+        console.error('Supabase error:', error)
+        if (error.code === 'PGRST116') {
+          setError('Username o password errati')
+        } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
+          setError('Errore di connessione. Controlla la tua rete e le impostazioni privacy di Safari.')
+        } else {
+          setError(`Errore: ${error.message || 'Errore durante il login'}`)
+        }
+        setLoading(false)
+        return
+      }
+
+      if (!data) {
         setError('Username o password errati')
         setLoading(false)
         return
@@ -28,7 +46,14 @@ function Login({ onLoginSuccess }) {
 
       onLoginSuccess(data)
     } catch (err) {
-      setError('Errore di connessione')
+      console.error('Login error:', err)
+      if (err.message?.includes('localStorage')) {
+        setError('LocalStorage non disponibile. Abilita i cookie di terze parti in Safari > Preferenze > Privacy.')
+      } else if (err.message?.includes('network') || err.message?.includes('fetch')) {
+        setError('Errore di rete. Verifica la connessione e le impostazioni CORS.')
+      } else {
+        setError('Errore di connessione. Riprova più tardi.')
+      }
       setLoading(false)
     }
   }
