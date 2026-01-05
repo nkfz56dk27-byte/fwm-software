@@ -1041,7 +1041,7 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
               {evento.programmazione_weekend && (
                 <div style={{ fontSize: '10px', fontWeight: 'normal', color: '#333', marginTop: '2px', lineHeight: '1.3' }}>
                   <button 
-                    onClick={(e) => {
+                    onMouseDown={(e) => {
                       const currentExpanded = e.target.dataset.expanded === 'true';
                       e.target.dataset.expanded = !currentExpanded;
                       const detailsDiv = e.target.nextElementSibling;
