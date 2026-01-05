@@ -667,36 +667,83 @@ export default function RitaglioImmagine({ onClose }) {
                       onClick={() => setCanvasBackground(canvasBackground === '#000000' ? '#FFFFFF' : '#000000')}
                       style={{
                         position: 'absolute',
-                        top: '-480px',
-                        right: '-50px',
-                        width: '40px',
-                        height: '40px',
+                        top: window.innerWidth <= 768 ? '-440px' : '-480px', // Più in alto su mobile
+                        right: window.innerWidth <= 768 ? '-20px' : '-50px', // Meno a destra su mobile
+                        width: window.innerWidth <= 768 ? '35px' : '40px', // Più piccolo su mobile
+                        height: window.innerWidth <= 768 ? '35px' : '40px',
                         borderRadius: '50%',
                         border: '2px solid #d1d1d6',
                         background: canvasBackground === '#000000' ? '#000000' : '#FFFFFF',
                         color: canvasBackground === '#000000' ? '#FFFFFF' : '#000000',
-                        fontSize: '18px',
+                        fontSize: window.innerWidth <= 768 ? '16px' : '18px', // Font più piccolo su mobile
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.2s ease',
+                        zIndex: 1000 // Assicura che sia sopra tutto
                       }}
                     >
                       {canvasBackground === '#000000' ? '🌙' : '☀️'}
                     </button>
                   </div>
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '40px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
-                    <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} style={{ padding: '12px', borderRadius: '14px', border: '1px solid #d1d1d6', fontWeight: '800', background: '#fff', height: '45px' }}>
-                      <option value="image/webp">WEBP</option>
-                      <option value="image/jpeg">JPEG</option>
-                    </select>
-                    <StyledButton variant={showCenterCross ? 'success' : 'secondary'} onClick={() => { console.log('Croce clicked'); setShowCenterCross(!showCenterCross); }} style={{ minWidth: '120px', fontSize: '14px' }}>{showCenterCross ? 'Centro ON' : 'Centro OFF'}</StyledButton>
-                    <StyledButton variant={conLogo ? 'success' : 'secondary'} onClick={() => setConLogo(!conLogo)}>{conLogo ? '➕ Logo' : '➕ Logo'}</StyledButton>
-                    <StyledButton variant="warning" onClick={() => fileInputRef.current.click()}>Nuova Foto</StyledButton>
-                    <StyledButton variant="primary" onClick={handleSave} disabled={isSaving}>{isSaving ? '⏳...' : 'Salva'}</StyledButton>
-                  </div>
+                  {/* Layout responsive SOLO per mobile */}
+                  {window.innerWidth <= 768 ? (
+                    <>
+                      {/* PRIMA RIGA: Selettore formato + tasto luminosità */}
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '40px', justifyContent: 'center', alignItems: 'center' }}>
+                        <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} style={{ padding: '12px', borderRadius: '14px', border: '1px solid #d1d1d6', fontWeight: '800', background: '#fff', height: '45px', flex: 1, maxWidth: '150px' }}>
+                          <option value="image/webp">WEBP</option>
+                          <option value="image/jpeg">JPEG</option>
+                        </select>
+                        <button
+                          onClick={() => setCanvasBackground(canvasBackground === '#000000' ? '#FFFFFF' : '#000000')}
+                          style={{
+                            width: '45px',
+                            height: '45px',
+                            borderRadius: '50%',
+                            border: '2px solid #d1d1d6',
+                            background: canvasBackground === '#000000' ? '#000000' : '#FFFFFF',
+                            color: canvasBackground === '#000000' ? '#FFFFFF' : '#000000',
+                            fontSize: '18px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          {canvasBackground === '#000000' ? '🌙' : '☀️'}
+                        </button>
+                      </div>
+                      
+                      {/* SECONDA RIGA: Pulsante centro + logo */}
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '12px', justifyContent: 'center', alignItems: 'center' }}>
+                        <StyledButton variant={showCenterCross ? 'success' : 'secondary'} onClick={() => { console.log('Croce clicked'); setShowCenterCross(!showCenterCross); }} style={{ minWidth: '120px', fontSize: '14px', flex: 1 }}>{showCenterCross ? 'Centro ON' : 'Centro OFF'}</StyledButton>
+                        <StyledButton variant={conLogo ? 'success' : 'secondary'} onClick={() => setConLogo(!conLogo)} style={{ flex: 1 }}>{conLogo ? '➕ Logo' : '➕ Logo'}</StyledButton>
+                      </div>
+                      
+                      {/* TERZA RIGA: Nuova foto + salva */}
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '12px', justifyContent: 'center', alignItems: 'center' }}>
+                        <StyledButton variant="warning" onClick={() => fileInputRef.current.click()} style={{ flex: 1 }}>Nuova Foto</StyledButton>
+                        <StyledButton variant="primary" onClick={handleSave} disabled={isSaving} style={{ flex: 1 }}>{isSaving ? '⏳...' : 'Salva'}</StyledButton>
+                      </div>
+                    </>
+                  ) : (
+                    /* Layout desktop originale */
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '40px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
+                      <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} style={{ padding: '12px', borderRadius: '14px', border: '1px solid #d1d1d6', fontWeight: '800', background: '#fff', height: '45px' }}>
+                        <option value="image/webp">WEBP</option>
+                        <option value="image/jpeg">JPEG</option>
+                      </select>
+                      <StyledButton variant={showCenterCross ? 'success' : 'secondary'} onClick={() => { console.log('Croce clicked'); setShowCenterCross(!showCenterCross); }} style={{ minWidth: '120px', fontSize: '14px' }}>{showCenterCross ? 'Centro ON' : 'Centro OFF'}</StyledButton>
+                      <StyledButton variant={conLogo ? 'success' : 'secondary'} onClick={() => setConLogo(!conLogo)}>{conLogo ? '➕ Logo' : '➕ Logo'}</StyledButton>
+                      <StyledButton variant="warning" onClick={() => fileInputRef.current.click()}>Nuova Foto</StyledButton>
+                      <StyledButton variant="primary" onClick={handleSave} disabled={isSaving}>{isSaving ? '⏳...' : 'Salva'}</StyledButton>
+                    </div>
+                  )}
                 </>
               )}
               {feedback && <div style={{ marginTop: '25px', padding: '14px 28px', background: '#34C759', color: '#fff', borderRadius: '16px', fontWeight: '800' }}>{feedback}</div>}
