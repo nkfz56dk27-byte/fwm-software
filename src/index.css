@@ -26,6 +26,13 @@ body {
   justify-content: center;
   background: rgba(128, 128, 128, 0.05);
   padding: 20px;
+  /* Fix per Safari */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  /* Fix per flexbox Safari */
+  min-height: 100vh;
 }
 
 .login-card {
@@ -35,6 +42,13 @@ body {
   padding: 50px;
   width: 100%;
   max-width: 450px;
+  /* Fix per Safari */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: transform;
+  /* Fix per rendering Safari */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .login-header {
