@@ -107,6 +107,14 @@ export default function EventiMobileMenu({ onClose }) {
       
       // Crea una lista di TUTTI gli eventi futuri ordinati per data e orario
       const tuttiEventiFuturi = eventiFuturi
+        .filter(evento => {
+          // Solo eventi nei prossimi 10 giorni
+          const dataEvento = new Date(evento.data_inizio)
+          oggi.setHours(0, 0, 0, 0)
+          dataEvento.setHours(0, 0, 0, 0)
+          const giorniMancanti = Math.floor((dataEvento.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
+          return giorniMancanti <= 10
+        })
         .sort((a, b) => {
           // Prima ordina per data
           const dataA = new Date(a.data_inizio)
@@ -240,7 +248,13 @@ export default function EventiMobileMenu({ onClose }) {
           background: 'rgba(255, 255, 255, 0.1)', 
           borderRadius: '8px', 
           padding: '12px',
-          marginBottom: '8px'
+          marginBottom: '8px',
+          // SOLO SU MOBILE: aggiungi scroll verticale
+          ...(isMobile && {
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          })
         }}>
           <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#FFF', marginBottom: '8px' }}>
             {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
@@ -255,6 +269,15 @@ export default function EventiMobileMenu({ onClose }) {
           {/* MOSTRA TUTTI GLI EVENTI FUTURI IN ORDINE CRONOLOGICO */}
           {prossimoEvento.tuttiEventiFuturi && prossimoEvento.tuttiEventiFuturi.map((evento, index) => (
             <div key={evento.id} style={{ marginBottom: index < prossimoEvento.tuttiEventiFuturi.length - 1 ? '12px' : '0' }}>
+              {/* COUNTDOWN SOLO PER EVENTI SUCCESSIVI AL PRIMO */}
+              {index > 0 && (
+                <div style={{ fontSize: '12px', color: '#FFD60A', fontWeight: 'bold', marginBottom: '4px' }}>
+                  {evento.giorniMancanti === 0 ? 'OGGI!' : 
+                   evento.giorniMancanti === 1 ? 'DOMANI!' : 
+                   `Tra ${evento.giorniMancanti} giorni`}
+                </div>
+              )}
+              
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                 <span style={{ fontSize: '22px' }}>
                   {CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.emoji || '📅'}
@@ -264,7 +287,7 @@ export default function EventiMobileMenu({ onClose }) {
                     {evento.titolo}
                   </div>
                   <div style={{ fontSize: '12px', color: '#00D9FF', fontWeight: 'bold', marginTop: '2px' }}>
-                    📅 {evento.dataBreve} {evento.orario && `⏰ ${formatOrario(evento.orario)}`}
+                     {evento.dataBreve} {evento.orario && `- ${formatOrario(evento.orario)}`}
                   </div>
                 </div>
               </div>
