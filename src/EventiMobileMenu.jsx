@@ -222,22 +222,35 @@ export default function EventiMobileMenu({ onClose }) {
       }}>
         {/* PULSANTE X IN ALTO A DESTRA */}
         <button 
-          onClick={onClose}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            console.log('X clicked - closing menu')
+            onClose()
+          }}
           style={{
             position: 'absolute',
             top: '15px',
             right: '20px',
-            background: 'none',
-            border: 'none',
+            background: 'rgba(255, 255, 255, 0.2)',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
             color: '#FFF',
-            fontSize: '25px',
+            fontSize: '20px',
             cursor: 'pointer',
-            width: '24px',
-            height: '24px',
+            width: '30px',
+            height: '30px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: '4px'
+            borderRadius: '50%',
+            zIndex: 1000,
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = 'rgba(255, 59, 48, 0.8)'
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = 'rgba(255, 255, 255, 0.2)'
           }}
         >
           ✕
