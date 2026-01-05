@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient'
 
 const CAMPIONATI_DEFAULT = [
@@ -21,9 +21,418 @@ const EMOJI_DISPONIBILI = [
 
 const MESI_ITALIANO = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 
+// Componente per la gestione delle sessioni del weekend
+function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgrammazioneWeekend, zIndex = 10000 }) {
+  const [sessioni, setSessioni] = useState([
+    { nome_sessione: 'PL1', attiva: false, data_sessione: '', orario_sessione: '' },
+    { nome_sessione: 'PL2', attiva: false, data_sessione: '', orario_sessione: '' },
+    { nome_sessione: 'PL3', attiva: false, data_sessione: '', orario_sessione: '' },
+    { nome_sessione: 'Qualifiche', attiva: false, data_sessione: '', orario_sessione: '' },
+    { nome_sessione: 'Qualifica Sprint', attiva: false, data_sessione: '', orario_sessione: '' },
+    { nome_sessione: 'Sprint Race', attiva: false, data_sessione: '', orario_sessione: '' },
+    { nome_sessione: 'Feature Race', attiva: false, data_sessione: '', orario_sessione: '' },
+    { nome_sessione: 'Gara', attiva: false, data_sessione: '', orario_sessione: '' }
+  ]);
+
+  const programmazioneRef = useRef(null);
+
+  // Inizializza le sessioni con i dati esistenti quando il modal si apre
+  useEffect(() => {
+    console.log('SessioniWeekendModal - eventoData:', eventoData);
+    console.log('SessioniWeekendModal - programmazioneRef:', programmazioneRef.current);
+    console.log('SessioniWeekendModal - window.programmazioneEsistente:', window.programmazioneEsistente);
+    
+    // Prima controlla se ci sono sessioni complete dal database
+    if (window.sessioniComplete && window.sessioniComplete.length > 0) {
+      console.log('Uso sessioni complete dal database:', window.sessioniComplete);
+      
+      // Usa le sessioni complete dal database
+      const sessioniDalDatabase = window.sessioniComplete.map(sessioneDB => {
+        const sessioneCorrispondente = sessioni.find(s => s.nome_sessione === sessioneDB.nome_sessione);
+        if (sessioneCorrispondente) {
+          return {
+            ...sessioneCorrispondente,
+            attiva: true,
+            data_sessione: sessioneDB.data_sessione,
+            orario_sessione: sessioneDB.orario_sessione
+          };
+        }
+        return null;
+      }).filter(Boolean);
+      
+      console.log('Sessioni dal database:', sessioniDalDatabase);
+      setSessioni(sessioniDalDatabase);
+      
+      // Pulisci le variabili globali
+      window.sessioniComplete = null;
+      return;
+    }
+    
+    // Fallback: usa la stringa programmazione_esistente
+    let programmazioneDaCaricare = null;
+    if (window.programmazioneEsistente) {
+      programmazioneDaCaricare = window.programmazioneEsistente;
+      console.log('Uso programmazione esistente dall evento:', programmazioneDaCaricare);
+    } else if (programmazioneRef.current) {
+      programmazioneDaCaricare = programmazioneRef.current;
+      console.log('Uso programmazione dal ref:', programmazioneDaCaricare);
+    }
+    
+    // Carica i dati salvati solo se esiste programmazione
+    if (programmazioneDaCaricare) {
+      // Carica i dati salvati nelle sessioni
+      console.log('Caricamento sessioni salvate...');
+      console.log('Stringa da parsare:', programmazioneDaCaricare);
+      
+      // Controlla se è formato JSON (nuovo) o stringa (vecchio)
+      let sessioniSalvate = [];
+      
+      try {
+        // Prova a parsare come JSON (nuovo formato con giorni)
+        const programmazionePerGiorno = JSON.parse(programmazioneDaCaricare);
+        console.log('Formato JSON rilevato:', programmazionePerGiorno);
+        
+        // Converti l'oggetto JSON in array di sessioni
+        sessioniSalvate = [];
+        Object.entries(programmazionePerGiorno).forEach(([giorno, sessioniGiorno]) => {
+          sessioniGiorno.forEach(sessioneStr => {
+            const [nome, orario] = sessioneStr.trim().split(':');
+            const sessioneCorrispondente = sessioni.find(s => s.nome_sessione === nome.trim());
+            if (sessioneCorrispondente) {
+              // Trova il giorno corrispondente
+              const giornoData = giorniWeekend.find(g => g.nome.toLowerCase().includes(giorno.toLowerCase()))?.data || eventoData.data_inizio;
+              sessioniSalvate.push({
+                ...sessioneCorrispondente,
+                attiva: true,
+                data_sessione: giornoData,
+                orario_sessione: orario.trim()
+              });
+            }
+          });
+        });
+      } catch (e) {
+        // Se non è JSON, usa il vecchio parsing
+        console.log('Formato stringa rilevato, uso parsing vecchio');
+        sessioniSalvate = programmazioneDaCaricare.split(', ').map(item => {
+          const [nome, giornoOrario] = item.trim().split(/:(.+)/);
+          let giorno = '';
+          let orario = '';
+          
+          if (giornoOrario && giornoOrario.includes('-')) {
+            // Vecchio formato con giorni: "2026-01-16 12:00"
+            [giorno, orario] = (giornoOrario || '').trim().split(/\s+/);
+          } else {
+            // Nuovo formato senza giorni: "12:00"
+            orario = (giornoOrario || '').trim();
+            giorno = '';
+          }
+          
+          const sessioneCorrispondente = sessioni.find(s => s.nome_sessione === nome.trim());
+          if (sessioneCorrispondente) {
+            return {
+              ...sessioneCorrispondente,
+              attiva: true,
+              data_sessione: giorno || eventoData.data_inizio,
+              orario_sessione: orario || ''
+            };
+          }
+          return {
+            nome_sessione: nome.trim(),
+            attiva: true,
+            data_sessione: giorno || eventoData.data_inizio,
+            orario_sessione: orario || ''
+          };
+        });
+      }
+      
+      console.log('Sessioni caricate:', sessioniSalvate);
+      setSessioni(sessioniSalvate);
+    } else {
+      console.log('Nessuna programmazione salvata, uso sessioni correnti');
+      
+      // Per il Nuovo Evento, NON distribuire automaticamente le sessioni - lasciale senza giorno
+      if (eventoData && sessioni.every(s => !s.data_sessione)) {
+        console.log('Nuovo Evento - sessioni senza giorno preassegnato');
+        // Non fare nulla, lascia le sessioni senza giorno
+      }
+    }
+  }, [eventoData?.data_inizio]);
+
+  // Genera la lista dei giorni del weekend dell'evento
+  const getGiorniWeekend = () => {
+    if (!eventoData?.data_inizio) return [];
+    
+    const giorni = [];
+    const dataInizio = new Date(eventoData.data_inizio);
+    const dataFine = eventoData?.data_fine ? new Date(eventoData.data_fine) : dataInizio;
+    
+    // Aggiungi tutti i giorni da data_inizio a data_fine
+    for (let d = new Date(dataInizio); d <= dataFine; d.setDate(d.getDate() + 1)) {
+      giorni.push({
+        data: new Date(d).toISOString().split('T')[0],
+        nome: new Date(d).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })
+      });
+    }
+    
+    return giorni;
+  };
+
+  const giorniWeekend = getGiorniWeekend();
+  const usaTab = giorniWeekend.length <= 4;
+
+  console.log('🔍 DEBUG - giorniWeekend:', giorniWeekend);
+  console.log('🔍 DEBUG - usaTab:', usaTab);
+  console.log('🔍 DEBUG - sessioni:', sessioni);
+  console.log('🔍 DEBUG - sessioni attive:', sessioni.filter(s => s.attiva));
+
+  // Raggruppa le sessioni per giorno
+  const sessioniPerGiorno = giorniWeekend.map(giorno => ({
+    giorno: giorno,
+    sessioni: sessioni.filter(s => s.data_sessione === giorno.data)
+  }));
+
+  const toggleSessione = (index) => {
+    const nuoveSessioni = [...sessioni];
+    nuoveSessioni[index].attiva = !nuoveSessioni[index].attiva;
+    if (!nuoveSessioni[index].attiva) {
+      nuoveSessioni[index].data_sessione = '';
+      nuoveSessioni[index].orario_sessione = '';
+    } else {
+      // Quando attivo, NON preselezionare nessun giorno
+      nuoveSessioni[index].data_sessione = '';
+      nuoveSessioni[index].orario_sessione = '';
+    }
+    setSessioni(nuoveSessioni);
+  };
+
+  const aggiornaSessione = (index, campo, valore) => {
+    console.log('🔥 DEBUG AGGIORNA SESSIONE - Index:', index, 'Campo:', campo, 'Valore:', valore);
+    const nuoveSessioni = [...sessioni];
+    nuoveSessioni[index][campo] = valore;
+    console.log('🔥 DEBUG AGGIORNA SESSIONE - Sessione aggiornata:', nuoveSessioni[index]);
+    setSessioni(nuoveSessioni);
+  };
+
+  const aggiungiSessionePerGiorno = (giornoData) => {
+    const nomeSessione = prompt(`Nome della nuova sessione per ${giorniWeekend.find(g => g.data === giornoData)?.nome}:`);
+    if (nomeSessione && nomeSessione.trim()) {
+      const nuovaSessione = {
+        nome_sessione: nomeSessione.trim(),
+        attiva: true,
+        data_sessione: giornoData,
+        orario_sessione: ''
+      };
+      setSessioni([...sessioni, nuovaSessione]);
+    }
+  };
+
+  const salvaSessioni = () => {
+    console.log('🔥 SALVA SESSIONI CLICCATO!');
+    console.log('Sessioni complete:', sessioni);
+    const sessioniAttive = sessioni.filter(s => s.attiva && s.data_sessione && s.orario_sessione);
+    console.log('Sessioni attive con dati:', sessioniAttive);
+    
+    if (sessioniAttive.length === 0) {
+      alert('Seleziona almeno una sessione e compila data e orario!');
+      return;
+    }
+    
+    // Salva le sessioni separate per giorno per visualizzazione calendario
+    const programmazionePerGiorno = {};
+    sessioniAttive.forEach(sessione => {
+      console.log('🔥 DEBUG SALVATAGGIO - Sessione:', sessione);
+      const giornoKey = giorniWeekend.find(g => g.data === sessione.data_sessione)?.nome.split(' ')[0] || 'sconosciuto';
+      console.log('🔥 DEBUG SALVATAGGIO - Giorno trovato:', giornoKey, 'per data:', sessione.data_sessione);
+      
+      if (!programmazionePerGiorno[giornoKey]) {
+        programmazionePerGiorno[giornoKey] = [];
+      }
+      programmazionePerGiorno[giornoKey].push(`${sessione.nome_sessione}: ${sessione.orario_sessione}`);
+      console.log('🔥 DEBUG SALVATAGGIO - Aggiunto a', giornoKey, ':', `${sessione.nome_sessione}: ${sessione.orario_sessione}`);
+    });
+    
+    console.log('🔥 DEBUG SALVATAGGIO - Programmazione per giorno completo:', programmazionePerGiorno);
+    
+    // Salva come stringa JSON per il database
+    const programmazioneFormattata = JSON.stringify(programmazionePerGiorno);
+    console.log('Programmazione per giorno:', programmazionePerGiorno);
+    console.log('Programmazione formattata:', programmazioneFormattata);
+    
+    // Chiama direttamente setProgrammazioneWeekend
+    if (setProgrammazioneWeekend) {
+      setProgrammazioneWeekend(programmazioneFormattata);
+      console.log('Programmazione aggiornata:', programmazioneFormattata);
+    }
+    
+    // Salva nel ref persistente
+    programmazioneRef.current = programmazioneFormattata;
+    console.log('🔥 Programmazione salvata in ref persistente:', programmazioneRef.current);
+    
+    onSave(sessioniAttive, programmazioneFormattata);
+  };
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: zIndex }}>
+      <div style={{ background: 'white', borderRadius: '15px', width: isMobile ? '100vw' : '600px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', borderBottom: '1px solid #e0e0e0' }}>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>📋 Programmazione Weekend</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+        </div>
+        
+        <div style={{ padding: '20px', fontSize: '14px', color: '#666', borderBottom: '1px solid #e0e0e0' }}>
+          Seleziona le sessioni e scegli il giorno per ciascuna:
+          {giorniWeekend.length > 0 && (
+            <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
+              Weekend: {giorniWeekend.map(g => g.nome).join(' - ')}
+            </div>
+          )}
+        </div>
+        
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+          {sessioni.map((sessione, index) => (
+            <div key={index} style={{ marginBottom: '15px', padding: '15px', background: '#f8f9fa', borderRadius: '10px', border: sessione.attiva ? '2px solid #007AFF' : '1px solid #e9ecef' }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                <input
+                  type="checkbox"
+                  checked={sessione.attiva}
+                  onChange={() => toggleSessione(index)}
+                  style={{ marginRight: '10px', width: '18px', height: '18px' }}
+                />
+                <div style={{ fontWeight: 'bold', fontSize: '16px', color: sessione.attiva ? '#007AFF' : '#333' }}>
+                  {sessione.nome_sessione}
+                </div>
+                {sessione.data_sessione && (
+                  <span style={{ 
+                    marginLeft: '10px', 
+                    fontSize: '12px', 
+                    color: '#666',
+                    background: '#e8f4fd',
+                    padding: '2px 8px',
+                    borderRadius: '10px'
+                  }}>
+                    {giorniWeekend.find(g => g.data === sessione.data_sessione)?.nome.split(' ')[0]}
+                  </span>
+                )}
+              </div>
+              
+              {sessione.attiva && (
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '12px', color: '#333', display: 'block', marginBottom: '5px', fontWeight: '600' }}>Giorno</label>
+                    {usaTab ? (
+                      <div style={{ display: 'flex', gap: '5px' }}>
+                        {giorniWeekend.map((giorno, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => aggiornaSessione(index, 'data_sessione', giorno.data)}
+                            style={{
+                              flex: 1,
+                              padding: '8px 4px',
+                              borderRadius: '5px',
+                              border: sessione.data_sessione === giorno.data ? '2px solid #007AFF' : '1px solid #ddd',
+                              background: sessione.data_sessione === giorno.data ? '#007AFF' : '#fff',
+                              color: sessione.data_sessione === giorno.data ? '#fff' : '#333',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              textAlign: 'center',
+                              fontWeight: '600'
+                            }}
+                          >
+                            {giorno.nome.split(' ')[0]}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <select
+                        style={{ 
+                          width: '100%', 
+                          padding: '8px', 
+                          borderRadius: '5px', 
+                          border: '1px solid #ddd',
+                          background: '#fff',
+                          color: '#333',
+                          fontSize: '14px'
+                        }}
+                        value={sessione.data_sessione}
+                        onChange={(e) => aggiornaSessione(index, 'data_sessione', e.target.value)}
+                      >
+                        <option value="" style={{ background: '#fff', color: '#333' }}>Seleziona giorno</option>
+                        {giorniWeekend.map((giorno, idx) => (
+                          <option key={idx} value={giorno.data} style={{ background: '#fff', color: '#333' }}>
+                            {giorno.nome}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '12px', color: '#333', display: 'block', marginBottom: '5px', fontWeight: '600' }}>Orario</label>
+                    <input
+                      type="time"
+                      style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ddd' }}
+                      value={sessione.orario_sessione}
+                      onChange={(e) => aggiornaSessione(index, 'orario_sessione', e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        
+        <div style={{ padding: '0 20px 20px', borderTop: '1px solid #e0e0e0' }}>
+          <button
+            onClick={() => {
+              const nomeSessione = prompt('Nome della nuova sessione:');
+              if (nomeSessione && nomeSessione.trim()) {
+                const nuovaSessione = {
+                  nome_sessione: nomeSessione.trim(),
+                  attiva: true,
+                  data_sessione: eventoData?.data_inizio || '',
+                  orario_sessione: ''
+                };
+                setSessioni([...sessioni, nuovaSessione]);
+              }
+            }}
+            style={{ 
+              width: '100%', 
+              padding: '12px', 
+              borderRadius: '8px', 
+              border: '2px dashed #007AFF', 
+              background: '#f0f8ff', 
+              color: '#007AFF', 
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600'
+            }}
+          >
+            ➕ Aggiungi Sessione Personalizzata
+          </button>
+        </div>
+        
+        <div style={{ padding: '20px', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '10px' }}>
+          <button
+            onClick={onClose}
+            style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '2px solid #000', background: '#fff', cursor: 'pointer' }}
+          >
+            Annulla
+          </button>
+          <button
+            onClick={salvaSessioni}
+            style={{ flex: 2, padding: '12px', borderRadius: '8px', border: 'none', background: '#34C759', color: '#fff', cursor: 'pointer' }}
+          >
+            Salva Programmazione
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotificheChange }) {
   const [campionati, setCampionati] = useState([])
   const [eventi, setEventi] = useState([])
+  const [sessioni, setSessioni] = useState([]) // NUOVO: sessioni del weekend
   const [prenotazioni, setPrenotazioni] = useState([])
   const [utenti, setUtenti] = useState([])
   const [notifiche, setNotifiche] = useState([])
@@ -33,6 +442,10 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   const [showGestioneCampionati, setShowGestioneCampionati] = useState(false)
   const [showNotifiche, setShowNotifiche] = useState(false)
   const [eventoSelezionato, setEventoSelezionato] = useState(null)
+  const [showSessioniModal, setShowSessioniModal] = useState(false) // NUOVO: modal per sessioni
+const [eventoDataSessioni, setEventoDataSessioni] = useState(null) // NUOVO: dati evento per sessioni
+const [currentSetProgrammazioneWeekend, setCurrentSetProgrammazioneWeekend] = useState(null) // NUOVO: funzione corrente per aggiornare programmazione
+const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOVO: programmazione salvata per persistenza
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
   
   const isAdmin = utenteCorrente?.ruolo === 'admin'
@@ -62,6 +475,10 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     // 2. Caricamento Eventi
     const { data: eventiDB } = await supabase.from('eventi_calendario').select('*').order('data_inizio')
     setEventi(eventiDB || [])
+    
+    // 2.1 Caricamento Sessioni
+    const { data: sessioniDB } = await supabase.from('sessioni_weekend').select('*').order('data_sessione, orario_sessione')
+    setSessioni(sessioniDB || [])
     
     // 3. Caricamento Utenti
     const { data: utentiDB } = await supabase.from('utenti').select('username, nome, cognome')
@@ -274,7 +691,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
       <div style={{ padding: isMobile ? '8px 10px' : '10px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
         <div style={{ display: 'flex', flexWrap: isMobile ? 'nowrap' : 'wrap', gap: '12px', fontSize: isMobile ? '10px' : '11px', minWidth: isMobile ? 'max-content' : 'auto' }}>
           {campionati.map(c => <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', background: c.colore, flexShrink: 0 }}></div><span>{c.emoji} {c.nome}</span></div>)}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#666', flexShrink: 0 }}></div><span>📅 Eventi</span></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#666', flexShrink: 0 }}></div><span>Eventi</span></div>
         </div>
       </div>
       
@@ -294,14 +711,33 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     onClose={() => setShowNuovoEvento(false)} 
     onSave={async (titolo, eventoId, dataInizio) => { 
       const dataFormattata = formatData(dataInizio);
-      await creaNotifica('nuovo_evento', `📅 Nuovo evento: ${titolo} il ${dataFormattata}`, eventoId); 
+      await creaNotifica('nuovo_evento', `Nuovo evento: ${titolo} il ${dataFormattata}`, eventoId); 
       caricaDati(); 
     }} 
     utenteCorrente={utenteCorrente} 
     isMobile={isMobile} 
-    onRefreshCampionati={caricaDati} // <--- AGGIUNGI QUESTA RIGA QUI
+    onRefreshCampionati={caricaDati}
+    onOpenSessioniModal={(eventoData, setProgrammazioneWeekend) => {
+      setEventoDataSessioni(eventoData);
+      setCurrentSetProgrammazioneWeekend(() => setProgrammazioneWeekend);
+      setShowSessioniModal(true);
+    }}
   />
 )}
+      {showSessioniModal && (
+        <SessioniWeekendModal 
+          onClose={() => setShowSessioniModal(false)} 
+          onSave={(sessioni, programmazioneFormattata) => {
+            console.log('Sessioni salvate:', sessioni);
+            console.log('Programmazione formattata:', programmazioneFormattata);
+            setShowSessioniModal(false);
+          }}
+          isMobile={isMobile}
+          eventoData={eventoDataSessioni}
+          setProgrammazioneWeekend={currentSetProgrammazioneWeekend}
+          zIndex={30000}
+        />
+      )}
       {showGestioneCampionati && (
         <GestioneCampionatiModal 
           campionati={campionati} 
@@ -339,7 +775,41 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
             } 
             caricaDati(); 
           }} 
-          isMobile={isMobile} 
+          isMobile={isMobile}
+          onOpenSessioniModal={(eventoData, setProgrammazioneWeekend) => {
+      setEventoDataSessioni(eventoData);
+      setCurrentSetProgrammazioneWeekend(() => setProgrammazioneWeekend);
+      
+      // DEBUG: Mostra la struttura completa dell'evento
+      console.log('🔍 DEBUG - eventoSelezionato completo:', eventoSelezionato);
+      console.log('🔍 DEBUG - eventoSelezionato.sessioni:', eventoSelezionato.sessioni);
+      console.log('🔍 DEBUG - eventoSelezionato.programmazione_weekend:', eventoSelezionato.programmazione_weekend);
+      
+      // Se l'evento ha già programmazione_weekend, recupera le sessioni complete
+      if (eventoSelezionato?.programmazione_weekend) {
+        // Recupera le sessioni complete dell'evento dal database
+        window.sessioniComplete = eventoSelezionato.sessioni || [];
+        window.programmazioneEsistente = eventoSelezionato.programmazione_weekend;
+        console.log('🔍 DEBUG - Impostate sessioniComplete:', window.sessioniComplete);
+      }
+      setShowSessioniModal(true);
+    }} 
+        />
+      )}
+      
+      {/* SessioniWeekendModal per la modifica - renderizzato nel componente principale */}
+      {showSessioniModal && eventoSelezionato && (
+        <SessioniWeekendModal 
+          onClose={() => setShowSessioniModal(false)} 
+          onSave={(sessioni, programmazioneFormattata) => {
+            console.log('Sessioni salvate in modifica:', sessioni);
+            console.log('Programmazione formattata in modifica:', programmazioneFormattata);
+            setShowSessioniModal(false);
+          }}
+          isMobile={isMobile}
+          eventoData={eventoDataSessioni}
+          setProgrammazioneWeekend={currentSetProgrammazioneWeekend}
+          zIndex={30000}
         />
       )}
     </div>
@@ -434,8 +904,27 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
                     {evento.titolo}
                     {evento.orario && (
                       <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal', color: isOggi ? 'rgba(255,255,255,0.8)' : '#007AFF' }}>
-                        ⏰ {evento.orario}
+                        {evento.orario}
                       </span>
+                    )}
+                    {evento.programmazione_weekend && (
+                      <div style={{ marginTop: '4px', fontSize: '11px', fontWeight: 'normal', color: isOggi ? 'rgba(255,255,255,0.7)' : '#666' }}>
+                        {(() => {
+                          try {
+                            // Prova a parsare come JSON (nuovo formato)
+                            const programmazionePerGiorno = JSON.parse(evento.programmazione_weekend);
+                            const nomeGiornoCard = nomeGiorno.toLowerCase();
+                            const sessioniGiorno = programmazionePerGiorno[nomeGiornoCard] || [];
+                            
+                            // Filtra solo le sessioni che appartengono a questo evento
+                            // Per ora, mostra tutte le sessioni del giorno (potremmo affinare dopo)
+                            return sessioniGiorno.join(', ');
+                          } catch (e) {
+                            // Se non è JSON, usa il vecchio formato
+                            return evento.programmazione_weekend;
+                          }
+                        })()}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -545,7 +1034,102 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
               
               {evento.orario && (
                 <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#007AFF', marginTop: '3px' }}>
-                  ⏰ {evento.orario}
+                  {evento.orario.split(':').slice(0, 2).join(':')}
+                </div>
+              )}
+              
+              {evento.programmazione_weekend && (
+                <div style={{ fontSize: '10px', fontWeight: 'normal', color: '#333', marginTop: '2px', lineHeight: '1.3' }}>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const currentExpanded = e.target.dataset.expanded === 'true';
+                      e.target.dataset.expanded = !currentExpanded;
+                      const detailsDiv = e.target.nextElementSibling;
+                      detailsDiv.style.display = currentExpanded ? 'none' : 'block';
+                    }}
+                    style={{ 
+                      background: 'none', 
+                      border: 'none', 
+                      color: '#007AFF', 
+                      fontSize: '9px', 
+                      cursor: 'pointer',
+                      padding: '2px 4px',
+                      borderRadius: '4px',
+                      fontWeight: 'bold'
+                    }}
+                    data-expanded="false"
+                  >
+                    ORARI SESSIONI  {evento.programmazione_weekend ? '▼' : '▶'}
+                  </button>
+                  <div style={{ display: 'none', marginTop: '4px' }}>
+                    {(() => {
+                      try {
+                        // Prova a parsare come JSON (nuovo formato)
+                        const programmazionePerGiorno = JSON.parse(evento.programmazione_weekend);
+                        
+                        // Estrai giorno e mese dalla casella (gestisco diversi formati)
+                        let giornoNumero, meseNumero;
+                        
+                        if (typeof giorno === 'string') {
+                          const partiGiorno = giorno.split('/');
+                          giornoNumero = parseInt(partiGiorno[0]);
+                          meseNumero = parseInt(partiGiorno[1]);
+                        } else if (typeof giorno === 'number') {
+                          // Se è un numero, assumiamo sia il giorno del mese
+                          giornoNumero = giorno;
+                          meseNumero = new Date().getMonth() + 1;
+                        } else {
+                          // Fallback: usa la data di oggi
+                          const oggi = new Date();
+                          giornoNumero = oggi.getDate();
+                          meseNumero = oggi.getMonth() + 1;
+                        }
+                        
+                        // Cerca le sessioni per questo giorno usando un approccio più semplice
+                        let sessioniGiorno = [];
+                        
+                        // Controlla se è sabato o domenica basandosi sulla data
+                        const dataCasella = new Date(new Date().getFullYear(), meseNumero - 1, giornoNumero);
+                        const nomeGiornoSettimana = dataCasella.toLocaleDateString('it-IT', { weekday: 'short' }).toLowerCase();
+                        
+                        // Cerca sessioni per questo giorno
+                        if (programmazionePerGiorno[nomeGiornoSettimana]) {
+                          sessioniGiorno = programmazionePerGiorno[nomeGiornoSettimana];
+                        }
+                        
+                        if (sessioniGiorno.length > 0) {
+                          // Mostra il nome del giorno in grassetto e le sessioni sotto
+                          const nomeGiornoCompleto = dataCasella.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+                          return (
+                            <div>
+                              <div style={{ fontWeight: 'bold', color: '#007AFF', marginBottom: '2px', fontSize: '9px' }}>
+                                {nomeGiornoCompleto}
+                              </div>
+                              <div style={{ paddingLeft: '12px', color: '#333', fontSize: '9px' }}>
+                                {sessioniGiorno.map(s => {
+                                  const parts = s.split(':');
+                                  // Prendi solo HH:MM, ignora i secondi se presenti
+                                  const orarioSolo = parts[1].split(':')[0] + ':' + (parts[1].split(':')[1] || '00');
+                                  return (
+                                    <span key={s} style={{ marginRight: '8px', display: 'inline-block' }}>
+                                      <span>{parts[0]}</span>
+                                      <span style={{ fontWeight: 'bold', color: '#000' }}> {orarioSolo}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        }
+                        
+                        return null;
+                      } catch (e) {
+                        // Se non è JSON, usa il vecchio formato
+                        return evento.programmazione_weekend;
+                      }
+                    })()}
+                  </div>
                 </div>
               )}
               
@@ -586,13 +1170,14 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
     </div>
   );
 }
-function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobile }) {
+function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobile, onOpenSessioniModal }) {
   const [tipo, setTipo] = useState('gara');
   const [campionatoId, setCampionatoId] = useState(campionati[0]?.id || '');
   const [titolo, setTitolo] = useState('');
   const [dataInizio, setDataInizio] = useState('');
   const [dataFine, setDataFine] = useState(''); 
   const [orario, setOrario] = useState(''); // NUOVO: orario opzionale (formato HH:MM)
+  const [programmazioneWeekend, setProgrammazioneWeekend] = useState(''); // NUOVO: programmazione weekend
   const [maxAccrediti, setMaxAccrediti] = useState(0);
   const [accreditoStatus, setAccreditoStatus] = useState('nessuno'); 
   const [note, setNote] = useState('');
@@ -613,12 +1198,15 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
       data_inizio: dataInizio, 
       data_fine: dataFine || null,
       orario: orario || null, // NUOVO: orario opzionale (es: "14:30")
+      programmazione_weekend: programmazioneWeekend || null, // NUOVO: programmazione weekend
       max_accrediti: parseInt(maxAccrediti) || 0, 
       accredito_status: accreditoStatus, 
       note, 
       colore_personalizzato: tipo === 'evento' ? colorePersonalizzato : null, 
       creato_da: utenteCorrente?.username || 'admin'
     };
+
+    console.log('Evento da salvare:', nuovoEvento);
 
     try {
       const { data, error } = await supabase.from('eventi_calendario').insert([nuovoEvento]).select().single();
@@ -684,6 +1272,39 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
               💡 Lascia vuoto se non conosci l'orario
             </div>
           </div>
+
+          {tipo === 'gara' && (
+            <div style={{marginTop: '15px'}}>
+              <button
+                type="button"
+                onClick={() => {
+                  const eventoData = {
+                    data_inizio: dataInizio,
+                    data_fine: dataFine
+                  };
+                  onOpenSessioniModal(eventoData, setProgrammazioneWeekend);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  border: '1px solid #ccc',
+                  background: '#007AFF',
+                  color: 'white',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Programmazione Weekend
+              </button>
+              {programmazioneWeekend && (
+                <div style={{fontSize: '11px', color: '#007AFF', marginTop: '4px'}}>
+                  📋 Programmazione: {programmazioneWeekend}
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ marginTop: '25px', paddingTop: '15px', borderTop: '2px solid #f0f0f0' }}>
             <label style={sLab}>STATO BADGE</label>
@@ -804,10 +1425,26 @@ function GestioneCampionatiModal({ campionati, onClose, onUpdate, isMobile }) {
 }
 
 
-function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmin, utenteCorrente, onClose, onUpdate, isMobile }) {
+function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmin, utenteCorrente, onClose, onUpdate, isMobile, onOpenSessioniModal }) {
   const [modalita, setModalita] = useState('visualizza')
   const [edit, setEdit] = useState(evento)
   const [salvando, setSalvando] = useState(false)
+  const [sessioniEvento, setSessioniEvento] = useState([]) // NUOVO: sessioni complete dell'evento
+
+  // Carica le sessioni dell'evento quando il modal si apre
+  useEffect(() => {
+    if (evento?.id) {
+      // Prova a recuperare le sessioni direttamente dall'evento
+      if (evento.sessioni && Array.isArray(evento.sessioni)) {
+        setSessioniEvento(evento.sessioni);
+      } else {
+        setSessioniEvento([]);
+      }
+    }
+  }, [evento?.id]);
+  const [showSessioniModal, setShowSessioniModal] = useState(false)
+  const [eventoDataSessioni, setEventoDataSessioni] = useState(null)
+  const [sessioniSetProgrammazioneWeekend, setSessioniSetProgrammazioneWeekend] = useState(null)
   
   const campionato = campionati.find(c => c.id === evento.campionato_id)
   const prenotazioniEvento = prenotazioni.filter(p => p.evento_id === evento.id)
@@ -842,6 +1479,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
       data_inizio: edit.data_inizio, 
       data_fine: edit.data_fine || null, 
       orario: edit.orario || null, // NUOVO: orario opzionale
+      programmazione_weekend: edit.programmazione_weekend || null, // NUOVO: programmazione weekend
       max_accrediti: edit.max_accrediti || 0, 
       accredito_status: edit.accredito_status, 
       note: edit.note 
@@ -877,6 +1515,44 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                 💡 Lascia vuoto se non conosci l'orario
               </div>
             </div>
+            {edit.tipo === 'gara' && (
+              <div style={{marginTop: '15px'}}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const eventoData = {
+                      data_inizio: edit.data_inizio,
+                      data_fine: edit.data_fine
+                    };
+                    onOpenSessioniModal(eventoData, (programmazione) => {
+                      setEdit({...edit, programmazione_weekend: programmazione});
+                    });
+                    setEventoDataSessioni(eventoData);
+                    // Passa anche le sessioni complete dell'evento
+                    window.sessioniComplete = sessioniEvento;
+                    setShowSessioniModal(true);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: '10px',
+                    border: '1px solid #ccc',
+                    background: '#007AFF',
+                    color: 'white',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Programmazione Weekend
+                </button>
+                {edit.programmazione_weekend && (
+                  <div style={{fontSize: '11px', color: '#007AFF', marginTop: '4px'}}>
+                    📋 Programmazione: {edit.programmazione_weekend}
+                  </div>
+                )}
+              </div>
+            )}
             {isAdmin && <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Numero Pass Disponibili (0 = nessun limite)</div>
               <input type="number" min="0" value={edit.max_accrediti || 0} onChange={e => setEdit({...edit, max_accrediti: parseInt(e.target.value) || 0})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
             </div>}
@@ -919,9 +1595,9 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
           <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>{evento.titolo}</div>
           {b && <div style={{ marginBottom: '20px', padding: '15px', background: b.bg, color: b.color, borderRadius: '10px', fontWeight: 'bold' }}>{b.icon} {b.text}</div>}
           <div style={{ marginBottom: '20px' }}>
-            📅 {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
+            {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
             {evento.data_fine && ` - ${new Date(evento.data_fine).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}`}
-            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}>⏰ {evento.orario}</span>}
+            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}>{evento.orario.split(':').slice(0, 2).join(':')}</span>}
           </div>
           {maxAccrediti > 0 && <div style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f7', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>👤 Pass ({numPrenotati}/{maxAccrediti})</div>
@@ -935,6 +1611,66 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
             </button>
           </div>}
           {evento.note && <div style={{ fontSize: '14px', color: '#666' }}>📝 {evento.note}</div>}
+          {evento.programmazione_weekend && (
+            <div style={{ marginTop: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px', border: '1px solid #ddd' }}>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>Programmazione Weekend</div>
+              {(() => {
+                try {
+                  const programmazionePerGiorno = JSON.parse(evento.programmazione_weekend);
+                  return (
+                    <div>
+                      {Object.keys(programmazionePerGiorno).map(giornoKey => {
+                        const sessioniGiorno = programmazionePerGiorno[giornoKey];
+                        if (sessioniGiorno.length === 0) return null;
+                        
+                        // Converte la chiave (es. "sab") in nome completo (es. "sabato")
+                        const nomiGiorni = {
+                          'ven': 'venerdì',
+                          'sab': 'sabato', 
+                          'dom': 'domenica',
+                          'lun': 'lunedì',
+                          'mar': 'martedì',
+                          'mer': 'mercoledì',
+                          'gio': 'giovedì',
+                          'ven': 'venerdì'
+                        };
+                        
+                        const nomeGiornoCompleto = nomiGiorni[giornoKey] || giornoKey;
+                        
+                        return (
+                          <div key={giornoKey} style={{ marginBottom: '8px' }}>
+                            <div style={{ fontWeight: 'bold', color: '#333', marginBottom: '4px', fontSize: '13px' }}>
+                              {nomeGiornoCompleto.charAt(0).toUpperCase() + nomeGiornoCompleto.slice(1)}
+                            </div>
+                            <div style={{ paddingLeft: '12px', color: '#333', fontSize: '12px', lineHeight: '1.4' }}>
+                              {sessioniGiorno.map(s => {
+                                const parts = s.split(':');
+                                // Prendi solo HH:MM, ignora i secondi se presenti
+                                const orarioSolo = parts[1].split(':')[0] + ':' + (parts[1].split(':')[1] || '00');
+                                return (
+                                  <span key={s} style={{ marginRight: '8px', display: 'inline-block' }}>
+                                    <span>{parts[0]}</span>
+                                    <span style={{ fontWeight: 'bold', color: '#000' }}> {orarioSolo}</span>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                } catch (e) {
+                  // Se non è JSON, mostra il formato vecchio
+                  return (
+                    <div style={{ color: '#333', fontSize: '12px' }}>
+                      {evento.programmazione_weekend}
+                    </div>
+                  );
+                }
+              })()}
+            </div>
+          )}
         </div>
         <div style={{ padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0' }}>
           {isAdmin ? <div style={{ display: 'flex', gap: '10px' }}>
