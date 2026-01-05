@@ -26,18 +26,28 @@ body {
   justify-content: center;
   background: rgba(128, 128, 128, 0.05);
   padding: 20px;
-  /* Fix per Safari */
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-  /* Fix per flexbox Safari */
-  min-height: 100vh;
+  /* Fix drastici per Safari */
+  z-index: 9999 !important;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-perspective: 1000;
+  perspective: 1000;
   /* Fallback per Safari */
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-flexbox;
   display: -webkit-flex;
   display: flex;
+  -webkit-box-align: center;
+  -moz-box-align: center;
+  -ms-flex-align: center;
   -webkit-align-items: center;
   align-items: center;
+  -webkit-box-pack: center;
+  -moz-box-pack: center;
+  -ms-flex-pack: center;
   -webkit-justify-content: center;
   justify-content: center;
 }
@@ -49,13 +59,13 @@ body {
   padding: 50px;
   width: 100%;
   max-width: 450px;
-  /* Fix per Safari */
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-  will-change: transform;
-  /* Fix per rendering Safari */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* Fix drastici per Safari */
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
 }
 
 .login-header {
