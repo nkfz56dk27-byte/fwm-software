@@ -105,44 +105,47 @@ export default function EventiMobileMenu({ onClose }) {
       const richiesti = prenotatiConNomi.filter(p => p.stato === 'richiesto')
       const totaliPrenotati = prenotatiConNomi.length
       
-      // Crea una lista di TUTTI gli eventi futuri ordinati per data e orario
-      const tuttiEventiFuturi = eventiFuturi
-        .filter(evento => {
-          // Solo eventi nei prossimi 10 giorni
-          const dataEvento = new Date(evento.data_inizio)
-          oggi.setHours(0, 0, 0, 0)
-          dataEvento.setHours(0, 0, 0, 0)
-          const giorniMancanti = Math.floor((dataEvento.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
-          return giorniMancanti <= 10
-        })
-        .sort((a, b) => {
-          // Prima ordina per data
-          const dataA = new Date(a.data_inizio)
-          const dataB = new Date(b.data_inizio)
-          if (dataA.getTime() !== dataB.getTime()) {
-            return dataA.getTime() - dataB.getTime()
-          }
-          // Se stessa data, ordina per orario
-          if (!a.orario && !b.orario) return 0
-          if (!a.orario) return 1
-          if (!b.orario) return -1
-          return a.orario.localeCompare(b.orario)
-        })
-        .map((evento) => {
+      // Calcola i prossimi 5 giorni CON eventi dopo il giorno del prossimo evento
+      const eventiPerGiorno = {}
+      eventiFuturi.forEach(evento => {
+        const dataEvento = new Date(evento.data_inizio)
+        oggi.setHours(0, 0, 0, 0)
+        dataEvento.setHours(0, 0, 0, 0)
+        const giorniMancanti = Math.floor((dataEvento.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
+        
+        if (!eventiPerGiorno[giorniMancanti]) {
+          eventiPerGiorno[giorniMancanti] = []
+        }
+        eventiPerGiorno[giorniMancanti].push(evento)
+      })
+      
+      // Prendi solo i giorni successivi a quello del prossimo evento (max 5 giorni)
+      const giorniDisponibili = Object.keys(eventiPerGiorno)
+        .map(g => parseInt(g))
+        .filter(g => g > giorniMancantiProssimo) // Escludi il giorno del prossimo evento e i giorni precedenti
+        .sort((a, b) => a - b)
+        .slice(0, 5) // Prendi solo i prossimi 5 giorni
+      
+      const tuttiEventiFuturi = giorniDisponibili.flatMap(giorni => {
+        const eventiDelGiorno = eventiPerGiorno[giorni]
+        
+        return eventiDelGiorno.map((evento, index) => {
           const campionato = CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)
           const emojiCampionato = campionato ? campionato.emoji : '📅'
           
           const dataEvento = new Date(evento.data_inizio)
           const dataBreve = dataEvento.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
-          const giorniMancanti = Math.floor((dataEvento.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
           
           return {
             ...evento,
-            giorniMancanti,
+            giorniMancanti: giorni,
             emojiCampionato,
-            dataBreve
+            dataBreve,
+            ePrimoDelGiorno: index === 0,
+            numeroEventi: eventiDelGiorno.length
           }
         })
+      })
       
       setProssimoEvento({
         ...prossimo,
