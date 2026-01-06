@@ -947,7 +947,7 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
     const dataStr = `${anno}-${String(meseNum + 1).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
     const eventiGiorno = eventi.filter(e => dataStr >= e.data_inizio && dataStr <= (e.data_fine || e.data_inizio))
     const isOggi = new Date().toDateString() === new Date(anno, meseNum, giorno).toDateString()
-    giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} isOggi={isOggi} onEventoClick={onEventoClick} isMobile={isMobile} />)
+    giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} isOggi={isOggi} onEventoClick={onEventoClick} isMobile={isMobile} mese={mese} />)
   }
   return (
     <div style={{ 
@@ -985,7 +985,7 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
   );
 } // <--- QUESTA CHIUDE IL COMPONENTE CALENDARIOMENSILE
 
-function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick, isMobile }) {
+function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick, isMobile, mese }) {
   if (isMobile) {
     // Mantieni qui il tuo codice mobile esistente
   }
@@ -1073,34 +1073,23 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
                         // Prova a parsare come JSON (nuovo formato)
                         const programmazionePerGiorno = JSON.parse(evento.programmazione_weekend);
                         
-                        // Estrai giorno e mese dalla casella (gestisco diversi formati)
-                        let giornoNumero, meseNumero;
+                        // Estrai anno e mese corretti dal calendario
+                        const anno = mese.getFullYear();
+                        const meseNum = mese.getMonth();
                         
-                        if (typeof giorno === 'string') {
-                          const partiGiorno = giorno.split('/');
-                          giornoNumero = parseInt(partiGiorno[0]);
-                          meseNumero = parseInt(partiGiorno[1]);
-                        } else if (typeof giorno === 'number') {
-                          // Se è un numero, assumiamo sia il giorno del mese
-                          giornoNumero = giorno;
-                          meseNumero = new Date().getMonth() + 1;
-                        } else {
-                          // Fallback: usa la data di oggi
-                          const oggi = new Date();
-                          giornoNumero = oggi.getDate();
-                          meseNumero = oggi.getMonth() + 1;
-                        }
-                        
-                        // Cerca le sessioni per questo giorno usando un approccio più semplice
-                        let sessioniGiorno = [];
-                        
-                        // Controlla se è sabato o domenica basandosi sulla data
-                        const dataCasella = new Date(new Date().getFullYear(), meseNumero - 1, giornoNumero);
+                        // Crea la data corretta per questo giorno del calendario
+                        const dataCasella = new Date(anno, meseNum, giorno);
                         const nomeGiornoSettimana = dataCasella.toLocaleDateString('it-IT', { weekday: 'short' }).toLowerCase();
                         
+                        console.log('🔍 DEBUG - Data casella:', dataCasella.toISOString().split('T')[0]);
+                        console.log('🔍 DEBUG - Nome giorno settimana:', nomeGiornoSettimana);
+                        console.log('🔍 DEBUG - Programmazione disponibile:', Object.keys(programmazionePerGiorno));
+                        
                         // Cerca sessioni per questo giorno
+                        let sessioniGiorno = [];
                         if (programmazionePerGiorno[nomeGiornoSettimana]) {
                           sessioniGiorno = programmazionePerGiorno[nomeGiornoSettimana];
+                          console.log('🔍 DEBUG - Sessioni trovate per', nomeGiornoSettimana, ':', sessioniGiorno);
                         }
                         
                         if (sessioniGiorno.length > 0) {
