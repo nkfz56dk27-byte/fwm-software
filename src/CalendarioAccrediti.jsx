@@ -1113,13 +1113,16 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
                               </div>
                               <div style={{ paddingLeft: '12px', color: '#333', fontSize: '9px' }}>
                                 {sessioniGiorno.map(s => {
-                                  const parts = s.split(':');
-                                  // Prendi solo HH:MM, ignora i secondi se presenti
-                                  const orarioSolo = parts[1].split(':')[0] + ':' + (parts[1].split(':')[1] || '00');
+                                  // Formato: "NomeSessione: HH:MM"
+                                  const colonIndex = s.indexOf(':');
+                                  if (colonIndex === -1) return s;
+                                  
+                                  const nomeSessione = s.substring(0, colonIndex).trim();
+                                  const orarioCompleto = s.substring(colonIndex + 1).trim();
                                   return (
                                     <span key={s} style={{ marginRight: '8px', display: 'inline-block' }}>
-                                      <span>{parts[0]}</span>
-                                      <span style={{ fontWeight: 'bold', color: '#000' }}> {orarioSolo}</span>
+                                      <span>{nomeSessione}</span>
+                                      <span style={{ fontWeight: 'bold', color: '#000' }}> {orarioCompleto}</span>
                                     </span>
                                   );
                                 })}
@@ -1649,13 +1652,16 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                             </div>
                             <div style={{ paddingLeft: '12px', color: '#333', fontSize: '12px', lineHeight: '1.4' }}>
                               {sessioniGiorno.map(s => {
-                                const parts = s.split(':');
-                                // Prendi solo HH:MM, ignora i secondi se presenti
-                                const orarioSolo = parts[1].split(':')[0] + ':' + (parts[1].split(':')[1] || '00');
+                                // Formato: "NomeSessione: HH:MM"
+                                const colonIndex = s.indexOf(':');
+                                if (colonIndex === -1) return s;
+                                
+                                const nomeSessione = s.substring(0, colonIndex).trim();
+                                const orarioCompleto = s.substring(colonIndex + 1).trim();
                                 return (
                                   <span key={s} style={{ marginRight: '8px', display: 'inline-block' }}>
-                                    <span>{parts[0]}</span>
-                                    <span style={{ fontWeight: 'bold', color: '#000' }}> {orarioSolo}</span>
+                                    <span>{nomeSessione}</span>
+                                    <span style={{ fontWeight: 'bold', color: '#000' }}> {orarioCompleto}</span>
                                   </span>
                                 );
                               })}
