@@ -835,7 +835,7 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
       {/* CONTENUTO CALENDARIO */}
       <div style={{ flex: 1, padding: isMobile ? '10px' : '20px 30px', overflow: 'auto' }}>
         {isMobile ? (
-          <ListaGiorniMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} />
+          <ListaGiorniMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
         ) : (
           <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
         )}
@@ -953,7 +953,7 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
   );
 }
 
-function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoClick }) {
+function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoClick, isMobile }) {
   const anno = mese.getFullYear();
   const meseNum = mese.getMonth(); // 11 per Dicembre
   const ultimoGiornoMese = new Date(anno, meseNum + 1, 0).getDate();
