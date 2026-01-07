@@ -611,7 +611,23 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
     
     // 2. Caricamento Eventi
     const { data: eventiDB } = await supabase.from('eventi_calendario').select('*').order('data_inizio')
-    setEventi(eventiDB || [])
+    
+    // Ordina gli eventi per campionato (F1 > F2 > F3) e poi per data
+    const eventiOrdinati = (eventiDB || []).sort((a, b) => {
+      const priorità = { 'f1': 0, 'f2': 1, 'f3': 2 };
+      const prioritàA = priorità[a.campionato_id] !== undefined ? priorità[a.campionato_id] : 999;
+      const prioritàB = priorità[b.campionato_id] !== undefined ? priorità[b.campionato_id] : 999;
+      
+      // Se hanno priorità diverse, ordina per priorità
+      if (prioritàA !== prioritàB) {
+        return prioritàA - prioritàB;
+      }
+      
+      // Se stessa priorità, ordina per data
+      return new Date(a.data_inizio) - new Date(b.data_inizio);
+    });
+    
+    setEventi(eventiOrdinati)
     
     // 2.1 Caricamento Sessioni
     const { data: sessioniDB } = await supabase.from('sessioni_weekend').select('*').order('data_sessione, orario_sessione')
