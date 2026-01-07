@@ -1060,9 +1060,8 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, 
               const campionato = campionati.find(c => c.id === evento.campionato_id);
               const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666');
               
-              // Conta le notifiche non lette per questo evento
-              const notificheNonLetteEvento = notifiche.filter(n => !n.letta && n.evento_id === evento.id);
-              const hasNotifiche = notificheNonLetteEvento.length > 0;
+              // Mostra il badge se l'evento ha una nota
+              const hasNotifiche = evento.note && evento.note.trim() !== '';
               
               return (
                 <div key={evento.id} onClick={() => onEventoClick(evento)} style={{ 
@@ -1231,9 +1230,8 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
           else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' };
           else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' };
 
-          // Conta le notifiche non lette per questo evento
-          const notificheNonLetteEvento = notifiche.filter(n => !n.letta && n.evento_id === evento.id);
-          const hasNotifiche = notificheNonLetteEvento.length > 0;
+          // Mostra il badge se l'evento ha una nota
+          const hasNotifiche = evento.note && evento.note.trim() !== '';
 
           return (
             <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ 
