@@ -311,9 +311,9 @@ export default function RitaglioImmagine({ onClose }) {
       }
       
       if (conLogo && logoImgRef.current) {
-        const lW = dimensions.width * 0.38  // Ridotto da 0.45 a 0.38
+        const lW = dimensions.width * 0.32  // 32% della larghezza
         const lH = (logoImgRef.current.height / logoImgRef.current.width) * lW
-        ctx.drawImage(logoImgRef.current, (dimensions.width - lW) / 2, dimensions.height - lH - 45, lW, lH)  // Abbassato da 35 a 45px
+        ctx.drawImage(logoImgRef.current, (dimensions.width - lW) / 2, dimensions.height - lH - Math.round(dimensions.height * 0.01), lW, lH)  // 1% dal basso
       }
       
       const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
@@ -614,7 +614,7 @@ export default function RitaglioImmagine({ onClose }) {
                         transformOrigin: 'center'
                       }} />
                     )}
-                    {conLogo && <div style={{ position: 'absolute', bottom: '2%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src="/Logo_Formula1it.png" style={{ width: '38%', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
+                    {conLogo && <div style={{ position: 'absolute', bottom: '1%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src="/Logo_Formula1it.png" style={{ width: '32%', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
                     
                     {/* Croce di centratura */}
                     {showCenterCross && (
