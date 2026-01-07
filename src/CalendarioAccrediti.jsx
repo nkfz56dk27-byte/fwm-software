@@ -1010,7 +1010,7 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, 
   // Funzione per ordinare gli eventi per priorità di campionato (F1 > F2 > F3 > altri)
   const ordinaEventi = (eventiArray) => {
     const priorità = { 'f1': 0, 'f2': 1, 'f3': 2 };
-    return eventiArray.sort((a, b) => {
+    return [...eventiArray].sort((a, b) => {
       const prioritàA = priorità[a.campionato_id] !== undefined ? priorità[a.campionato_id] : 999;
       const prioritàB = priorità[b.campionato_id] !== undefined ? priorità[b.campionato_id] : 999;
       return prioritàA - prioritàB;
@@ -1181,7 +1181,7 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
   // Funzione per ordinare gli eventi per priorità di campionato (F1 > F2 > F3 > altri)
   const ordinaEventi = (eventiArray) => {
     const priorità = { 'f1': 0, 'f2': 1, 'f3': 2 };
-    return eventiArray.sort((a, b) => {
+    return [...eventiArray].sort((a, b) => {
       const prioritàA = priorità[a.campionato_id] !== undefined ? priorità[a.campionato_id] : 999;
       const prioritàB = priorità[b.campionato_id] !== undefined ? priorità[b.campionato_id] : 999;
       return prioritàA - prioritàB;
