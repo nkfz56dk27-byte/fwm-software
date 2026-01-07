@@ -590,14 +590,13 @@ function calcolaPuntiPosizione(pos, tipoGara, classifica = null) {
 }
 
 function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRimanenti) {
-  const combinazioni = []
   const pilotiOrdinati = (classifica.piloti || []).filter(p => p.attivo).sort((a, b) => (b.punti || 0) - (a.punti || 0))
   if (pilotiOrdinati.length < 2) return []
 
   const leader = pilotiOrdinati[0]
   const secondo = pilotiOrdinati[1]
 
-  // Calcola punti massimi
+  // Se fuori matematicamente
   const puntiDaGP = gpRimanenti * 25
   const puntiDaSprint = sprintRimanenti * 8
   let bonusPossibili = 0
@@ -605,84 +604,100 @@ function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRima
   if (classifica.giro_veloce_attivo) bonusPossibili += gpRimanenti * (classifica.giro_veloce_valore || 1)
   const puntiMassimi = (pilota.punti || 0) + puntiDaGP + puntiDaSprint + bonusPossibili
 
-  // Se fuori matematicamente
   if (puntiMassimi < (leader.punti || 0) && String(pilota.id) !== String(leader.id)) {
     return []
   }
 
   // Se già campione
   if (String(pilota.id) === String(leader.id) && (pilota.punti || 0) > (secondo.punti || 0) + puntiDaGP + puntiDaSprint + bonusPossibili) {
-    combinazioni.push('🏆 Già campione matematico!')
-    return combinazioni
+    return ['🏆 Già campione matematico!']
   }
 
-  // Trova rivale
-  const rivale = String(pilota.id) === String(leader.id) ? secondo : leader
-  const differenzaPunti = (rivale.punti || 0) - (pilota.punti || 0)
   const puntiPerPosizione = (classifica && classifica.usa_modificatore_libero && Array.isArray(classifica.modificatore_libero_punti) && classifica.modificatore_libero_punti.length > 0)
     ? classifica.modificatore_libero_punti
     : [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
 
-  // Combinazione 1: Vittorie consecutive
-  if (gpRimanenti > 0) {
-    const vittorieNecessarie = Math.max(1, Math.ceil(differenzaPunti / 25))
-    if (vittorieNecessarie <= gpRimanenti) {
-      combinazioni.push(`${pilota.nome} vince ${vittorieNecessarie} gare + ${rivale.nome} fuori dal podio`)
-    }
-  }
+  // Trova tutti gli incastri possibili
+  const tuttiGliIncastri = []
+  let garaVittoria = null
 
-  // Combinazioni 2-10: Varie posizioni
-  let contatore = 0
-  for (let posPilota = 1; posPilota <= 5 && contatore < 9; posPilota++) {
-    const puntiPilotaPerGara = puntiPerPosizione[posPilota - 1]
-
-    for (let posRivale = Math.max(posPilota + 1, 1); posRivale <= 10 && contatore < 9; posRivale++) {
-      const puntiRivalePerGara = posRivale <= puntiPerPosizione.length ? puntiPerPosizione[posRivale - 1] : 0
-      const differenzaPerGara = puntiPilotaPerGara - puntiRivalePerGara
-
-      if (differenzaPerGara > 0) {
-        const gareNecessarie = Math.ceil(Math.abs(differenzaPunti) / differenzaPerGara)
-
-        if (gareNecessarie > 0 && gareNecessarie <= gpRimanenti) {
-          const posizione = `${posPilota}°`
-          const posizioneRivale = posRivale > 10 ? 'fuori dai punti' : `${posRivale}° o peggio`
-
-          combinazioni.push(`${pilota.nome} ${posizione} + ${rivale.nome} ${posizioneRivale} per ${gareNecessarie} gare`)
-          contatore++
-        }
-      }
-    }
-  }
-
-  // Scenario prossimo GP: usa il primo GP non completato (in ordine nell'array), robusto verso tipi diversi di flag
   if (gpRimanenti > 0 && Array.isArray(classifica.gp)) {
-    const prossimoIndex = classifica.gp.findIndex(g => !Boolean(g.completato))
-    const gpCompletatiCount = classifica.gp.filter(g => Boolean(g.completato)).length
-    const nomeGP = prossimoIndex !== -1 ? classifica.gp[prossimoIndex].nome : `GP #${gpCompletatiCount + 1}`
-
-    for (let posPilota = 1; posPilota <= 5; posPilota++) {
-      const puntiPilota = puntiPerPosizione[posPilota - 1]
-
-      for (let posRivale = posPilota + 1; posRivale <= 10; posRivale++) {
-        const puntiRivale = posRivale <= puntiPerPosizione.length ? puntiPerPosizione[posRivale - 1] : 0
-        const puntiDopoGara = (pilota.punti || 0) + puntiPilota
-        const puntiRivaleDopoGara = (rivale.punti || 0) + puntiRivale
-
-        const gareDopoQuesta = gpRimanenti - 1
-        const puntiMassimiRivaleFinali = puntiRivaleDopoGara + (gareDopoQuesta * 25)
-
-        if (puntiDopoGara > puntiMassimiRivaleFinali) {
-          const posizione = `${posPilota}°`
-          const posizioneRivale = posRivale > 10 ? 'fuori punti' : `${posRivale}° o peggio`
-
-          combinazioni.unshift(`🏁 A ${nomeGP}: ${pilota.nome} ${posizione} + ${rivale.nome} ${posizioneRivale} = CAMPIONE!`)
-          return combinazioni.slice(0, 10)
+    const gpRimanentiList = classifica.gp.filter(g => !Boolean(g.completato))
+    
+    // Per ogni gara rimanente
+    for (let gpIdx = 0; gpIdx < gpRimanentiList.length && !garaVittoria; gpIdx++) {
+      const gp = gpRimanentiList[gpIdx]
+      const gareDopoQuesta = gpRimanentiList.length - gpIdx - 1
+      
+      // Per ogni posizione del pilota
+      for (let posPilota = 1; posPilota <= 10; posPilota++) {
+        const puntiPilotaQuesta = puntiPerPosizione[posPilota - 1] || 0
+        const puntiPilotaTotale = (pilota.punti || 0) + puntiPilotaQuesta
+        
+        // Per ogni rivale (non solo il leader)
+        for (let rivaleIdx = 0; rivaleIdx < pilotiOrdinati.length; rivaleIdx++) {
+          if (String(pilotiOrdinati[rivaleIdx].id) === String(pilota.id)) continue // Skip se è se stesso
+          
+          const rivale = pilotiOrdinati[rivaleIdx]
+          
+          // Per ogni posizione del rivale
+          for (let posRivale = 1; posRivale <= 10; posRivale++) {
+            const puntiRivaleQuesta = puntiPerPosizione[posRivale - 1] || 0
+            const puntiRivaleTotale = (rivale.punti || 0) + puntiRivaleQuesta
+            
+            // Massimo che il rivale può fare nelle restanti
+            const puntiRivaleMassimi = puntiRivaleTotale + (gareDopoQuesta * 25)
+            
+            // Se il pilota vince
+            if (puntiPilotaTotale > puntiRivaleMassimi) {
+              const posPilotaTxt = posPilota <= 10 ? `${posPilota}°` : 'fuori punti'
+              const posRivaleTxt = posRivale <= 10 ? `${posRivale}°` : 'fuori punti'
+              
+              tuttiGliIncastri.push({
+                gara: gp.nome,
+                incastro: `${pilota.nome} ${posPilotaTxt} + ${rivale.nome} ${posRivaleTxt}`,
+                gpIdx: gpIdx
+              })
+              
+              // Salva la prima gara dove diventa campione
+              if (!garaVittoria) {
+                garaVittoria = gp.nome
+              }
+            }
+          }
         }
       }
     }
   }
 
-  return combinazioni.slice(0, 10)
+  // Crea output
+  const risultato = []
+  
+  if (garaVittoria) {
+                    risultato.push(`🏆 Diventa campione a: ${garaVittoria}`)
+    
+    // Mostra gli incastri della gara della vittoria
+    const incastriGara = tuttiGliIncastri.filter(i => i.gara === garaVittoria).slice(0, 10)
+    
+    if (incastriGara.length > 0) {
+      incastriGara.forEach(i => {
+        risultato.push(`✓ ${i.incastro}`)
+      })
+    }
+  } else if (tuttiGliIncastri.length === 0) {
+    // Nessuna combinazione trovata
+    const prossimoGP = classifica.gp.find(g => !g.completato)?.nome || `GP #${classifica.gp.filter(g => g.completato).length + 1}`
+    const rivale = String(pilota.id) === String(leader.id) ? secondo : leader
+    const vittorieNecessarie = Math.max(1, Math.ceil(((rivale.punti || 0) - (pilota.punti || 0)) / 25))
+    
+    if (vittorieNecessarie <= gpRimanenti) {
+      risultato.push(`Al ${prossimoGP}: ${pilota.nome} vince ${vittorieNecessarie} gare consecutive`)
+    } else {
+      risultato.push(`${rivale.nome} ha un vantaggio matematico`)
+    }
+  }
+
+  return risultato
 }
 
 // ===== INSERIMENTO RISULTATI GP =====
@@ -1554,39 +1569,58 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                   }
                 } else {
                   // SONO INSEGUITORE
-                  const rivale = leader
-                  const diff = (rivale?.punti || 0) - (c.punti || 0)
+                  const gpRimanentiList = classifica.gp.filter(g => !g.completato)
+                  const puntiPerPosizione = (classifica && classifica.usa_modificatore_libero && Array.isArray(classifica.modificatore_libero_punti) && classifica.modificatore_libero_punti.length > 0)
+                    ? classifica.modificatore_libero_punti
+                    : [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
+                  let garaVittoria = null
+                  const tuttiGliIncastri = []
                   
-                  if (diff <= 0) {
-                    combinazioniCostruttori.push('🏆 In vantaggio!')
-                  } else {
-                    const doppietteNecessarie = Math.ceil(diff / 43) // 25+18 = 43 (doppietta 1-2)
-                    if (doppietteNecessarie <= gpRimanenti && doppietteNecessarie > 0) {
-                      combinazioniCostruttori.push(`${c.nome} fa ${doppietteNecessarie} doppietta/e 1-2 + ${rivale.nome} fuori dal podio`)
-                    }
+                  // Itera su ogni gara rimanente
+                  for (let gpIdx = 0; gpIdx < gpRimanentiList.length && !garaVittoria; gpIdx++) {
+                    const gp = gpRimanentiList[gpIdx]
+                    const gareDopoQuesta = gpRimanentiList.length - gpIdx - 1
                     
-                    const gare1e3 = Math.ceil(diff / 40) // 25+15 = 40
-                    if (gare1e3 <= gpRimanenti && gare1e3 > 0) {
-                      combinazioniCostruttori.push(`${c.nome} 1° + 3° per ${gare1e3} gare + ${rivale.nome} 5° + 6° o peggio`)
-                    }
-                    
-                    const gare2e3 = Math.ceil(diff / 33) // 18+15 = 33
-                    if (gare2e3 <= gpRimanenti && gare2e3 > 0) {
-                      combinazioniCostruttori.push(`${c.nome} 2° + 3° per ${gare2e3} gare + ${rivale.nome} fuori punti`)
-                    }
-                    
-                    // Combinazione prossimo GP
-                    if (gpRimanenti > 0) {
-                      const prossimoGP = classifica.gp.find(g => !g.completato)?.nome || `GP #${classifica.gp.filter(g => g.completato).length + 1}`
-                      const puntiDopoGP = (c.punti || 0) + 43 // doppietta
-                      const puntiRivaleDopoGP = (rivale.punti || 0) // rivale fuori punti
-                      const gareSuccessive = gpRimanenti - 1
-                      const puntiMassimiRivale = puntiRivaleDopoGP + (gareSuccessive * 50) // 2 piloti x 25
-                      
-                      if (puntiDopoGP > puntiMassimiRivale) {
-                        combinazioniCostruttori.push(`🏁 Al ${prossimoGP}: ${c.nome} doppietta 1-2 + ${rivale.nome} fuori punti = CAMPIONE!`)
+                    // Itera su possibili doppiette del costruttore (1-2, 1-3, 2-3, ecc.)
+                    for (let pos1 = 1; pos1 <= 2; pos1++) {
+                      for (let pos2 = pos1 + 1; pos2 <= 3; pos2++) {
+                        const puntiDaQuestaGara = (puntiPerPosizione[pos1 - 1] || 0) + (puntiPerPosizione[pos2 - 1] || 0)
+                        const puntiCostruttoreTotale = (c.punti || 0) + puntiDaQuestaGara
+                        
+                        // Verifica contro tutti i rivali
+                        for (let rivaleIdx = 0; rivaleIdx < costruttoriOrdinati.length; rivaleIdx++) {
+                          const rivale = costruttoriOrdinati[rivaleIdx]
+                          if (rivale.id === c.id) continue
+                          
+                          // Itera su possibili posizioni del rivale (il massimo che potrebbe fare)
+                          for (let posRivale1 = 1; posRivale1 <= 2; posRivale1++) {
+                            for (let posRivale2 = posRivale1 + 1; posRivale2 <= 3; posRivale2++) {
+                              const puntiRivaleDaQuesta = (puntiPerPosizione[posRivale1 - 1] || 0) + (puntiPerPosizione[posRivale2 - 1] || 0)
+                              const puntiRivaleTotale = (rivale.punti || 0) + puntiRivaleDaQuesta
+                              const puntiRivaleMassimi = puntiRivaleTotale + (gareDopoQuesta * 50)
+                              
+                              if (puntiCostruttoreTotale > puntiRivaleMassimi && !garaVittoria) {
+                                garaVittoria = gp.nome
+                                tuttiGliIncastri.push(`${c.nome} ${pos1}°/${pos2}° + ${rivale.nome} ${posRivale1}°/${posRivale2}°`)
+                              } else if (garaVittoria === gp.nome && tuttiGliIncastri.length < 10) {
+                                tuttiGliIncastri.push(`${c.nome} ${pos1}°/${pos2}° + ${rivale.nome} ${posRivale1}°/${posRivale2}°`)
+                              }
+                            }
+                          }
+                        }
                       }
                     }
+                  }
+                  
+                  if (garaVittoria) {
+                    combinazioniCostruttori.push(`🏆 Diventa campione a: ${garaVittoria}`)
+                    combinazioniCostruttori.push('')
+                    const incastriUnique = [...new Set(tuttiGliIncastri)].slice(0, 10)
+                    incastriUnique.forEach(incastro => {
+                      combinazioniCostruttori.push(`✓ ${incastro}`)
+                    })
+                  } else {
+                    combinazioniCostruttori.push('❌ Matematicamente non può vincere il campionato')
                   }
                 }
               }
@@ -1617,7 +1651,7 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                   {combinazioniCostruttori.length > 0 && (
                     <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500' }}>
                       <div style={{ fontWeight: 'bold', color: '#FF9500', marginBottom: '10px' }}>
-                        📊 Combinazioni per vincere il campionato:
+                        Combinazioni per vincere il campionato:
                       </div>
                       {combinazioniCostruttori.map((combo, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '6px', fontSize: '13px' }}>
