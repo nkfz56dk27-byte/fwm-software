@@ -1149,6 +1149,16 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
 } // <--- QUESTA CHIUDE IL COMPONENTE CALENDARIOMENSILE
 
 function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick, isMobile, mese }) {
+  // Funzione per ordinare gli eventi per priorità di campionato (F1 > F2 > F3 > altri)
+  const ordinaEventi = (eventiArray) => {
+    const priorità = { 'f1': 0, 'f2': 1, 'f3': 2 };
+    return eventiArray.sort((a, b) => {
+      const prioritàA = priorità[a.campionato_id] !== undefined ? priorità[a.campionato_id] : 999;
+      const prioritàB = priorità[b.campionato_id] !== undefined ? priorità[b.campionato_id] : 999;
+      return prioritàA - prioritàB;
+    });
+  };
+
   if (isMobile) {
     // Mantieni qui il tuo codice mobile esistente
   }
@@ -1174,7 +1184,7 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
         )}
       </div>
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {eventi.map(evento => {
+        {ordinaEventi(eventi).map(evento => {
           const campionato = campionati.find(c => c.id === evento.campionato_id);
           const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666');
           const emoji = evento.tipo === 'gara' && campionato ? campionato.emoji : '📅';
