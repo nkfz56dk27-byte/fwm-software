@@ -95,6 +95,39 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
         // Converti l'oggetto JSON in array di sessioni
         sessioniSalvate = [];
         Object.entries(programmazionePerGiorno).forEach(([giorno, sessioniGiorno]) => {
+          // Ordina le sessioni per orario prima di caricarle
+          sessioniGiorno.sort((a, b) => {
+            // Estrai i nomi delle sessioni
+            const nomeA = a.split(':')[0].trim();
+            const nomeB = b.split(':')[0].trim();
+            
+            // Trova le sessioni corrispondenti per ottenere il campionato
+            const sessioneA = sessioni.find(s => s.nome_sessione === nomeA);
+            const sessioneB = sessioni.find(s => s.nome_sessione === nomeB);
+            
+            // Definisci le priorità dei campionati in base all'ID
+            const getCampionatoPriorita = (sessioneCorr) => {
+              if (!sessioneCorr || !sessioneCorr.campionato_id) return 99;
+              if (sessioneCorr.campionato_id === 'f1') return 1;
+              if (sessioneCorr.campionato_id === 'f2') return 2;
+              if (sessioneCorr.campionato_id === 'f3') return 3;
+              return 99; // Altri campionati hanno priorità più bassa
+            };
+            
+            const prioritaA = getCampionatoPriorita(sessioneA);
+            const prioritaB = getCampionatoPriorita(sessioneB);
+            
+            // Se hanno priorità diverse, ordina per priorità
+            if (prioritaA !== prioritaB) {
+              return prioritaA - prioritaB;
+            }
+            
+            // Se stessa priorità, ordina per orario
+            const orarioA = a.match(/(\d{2}:\d{2})$/)[1];
+            const orarioB = b.match(/(\d{2}:\d{2})$/)[1];
+            return orarioA.localeCompare(orarioB);
+          });
+          
           sessioniGiorno.forEach(sessioneStr => {
             const [nome, orario] = sessioneStr.trim().split(':');
             const sessioneCorrispondente = sessioni.find(s => s.nome_sessione === nome.trim());
@@ -146,7 +179,36 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
       }
       
       console.log('Sessioni caricate:', sessioniSalvate);
-      setSessioni(sessioniSalvate);
+      
+      // Riordina automaticamente le sessioni per priorità F1 > F2 > F3
+      const sessioniRiordinate = [...sessioniSalvate].sort((a, b) => {
+        // Se una sessione non ha campionato_id, mettila alla fine
+        if (!a.campionato_id && b.campionato_id) return 1;
+        if (a.campionato_id && !b.campionato_id) return -1;
+        if (!a.campionato_id && !b.campionato_id) return 0;
+        
+        // Definisci le priorità dei campionati
+        const getCampionatoPriorita = (campionatoId) => {
+          if (campionatoId === 'f1') return 1;
+          if (campionatoId === 'f2') return 2;
+          if (campionatoId === 'f3') return 3;
+          return 99;
+        };
+        
+        const prioritaA = getCampionatoPriorita(a.campionato_id);
+        const prioritaB = getCampionatoPriorita(b.campionato_id);
+        
+        // Se hanno priorità diverse, ordina per priorità
+        if (prioritaA !== prioritaB) {
+          return prioritaA - prioritaB;
+        }
+        
+        // Se stessa priorità, ordina per nome sessione
+        return a.nome_sessione.localeCompare(b.nome_sessione);
+      });
+      
+      console.log('🔍 AUTO-RIORDINO - Sessioni riordinate:', sessioniRiordinate);
+      setSessioni(sessioniRiordinate);
     } else {
       console.log('Nessuna programmazione salvata, uso sessioni correnti');
       
@@ -222,7 +284,36 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
         data_sessione: giornoData,
         orario_sessione: ''
       };
-      setSessioni([...sessioni, nuovaSessione]);
+      const nuoveSessioni = [...sessioni, nuovaSessione];
+      
+      // Riordina tutte le sessioni per priorità e orario
+      nuoveSessioni.sort((a, b) => {
+        // Se una sessione non ha campionato_id, mettila alla fine
+        if (!a.campionato_id && b.campionato_id) return 1;
+        if (a.campionato_id && !b.campionato_id) return -1;
+        if (!a.campionato_id && !b.campionato_id) return 0;
+        
+        // Definisci le priorità dei campionati
+        const getCampionatoPriorita = (campionatoId) => {
+          if (campionatoId === 'f1') return 1;
+          if (campionatoId === 'f2') return 2;
+          if (campionatoId === 'f3') return 3;
+          return 99;
+        };
+        
+        const prioritaA = getCampionatoPriorita(a.campionato_id);
+        const prioritaB = getCampionatoPriorita(b.campionato_id);
+        
+        // Se hanno priorità diverse, ordina per priorità
+        if (prioritaA !== prioritaB) {
+          return prioritaA - prioritaB;
+        }
+        
+        // Se stessa priorità, ordina per nome sessione
+        return a.nome_sessione.localeCompare(b.nome_sessione);
+      });
+      
+      setSessioni(nuoveSessioni);
     }
   };
 
@@ -251,7 +342,53 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
       console.log('🔥 DEBUG SALVATAGGIO - Aggiunto a', giornoKey, ':', `${sessione.nome_sessione}: ${sessione.orario_sessione}`);
     });
     
-    console.log('🔥 DEBUG SALVATAGGIO - Programmazione per giorno completo:', programmazionePerGiorno);
+    // Ordina le sessioni per orario all'interno di ogni giorno
+    Object.keys(programmazionePerGiorno).forEach(giorno => {
+      console.log('🔍 DEBUG ORDINAMENTO - Sessioni da ordinare per giorno', giorno, ':', programmazionePerGiorno[giorno]);
+      console.log('🔍 DEBUG ORDINAMENTO - Array sessioni disponibile:', sessioni);
+      
+      programmazionePerGiorno[giorno].sort((a, b) => {
+        // Estrai i nomi delle sessioni
+        const nomeA = a.split(':')[0].trim();
+        const nomeB = b.split(':')[0].trim();
+        
+        // Trova le sessioni corrispondenti per ottenere il campionato
+        const sessioneA = sessioni.find(s => s.nome_sessione === nomeA);
+        const sessioneB = sessioni.find(s => s.nome_sessione === nomeB);
+        
+        console.log('🔍 DEBUG ORDINAMENTO - Confronto:', {
+          nomeA, nomeB,
+          campionatoA: sessioneA?.campionato_id,
+          campionatoB: sessioneB?.campionato_id
+        });
+        
+        // Definisci le priorità dei campionati in base all'ID
+        const getCampionatoPriorita = (sessioneCorr) => {
+          if (!sessioneCorr || !sessioneCorr.campionato_id) return 99;
+          if (sessioneCorr.campionato_id === 'f1') return 1;
+          if (sessioneCorr.campionato_id === 'f2') return 2;
+          if (sessioneCorr.campionato_id === 'f3') return 3;
+          return 99; // Altri campionati hanno priorità più bassa
+        };
+        
+        const prioritaA = getCampionatoPriorita(sessioneA);
+        const prioritaB = getCampionatoPriorita(sessioneB);
+        
+        console.log('🔍 DEBUG ORDINAMENTO - Priorità:', { prioritaA, prioritaB });
+        
+        // Se hanno priorità diverse, ordina per priorità
+        if (prioritaA !== prioritaB) {
+          return prioritaA - prioritaB;
+        }
+        
+        // Se stessa priorità, ordina per orario
+        const orarioA = a.match(/(\d{2}:\d{2})$/)[1];
+        const orarioB = b.match(/(\d{2}:\d{2})$/)[1];
+        return orarioA.localeCompare(orarioB);
+      });
+      
+      console.log('🔍 DEBUG ORDINAMENTO - Sessioni ordinate per giorno', giorno, ':', programmazionePerGiorno[giorno]);
+    });
     
     // Salva come stringa JSON per il database
     const programmazioneFormattata = JSON.stringify(programmazionePerGiorno);
@@ -876,13 +1013,29 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
           border: isOggi ? 'none' : '1px solid #eee'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: eventiGiorno.length > 0 ? '10px' : '0' }}>
-            <div>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', color: isOggi ? 'rgba(255,255,255,0.8)' : '#999', marginRight: '8px' }}>
-                {nomeGiorno.toUpperCase()}
-              </span>
-              <span style={{ fontSize: '18px', fontWeight: 'bold', color: isOggi ? 'white' : '#333' }}>
-                {giorno}
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: isOggi ? 'rgba(255,255,255,0.8)' : '#999', marginRight: '8px' }}>
+                  {nomeGiorno.toUpperCase()}
+                </span>
+                <span style={{ fontSize: '18px', fontWeight: 'bold', color: isOggi ? 'white' : '#333' }}>
+                  {giorno}
+                </span>
+              </div>
+              {/* Mostra numero eventi solo su desktop quando ci sono più eventi */}
+              {!isMobile && eventiGiorno.length > 1 && (
+                <div style={{ 
+                  fontSize: '11px', 
+                  fontWeight: '600', 
+                  color: '#007AFF', 
+                  background: '#E3F2FD', 
+                  padding: '2px 6px', 
+                  borderRadius: '12px',
+                  border: '1px solid #007AFF20'
+                }}>
+                  {eventiGiorno.length} eventi
+                </div>
+              )}
             </div>
             {isOggi && <div style={{ fontSize: '10px', fontWeight: '800', color: 'white', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: '10px' }}>OGGI</div>}
           </div>
@@ -992,7 +1145,24 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
 
   return (
     <div style={{ background: 'white', borderRadius: '8px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: '4px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: '120px' }}>
-      <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '6px', color: isOggi ? '#007AFF' : '#000', flexShrink: 0 }}>{giorno}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', flexShrink: 0 }}>
+        <div style={{ fontSize: '16px', fontWeight: 'bold', color: isOggi ? '#007AFF' : '#000' }}>{giorno}</div>
+        {/* Mostra numero eventi solo su desktop quando ci sono più eventi */}
+        {!isMobile && eventi.length > 1 && (
+          <div style={{ 
+            fontSize: '11px', 
+            fontWeight: '600', 
+            color: '#ffffffff', 
+            background: '#ff0000ff', 
+            padding: '1px 4px', 
+            borderRadius: '8px',
+            border: '1px solid #007AFF20',
+            lineHeight: '1'
+          }}>
+            {eventi.length} eventi in programma oggi
+          </div>
+        )}
+      </div>
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
         {eventi.map(evento => {
           const campionato = campionati.find(c => c.id === evento.campionato_id);
