@@ -1002,6 +1002,16 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
     });
   }
 
+  // Funzione per ordinare gli eventi per priorità di campionato (F1 > F2 > F3 > altri)
+  const ordinaEventi = (eventiArray) => {
+    const priorità = { 'f1': 0, 'f2': 1, 'f3': 2 };
+    return eventiArray.sort((a, b) => {
+      const prioritàA = priorità[a.campionato_id] !== undefined ? priorità[a.campionato_id] : 999;
+      const prioritàB = priorità[b.campionato_id] !== undefined ? priorità[b.campionato_id] : 999;
+      return prioritàA - prioritàB;
+    });
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', paddingBottom: '30px' }}>
       {tuttiIGiorni.map(({ data, giorno, nomeGiorno, isOggi, eventi: eventiGiorno }) => (
@@ -1041,7 +1051,7 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {eventiGiorno.map(evento => {
+            {ordinaEventi(eventiGiorno).map(evento => {
               const campionato = campionati.find(c => c.id === evento.campionato_id);
               const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666');
               
