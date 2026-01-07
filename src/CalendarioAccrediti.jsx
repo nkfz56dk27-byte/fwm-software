@@ -1865,7 +1865,12 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
               {prenotatoCorrente ? 'Annulla prenotazione' : 'Prenota pass'}
             </button>
           </div>}
-          {evento.note && <div style={{ fontSize: '14px', color: '#666' }}>📝 {evento.note}</div>}
+          {evento.note && (
+            <div style={{ marginTop: '15px' }}>
+              <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#000', marginBottom: '8px' }}>Note:</div>
+              <div style={{ fontSize: '14px', color: '#000', background: '#f0f0f0', padding: '12px', borderRadius: '8px' }}>{evento.note}</div>
+            </div>
+          )}
           {evento.programmazione_weekend && (
             <div style={{ marginTop: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px', border: '1px solid #ddd' }}>
               <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>Programmazione Weekend</div>
