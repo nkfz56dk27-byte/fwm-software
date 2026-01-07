@@ -311,9 +311,9 @@ export default function RitaglioImmagine({ onClose }) {
       }
       
       if (conLogo && logoImgRef.current) {
-        const lW = dimensions.width * 0.32  // 32% della larghezza
+        const lW = dimensions.width * 0.30  // 30% della larghezza (come preview)
         const lH = (logoImgRef.current.height / logoImgRef.current.width) * lW
-        ctx.drawImage(logoImgRef.current, (dimensions.width - lW) / 2, dimensions.height - lH - Math.round(dimensions.height * 0.01), lW, lH)  // 1% dal basso
+        ctx.drawImage(logoImgRef.current, (dimensions.width - lW) / 2 - 45, dimensions.height - lH - Math.round(dimensions.height * 0.01), lW, lH)  // 1% dal basso, spostato 45px a sinistra (come preview)
       }
       
       const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
@@ -614,7 +614,7 @@ export default function RitaglioImmagine({ onClose }) {
                         transformOrigin: 'center'
                       }} />
                     )}
-                    {conLogo && <div style={{ position: 'absolute', bottom: '1%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src="/Logo_Formula1it.png" style={{ width: '32%', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
+                    {conLogo && <div style={{ position: 'absolute', bottom: '1%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src="/Logo_Formula1it.png" style={{ width: '30%', marginLeft: '-45px', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
                     
                     {/* Croce di centratura */}
                     {showCenterCross && (
