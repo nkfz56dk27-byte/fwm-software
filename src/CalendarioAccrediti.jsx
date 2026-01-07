@@ -848,7 +848,8 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
     onClose={() => setShowNuovoEvento(false)} 
     onSave={async (titolo, eventoId, dataInizio) => { 
       const dataFormattata = formatData(dataInizio);
-      await creaNotifica('nuovo_evento', `Nuovo evento: ${titolo} il ${dataFormattata}`, eventoId); 
+      const username = utenteCorrente?.email?.split('@')[0] || utenteCorrente?.username || 'Utente';
+      await creaNotifica('nuovo_evento', `Nuovo evento: ${titolo} il ${dataFormattata} creato da ${username}`, eventoId); 
       caricaDati(); 
     }} 
     utenteCorrente={utenteCorrente} 
