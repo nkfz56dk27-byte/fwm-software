@@ -905,11 +905,11 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
           isAdmin={isAdmin} 
           utenteCorrente={utenteCorrente} 
           onClose={() => setEventoSelezionato(null)} 
-          onUpdate={async (notificaMsg) => { 
+          onUpdate={async (notificaMsg, tipoNotifica = 'modifica') => { 
             if (notificaMsg) { 
               const dataFormattata = formatData(eventoSelezionato.data_inizio);
               const messaggioConData = `${notificaMsg} il ${dataFormattata}`;
-              await creaNotifica('modifica', messaggioConData, eventoSelezionato.id); 
+              await creaNotifica(tipoNotifica, messaggioConData, eventoSelezionato.id); 
             } 
             caricaDati(); 
           }} 
@@ -1662,6 +1662,11 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     // Verifica se max_accrediti è cambiato
     const maxAccreditiCambiato = edit.max_accrediti !== evento.max_accrediti
     
+    // Verifica se la nota è stata aggiunta o modificata
+    const notaPrecedente = evento.note || ''
+    const notaAttuale = edit.note || ''
+    const notaCambiata = notaPrecedente !== notaAttuale
+    
     await supabase.from('eventi_calendario').update({ 
       titolo: edit.titolo, 
       data_inizio: edit.data_inizio, 
@@ -1673,7 +1678,13 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
       note: edit.note 
     }).eq('id', edit.id)
     
-    await onUpdate(`Evento ${edit.titolo} modificato`); setSalvando(false); setModalita('visualizza')
+    // Se la nota è stata modificata/aggiunta, crea una notifica rossa
+    if (notaCambiata) {
+      await onUpdate(`aggiunta nota a ${edit.titolo} da ${utenteCorrente.username}`, 'nota'); 
+    } else {
+      await onUpdate(`Evento ${edit.titolo} modificato`);
+    }
+    setSalvando(false); setModalita('visualizza')
   }
   
   if (modalita === 'modifica') {
@@ -1884,12 +1895,19 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '20px 30px' }}>
           {notifiche.length === 0 ? <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Nessuna notifica</div> : 
-            notifiche.map(n => (
-              <div key={n.id} onClick={() => !n.letta && onSegnaLetta(n.id)} style={{ padding: '15px', background: n.letta ? '#f5f5f7' : '#007AFF15', borderRadius: '10px', marginBottom: '10px', borderLeft: `4px solid ${n.letta ? '#ccc' : '#007AFF'}` }}>
-                <div style={{ fontSize: '14px', fontWeight: n.letta ? 'normal' : 'bold' }}>{n.messaggio}</div>
-                <div style={{ fontSize: '11px', color: '#666' }}>{new Date(n.created_at).toLocaleString()}</div>
-              </div>
-            ))
+            notifiche.map(n => {
+              // Determina il colore in base al tipo di notifica
+              const isNotaNota = n.tipo === 'nota';
+              const coloreStile = isNotaNota ? '#FF3B30' : '#007AFF';
+              const backgroundColor = isNotaNota ? '#FF3B3015' : '#007AFF15';
+              
+              return (
+                <div key={n.id} onClick={() => !n.letta && onSegnaLetta(n.id)} style={{ padding: '15px', background: n.letta ? '#f5f5f7' : backgroundColor, borderRadius: '10px', marginBottom: '10px', borderLeft: `4px solid ${n.letta ? '#ccc' : coloreStile}` }}>
+                  <div style={{ fontSize: '14px', fontWeight: n.letta ? 'normal' : 'bold', color: n.letta ? '#999' : (isNotaNota ? '#d32f2f' : '#000') }}>{n.messaggio}</div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>{new Date(n.created_at).toLocaleString()}</div>
+                </div>
+              )
+            })
           }
         </div>
         <div style={{ padding: '15px', borderTop: '1px solid #e0e0e0' }}>
