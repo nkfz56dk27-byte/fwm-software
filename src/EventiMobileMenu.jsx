@@ -40,7 +40,7 @@ export default function EventiMobileMenu({ onClose }) {
         supabase.from('utenti').select('username, nome, cognome')
       ])
       
-      const eventi = eventiResponse.data
+      let eventi = eventiResponse.data
       const prenotazioniDB = prenotazioniResponse.data || []
       const utentiDB = utentiResponse.data || []
       
@@ -49,6 +49,21 @@ export default function EventiMobileMenu({ onClose }) {
         setLoading(false)
         return
       }
+      
+      // Ordina gli eventi PER DATA prima, poi per campionato (F1 > F2 > F3)
+      eventi = eventi.sort((a, b) => {
+        // Prima ordina per data
+        const diffData = new Date(a.data_inizio) - new Date(b.data_inizio);
+        if (diffData !== 0) {
+          return diffData;
+        }
+        
+        // Se stessa data, ordina per priorità campionato (F1 > F2 > F3)
+        const priorità = { 'f1': 0, 'f2': 1, 'f3': 2 };
+        const prioritàA = priorità[a.campionato_id] !== undefined ? priorità[a.campionato_id] : 999;
+        const prioritàB = priorità[b.campionato_id] !== undefined ? priorità[b.campionato_id] : 999;
+        return prioritàA - prioritàB;
+      });
       
       const oggi = new Date()
       oggi.setHours(0, 0, 0, 0)
@@ -71,24 +86,12 @@ export default function EventiMobileMenu({ onClose }) {
       dataProssimo.setHours(0, 0, 0, 0)
       const giorniMancantiProssimo = Math.floor((dataProssimo.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
       
-      // Trova tutti gli eventi dello stesso giorno del prossimo evento e ordinali per orario
-      const eventiStessoGiorno = eventiFuturi
-        .filter(evento => {
-          const dataEvento = new Date(evento.data_inizio)
-          dataEvento.setHours(0, 0, 0, 0)
-          return dataEvento.getTime() === dataProssimo.getTime()
-        })
-        .sort((a, b) => {
-          // Ordina per orario: eventi senza orario vanno alla fine
-          if (!a.orario && !b.orario) return 0
-          if (!a.orario) return 1
-          if (!b.orario) return -1
-          return a.orario.localeCompare(b.orario)
-        })
+      // Prendi i prossimi 6 eventi futuri (1 prossimo + 5 altri), indipendentemente dalla data
+      const eventiProssimi5Giorni = eventiFuturi.slice(0, 6)
       
-      // Calcola le prenotazioni per tutti gli eventi dello stesso giorno
+      // Calcola le prenotazioni per tutti gli eventi dei prossimi 5 giorni
       const prenotatiConNomi = []
-      eventiStessoGiorno.forEach(evento => {
+      eventiProssimi5Giorni.forEach(evento => {
         const prenotatiEvento = prenotazioniDB.filter(p => p.evento_id === evento.id)
         const prenotatiConNomiEvento = prenotatiEvento.map(prenotazione => {
           const utente = utentiDB.find(u => u.username === prenotazione.username)
@@ -105,47 +108,26 @@ export default function EventiMobileMenu({ onClose }) {
       const richiesti = prenotatiConNomi.filter(p => p.stato === 'richiesto')
       const totaliPrenotati = prenotatiConNomi.length
       
-      // Calcola i prossimi 5 giorni CON eventi dopo il giorno del prossimo evento
-      const eventiPerGiorno = {}
-      eventiFuturi.forEach(evento => {
+      // Calcola i dati per tutti gli eventi dei prossimi 5 giorni
+      const tuttiEventiFuturi = eventiProssimi5Giorni.map((evento, index) => {
+        const campionato = CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)
+        const emojiCampionato = campionato ? campionato.emoji : '📅'
+        
         const dataEvento = new Date(evento.data_inizio)
-        oggi.setHours(0, 0, 0, 0)
-        dataEvento.setHours(0, 0, 0, 0)
+        const dataBreve = dataEvento.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+        
         const giorniMancanti = Math.floor((dataEvento.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
         
-        if (!eventiPerGiorno[giorniMancanti]) {
-          eventiPerGiorno[giorniMancanti] = []
+        return {
+          ...evento,
+          giorniMancanti,
+          emojiCampionato,
+          dataBreve
         }
-        eventiPerGiorno[giorniMancanti].push(evento)
       })
       
-      // Prendi solo i giorni successivi a quello del prossimo evento (max 5 giorni)
-      const giorniDisponibili = Object.keys(eventiPerGiorno)
-        .map(g => parseInt(g))
-        .filter(g => g > giorniMancantiProssimo) // Escludi il giorno del prossimo evento e i giorni precedenti
-        .sort((a, b) => a - b)
-        .slice(0, 5) // Prendi solo i prossimi 5 giorni
-      
-      const tuttiEventiFuturi = giorniDisponibili.flatMap(giorni => {
-        const eventiDelGiorno = eventiPerGiorno[giorni]
-        
-        return eventiDelGiorno.map((evento, index) => {
-          const campionato = CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)
-          const emojiCampionato = campionato ? campionato.emoji : '📅'
-          
-          const dataEvento = new Date(evento.data_inizio)
-          const dataBreve = dataEvento.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
-          
-          return {
-            ...evento,
-            giorniMancanti: giorni,
-            emojiCampionato,
-            dataBreve,
-            ePrimoDelGiorno: index === 0,
-            numeroEventi: eventiDelGiorno.length
-          }
-        })
-      })
+      console.log('DEBUG EventiMobileMenu - eventiProssimi5Giorni:', eventiProssimi5Giorni)
+      console.log('DEBUG EventiMobileMenu - tuttiEventiFuturi:', tuttiEventiFuturi)
       
       setProssimoEvento({
         ...prossimo,
@@ -163,7 +145,7 @@ export default function EventiMobileMenu({ onClose }) {
         richiesti: richiesti.length,
         prenotatiConNomi,
         tuttiEventiFuturi,
-        eventiStessoGiorno
+        eventiProssimi5Giorni: tuttiEventiFuturi
       })
       
     } catch (error) {
@@ -283,8 +265,8 @@ export default function EventiMobileMenu({ onClose }) {
           </div>
           
           {/* MOSTRA TUTTI GLI EVENTI FUTURI IN ORDINE CRONOLOGICO */}
-          {prossimoEvento.tuttiEventiFuturi && prossimoEvento.tuttiEventiFuturi.map((evento, index) => (
-            <div key={evento.id} style={{ marginBottom: index < prossimoEvento.tuttiEventiFuturi.length - 1 ? '12px' : '0' }}>
+          {prossimoEvento.eventiProssimi5Giorni && prossimoEvento.eventiProssimi5Giorni.map((evento, index) => (
+            <div key={evento.id} style={{ marginBottom: index < prossimoEvento.eventiProssimi5Giorni.length - 1 ? '12px' : '0' }}>
               {/* COUNTDOWN SOLO PER EVENTI SUCCESSIVI AL PRIMO */}
               {index > 0 && (
                 <div style={{ fontSize: '12px', color: '#FFD60A', fontWeight: 'bold', marginBottom: '4px' }}>
