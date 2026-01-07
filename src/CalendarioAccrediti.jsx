@@ -835,9 +835,9 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
       {/* CONTENUTO CALENDARIO */}
       <div style={{ flex: 1, padding: isMobile ? '10px' : '20px 30px', overflow: 'auto' }}>
         {isMobile ? (
-          <ListaGiorniMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
+          <ListaGiorniMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} notifiche={notifiche} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
         ) : (
-          <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
+          <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} notifiche={notifiche} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
         )}
       </div>
       
@@ -905,11 +905,15 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
           isAdmin={isAdmin} 
           utenteCorrente={utenteCorrente} 
           onClose={() => setEventoSelezionato(null)} 
-          onUpdate={async (notificaMsg, tipoNotifica = 'modifica') => { 
+          onUpdate={async (notificaMsg, tipoNotifica) => { 
             if (notificaMsg) { 
-              const dataFormattata = formatData(eventoSelezionato.data_inizio);
-              const messaggioConData = `${notificaMsg} il ${dataFormattata}`;
-              await creaNotifica(tipoNotifica, messaggioConData, eventoSelezionato.id); 
+              let messaggioDaInviare = notificaMsg;
+              // Per le notifiche di tipo 'nota', il messaggio contiene già la data
+              if (tipoNotifica !== 'nota') {
+                const dataFormattata = formatData(eventoSelezionato.data_inizio);
+                messaggioDaInviare = `${notificaMsg} il ${dataFormattata}`;
+              }
+              await creaNotifica(tipoNotifica || 'modifica', messaggioDaInviare, eventoSelezionato.id); 
             } 
             caricaDati(); 
           }} 
@@ -954,7 +958,7 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
   );
 }
 
-function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoClick, isMobile }) {
+function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, onEventoClick, isMobile }) {
   const anno = mese.getFullYear();
   const meseNum = mese.getMonth(); // 11 per Dicembre
   const ultimoGiornoMese = new Date(anno, meseNum + 1, 0).getDate();
@@ -1056,14 +1060,39 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
               const campionato = campionati.find(c => c.id === evento.campionato_id);
               const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666');
               
+              // Conta le notifiche non lette per questo evento
+              const notificheNonLetteEvento = notifiche.filter(n => !n.letta && n.evento_id === evento.id);
+              const hasNotifiche = notificheNonLetteEvento.length > 0;
+              
               return (
                 <div key={evento.id} onClick={() => onEventoClick(evento)} style={{ 
                   padding: '10px', 
                   background: isOggi ? 'rgba(255,255,255,0.15)' : '#f8f9fa',
                   borderRadius: '8px',
                   borderLeft: `4px solid ${colore}`,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  position: 'relative'
                 }}>
+                  {/* Badge notifiche rosso */}
+                  {hasNotifiche && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '5px',
+                      right: '5px',
+                      background: '#FF3B30',
+                      color: 'white',
+                      borderRadius: '50%',
+                      width: '20px',
+                      height: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      boxShadow: '0 2px 4px rgba(255, 59, 48, 0.4)'
+                    }}>
+                      📝
+                    </div>
+                  )}
                   <div style={{ fontSize: '14px', fontWeight: 'bold', color: isOggi ? 'white' : '#333' }}>
                     {evento.titolo}
                     {evento.orario && (
@@ -1101,7 +1130,7 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, onEventoCli
   );
 }
 
-function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoClick, isMobile }) {
+function CalendarioMensile({ mese, eventi, campionati, prenotazioni, notifiche, onEventoClick, isMobile }) {
   const anno = mese.getFullYear(), meseNum = mese.getMonth()
   const primoGiorno = new Date(anno, meseNum, 1).getDay(), ultimoGiorno = new Date(anno, meseNum + 1, 0).getDate()
   const offset = primoGiorno === 0 ? 6 : primoGiorno - 1
@@ -1111,7 +1140,7 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
     const dataStr = `${anno}-${String(meseNum + 1).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
     const eventiGiorno = eventi.filter(e => dataStr >= e.data_inizio && dataStr <= (e.data_fine || e.data_inizio))
     const isOggi = new Date().toDateString() === new Date(anno, meseNum, giorno).toDateString()
-    giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} isOggi={isOggi} onEventoClick={onEventoClick} isMobile={isMobile} mese={mese} />)
+    giorni.push(<GiornoCell key={giorno} giorno={giorno} eventi={eventiGiorno} campionati={campionati} prenotazioni={prenotazioni} notifiche={notifiche} isOggi={isOggi} onEventoClick={onEventoClick} isMobile={isMobile} mese={mese} />)
   }
   return (
     <div style={{ 
@@ -1149,7 +1178,7 @@ function CalendarioMensile({ mese, eventi, campionati, prenotazioni, onEventoCli
   );
 } // <--- QUESTA CHIUDE IL COMPONENTE CALENDARIOMENSILE
 
-function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEventoClick, isMobile, mese }) {
+function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOggi, onEventoClick, isMobile, mese }) {
   // Funzione per ordinare gli eventi per priorità di campionato (F1 > F2 > F3 > altri)
   const ordinaEventi = (eventiArray) => {
     const priorità = { 'f1': 0, 'f2': 1, 'f3': 2 };
@@ -1202,6 +1231,10 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
           else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' };
           else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' };
 
+          // Conta le notifiche non lette per questo evento
+          const notificheNonLetteEvento = notifiche.filter(n => !n.letta && n.evento_id === evento.id);
+          const hasNotifiche = notificheNonLetteEvento.length > 0;
+
           return (
             <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ 
               padding: '8px', 
@@ -1212,8 +1245,29 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, isOggi, onEvento
               display: 'flex', 
               flexDirection: 'column', 
               gap: '4px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+              position: 'relative'
             }}>
+              {/* Badge notifiche rosso */}
+              {hasNotifiche && (
+                <div style={{
+                  position: 'absolute',
+                  top: '3px',
+                  right: '3px',
+                  background: '#FF3B30',
+                  color: 'white',
+                  borderRadius: '50%',
+                  width: '20px',
+                  height: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '12px',
+                  boxShadow: '0 2px 4px rgba(255, 59, 48, 0.4)'
+                }}>
+                  📝
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
                 <span>{emoji}</span>
                 <strong style={{ color: colore, letterSpacing: '0.5px' }}>{sigla}</strong>
@@ -1680,9 +1734,11 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     
     // Se la nota è stata modificata/aggiunta, crea una notifica rossa
     if (notaCambiata) {
-      await onUpdate(`aggiunta nota a ${edit.titolo} da ${utenteCorrente.username}`, 'nota'); 
+      const dataFormattata = new Date(edit.data_inizio).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
+      const messaggioNotifica = `aggiunta nota a ${edit.titolo} in programma giorno ${dataFormattata} da ${utenteCorrente.username}`
+      await onUpdate(messaggioNotifica, 'nota')
     } else {
-      await onUpdate(`Evento ${edit.titolo} modificato`);
+      await onUpdate(`Evento ${edit.titolo} modificato`, 'modifica')
     }
     setSalvando(false); setModalita('visualizza')
   }
@@ -1824,7 +1880,6 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                         
                         // Converte la chiave (es. "sab") in nome completo (es. "sabato")
                         const nomiGiorni = {
-                          'ven': 'venerdì',
                           'sab': 'sabato', 
                           'dom': 'domenica',
                           'lun': 'lunedì',
