@@ -558,7 +558,96 @@ export default function RitaglioImmagine({ user, onClose }) {
                 </div>
               ) : (
                 <>
-                  <div style={{ marginBottom: '20px' }}><span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span></div>
+                  {/* Bottoni di selezione logo e dimensioni */}
+                  {userCategorie.length > 0 && userCategorie.some(cat => cat.toLowerCase() === 'formula e') ? (
+                    <div style={{ marginBottom: '20px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', position: isMobile ? 'relative' : 'relative' }}>
+                      {isMobile ? (
+                        <>
+                          <span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span>
+                          <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+                            <button
+                              onClick={() => setSelectedLogo('formula1it')}
+                              style={{
+                                flex: 1,
+                                padding: '12px 20px',
+                                borderRadius: '12px',
+                                border: 'none',
+                                fontSize: '15px',
+                                fontWeight: '800',
+                                background: selectedLogo === 'formula1it' ? '#007AFF' : '#E5E5EA',
+                                color: selectedLogo === 'formula1it' ? '#fff' : '#1c1c1e',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              Formula1.it
+                            </button>
+                            <button
+                              onClick={() => setSelectedLogo('blogformulae')}
+                              style={{
+                                flex: 1,
+                                padding: '12px 20px',
+                                borderRadius: '12px',
+                                border: 'none',
+                                fontSize: '15px',
+                                fontWeight: '800',
+                                background: selectedLogo === 'blogformulae' ? '#007AFF' : '#E5E5EA',
+                                color: selectedLogo === 'blogformulae' ? '#fff' : '#1c1c1e',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              BlogFormulae.it
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setSelectedLogo('formula1it')}
+                            style={{
+                              position: 'absolute',
+                              left: '202px',
+                              padding: '12px 20px',
+                              borderRadius: '12px',
+                              border: 'none',
+                              fontSize: '15px',
+                              fontWeight: '800',
+                              background: selectedLogo === 'formula1it' ? '#007AFF' : '#E5E5EA',
+                              color: selectedLogo === 'formula1it' ? '#fff' : '#1c1c1e',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              zIndex: 100
+                            }}
+                          >
+                            Formula1.it
+                          </button>
+                          <span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800', position: 'relative', zIndex: 50 }}>{dimensions.width} × {dimensions.height} PX</span>
+                          <button
+                            onClick={() => setSelectedLogo('blogformulae')}
+                            style={{
+                              position: 'absolute',
+                              right: '170px',
+                              padding: '12px 20px',
+                              borderRadius: '12px',
+                              border: 'none',
+                              fontSize: '15px',
+                              fontWeight: '800',
+                              background: selectedLogo === 'blogformulae' ? '#007AFF' : '#E5E5EA',
+                              color: selectedLogo === 'blogformulae' ? '#fff' : '#1c1c1e',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              zIndex: 100
+                            }}
+                          >
+                            BlogFormulae.it
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: '20px' }}><span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span></div>
+                  )}
                   <div 
                     ref={containerRef}
                     onMouseDown={() => setIsDragging(true)}
