@@ -35,6 +35,8 @@ export default function RitaglioImmagine({ user, onClose }) {
 
   const isMobile = windowWidth <= 768
   
+  console.log('📱 isMobile:', isMobile, 'windowWidth:', windowWidth)
+  
   // FIX MOBILE: Container adattato allo schermo invece di scalare canvas
   const displayDim = isMobile ? (() => {
     // Su mobile: riempi 90% larghezza schermo e adatta altezza
