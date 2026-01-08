@@ -35,8 +35,6 @@ export default function RitaglioImmagine({ user, onClose }) {
 
   const isMobile = windowWidth <= 768
   
-  console.log('📱 isMobile:', isMobile, 'windowWidth:', windowWidth)
-  
   // FIX MOBILE: Container adattato allo schermo invece di scalare canvas
   const displayDim = isMobile ? (() => {
     // Su mobile: riempi 90% larghezza schermo e adatta altezza
@@ -562,7 +560,7 @@ export default function RitaglioImmagine({ user, onClose }) {
                 <>
                   {/* Bottoni di selezione logo e dimensioni */}
                   {userCategorie.length > 0 && userCategorie.some(cat => cat.toLowerCase() === 'formula e') ? (
-                    <div style={{ marginBottom: '20px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', position: isMobile ? 'relative' : 'relative' }}>
+                    <div style={{ marginBottom: '20px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', position: 'relative', width: '100%', minHeight: '40px' }}>
                       {isMobile ? (
                         <>
                           <span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span>
