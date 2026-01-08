@@ -275,7 +275,7 @@ function App() {
 
   // ← AGGIUNTO: Render condizionale RitaglioImmagine
   if (showRitaglioImmagine) {
-    return <RitaglioImmagine onClose={() => setShowRitaglioImmagine(false)} />
+    return <RitaglioImmagine user={user} onClose={() => setShowRitaglioImmagine(false)} />
   }
 
   // ← AGGIUNTO: Render condizionale Vida Menu
