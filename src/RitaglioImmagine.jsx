@@ -1,8 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 
-export default function RitaglioImmagine({ onClose }) {
+export default function RitaglioImmagine({ user, onClose }) {
   const [view, setView] = useState('menu')
+  const [userCategorie, setUserCategorie] = useState([])
+  const [selectedLogo, setSelectedLogo] = useState('formula1it')
+  const [logoConfig, setLogoConfig] = useState({
+    formula1it: { widthPercent: 0.30, offsetX: -45, offsetYPercent: 0.01 },
+    blogformulae: { widthPercent: 0.30, offsetX: -45, offsetYPercent: 0.01 }
+  })
   const [dimensions, setDimensions] = useState({ width: 1200, height: 729 })
   const [recentProjects, setRecentProjects] = useState([])
   const [selectedImage, setSelectedImage] = useState(null)
@@ -72,6 +78,42 @@ export default function RitaglioImmagine({ onClose }) {
     img.onload = () => { logoImgRef.current = img }
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // Carica categorie dell'utente quando il componente monta
+  useEffect(() => {
+    if (!user || !user.username) return
+    
+    const loadCategories = async () => {
+      try {
+        const { data: gruppiUtente } = await supabase
+          .from('gruppi_redattori')
+          .select('categoria_id')
+          .eq('username', user.username)
+        
+        let categorie = []
+        if (gruppiUtente && gruppiUtente.length > 0) {
+          const categorieIds = gruppiUtente.map(g => g.categoria_id).filter(Boolean)
+          
+          if (categorieIds.length > 0) {
+            const { data: categorieData } = await supabase
+              .from('categorie_weekend')
+              .select('nome')
+              .in('id', categorieIds)
+            
+            if (categorieData) {
+              categorie = categorieData.map(c => c.nome)
+            }
+          }
+        }
+        
+        setUserCategorie(categorie)
+      } catch (err) {
+        console.error('Errore caricamento categorie:', err)
+      }
+    }
+    
+    loadCategories()
+  }, [user?.username])
 
   const fetchCloudProgetti = async () => {
     const { data } = await supabase
