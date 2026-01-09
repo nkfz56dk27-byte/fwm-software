@@ -77,11 +77,13 @@ export default function RitaglioImmagine({ user, onClose }) {
     // Carica entrambi i loghi
     const img1 = new Image()
     img1.src = '/Logo_Formula1it.png'
-    img1.onload = () => { logosRef.current.formula1it = img1 }
+    img1.onload = () => { logosRef.current.formula1it = img1; console.log('[LOGO] Formula1it caricato') }
+    img1.onerror = () => { console.warn('[LOGO] Formula1it errore caricamento') }
     
     const img2 = new Image()
     img2.src = '/Logo_Blogformulae.png'
-    img2.onload = () => { logosRef.current.blogformulae = img2 }
+    img2.onload = () => { logosRef.current.blogformulae = img2; console.log('[LOGO] BlogFormulae caricato') }
+    img2.onerror = () => { console.warn('[LOGO] BlogFormulae errore caricamento') }
     
     return () => window.removeEventListener('resize', handleResize)
   }, [])
