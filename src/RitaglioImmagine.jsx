@@ -363,9 +363,12 @@ export default function RitaglioImmagine({ user, onClose }) {
       
       if (conLogo && logosRef.current[selectedLogo]) {
         const logoImg = logosRef.current[selectedLogo]
-        const lW = dimensions.width * 0.30  // 30% della larghezza (come preview)
+        const config = logoConfig[selectedLogo]
+        const lW = dimensions.width * config.widthPercent
         const lH = (logoImg.height / logoImg.width) * lW
-        ctx.drawImage(logoImg, (dimensions.width - lW) / 2 - 45, dimensions.height - lH - Math.round(dimensions.height * 0.01), lW, lH)  // 1% dal basso, spostato 45px a sinistra (come preview)
+        const lX = (dimensions.width - lW) / 2 + config.offsetX
+        const lY = dimensions.height - lH - Math.round(dimensions.height * config.offsetYPercent)
+        ctx.drawImage(logoImg, lX, lY, lW, lH)
       }
       
       const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
@@ -755,7 +758,18 @@ export default function RitaglioImmagine({ user, onClose }) {
                         transformOrigin: 'center'
                       }} />
                     )}
-                    {conLogo && <div style={{ position: 'absolute', bottom: '1%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src={`/Logo_${selectedLogo === 'formula1it' ? 'Formula1it' : 'Blogformulae'}.png`} style={{ width: '30%', marginLeft: '-45px', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
+                    {conLogo && (
+                      <div style={{ position: 'absolute', bottom: `${logoConfig[selectedLogo].offsetYPercent * 100}%`, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+                        <img 
+                          src={`/Logo_${selectedLogo === 'formula1it' ? 'Formula1it' : 'Blogformulae'}.png`} 
+                          style={{ 
+                            width: `${logoConfig[selectedLogo].widthPercent * 100}%`, 
+                            marginLeft: `${logoConfig[selectedLogo].offsetX}px`, 
+                            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
+                          }} 
+                        />
+                      </div>
+                    )}
                     
                     {/* Croce di centratura */}
                     {showCenterCross && (
