@@ -28,7 +28,7 @@ export default function RitaglioImmagine({ user, onClose }) {
   const [canvasBackground, setCanvasBackground] = useState('#000000') // Colore delle strisce del canvas
 
   const fileInputRef = useRef(null)
-  const logoImgRef = useRef(null)
+  const logosRef = useRef({ formula1it: null, blogformulae: null })
   const containerRef = useRef(null)
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
   const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 800)
@@ -73,9 +73,16 @@ export default function RitaglioImmagine({ user, onClose }) {
       setWindowHeight(window.innerHeight)
     }
     window.addEventListener('resize', handleResize)
-    const img = new Image()
-    img.src = '/Logo_Formula1it.png'
-    img.onload = () => { logoImgRef.current = img }
+    
+    // Carica entrambi i loghi
+    const img1 = new Image()
+    img1.src = '/Logo_Formula1it.png'
+    img1.onload = () => { logosRef.current.formula1it = img1 }
+    
+    const img2 = new Image()
+    img2.src = '/Logo_Blogformulae.png'
+    img2.onload = () => { logosRef.current.blogformulae = img2 }
+    
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
@@ -352,10 +359,11 @@ export default function RitaglioImmagine({ user, onClose }) {
         }
       }
       
-      if (conLogo && logoImgRef.current) {
+      if (conLogo && logosRef.current[selectedLogo]) {
+        const logoImg = logosRef.current[selectedLogo]
         const lW = dimensions.width * 0.30  // 30% della larghezza (come preview)
-        const lH = (logoImgRef.current.height / logoImgRef.current.width) * lW
-        ctx.drawImage(logoImgRef.current, (dimensions.width - lW) / 2 - 45, dimensions.height - lH - Math.round(dimensions.height * 0.01), lW, lH)  // 1% dal basso, spostato 45px a sinistra (come preview)
+        const lH = (logoImg.height / logoImg.width) * lW
+        ctx.drawImage(logoImg, (dimensions.width - lW) / 2 - 45, dimensions.height - lH - Math.round(dimensions.height * 0.01), lW, lH)  // 1% dal basso, spostato 45px a sinistra (come preview)
       }
       
       const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
@@ -745,7 +753,7 @@ export default function RitaglioImmagine({ user, onClose }) {
                         transformOrigin: 'center'
                       }} />
                     )}
-                    {conLogo && <div style={{ position: 'absolute', bottom: '1%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src="/Logo_Formula1it.png" style={{ width: '30%', marginLeft: '-45px', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
+                    {conLogo && <div style={{ position: 'absolute', bottom: '1%', left: 0, right: 0, display: 'flex', justifyContent: 'center' }}><img src={`/Logo_${selectedLogo === 'formula1it' ? 'Formula1it' : 'Blogformulae'}.png`} style={{ width: '30%', marginLeft: '-45px', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }} /></div>}
                     
                     {/* Croce di centratura */}
                     {showCenterCross && (
