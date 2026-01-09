@@ -862,10 +862,20 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
   <NuovoEventoModal 
     campionati={campionati} 
     onClose={() => setShowNuovoEvento(false)} 
-    onSave={async (titolo, eventoId, dataInizio) => { 
+    onSave={async (titolo, eventoId, dataInizio, campionatoId) => { 
       const dataFormattata = formatData(dataInizio);
       const username = utenteCorrente?.email?.split('@')[0] || utenteCorrente?.username || 'Utente';
-      await creaNotifica('nuovo_evento', `Nuovo evento: ${titolo} il ${dataFormattata} creato da ${username}`, eventoId); 
+      
+      // Trova il nome del campionato se è una gara
+      let messaggio = `Nuovo evento: ${titolo} il ${dataFormattata} creato da ${username}`;
+      if (campionatoId) {
+        const campionato = campionati.find(c => c.id === campionatoId);
+        if (campionato) {
+          messaggio = `Nuovo evento: ${campionato.emoji} ${titolo} (${campionato.nome}) il ${dataFormattata} creato da ${username}`;
+        }
+      }
+      
+      await creaNotifica('nuovo_evento', messaggio, eventoId); 
       caricaDati(); 
     }} 
     utenteCorrente={utenteCorrente} 
@@ -1468,7 +1478,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
       const { data, error } = await supabase.from('eventi_calendario').insert([nuovoEvento]).select().single();
       if (error) throw error;
       
-      await onSave(titolo, data?.id, dataInizio); 
+      await onSave(titolo, data?.id, dataInizio, tipo === 'gara' ? campionatoId : null); 
       onClose();
     } catch (err) { 
       alert("Errore: " + err.message); 
