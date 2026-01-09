@@ -7,7 +7,7 @@ export default function RitaglioImmagine({ user, onClose }) {
   const [selectedLogo, setSelectedLogo] = useState('formula1it')
   const [logoConfig, setLogoConfig] = useState({
     formula1it: { widthPercent: 0.30, offsetX: -45, offsetYPercent: 0.01 },
-    blogformulae: { widthPercent: 0.30, offsetX: -45, offsetYPercent: 0.01 }
+    blogformulae: { widthPercent: 0.38, offsetX: -5, offsetYPercent: 0.01 }
   })
   const [dimensions, setDimensions] = useState({ width: 1200, height: 729 })
   const [recentProjects, setRecentProjects] = useState([])
