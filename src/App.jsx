@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import CoppaSVG from "./assets/coppa.svg"
+import StatistichePNG from "./assets/Statistiche.png"
+import PenaltypointSVG from "./assets/Penalitypoint.svg"
 import FotoSVG from "./assets/foto.svg"
 import DisponibilitàSVG from "./assets/disponibilità.svg"
 import PressPNG from "./assets/press.png"
@@ -50,8 +52,13 @@ function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768)
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768
+      setIsMobile(mobile)
+      console.log('📱 isMobile aggiornato:', mobile, 'width:', window.innerWidth)
+    }
     window.addEventListener('resize', handleResize)
+    console.log('📱 isMobile iniziale:', isMobile, 'width:', window.innerWidth)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
@@ -268,7 +275,7 @@ function App() {
   }
 
   if (showClassificheMainMenu) {
-    return <ClassificheMainMenuView user={user} onBack={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(false) }} onOpenClassificheMenu={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(true) }} onOpenNuovaPagina={() => { setShowClassificheMainMenu(false); setShowNuovaPagina(true) }} />
+    return <ClassificheMainMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(false) }} onOpenClassificheMenu={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(true) }} onOpenNuovaPagina={() => { setShowClassificheMainMenu(false); setShowNuovaPagina(true) }} />
   }
 
   if (showClassificheMenu) {
@@ -2262,15 +2269,12 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
           <div className="home-card card-blue" onClick={onOpenClassificheMainMenu} style={{ cursor: 'pointer' }}>
             <div className="card-icon-wrapper">
               <img
-                src={CoppaSVG}
-                alt="Coppa"
+                src={StatistichePNG}
+                alt="Statistiche"
                 style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }}
               />
             </div>
-            <h3 className="card-title">CLASSIFICHE</h3>
-            <p className="card-subtitle">
-              {user.ruolo === 'admin' ? 'Gestisci campionati\ne classifiche' : 'Visualizza\nclassifiche'}
-            </p>
+            <h3 className="card-title">CLASSIFICHE E STATISTICHE</h3>
           </div>
 
           <div className="home-card card-green" onClick={onOpenRitaglio} style={{ cursor: 'pointer' }}>
@@ -2318,7 +2322,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
               />
             </div>
             <h3 className="card-title">DISPONIBILITÀ WEEKEND</h3>
-            <p className="card-subtitle">Eventi e Gare</p>
+            <p className="card-subtitle">Segna la tua disponibilità per il weekend</p>
           </div>
 
           <div className="home-card card-yellow" onClick={onOpenCalendario} style={{ cursor: 'pointer', position: 'relative' }}>
@@ -2351,7 +2355,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
               />
             </div>
             <h3 className="card-title">CALENDARIO ACCREDITI</h3>
-            <p className="card-subtitle">Eventi e Gare<br />per cui richiedere accredito</p>
+            <p className="card-subtitle">Calendario eventi<br />e richiesta accrediti</p>
           </div>
         </div>
 
@@ -2668,7 +2672,8 @@ function ModificaUtenteView({ utente, onClose, onSave }) {
 }
 
 // ===== CLASSIFICHE MAIN MENU =====
-function ClassificheMainMenuView({ user, onBack, onOpenClassificheMenu, onOpenNuovaPagina }) {
+function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu, onOpenNuovaPagina }) {
+  console.log('📱 ClassificheMainMenuView - isMobile ricevuto:', isMobile)
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
       <div style={{ position: 'absolute', top: '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between' }}>
@@ -2691,11 +2696,28 @@ function ClassificheMainMenuView({ user, onBack, onOpenClassificheMenu, onOpenNu
           </p>
         </div>
 
-        <div className="home-card card-blue" onClick={onOpenNuovaPagina} style={{ cursor: 'pointer', width: '300px' }}>
+        {/* DESKTOP VERSION */}
+        <div className="home-card card-blue" onClick={onOpenNuovaPagina} style={{ cursor: 'pointer', width: '300px', display: !isMobile ? 'flex' : 'none' }}>
           <div className="card-icon-wrapper">
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor" style={{ width: "80px", height: "60px" }}>
-              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-            </svg>
+            <img
+              src={PenaltypointSVG}
+              alt="Penalty Points"
+              style={{ width: "94px", height: "74px", filter: "brightness(0) invert(1)" }}
+            />
+          </div>
+          <h3 className="card-title">PENALTY POINTS</h3>
+          <p className="card-subtitle">Gestisci i punti<br />penalità</p>
+        </div>
+
+        {/* MOBILE VERSION */}
+        <div className="home-card card-blue" onClick={onOpenNuovaPagina} style={{ cursor: 'pointer', width: '300px', display: isMobile ? 'flex' : 'none' }} onMouseEnter={() => console.log('📱 MOBILE CARD VISIBILE, isMobile=', isMobile)}>
+          <div className="card-icon-wrapper" style={{ width: "130px", height: "130px" }}>
+            <img
+              src={PenaltypointSVG}
+              alt="Penalty Points"
+              style={{ width: "130px", height: "110px", filter: "brightness(0) invert(1)" }}
+              onLoad={() => console.log('📱 MOBILE card renderizzata con dimensioni 130x110px, isMobile=', isMobile)}
+            />
           </div>
           <h3 className="card-title">PENALTY POINTS</h3>
           <p className="card-subtitle">Gestisci i punti<br />penalità</p>
@@ -2706,46 +2728,903 @@ function ClassificheMainMenuView({ user, onBack, onOpenClassificheMenu, onOpenNu
 }
 
 // ===== PENALTY POINTS VIEW =====
-function NuovaPaginaView({ onClose }) {
-  const [campionati, setCampionati] = useState([
-    { id: 'f1', nome: 'Formula 1', colore: '#E10600' },
-    { id: 'fe', nome: 'Formula E', colore: '#0098DB' },
-  ])
+function NuovaPaginaView({ onClose, user }) {
+  const [campionati, setCampionati] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [campionatoSelezionato, setCampionatoSelezionato] = useState(null)
+  const [pilotaSelezionato, setPilotaSelezionato] = useState(null)
+  const [penaltyDetails, setPenaltyDetails] = useState({})
+  const [showAggiungiMenu, setShowAggiungiMenu] = useState(false)
+  const [showCreaZero, setShowCreaZero] = useState(false)
+  const [showImportaClassifica, setShowImportaClassifica] = useState(false)
+  const [classificheDisponibili, setClassificheDisponibili] = useState([])
+  const [nuovoCampionatoForm, setNuovoCampionatoForm] = useState({ nome: '', piloti: [] })
+  const [nuovoPilota, setNuovoPilota] = useState({ nome: '', numero: '' })
+  const [showAggiungiInfrazione, setShowAggiungiInfrazione] = useState(false)
+  const [nuovaInfrazione, setNuovaInfrazione] = useState({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null })
+
+  useEffect(() => {
+    caricaCampionati()
+  }, [])
+
+  const caricaCampionati = async () => {
+    try {
+      const { data, error } = await supabase.from('classifiche').select('*')
+      if (!error && data) {
+        setCampionati(data)
+        
+        // Carica infrazioni dalla tabella infrazioni
+        const { data: infrazioni, error: infError } = await supabase.from('infrazioni').select('*')
+        
+        if (!infError && infrazioni) {
+          const details = {}
+          infrazioni.forEach(infrazione => {
+            const key = `${infrazione.campionato_id}_${infrazione.pilota_id}`
+            if (!details[key]) {
+              details[key] = []
+            }
+            details[key].push({
+              id: infrazione.id,
+              points: infrazione.punti,
+              reason: infrazione.motivo,
+              dateAdded: infrazione.data_infrazione,
+              expiryDate: infrazione.data_scadenza,
+              gpBan: ''
+            })
+          })
+          setPenaltyDetails(details)
+        }
+      }
+      setLoading(false)
+    } catch (err) {
+      console.error('Errore caricamento campionati:', err)
+      setLoading(false)
+    }
+  }
+
+  const caricaClassificheDisponibili = async () => {
+    try {
+      const { data, error } = await supabase.from('classifiche').select('*')
+      if (!error && data) {
+        setClassificheDisponibili(data)
+        setShowImportaClassifica(true)
+      }
+    } catch (err) {
+      console.error('Errore caricamento classifiche:', err)
+    }
+  }
+
+  const importaCampionato = (classifica) => {
+    const nuovoCampionato = {
+      id: classifica.id,
+      nome: classifica.nome,
+      piloti: classifica.piloti || [],
+      costruttori: classifica.costruttori || [],
+      gp: classifica.gp || []
+    }
+    
+    if (campionati.find(c => c.id === classifica.id)) {
+      alert('✅ Questo campionato è già presente!')
+      setShowImportaClassifica(false)
+      setShowAggiungiMenu(false)
+      return
+    }
+    
+    setCampionati([...campionati, nuovoCampionato])
+    setShowImportaClassifica(false)
+    setShowAggiungiMenu(false)
+    alert(`✅ Campionato "${nuovoCampionato.nome}" importato con successo!`)
+  }
+
+  const aggiungiInfrazione = () => {
+    if (!nuovaInfrazione.motivo.trim()) {
+      alert('❌ Inserisci il motivo dell\'infrazione')
+      return
+    }
+
+    const totalPuntiDopo = getTotalPenaltyPoints(pilotaSelezionato.id) + parseInt(nuovaInfrazione.punti)
+    
+    if (totalPuntiDopo > 12 && !nuovaInfrazione.gpBan) {
+      alert('❌ Inserisci il GP per cui il pilota è bannato')
+      return
+    }
+
+    const dataOggi = new Date()
+    const dataScadenza = new Date(dataOggi.getFullYear() + 1, dataOggi.getMonth(), dataOggi.getDate())
+
+    const infrazione = {
+      id: `infrazione_${Date.now()}`,
+      points: parseInt(nuovaInfrazione.punti),
+      reason: nuovaInfrazione.motivo,
+      dateAdded: dataOggi.toISOString().split('T')[0],
+      expiryDate: dataScadenza.toISOString().split('T')[0],
+      gpBan: totalPuntiDopo > 12 ? nuovaInfrazione.gpBan : null
+    }
+
+    const pilotaId = pilotaSelezionato.id
+    const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${pilotaId}`] || []
+
+    setPenaltyDetails({
+      ...penaltyDetails,
+      [`${campionatoSelezionato.id}_${pilotaId}`]: [...infrazioniPilota, infrazione]
+    })
+
+    setNuovaInfrazione({ punti: 1, motivo: '', gpBan: '' })
+    setShowAggiungiInfrazione(false)
+  }
+
+  const rimuoviInfrazione = async (infractionId) => {
+    try {
+      // Cancella da Supabase
+      const { error } = await supabase
+        .from('infrazioni')
+        .delete()
+        .eq('id', infractionId)
+      
+      if (!error) {
+        // Aggiorna lo stato locale
+        const pilotaId = pilotaSelezionato.id
+        setPenaltyDetails({
+          ...penaltyDetails,
+          [`${campionatoSelezionato.id}_${pilotaId}`]: penaltyDetails[`${campionatoSelezionato.id}_${pilotaId}`].filter(i => i.id !== infractionId)
+        })
+      } else {
+        alert('Errore nella cancellazione')
+      }
+    } catch (err) {
+      console.error('Errore cancellazione infrazione:', err)
+      alert('Errore nella cancellazione')
+    }
+  }
+
+  const salvaInfrazioniDatabase = async () => {
+    try {
+      const { error } = await supabase
+        .from('classifiche')
+        .update({ penalty_points: penaltyDetails })
+        .eq('id', campionatoSelezionato.id)
+      
+      if (!error) {
+        alert('✅ Infrazioni salvate con successo!')
+      } else {
+        alert('❌ Errore nel salvataggio')
+      }
+    } catch (err) {
+      console.error('Errore salvataggio infrazioni:', err)
+      alert('❌ Errore nel salvataggio')
+    }
+  }
+
+  const getTotalPenaltyPoints = (pilotaId) => {
+    const infrazioni = penaltyDetails[`${campionatoSelezionato.id}_${pilotaId}`] || []
+    return infrazioni.reduce((sum, inf) => sum + inf.points, 0)
+  }
+
+  const aggiungiPilotaForm = () => {
+    if (!nuovoPilota.nome.trim()) {
+      alert('❌ Inserisci il nome del pilota')
+      return
+    }
+    
+    const pilota = {
+      id: `pilota_${Date.now()}`,
+      nome: nuovoPilota.nome,
+      numero: nuovoPilota.numero || 0,
+      punti: 0,
+      attivo: true
+    }
+    
+    setNuovoCampionatoForm({
+      ...nuovoCampionatoForm,
+      piloti: [...nuovoCampionatoForm.piloti, pilota]
+    })
+    setNuovoPilota({ nome: '', numero: '' })
+  }
+
+  const rimuoviPilotaForm = (pilotaId) => {
+    setNuovoCampionatoForm({
+      ...nuovoCampionatoForm,
+      piloti: nuovoCampionatoForm.piloti.filter(p => p.id !== pilotaId)
+    })
+  }
+
+  const salvaCampionatoNuovo = async () => {
+    if (!nuovoCampionatoForm.nome.trim()) {
+      alert('❌ Inserisci il nome del campionato')
+      return
+    }
+    
+    if (nuovoCampionatoForm.piloti.length === 0) {
+      alert('❌ Aggiungi almeno un pilota')
+      return
+    }
+
+    const nuovoCampionato = {
+      id: `campionato_${Date.now()}`,
+      nome: nuovoCampionatoForm.nome,
+      piloti: nuovoCampionatoForm.piloti,
+      costruttori: [],
+      gp: []
+    }
+
+    setCampionati([...campionati, nuovoCampionato])
+    setNuovoCampionatoForm({ nome: '', piloti: [] })
+    setShowCreaZero(false)
+    setShowAggiungiMenu(false)
+    alert(`✅ Campionato "${nuovoCampionato.nome}" creato con successo!`)
+  }
+
+  if (loading) {
+    return <div style={{ padding: '40px', textAlign: 'center' }}>Caricamento campionati...</div>
+  }
+
+  // MODALE MENU AGGIUNGI
+  if (showAggiungiMenu) {
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 1000 }}>
+        <div style={{ background: 'white', borderRadius: '20px', padding: '40px', maxWidth: '500px', width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', position: 'relative' }}>
+          <button
+            onClick={() => setShowAggiungiMenu(false)}
+            style={{
+              position: 'absolute',
+              top: '15px',
+              right: '15px',
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              color: '#FF3B30',
+              cursor: 'pointer',
+              padding: '5px'
+            }}
+          >
+            ✕
+          </button>
+          <h2 style={{ margin: '0 0 30px 0', color: '#333', textAlign: 'center' }}>Aggiungi Campionato</h2>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <button
+              onClick={() => { setShowAggiungiMenu(false); setShowCreaZero(true) }}
+              style={{
+                padding: '20px',
+                background: '#007AFF',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                textAlign: 'center',
+                transition: 'background 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.background = '#0051D5'}
+              onMouseOut={(e) => e.target.style.background = '#007AFF'}
+            >
+              Crea Campionato
+            </button>
+
+            <button
+              onClick={() => { setShowAggiungiMenu(false); caricaClassificheDisponibili() }}
+              style={{
+                padding: '20px',
+                background: '#34C759',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontSize: '16px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                textAlign: 'center',
+                transition: 'background 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.background = '#30B050'}
+              onMouseOut={(e) => e.target.style.background = '#34C759'}
+            >
+              Importa da Classifica
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // MODALE CREA DA ZERO
+  if (showCreaZero) {
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', overflow: 'auto', zIndex: 999 }}>
+        <div style={{ background: 'white', borderRadius: '20px', padding: '30px', maxWidth: '600px', width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', position: 'relative' }}>
+          <button onClick={() => setShowCreaZero(false)} style={{ position: 'absolute', top: window.innerWidth < 768 ? '32px' : '30px', left: '20px', display: 'flex', alignItems: 'center', gap: '8px', background: 'none', color: '#007AFF', border: 'none', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '20px', height: '20px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            Indietro
+          </button>
+          <button onClick={salvaCampionatoNuovo} style={{ position: 'absolute', top: '20px', right: '20px', background: '#34C759', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
+            Salva
+          </button>
+          <h2 style={{ color: '#333', margin: window.innerWidth < 768 ? '-8px 0 30px 0' : '-5px 0 30px 0', textAlign: 'center', paddingTop: window.innerWidth < 768 ? '0px' : '0px' }}>
+            {window.innerWidth < 768 ? (
+              <>Crea<br />Campionato</>
+            ) : (
+              <>Crea Campionato</>
+            )}
+          </h2>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '14px', color: '#666', marginBottom: '8px', fontWeight: '500' }}>Nome Campionato</label>
+            <input
+              type="text"
+              value={nuovoCampionatoForm.nome}
+              onChange={(e) => setNuovoCampionatoForm({ ...nuovoCampionatoForm, nome: e.target.value })}
+              placeholder="Es. Formula 1 2024"
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '2px solid #e0e0e0',
+                borderRadius: '8px',
+                fontSize: '16px',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <h3 style={{ color: '#333', marginTop: '10px', marginBottom: '10px', textAlign: 'center' }}>Piloti</h3>
+
+          <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: '10px', marginBottom: '10px' }}>
+            <input
+              type="text"
+              value={nuovoPilota.nome}
+              onChange={(e) => setNuovoPilota({ ...nuovoPilota, nome: e.target.value })}
+              placeholder="Nome pilota"
+              style={{
+                width: '100%',
+                padding: '10px',
+                border: '2px solid #e0e0e0',
+                borderRadius: '8px',
+                fontSize: '14px',
+                marginBottom: '8px',
+                boxSizing: 'border-box'
+              }}
+            />
+            <button
+              onClick={aggiungiPilotaForm}
+              style={{
+                width: '100%',
+                padding: '10px',
+                background: '#007AFF',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              Aggiungi Pilota
+            </button>
+          </div>
+
+          {nuovoCampionatoForm.piloti.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+              {nuovoCampionatoForm.piloti.map(pilota => (
+                <div key={pilota.id} style={{ background: '#f0f0f0', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold', color: '#333' }}>{pilota.nome}</div>
+                  </div>
+                  <button onClick={() => rimuoviPilotaForm(pilota.id)} style={{ background: 'none', border: 'none', color: '#FF3B30', fontSize: '18px', cursor: 'pointer' }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // MODALE IMPORTA DA CLASSIFICA
+  if (showImportaClassifica) {
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 998 }}>
+        <div style={{ background: 'white', borderRadius: '20px', padding: '30px', maxWidth: '600px', width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
+          <button onClick={() => setShowImportaClassifica(false)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', color: '#007AFF', border: 'none', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>
+            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '20px', height: '20px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            Indietro
+          </button>
+
+          <h2 style={{ color: '#333', marginBottom: '20px' }}>Seleziona Classifica</h2>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {classificheDisponibili.map(classifica => (
+              <button
+                key={classifica.id}
+                onClick={() => importaCampionato(classifica)}
+                style={{
+                  padding: '15px',
+                  background: '#f0f0f0',
+                  border: '2px solid #e0e0e0',
+                  borderRadius: '10px',
+                  fontSize: '16px',
+                  fontWeight: '500',
+                  color: '#333',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => { e.target.style.background = '#007AFF'; e.target.style.color = 'white' }}
+                onMouseOut={(e) => { e.target.style.background = '#f0f0f0'; e.target.style.color = '#333' }}
+              >
+                {classifica.nome}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // MODALE AGGIUNGI INFRAZIONE
+  if (showAggiungiInfrazione && campionatoSelezionato) {
+    const calculateExpiryDate = (dataInfrazione) => {
+      if (!dataInfrazione) return ''
+      const date = new Date(dataInfrazione)
+      date.setFullYear(date.getFullYear() + 1)
+      return date.toISOString().split('T')[0]
+    }
+
+    const handleSalvaInfrazione = async () => {
+      if (!nuovaInfrazione.pilotaId || !nuovaInfrazione.motivo || !nuovaInfrazione.dataInfrazione) {
+        alert('Compila tutti i campi')
+        return
+      }
+
+      const expiryDate = calculateExpiryDate(nuovaInfrazione.dataInfrazione)
+      
+      // Salva su Supabase nella tabella infrazioni
+      try {
+        const { data, error } = await supabase
+          .from('infrazioni')
+          .insert({
+            campionato_id: campionatoSelezionato.id,
+            pilota_id: nuovaInfrazione.pilotaId,
+            punti: parseInt(nuovaInfrazione.punti),
+            motivo: nuovaInfrazione.motivo,
+            data_infrazione: nuovaInfrazione.dataInfrazione,
+            data_scadenza: expiryDate
+          })
+          .select()
+        
+        if (!error && data) {
+          // Aggiorna lo stato locale con l'infrazione salvata
+          const infrazione = {
+            id: data[0].id,
+            points: data[0].punti,
+            reason: data[0].motivo,
+            dateAdded: data[0].data_infrazione,
+            expiryDate: data[0].data_scadenza,
+            gpBan: ''
+          }
+          
+          const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || []
+          setPenaltyDetails({
+            ...penaltyDetails,
+            [`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`]: [...infrazioniPilota, infrazione]
+          })
+          
+          alert('Infrazione salvata con successo!')
+        } else {
+          alert('Errore nel salvataggio')
+        }
+      } catch (err) {
+        console.error('Errore salvataggio su Supabase:', err)
+        alert('Errore nel salvataggio')
+      }
+
+      setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null })
+      setShowAggiungiInfrazione(false)
+    }
+
+    const handleSalvaInfrazione_OLD = async () => {
+      if (!nuovaInfrazione.pilotaId || !nuovaInfrazione.motivo || !nuovaInfrazione.dataInfrazione) {
+        alert('Compila tutti i campi')
+        return
+      }
+
+      const expiryDate = calculateExpiryDate(nuovaInfrazione.dataInfrazione)
+      const infrazione = {
+        id: Date.now(),
+        points: parseInt(nuovaInfrazione.punti),
+        reason: nuovaInfrazione.motivo,
+        dateAdded: nuovaInfrazione.dataInfrazione,
+        expiryDate: expiryDate,
+        gpBan: ''
+      }
+
+      const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || []
+      const nuoviDettagli = {
+        ...penaltyDetails,
+        [`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`]: [...infrazioniPilota, infrazione]
+      }
+      setPenaltyDetails(nuoviDettagli)
+
+      // Salva su Supabase
+      try {
+        await supabase
+          .from('classifiche')
+          .update({ penalty_points: nuoviDettagli })
+          .eq('id', campionatoSelezionato.id)
+      } catch (err) {
+        console.error('Errore salvataggio su Supabase:', err)
+      }
+
+      setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null })
+      setShowAggiungiInfrazione(false)
+    }
+
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 998, padding: '20px' }}>
+        <div style={{ background: 'rgba(0, 0, 0, 0.9)', border: '2px solid rgba(255, 255, 255, 0.3)', borderRadius: '15px', padding: '40px', maxWidth: '500px', width: '100%', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)', position: 'relative' }}>
+          <button
+            onClick={() => {
+              setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null })
+              setShowAggiungiInfrazione(false)
+            }}
+            style={{
+              position: 'absolute',
+              top: '15px',
+              right: '15px',
+              background: 'none',
+              border: 'none',
+              color: '#FF3B30',
+              fontSize: '24px',
+              cursor: 'pointer',
+              padding: '0',
+              width: '30px',
+              height: '30px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'opacity 0.2s'
+            }}
+            onMouseOver={(e) => e.target.style.opacity = '0.7'}
+            onMouseOut={(e) => e.target.style.opacity = '1'}
+          >
+            ✕
+          </button>
+          
+          <h2 style={{ color: 'white', marginBottom: '30px', fontSize: '24px', fontWeight: '700', textShadow: '0 2px 5px rgba(0,0,0,0.5)' }}>Aggiungi Infrazione</h2>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', color: '#00D4FF', fontSize: '14px', fontWeight: '600', marginBottom: '8px', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>Pilota</label>
+            <select
+              value={nuovaInfrazione.pilotaId || ''}
+              onChange={(e) => setNuovaInfrazione({ ...nuovaInfrazione, pilotaId: parseInt(e.target.value) || null })}
+              style={{ width: '100%', padding: '12px', background: 'rgba(255, 255, 255, 0.1)', color: 'white', border: '1px solid rgba(255, 255, 255, 0.3)', borderRadius: '8px', fontSize: '14px', fontWeight: '500' }}
+            >
+              <option value="">Seleziona pilota</option>
+              {(campionatoSelezionato.piloti || []).map(pilota => (
+                <option key={pilota.id} value={pilota.id}>{pilota.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', color: '#00D4FF', fontSize: '14px', fontWeight: '600', marginBottom: '8px', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>Punti Penalità</label>
+            <select
+              value={nuovaInfrazione.punti}
+              onChange={(e) => setNuovaInfrazione({ ...nuovaInfrazione, punti: parseInt(e.target.value) })}
+              style={{ width: '100%', padding: '12px', background: 'rgba(255, 255, 255, 0.1)', color: 'white', border: '1px solid rgba(255, 255, 255, 0.3)', borderRadius: '8px', fontSize: '14px', fontWeight: '500' }}
+            >
+              {[...Array(12)].map((_, i) => (
+                <option key={i + 1} value={i + 1}>{i + 1}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', color: '#00D4FF', fontSize: '14px', fontWeight: '600', marginBottom: '8px', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>Data Infrazione</label>
+            <input
+              type="date"
+              value={nuovaInfrazione.dataInfrazione}
+              onChange={(e) => setNuovaInfrazione({ ...nuovaInfrazione, dataInfrazione: e.target.value })}
+              style={{ width: '100%', padding: '12px', background: 'rgba(255, 255, 255, 0.1)', color: 'white', border: '1px solid rgba(255, 255, 255, 0.3)', borderRadius: '8px', fontSize: '14px', fontWeight: '500' }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '30px' }}>
+            <label style={{ display: 'block', color: '#00D4FF', fontSize: '14px', fontWeight: '600', marginBottom: '8px', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>Motivo</label>
+            <textarea
+              value={nuovaInfrazione.motivo}
+              onChange={(e) => setNuovaInfrazione({ ...nuovaInfrazione, motivo: e.target.value })}
+              style={{ width: '100%', padding: '12px', background: 'rgba(255, 255, 255, 0.1)', color: 'white', border: '1px solid rgba(255, 255, 255, 0.3)', borderRadius: '8px', fontSize: '14px', fontWeight: '500', fontFamily: 'inherit', minHeight: '80px', resize: 'none' }}
+              placeholder="Descrivi il motivo della penalità"
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={handleSalvaInfrazione}
+              style={{ flex: 1, padding: '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 4px 10px rgba(52, 199, 89, 0.3)' }}
+              onMouseOver={(e) => e.target.style.opacity = '0.9'}
+              onMouseOut={(e) => e.target.style.opacity = '1'}
+            >
+              Salva Infrazione
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // MODALE SELEZIONE PILOTA
+  if (campionatoSelezionato && !pilotaSelezionato) {
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '40px 20px', overflow: 'hidden', zIndex: 996, paddingTop: window.innerWidth < 768 ? '100px' : '40px' }}>
+        <div style={{ position: 'absolute', top: window.innerWidth < 768 ? '42px' : '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
+          <button onClick={() => setCampionatoSelezionato(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
+            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            Indietro
+          </button>
+        </div>
+
+        <h2 style={{ color: 'white', marginBottom: '40px', marginTop: '20px', fontSize: '28px', fontWeight: '700', textShadow: '0 2px 5px rgba(0,0,0,0.5)', position: 'relative', zIndex: 10 }}>{campionatoSelezionato.nome}</h2>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '25px', maxWidth: '900px', width: '100%', overflowY: 'auto', paddingRight: '15px', maxHeight: 'calc(100vh - 180px)' }}>
+          {(campionatoSelezionato.piloti || []).map(pilota => (
+            <button
+              key={pilota.id}
+              onClick={() => setPilotaSelezionato(pilota)}
+              style={{
+                background: 'rgba(0, 0, 0, 0.5)',
+                border: '2px solid rgba(255, 255, 255, 0.5)',
+                borderRadius: '15px',
+                padding: '25px',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                boxShadow: '0 8px 25px rgba(0, 0, 0, 0.4)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translateY(-4px)'
+                e.currentTarget.style.boxShadow = '0 12px 35px rgba(0, 0, 0, 0.6)'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.4)'
+              }}
+            >
+              <div style={{ color: 'white', fontSize: '18px', fontWeight: '700', textAlign: 'center', textShadow: '0 2px 3px rgba(0, 0, 0, 0.5)' }}>
+                {pilota.nome}
+              </div>
+              <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '100px' }}>
+                {[...Array(12)].map((_, i) => {
+                  const totalPuntiPilota = getTotalPenaltyPoints(pilota.id)
+                  return (
+                    <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: i < totalPuntiPilota ? '#FF3B30' : 'rgba(255,255,255,0.15)', border: '1px solid ' + (i < totalPuntiPilota ? '#CC0000' : 'rgba(255,255,255,0.25)'), boxShadow: '0 1px 2px rgba(0,0,0,0.3)' }} />
+                  )
+                })}
+              </div>
+              {getTotalPenaltyPoints(pilota.id) > 12 && (
+                <div style={{ background: '#FF3B30', color: 'white', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', textShadow: '0 1px 2px rgba(0,0,0,0.3)', letterSpacing: '0.5px', transform: 'rotate(-15deg)' }}>RACE BAN</div>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {(campionatoSelezionato.piloti || []).length === 0 && (
+          <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', padding: '40px 20px', fontSize: '16px', textShadow: '0 2px 5px rgba(0,0,0,0.5)' }}>
+            Nessun pilota disponibile
+          </div>
+        )}
+
+        <button
+          onClick={() => setShowAggiungiInfrazione(true)}
+          style={{
+            position: 'absolute',
+            top: '30px',
+            right: '30px',
+            padding: '15px 25px',
+            background: '#34C759',
+            color: 'white',
+            border: 'none',
+            borderRadius: '10px',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            boxShadow: '0 4px 10px rgba(52, 199, 89, 0.3)',
+            transition: 'opacity 0.2s',
+            zIndex: 50
+          }}
+          onMouseOver={(e) => e.target.style.opacity = '0.9'}
+          onMouseOut={(e) => e.target.style.opacity = '1'}
+        >
+          Aggiungi Infrazione
+        </button>
+      </div>
+    )
+  }
+
+  // MODALE DETTAGLI PILOTA
+  if (pilotaSelezionato) {
+    const totalPunti = getTotalPenaltyPoints(pilotaSelezionato.id)
+    const isBanned = totalPunti > 12
+    const infrazioni = penaltyDetails[`${campionatoSelezionato.id}_${pilotaSelezionato.id}`] || []
+
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '40px 20px', overflow: 'auto', zIndex: 997 }}>
+        <div style={{ position: 'absolute', top: '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', zIndex: 100 }}>
+          <button onClick={() => setPilotaSelezionato(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
+            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            Indietro
+          </button>
+        </div>
+
+        <div style={{ marginTop: '80px', maxWidth: '600px', width: '100%' }}>
+          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+            <h2 style={{ color: 'white', margin: '0', fontSize: '28px', fontWeight: '700', textShadow: '0 2px 5px rgba(0,0,0,0.5)' }}>{pilotaSelezionato.nome}</h2>
+          </div>
+
+          <div style={{ background: 'rgba(0, 0, 0, 0.5)', border: '2px solid rgba(255, 255, 255, 0.5)', borderRadius: '15px', padding: '25px', marginBottom: '25px', textAlign: 'center', position: 'relative', boxShadow: '0 8px 25px rgba(0, 0, 0, 0.4)' }}>
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', marginBottom: '10px', fontWeight: '600', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>PUNTI PENALITÀ</div>
+            <div style={{ fontSize: '56px', fontWeight: 'bold', color: totalPunti > 12 ? '#FF3B30' : '#00D4FF', marginBottom: '15px', textShadow: '0 2px 5px rgba(0,0,0,0.5)' }}>
+              {totalPunti}/12
+            </div>
+            
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              {[...Array(12)].map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    background: i < totalPunti ? '#FF3B30' : 'rgba(255,255,255,0.2)',
+                    border: '2px solid ' + (i < totalPunti ? '#CC0000' : 'rgba(255,255,255,0.4)'),
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+                  }}
+                />
+              ))}
+            </div>
+
+            {isBanned && (
+              <button
+                onClick={async () => {
+                  if (window.confirm('Sei sicuro di azzerare il ban e tutte le infrazioni di questo pilota?')) {
+                    try {
+                      await supabase
+                        .from('infrazioni')
+                        .delete()
+                        .eq('campionato_id', campionatoSelezionato.id)
+                        .eq('pilota_id', pilotaSelezionato.id)
+                      
+                      setPenaltyDetails({
+                        ...penaltyDetails,
+                        [`${campionatoSelezionato.id}_${pilotaSelezionato.id}`]: []
+                      })
+                      alert('Ban azzerato! Tutte le infrazioni del pilota sono state eliminate.')
+                    } catch (err) {
+                      console.error('Errore azzeramento ban:', err)
+                      alert('Errore nell\'azzeramento del ban')
+                    }
+                  }
+                }}
+                style={{
+                  position: 'fixed',
+                  top: '20px',
+                  right: '20px',
+                  padding: '10px 20px',
+                  background: '#FF3B30',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(255, 59, 48, 0.4)',
+                  transition: 'all 0.2s',
+                  zIndex: 999
+                }}
+                onMouseOver={(e) => {
+                  e.target.style.opacity = '0.9'
+                  e.target.style.transform = 'scale(1.05)'
+                }}
+                onMouseOut={(e) => {
+                  e.target.style.opacity = '1'
+                  e.target.style.transform = 'scale(1)'
+                }}
+              >
+                Ban Scontato
+              </button>
+            )}
+          </div>
+
+          <h3 style={{ color: 'white', marginBottom: '15px', fontSize: '16px', fontWeight: '700', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>Infrazioni ({infrazioni.length})</h3>
+          
+          {infrazioni.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(100vh - 500px)', overflowY: 'auto', paddingRight: '10px' }}>
+              {infrazioni.map(infrazione => {
+                const handleMouseOver = (e) => e.target.style.opacity = '0.9'
+                const handleMouseOut = (e) => e.target.style.opacity = '1'
+                const puntiLabel = infrazione.points === 1 ? 'punto' : 'punti'
+                return (
+                  <div key={infrazione.id} style={{ background: 'rgba(0, 0, 0, 0.9)', border: '2px solid rgba(255, 255, 255, 0.2)', padding: '15px 20px', borderRadius: '10px', display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1.2fr', gap: '30px', alignItems: 'center', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.5)', transition: 'opacity 0.2s', cursor: 'pointer', opacity: '1' }} onMouseOver={handleMouseOver} onMouseOut={handleMouseOut}>
+                    <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                      {infrazione.points} {puntiLabel}
+                    </div>
+                    <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                      {infrazione.expiryDate}
+                    </div>
+                    <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                      {infrazione.reason}
+                      {infrazione.gpBan && <div style={{ fontSize: '12px', color: '#FF3B30', marginTop: '4px', fontWeight: '600' }}>Ban: {infrazione.gpBan}</div>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(100vh - 500px)', overflowY: 'auto', paddingRight: '10px' }}>
+              <div style={{ background: 'rgba(0, 0, 0, 0.7)', border: '2px solid rgba(255, 255, 255, 0.3)', padding: '15px 20px', borderRadius: '10px', display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1.2fr', gap: '30px', alignItems: 'center', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)' }}>
+                <div style={{ color: '#00D4FF', fontWeight: '700', fontSize: '13px', textShadow: '0 1px 3px rgba(0,0,0,0.5)', letterSpacing: '0.5px' }}>PUNTI</div>
+                <div style={{ color: '#00D4FF', fontWeight: '700', fontSize: '13px', textShadow: '0 1px 3px rgba(0,0,0,0.5)', letterSpacing: '0.5px' }}>SCADENZA</div>
+                <div style={{ color: '#00D4FF', fontWeight: '700', fontSize: '13px', textShadow: '0 1px 3px rgba(0,0,0,0.5)', letterSpacing: '0.5px' }}>MOTIVO</div>
+              </div>
+              <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', padding: '20px', borderRadius: '10px', background: 'rgba(0,0,0,0.3)', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                Nessuna infrazione
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-      {/* HEADER CON INDIETRO E AGGIUNGI CAMPIONATI */}
       <div style={{ position: 'absolute', top: '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
         <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
           <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
           Indietro
         </button>
-        <button style={{ background: '#34C759', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(52, 199, 89, 0.3)' }}>
+        <button onClick={() => setShowAggiungiMenu(true)} style={{ background: '#34C759', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(52, 199, 89, 0.3)' }}>
           Aggiungi Campionato
         </button>
       </div>
 
-      {/* LISTA CAMPIONATI - DUE COLONNE */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', justifyContent: 'center', maxWidth: '600px' }}>
-        {campionati.map(campionato => (
-          <button
-            key={campionato.id}
-            style={{
-              width: '250px',
-              height: '80px',
-              background: '#007AFF',
-              color: 'white',
-              border: 'none',
-              borderRadius: '25px',
-              fontSize: '24px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-            }}
-          >
-            {campionato.nome}
-          </button>
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))', gap: '30px', justifyContent: 'center', maxWidth: '900px', width: '100%', maxHeight: window.innerWidth < 768 ? 'calc(100vh - 180px)' : 'auto', overflowY: window.innerWidth < 768 ? 'auto' : 'visible', paddingRight: window.innerWidth < 768 ? '15px' : '0', paddingLeft: window.innerWidth < 768 ? '15px' : '0' }}>
+        {campionati.length > 0 ? (
+          campionati.map(campionato => (
+            <button
+              key={campionato.id}
+              onClick={() => setCampionatoSelezionato(campionato)}
+              style={{
+                width: '100%',
+                minHeight: '100px',
+                background: '#007AFF',
+                color: 'white',
+                border: 'none',
+                borderRadius: '15px',
+                fontSize: '20px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+                padding: '20px',
+                transition: 'transform 0.2s',
+                textAlign: 'center'
+              }}
+              onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+              onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+            >
+              {campionato.nome}
+              <div style={{ fontSize: '14px', marginTop: '10px', opacity: 0.8 }}>
+                {(campionato.piloti || []).length} piloti
+              </div>
+            </button>
+          ))
+        ) : (
+          <div style={{ textAlign: 'center', color: '#666', gridColumn: '1 / -1' }}>
+            Nessun campionato disponibile
+          </div>
+        )}
       </div>
     </div>
   )
