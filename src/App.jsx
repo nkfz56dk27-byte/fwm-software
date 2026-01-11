@@ -2711,12 +2711,12 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
 
         {/* MOBILE VERSION */}
         <div className="home-card card-blue" onClick={onOpenNuovaPagina} style={{ cursor: 'pointer', width: '300px', display: isMobile ? 'flex' : 'none' }} onMouseEnter={() => console.log('📱 MOBILE CARD VISIBILE, isMobile=', isMobile)}>
-          <div className="card-icon-wrapper" style={{ width: "130px", height: "130px" }}>
+          <div className="card-icon-wrapper" style={{ width: "150px", height: "150px" }}>
             <img
               src={PenaltypointSVG}
               alt="Penalty Points"
-              style={{ width: "130px", height: "110px", filter: "brightness(0) invert(1)" }}
-              onLoad={() => console.log('📱 MOBILE card renderizzata con dimensioni 130x110px, isMobile=', isMobile)}
+              style={{ width: "150px", height: "130px", filter: "brightness(0) invert(1)" }}
+              onLoad={() => console.log('📱 MOBILE card renderizzata con dimensioni 150x130px, isMobile=', isMobile)}
             />
           </div>
           <h3 className="card-title">PENALTY POINTS</h3>
