@@ -3508,9 +3508,9 @@ function NuovaPaginaView({ onClose, user }) {
                   }
                 }}
                 style={{
-                  position: 'fixed',
-                  top: '20px',
-                  right: '20px',
+                  position: 'relative',
+                  display: 'inline-block',
+                  marginBottom: '15px',
                   padding: '10px 20px',
                   background: '#FF3B30',
                   color: 'white',
