@@ -5,13 +5,28 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
-    // Cache busting: aggiunge hash ai file per evitare problemi di cache
     rollupOptions: {
       output: {
         entryFileNames: `[name].[hash].js`,
         chunkFileNames: `[name].[hash].js`,
-        assetFileNames: `[name].[hash].[ext]`
+        assetFileNames: `[name].[hash].[ext]`,
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('firebase')) {
+              return 'firebase-vendor'
+            }
+            if (id.includes('supabase')) {
+              return 'supabase-vendor'
+            }
+            if (id.includes('react-router')) {
+              return 'react-router-vendor'
+            }
+            return 'vendors'
+          }
+        }
       }
-    }
+    },
+    chunkSizeWarningLimit: 1000
   }
 })
+
