@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+  
+  <!-- iOS Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="FWM Software" />
+  <link rel="apple-touch-icon" href="/press.png" />
+  
+  <!-- Meta Tags Generali -->
+  <meta name="description" content="FWM Software - Gestione Classifiche e Weekend Formula 1" />
+  <meta name="theme-color" content="#007AFF" />
+  
+  <!-- Icona -->
+  <link rel="icon" type="image/png" href="/press.png" />
+  
+  <!-- OneSignal SDK - DEVE essere caricato PRIMA di tutto -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  
+  <title>FWM Software</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
