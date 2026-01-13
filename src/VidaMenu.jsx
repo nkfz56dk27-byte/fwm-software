@@ -1,6 +1,6 @@
 import VidaPNG from "./assets/vida.png"
 
-export default function VidaMenu({ onClose, onOpenCorrettoreArticoli }) {
+export default function VidaMenu({ onClose }) {
   console.log('VidaMenu renderizzato');
   
   // Detect mobile
@@ -178,36 +178,7 @@ export default function VidaMenu({ onClose, onOpenCorrettoreArticoli }) {
             </div>
           </div>
 
-          {/* Card Correttore Articoli centrata */}
-          <div 
-            className="home-card card-blue" 
-            onClick={onOpenCorrettoreArticoli}
-            style={{ 
-              cursor: 'pointer',
-              width: isMobile ? '100px !important' : '190px !important',
-              maxWidth: isMobile ? '100px !important' : '190px !important',
-              height: isMobile ? '100px !important' : '190px !important',
-              margin: '0 auto !important',
-              flexShrink: '0 !important',
-              flexGrow: '0 !important',
-              display: 'flex !important',
-              position: 'relative !important',
-              padding: isMobile ? '8px 6px !important' : '18px 12px !important',
-              gap: isMobile ? '4px !important' : '10px !important',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important'
-            }}
-          >
-            <div className="card-icon-wrapper" style={{ 
-              width: isMobile ? '40px !important' : '75px !important',
-              height: isMobile ? '40px !important' : '75px !important',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <span style={{ fontSize: isMobile ? '24px' : '40px' }}>✏️</span>
-            </div>
-            <h3 className="card-title" style={{ fontSize: isMobile ? '10px !important' : 'auto', lineHeight: isMobile ? '1.1 !important' : 'auto', color: 'white' }}>Correttore Articoli</h3>
-          </div>
+
         </div>
       </div>
     </div>

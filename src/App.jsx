@@ -17,7 +17,6 @@ import GestioneCategorie from './GestioneCategorie.jsx'
 import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
 import EventiMobileMenu from './EventiMobileMenu.jsx'
-import CorrettoreArticoli from './CorrettoreArticoli.jsx'
 import { notificaClassificaAggiornata } from './src/pushNotifications.js'
 
 import './App.css'
@@ -48,7 +47,6 @@ function App() {
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
   const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
   const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
-  const [showCorrettoreArticoli, setShowCorrettoreArticoli] = useState(false) // NUOVO STATO PER CORRETTORE ARTICOLI
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -299,12 +297,7 @@ function App() {
 
   // ← AGGIUNTO: Render condizionale Vida Menu
   if (showVidaMenu) {
-    return <VidaMenu onClose={() => setShowVidaMenu(false)} onOpenCorrettoreArticoli={() => { setShowVidaMenu(false); setShowCorrettoreArticoli(true); }} />
-  }
-
-  // ← AGGIUNTO: Render condizionale Correttore Articoli
-  if (showCorrettoreArticoli) {
-    return <CorrettoreArticoli onClose={() => setShowCorrettoreArticoli(false)} />
+    return <VidaMenu onClose={() => setShowVidaMenu(false)} />
   }
 
   // ← AGGIUNTO: Render condizionale Eventi Mobile
