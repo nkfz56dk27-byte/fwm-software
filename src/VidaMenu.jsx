@@ -103,13 +103,13 @@ export default function VidaMenu({ onClose }) {
           background: '#f5f5f5',
           overflowY: 'auto'
         }}>
-          {/* Row per F1 e Blog */}
+          {/* Column per F1 e Blog */}
           <div style={{
             display: 'flex',
-            flexDirection: 'row',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: isMobile ? '15px' : '40px',
+            gap: isMobile ? '15px' : '20px',
             width: '100%',
             marginBottom: isMobile ? '20px' : '40px'
           }}>
