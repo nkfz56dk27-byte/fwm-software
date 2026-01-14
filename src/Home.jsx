@@ -316,12 +316,36 @@ function ClassificaView({ classificaId, user, onBack }) {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            gap: '8px'
           }}
         >
           <span style={{ fontWeight: '600', fontSize: '16px' }}>
             {gp.tipo_weekend === 'sprintF1' ? '⚡️' : gp.tipo_weekend === 'f2' ? '🏎️' : '🏆'} {gp.nome}
           </span>
-          <span>{expandedGP[gp.id] ? '▲' : '▼'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '13px' }}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setGpSelezionato(gp)
+                setShowInserimentoGP(true)
+              }}
+              style={{
+                background: '#FF3B30',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '11px',
+                padding: '5px 8px',
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap'
+              }}
+              title="Modifica risultati"
+            >
+              MODIFICA
+            </button>
+            <span>{expandedGP[gp.id] ? '▲' : '▼'}</span>
+          </div>
         </div>
 
         {/* Contenuto gare espandibile */}
@@ -341,6 +365,10 @@ function ClassificaView({ classificaId, user, onBack }) {
                 {/* Risultati piloti ordinati */}
                 {Object.entries(gara.risultati || {})
                   .sort((a, b) => Number(a[1]) - Number(b[1]))
+                  .filter(([pilotaId, posizione]) => {
+                    const puntiBase = calcolaPuntiPosizione(Number(posizione), gara.tipo_gara, classifica);
+                    return puntiBase > 0; // Mostra solo piloti con punti > 0
+                  })
                   .map(([pilotaId, posizione]) => {
                     const pilota = classifica.piloti.find(p => String(p.id) === String(pilotaId));
                     if (!pilota) return null;
@@ -582,6 +610,17 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
   const [poleId, setPoleId] = useState(null)
   const [giroVeloceId, setGiroVeloceId] = useState(null)
 
+  // Se è una modifica, carica i risultati precedenti
+  useEffect(() => {
+    if (gpPreselezionato && gpPreselezionato.completato && gp && gp.gare[garaCorrente]) {
+      const garaAttuale = gp.gare[garaCorrente]
+      setRisultati(garaAttuale.risultati || {})
+      setPoleId(garaAttuale.pole_id || null)
+      setGiroVeloceId(garaAttuale.giro_veloce_id || null)
+      console.log('Caricati risultati precedenti:', garaAttuale.risultati)
+    }
+  }, [gpPreselezionato, garaCorrente, gp])
+
   const aggiungiGP = () => {
     if (!nomeGP) return
     const nuovoGP = {
@@ -622,7 +661,36 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       const nuoviPiloti = [...classifica.piloti]
       const nuoviCostruttori = [...classifica.costruttori]
       
-      // Calcola e assegna punti per ogni gara del GP
+      // Se è una MODIFICA, sottrai i punti vecchi
+      if (gpPreselezionato && gpPreselezionato.completato) {
+        console.log('MODIFICA: Sottraggo punti vecchi...')
+        gpPreselezionato.gare.forEach(garaVecchia => {
+          if (!garaVecchia.completata || garaVecchia.non_disputata) return
+          
+          Object.entries(garaVecchia.risultati || {}).forEach(([pilotaId, pos]) => {
+            const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
+            if (!pilota) return
+            
+            let punti = calcolaPuntiPosizione(pos, garaVecchia.tipo_gara, classifica)
+            if (classifica.punti_pole_attivo && String(garaVecchia.pole_id) === String(pilotaId)) {
+              punti += classifica.punti_pole_valore || 3
+            }
+            if (classifica.giro_veloce_attivo && String(garaVecchia.giro_veloce_id) === String(pilotaId)) {
+              punti += classifica.giro_veloce_valore || 1
+            }
+            
+            console.log(`${pilota.nome}: -${punti} pts (rimozione risultato vecchio)`)
+            pilota.punti = Math.max(0, (pilota.punti || 0) - punti)
+            
+            const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
+            if (costruttore) {
+              costruttore.punti = Math.max(0, (costruttore.punti || 0) - punti)
+            }
+          })
+        })
+      }
+      
+      // Calcola e assegna punti NUOVI per ogni gara del GP
       gpFinale.gare.forEach(gara => {
         Object.entries(gara.risultati).forEach(([pilotaId, pos]) => {
           const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
