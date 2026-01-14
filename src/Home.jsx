@@ -609,6 +609,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
   const [risultati, setRisultati] = useState({})
   const [poleId, setPoleId] = useState(null)
   const [giroVeloceId, setGiroVeloceId] = useState(null)
+  const [showGaraAccorciata, setShowGaraAccorciata] = useState(false)
+  const [percentualeAccorciata, setPercentualeAccorciata] = useState(75)
 
   // Se è una modifica, carica i risultati precedenti
   useEffect(() => {
@@ -634,6 +636,138 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     }
     setGp(nuovoGP)
     setStep(1)
+  }
+
+  const calcolaPuntiAccorciati = (pos, percentuale) => {
+    // Secondo regole FIA
+    if (percentuale === 25) {
+      // TOP 5: 6-4-3-2-1
+      const punti = [6, 4, 3, 2, 1]
+      return pos <= punti.length ? punti[pos - 1] : 0
+    } else if (percentuale === 50) {
+      // TOP 9: 13-10-8-6-5-4-3-2-1
+      const punti = [13, 10, 8, 6, 5, 4, 3, 2, 1]
+      return pos <= punti.length ? punti[pos - 1] : 0
+    } else if (percentuale === 75) {
+      // TOP 10: 19-14-12-10-8-6-4-3-2-1
+      const punti = [19, 14, 12, 10, 8, 6, 4, 3, 2, 1]
+      return pos <= punti.length ? punti[pos - 1] : 0
+    }
+    return 0
+  }
+
+  const garaAccorciata = () => {
+    const gare = [...gp.gare]
+    gare[garaCorrente] = {
+      ...gare[garaCorrente],
+      risultati,
+      pole_id: poleId,
+      giro_veloce_id: giroVeloceId,
+      completata: true,
+      accorciata: true,
+      percentuale_accorciata: percentualeAccorciata
+    }
+    
+    const gpAggiornato = { ...gp, gare }
+    
+    if (garaCorrente < gp.gare.length - 1) {
+      setGp(gpAggiornato)
+      setGaraCorrente(garaCorrente + 1)
+      setRisultati({})
+      setPoleId(null)
+      setGiroVeloceId(null)
+      setShowGaraAccorciata(false)
+    } else {
+      const gpFinale = { ...gpAggiornato, completato: true }
+      const nuoviGP = classifica.gp ? [...classifica.gp.filter(g => g.id !== gpFinale.id), gpFinale] : [gpFinale]
+      
+      const nuoviPiloti = [...classifica.piloti]
+      const nuoviCostruttori = [...classifica.costruttori]
+      
+      // Se è una MODIFICA, sottrai i punti vecchi
+      if (gpPreselezionato && gpPreselezionato.completato) {
+        console.log('MODIFICA: Sottraggo punti vecchi...')
+        gpPreselezionato.gare.forEach(garaVecchia => {
+          if (!garaVecchia.completata || garaVecchia.non_disputata) return
+          
+          Object.entries(garaVecchia.risultati || {}).forEach(([pilotaId, pos]) => {
+            const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
+            if (!pilota) return
+            
+            let punti
+            if (garaVecchia.accorciata) {
+              punti = calcolaPuntiAccorciati(pos, garaVecchia.percentuale_accorciata)
+            } else {
+              punti = calcolaPuntiPosizione(pos, garaVecchia.tipo_gara, classifica)
+            }
+            
+            if (classifica.punti_pole_attivo && String(garaVecchia.pole_id) === String(pilotaId)) {
+              punti += classifica.punti_pole_valore || 3
+            }
+            if (classifica.giro_veloce_attivo && String(garaVecchia.giro_veloce_id) === String(pilotaId)) {
+              punti += classifica.giro_veloce_valore || 1
+            }
+            
+            console.log(`${pilota.nome}: -${punti} pts (rimozione risultato vecchio)`)
+            pilota.punti = Math.max(0, (pilota.punti || 0) - punti)
+            
+            const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
+            if (costruttore) {
+              costruttore.punti = Math.max(0, (costruttore.punti || 0) - punti)
+            }
+          })
+        })
+      }
+      
+      // Calcola e assegna punti NUOVI per ogni gara del GP
+      gpFinale.gare.forEach(gara => {
+        Object.entries(gara.risultati).forEach(([pilotaId, pos]) => {
+          const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
+          if (!pilota) {
+            console.warn('Pilota non trovato:', pilotaId)
+            return
+          }
+          
+          let punti
+          if (gara.accorciata) {
+            punti = calcolaPuntiAccorciati(pos, gara.percentuale_accorciata)
+          } else {
+            punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
+          }
+          
+          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
+            punti += classifica.punti_pole_valore || 3
+          }
+          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
+            punti += classifica.giro_veloce_valore || 1
+          }
+          
+          console.log(`${pilota.nome}: +${punti} pts (gara accorciata ${gara.percentuale_accorciata}%)`)
+          
+          pilota.punti = (pilota.punti || 0) + punti
+          
+          const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
+          if (costruttore) {
+            costruttore.punti = (costruttore.punti || 0) + punti
+          } else {
+            console.warn('Costruttore non trovato:', pilota.team)
+          }
+        })
+      })
+      
+      nuoviPiloti.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((p, i) => {
+        p.distacco = i === 0 ? 0 : (nuoviPiloti[0].punti || 0) - (p.punti || 0)
+      })
+      
+      nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
+        c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0)
+      })
+      
+      console.log('Salvando classifica aggiornata (gara accorciata):', { piloti: nuoviPiloti, costruttori: nuoviCostruttori })
+      
+      onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori })
+      onClose()
+    }
   }
 
   const salvaRisultatiGara = () => {
@@ -813,6 +947,101 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
             <option value="">Nessuno</option>
             {pilotiAttivi.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
           </select>
+        </div>
+      )}
+
+      <button onClick={() => setShowGaraAccorciata(true)} style={{ width: '100%', padding: '15px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '10px' }}>
+        Gara Accorciata
+      </button>
+
+      {showGaraAccorciata && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', borderRadius: '20px', padding: '30px', maxWidth: '400px', width: '90%' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px' }}>Seleziona percentuale di distanza</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+              <button
+                onClick={() => setPercentualeAccorciata(25)}
+                style={{
+                  padding: '15px',
+                  background: percentualeAccorciata === 25 ? '#007AFF' : 'white',
+                  color: percentualeAccorciata === 25 ? 'white' : '#000',
+                  border: '2px solid #007AFF',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px'
+                }}
+              >
+                25% (TOP 5: 6-4-3-2-1)
+              </button>
+              <button
+                onClick={() => setPercentualeAccorciata(50)}
+                style={{
+                  padding: '15px',
+                  background: percentualeAccorciata === 50 ? '#007AFF' : 'white',
+                  color: percentualeAccorciata === 50 ? 'white' : '#000',
+                  border: '2px solid #007AFF',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px'
+                }}
+              >
+                50% (TOP 9: 13-10-8-6-5-4-3-2-1)
+              </button>
+              <button
+                onClick={() => setPercentualeAccorciata(75)}
+                style={{
+                  padding: '15px',
+                  background: percentualeAccorciata === 75 ? '#007AFF' : 'white',
+                  color: percentualeAccorciata === 75 ? 'white' : '#000',
+                  border: '2px solid #007AFF',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px'
+                }}
+              >
+                75% (TOP 10: 19-14-12-10-8-6-4-3-2-1)
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setShowGaraAccorciata(false)}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  background: '#e0e0e0',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px'
+                }}
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => {
+                  garaAccorciata()
+                  setShowGaraAccorciata(false)
+                }}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  background: '#FF9500',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px'
+                }}
+              >
+                Conferma
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1262,14 +1491,19 @@ function GraficoPronostico({ classifica, onClose }) {
                     let puntiGP = 0
                     
                     gp.gare?.forEach(gara => {
-                      if (!gara.completata) return
+                      if (!gara.completata || gara.non_disputata) return
                       
                       if (tab === 0) {
                         // PILOTI: calcolo normale
                         const risultato = gara.risultati?.[item.id]
                         if (!risultato) return
                         
-                        let puntiGara = calcolaPuntiPosizione(risultato, gara.tipo_gara, classifica)
+                        let puntiGara
+                        if (gara.accorciata) {
+                          puntiGara = calcolaPuntiAccorciati(risultato, gara.percentuale_accorciata)
+                        } else {
+                          puntiGara = calcolaPuntiPosizione(risultato, gara.tipo_gara, classifica)
+                        }
                         if (classifica.punti_pole_attivo && String(gara.pole_id) === String(item.id)) {
                           puntiGara += classifica.punti_pole_valore || 3
                         }
@@ -1283,7 +1517,12 @@ function GraficoPronostico({ classifica, onClose }) {
                           const pilota = classifica.piloti.find(p => String(p.id) === String(pilotaId))
                           if (!pilota || pilota.team !== item.nome) return
                           
-                          let puntiGara = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
+                          let puntiGara
+                          if (gara.accorciata) {
+                            puntiGara = calcolaPuntiAccorciati(pos, gara.percentuale_accorciata)
+                          } else {
+                            puntiGara = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
+                          }
                           if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
                             puntiGara += classifica.punti_pole_valore || 3
                           }
