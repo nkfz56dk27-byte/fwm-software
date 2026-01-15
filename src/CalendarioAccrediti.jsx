@@ -1122,7 +1122,7 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, 
                     {evento.titolo}
                     {evento.orario && (
                       <span style={{ marginLeft: '8px', fontSize: '12px', fontWeight: 'normal', color: isOggi ? 'rgba(255,255,255,0.8)' : '#007AFF' }}>
-                        {evento.orario}
+                        {evento.orario.substring(0, 5)}
                       </span>
                     )}
                     {evento.programmazione_weekend && (
@@ -1927,16 +1927,19 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                             </div>
                             <div style={{ paddingLeft: '12px', color: '#333', fontSize: '12px', lineHeight: '1.4' }}>
                               {sessioniGiorno.map(s => {
-                                // Formato: "NomeSessione: HH:MM"
+                                // Formato: "NomeSessione: HH:MM" o "NomeSessione: HH:MM:SS"
                                 const colonIndex = s.indexOf(':');
                                 if (colonIndex === -1) return s;
                                 
                                 const nomeSessione = s.substring(0, colonIndex).trim();
                                 const orarioCompleto = s.substring(colonIndex + 1).trim();
+                                // Estrai solo HH:MM rimuovendo i secondi se presenti
+                                const parti = orarioCompleto.split(':');
+                                const orarioFormattato = parti.length >= 2 ? `${parti[0]}:${parti[1]}` : orarioCompleto;
                                 return (
                                   <span key={s} style={{ marginRight: '8px', display: 'inline-block' }}>
                                     <span>{nomeSessione}</span>
-                                    <span style={{ fontWeight: 'bold', color: '#000' }}> {orarioCompleto}</span>
+                                    <span style={{ fontWeight: 'bold', color: '#000' }}> {orarioFormattato}</span>
                                   </span>
                                 );
                               })}
