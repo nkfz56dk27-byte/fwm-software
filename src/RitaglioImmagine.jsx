@@ -283,36 +283,41 @@ export default function RitaglioImmagine({ user, onClose }) {
       const ctx = canvas.getContext('2d')
       
       if (projectMode === 'cover') {
-        // Logica COVER: riempi tutto il canvas
+        // Logica COVER: riempi tutto il canvas con objectFit cover
         ctx.fillStyle = "#ffffff"
         ctx.fillRect(0, 0, canvas.width, canvas.height)
         
-        // Calcola le dimensioni per riempire tutto il canvas
+        // Calcola le dimensioni per riempire tutto il canvas (object-fit: cover)
         const canvasRatio = canvas.width / canvas.height
         const imgRatio = img.width / img.height
         
         let drawWidth, drawHeight, drawX, drawY
         
         if (imgRatio > canvasRatio) {
-          // Immagine più larga del canvas
+          // Immagine più larga del canvas (foto orizzontale)
           drawHeight = canvas.height
           drawWidth = drawHeight * imgRatio
           drawX = (canvas.width - drawWidth) / 2
           drawY = 0
         } else {
-          // Immagine più alta del canvas
+          // Immagine più alta del canvas (foto verticale)
           drawWidth = canvas.width
           drawHeight = drawWidth / imgRatio
           drawX = 0
           drawY = (canvas.height - drawHeight) / 2
         }
         
-        // Applica lo zoom del 5%
+        // Applica lo zoom del 5% MANTENENDO IL CENTRO
         const zoomFactor = 1.05
+        const originalDrawWidth = drawWidth
+        const originalDrawHeight = drawHeight
+        const originalDrawX = drawX
+        const originalDrawY = drawY
+        
         drawWidth *= zoomFactor
         drawHeight *= zoomFactor
-        drawX -= (drawWidth - canvas.width) / 2
-        drawY -= (drawHeight - canvas.height) / 2
+        drawX = originalDrawX - (drawWidth - originalDrawWidth) / 2
+        drawY = originalDrawY - (drawHeight - originalDrawHeight) / 2
         
         ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
       } else {
