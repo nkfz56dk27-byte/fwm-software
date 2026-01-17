@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { richiediPermessoNotifiche, setUserTags, getPlayerId } from './onesignal'
-import { supabase } from './supabaseClient'
+import { supabase } from '../supabaseClient'
 
 export default function NotificationPrompt({ username, onClose }) {
   const [loading, setLoading] = useState(false)

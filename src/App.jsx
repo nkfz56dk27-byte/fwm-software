@@ -18,6 +18,11 @@ import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
 import EventiMobileMenu from './EventiMobileMenu.jsx'
 import { notificaClassificaAggiornata } from './src/pushNotifications.js'
+import { initializeOneSignal } from './src/onesignal.js'
+import NotificationPrompt from './NotificationPrompt.jsx'
+import { ascolaNotificheRealtime } from './pushNotificationService'
+import GestioneDispositiviNotifiche from './GestioneDispositiviNotifiche.jsx'
+import { ToastNotification } from './ToastNotification.jsx'
 
 import './App.css'
 
@@ -26,6 +31,7 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [mustChangePassword, setMustChangePassword] = useState(false)
   const [showGestione, setShowGestione] = useState(false)
+  const [showDispositiviNotifiche, setShowDispositiviNotifiche] = useState(false)
   const [showClassificheMainMenu, setShowClassificheMainMenu] = useState(false)
   const [showClassificheMenu, setShowClassificheMenu] = useState(false)
   const [showClassifica, setShowClassifica] = useState(false)
@@ -47,6 +53,9 @@ function App() {
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
   const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
   const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Stato per mostrare il prompt notifiche
+  const [notificheUnsubscribe, setNotificheUnsubscribe] = useState(null) // Funzione per stoppare l'ascolto notifiche
+  const [toastNotification, setToastNotification] = useState(null) // Toast fallback per notifiche
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -61,6 +70,35 @@ function App() {
     console.log('📱 isMobile iniziale:', isMobile, 'width:', window.innerWidth)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // Effect per ascoltare le notifiche realtime quando l'utente è loggato
+  useEffect(() => {
+    if (!user) {
+      // Se l'utente si disconnette, stoppa l'ascolto
+      if (notificheUnsubscribe) {
+        notificheUnsubscribe()
+        setNotificheUnsubscribe(null)
+      }
+      return
+    }
+
+    // Avvia l'ascolto delle notifiche realtime
+    console.log('🎧 Avvio ascolto notifiche realtime per:', user.username)
+    const unsubscribe = ascolaNotificheRealtime(user.username, (notifica) => {
+      console.log('🔔 Notifica ricevuta in App.jsx:', notifica)
+      // Mostra il toast fallback in-app
+      setToastNotification(notifica)
+    })
+
+    setNotificheUnsubscribe(() => unsubscribe)
+
+    // Cleanup: stoppa l'ascolto quando il componente si smonta
+    return () => {
+      if (unsubscribe) {
+        unsubscribe()
+      }
+    }
+  }, [user])
 
   async function caricaNotificheCalendario(username) {
     try {
@@ -225,6 +263,25 @@ function App() {
       }
       setUser(data[0])
       setMustChangePassword(data[0].deve_cambiare_password)
+      
+      // Inizializza OneSignal quando l'utente fa login
+      await initializeOneSignal()
+      
+      // Mostra il prompt per le notifiche push SOLO se non è già registrato
+      const { getDeviceId } = await import('./pushNotificationService')
+      const deviceId = getDeviceId()
+      const { data: dispositivo } = await supabase
+        .from('push_devices')
+        .select('device_id')
+        .eq('username', username)
+        .eq('device_id', deviceId)
+        .limit(1)
+      
+      // Mostra prompt solo se il dispositivo NON è ancora registrato
+      if (!dispositivo || dispositivo.length === 0) {
+        setShowNotificationPrompt(true)
+      }
+      
       setLoading(false)
     } catch (err) {
       setLoginError('Errore di connessione')
@@ -271,7 +328,11 @@ function App() {
   }
 
   if (showGestione) {
-    return <GestioneUtentiView onClose={() => setShowGestione(false)} />
+    return <GestioneUtentiView onClose={() => setShowGestione(false)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} />
+  }
+
+  if (showDispositiviNotifiche) {
+    return <GestioneDispositiviNotifiche username={user.username} onClose={() => setShowDispositiviNotifiche(false)} />
   }
 
   if (showClassificheMainMenu) {
@@ -315,7 +376,9 @@ function App() {
 
   return (
     <>
-      <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+      <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+      {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
+      {toastNotification && <ToastNotification notification={toastNotification} onClose={() => setToastNotification(null)} />}
     </>
   )
 }
@@ -2814,7 +2877,7 @@ function PasswordChangeView({ newPassword, setNewPassword, confirmPassword, setC
 }
 
 // ===== GESTIONE UTENTI =====
-function GestioneUtentiView({ onClose }) {
+function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
   const [utenti, setUtenti] = useState([])
   const [loading, setLoading] = useState(true)
   const [showNuovo, setShowNuovo] = useState(false)
@@ -2868,6 +2931,10 @@ function GestioneUtentiView({ onClose }) {
           <button className="btn-nuovo" style={{ background: '#FF9500' }} onClick={() => setShowTemplateArticoli(true)}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
             Template
+          </button>
+          <button className="btn-nuovo" style={{ background: '#34C759' }} onClick={() => { onClose(); onOpenDispositiviNotifiche() }}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 18c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm5-3H7V4h10v13z"/></svg>
+            Dispositivi
           </button>
           <button className="btn-nuovo" onClick={() => setShowNuovo(true)}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>Nuovo</button>
         </div>
