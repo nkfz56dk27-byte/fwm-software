@@ -19,19 +19,16 @@ function Login({ onLoginSuccess }) {
         throw new Error('LocalStorage non disponibile. Controlla le impostazioni di Safari.')
       }
 
-      const { data, error } = await supabase
-        .from('utenti')
-        .select('*')
-        .eq('username', username)
-        .eq('password', password)
-        .single()
+      // Login con Supabase Auth (usa email come username se configurato così)
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: username,
+        password: password
+      })
 
       if (error) {
-        console.error('Supabase error:', error)
-        if (error.code === 'PGRST116') {
+        console.error('Supabase Auth error:', error)
+        if (error.message?.toLowerCase().includes('invalid login')) {
           setError('Username o password errati')
-        } else if (error.message?.includes('fetch') || error.message?.includes('network')) {
-          setError('Errore di connessione. Controlla la tua rete e le impostazioni privacy di Safari.')
         } else {
           setError(`Errore: ${error.message || 'Errore durante il login'}`)
         }
@@ -39,7 +36,7 @@ function Login({ onLoginSuccess }) {
         return
       }
 
-      if (!data) {
+      if (!data?.user) {
         setError('Username o password errati')
         setLoading(false)
         return
@@ -54,7 +51,7 @@ function Login({ onLoginSuccess }) {
 
       // Salva/aggiorna il token FCM su Supabase
       await getFirebaseToken(username)
-      onLoginSuccess(data)
+      onLoginSuccess(data.user)
     } catch (err) {
       console.error('Login error:', err)
       if (err.message?.includes('localStorage')) {
