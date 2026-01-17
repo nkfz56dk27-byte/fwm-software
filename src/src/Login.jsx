@@ -19,9 +19,22 @@ function Login({ onLoginSuccess }) {
         throw new Error('LocalStorage non disponibile. Controlla le impostazioni di Safari.')
       }
 
-      // Login con Supabase Auth (usa email come username se configurato così)
+      // 1. Cerca l'email associata all'username
+      const { data: userData, error: userError } = await supabase
+        .from('utenti')
+        .select('email')
+        .eq('username', username)
+        .single()
+
+      if (userError || !userData?.email) {
+        setError('Username o password errati')
+        setLoading(false)
+        return
+      }
+
+      // 2. Login con Supabase Auth usando email trovata
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: username,
+        email: userData.email,
         password: password
       })
 
