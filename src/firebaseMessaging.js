@@ -61,23 +61,33 @@ export async function getFirebaseToken(username) {
 async function saveFirebaseToken(username, token) {
   try {
     const { supabase } = await import('./supabaseClient')
-    
-    const { error } = await supabase.from('firebase_tokens').upsert({
+    // Log sessione utente
+    const sessionResult = await supabase.auth.getSession();
+    console.log('[DEBUG] Sessione Supabase prima di upsert token:', sessionResult);
+
+    // Log dati inviati
+    const payload = {
       username: username,
       token: token,
       browser_info: navigator.userAgent.substring(0, 100),
       last_updated: new Date().toISOString()
-    }, {
+    };
+    console.log('[DEBUG] Payload upsert token:', payload);
+
+    const { data, error } = await supabase.from('firebase_tokens').upsert(payload, {
       onConflict: 'username,token'
-    })
+    });
+
+    // Log risposta Supabase
+    console.log('[DEBUG] Risposta upsert token:', { data, error });
 
     if (error) {
-      console.warn('⚠️ Errore salvataggio token:', error.message)
+      console.warn('⚠️ Errore salvataggio token:', error.message, error);
     } else {
       console.log('✅ Token Firebase salvato')
     }
   } catch (error) {
-    console.error('⚠️ Non critico - errore salvataggio token:', error.message)
+    console.error('⚠️ Non critico - errore salvataggio token:', error.message, error)
   }
 }
 
