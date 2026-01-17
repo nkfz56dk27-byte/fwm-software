@@ -15,11 +15,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'Accept': 'application/json',
-      // Espone supabase come variabile globale per debug da console browser
-      if (typeof window !== 'undefined') {
-        window.supabase = supabase;
-      }
       'Content-Type': 'application/json'
     }
   }
 })
+
+// Espone supabase come variabile globale per debug da console browser
+if (typeof window !== 'undefined') {
+  window.supabase = supabase;
+}
