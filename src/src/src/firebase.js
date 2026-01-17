@@ -43,8 +43,8 @@ export function ascoltaNotifiche(callback) {
     if (Notification.permission === 'granted') {
       new Notification(payload.notification.title, {
         body: payload.notification.body,
-        icon: '/press.png',
-        badge: '/press.png'
+        icon: '/icona_notifiche.png',
+        badge: '/icona_notifiche.png'
       })
     }
     

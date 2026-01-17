@@ -1,7 +1,7 @@
 // OneSignal SDK Integration - Web Push Notifications
 // Supporta: Desktop e Mobile push notifications
 
-const ONESIGNAL_APP_ID = 'c7a67d4e-a4f9-4d3c-9de2-1a8b2c3d4e5f' // App ID corretto per FWM
+const ONESIGNAL_APP_ID = 'os_v2_app_gk6j4nvcvrcjzid4oalixgz6g5hixkki7lxezn5zocmjx62jajrodin74o2ddebyw36a2map5rprjbrq5h4p6intqgxzjfwfu6isrpy' // App ID OneSignal
 
 let oneSignalInitialized = false
 

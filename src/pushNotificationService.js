@@ -113,8 +113,8 @@ export function ascolaNotificheRealtime(username, callback) {
               // Fallback: Notifica nativa direttamente (visibile solo se la tab è in focus)
               const notification = new Notification(notifica.titolo, {
                 body: notifica.messaggio,
-                icon: '/press.png',
-                badge: '/press.png',
+                icon: '/icona_notifiche.png',
+                badge: '/icona_notifiche.png',
                 tag: notifica.id,
                 requireInteraction: true
               })

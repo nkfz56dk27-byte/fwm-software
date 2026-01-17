@@ -265,8 +265,8 @@ function App() {
       setUser(data[0])
       setMustChangePassword(data[0].deve_cambiare_password)
       
-      // Inizializza OneSignal quando l'utente fa login
-      await initializeOneSignal()
+      // Salva l'username per le funzioni di test notifiche
+      sessionStorage.setItem('username', username)
       
       // Inizializza Firebase Cloud Messaging per notifiche push reali
       console.log('🔥 Inizializzando Firebase Messaging...')
@@ -278,6 +278,17 @@ function App() {
           setToastNotification(notifica)
         })
       }
+      
+      // Inizializza le notifiche native per iOS/Android in background
+      console.log('📱 Inizializzando notifiche native per iOS/Android...')
+      const { initializeNativeNotifications, setupNotificationMessageListener } = await import('./nativeNotificationHandler')
+      await initializeNativeNotifications(username)
+      
+      // Setup listener per i messaggi del Service Worker
+      setupNotificationMessageListener((event) => {
+        console.log('📬 Notifica cliccata - Navigazione:', event.url)
+        // Qui puoi aggiungere logica per navigare all'URL della notifica
+      })
       
       // Mostra il prompt per le notifiche push SOLO se non è già registrato
       const { getDeviceId } = await import('./pushNotificationService')
@@ -296,6 +307,7 @@ function App() {
       
       setLoading(false)
     } catch (err) {
+      console.error('❌ Errore durante il login:', err)
       setLoginError('Errore di connessione')
       setLoading(false)
     }

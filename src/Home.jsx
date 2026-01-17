@@ -88,6 +88,9 @@ function App() {
       setUser(data[0])
       setMustChangePassword(data[0].deve_cambiare_password)
       
+      // Salva l'username per le funzioni di test notifiche
+      sessionStorage.setItem('username', username)
+      
       // Inizializza OneSignal quando l'utente fa login
       await initializeOneSignal()
       
