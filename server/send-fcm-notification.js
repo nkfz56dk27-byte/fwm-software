@@ -1,3 +1,4 @@
+
 const express = require('express');
 const admin = require('firebase-admin');
 const path = require('path');
@@ -20,8 +21,14 @@ if (!admin.apps.length) {
 
 const messaging = admin.messaging();
 
+// Supabase client
+const { createClient } = require('@supabase/supabase-js');
+const supabaseUrl = process.env.SUPABASE_URL || 'https://vfflpwrneminmnzmmwtu.supabase.co';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'INSERISCI_LA_SERVICE_ROLE_KEY_SUPABASE';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 router.post('/', async (req, res) => {
-  const { titolo, messaggio, tipo, targetTokens = [], targetTopic = 'all-users' } = req.body;
+  const { titolo, messaggio, tipo } = req.body;
   const message = {
     notification: {
       title: titolo,
@@ -44,12 +51,17 @@ router.post('/', async (req, res) => {
   };
 
   try {
-    let response;
-    if (targetTokens.length > 0) {
-      response = await messaging.sendEachForMulticast({ tokens: targetTokens, ...message });
-    } else {
-      response = await messaging.sendToTopic(targetTopic, message);
+    // Recupera tutti i token FCM dalla tabella Supabase
+    const { data: tokensData, error } = await supabase
+      .from('firebase_tokens')
+      .select('token');
+    if (error) throw error;
+    const tokens = (tokensData || []).map(row => row.token).filter(Boolean);
+    if (tokens.length === 0) {
+      return res.status(400).json({ success: false, error: 'Nessun token FCM trovato' });
     }
+    // Invia la notifica a tutti i token
+    const response = await messaging.sendMulticast({ tokens, ...message });
     res.json({ success: true, data: response });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
