@@ -6,6 +6,10 @@ import App from './App.jsx'
 // Inizializza Firebase
 import './firebase'
 
+// Importa le funzioni di test delle notifiche e esponile globalmente
+import * as notificationTester from './notificationTester'
+Object.assign(window, notificationTester)
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />

@@ -60,9 +60,9 @@ export async function inviaNotificaPush(options) {
         ...data
       },
       // Icona e badge
-      chrome_web_icon: '/press.png',
-      firefox_icon: '/press.png',
-      chrome_web_badge: '/press.png',
+      chrome_web_icon: '/icona_notifiche.png',
+      firefox_icon: '/icona_notifiche.png',
+      chrome_web_badge: '/icona_notifiche.png',
       // Suono
       ios_sound: 'default',
       android_sound: 'default',
@@ -73,7 +73,7 @@ export async function inviaNotificaPush(options) {
         {
           id: 'open',
           text: 'Apri',
-          icon: '/press.png',
+          icon: '/icona_notifiche.png',
           url: url
         }
       ]

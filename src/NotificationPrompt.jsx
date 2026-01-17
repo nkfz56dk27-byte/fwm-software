@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { registraDispositivoNotifiche } from './pushNotificationService'
+import { initializeNativeNotifications } from './nativeNotificationHandler'
 
 export default function NotificationPrompt({ username, onClose }) {
   const [loading, setLoading] = useState(false)
@@ -23,29 +24,27 @@ export default function NotificationPrompt({ username, onClose }) {
         return
       }
 
-      let permission = Notification.permission
-      if (permission !== 'granted') {
-        permission = await Notification.requestPermission()
+      // Inizializza le notifiche native (iOS/Android)
+      setMessage('🔧 Configurazione notifiche per il tuo dispositivo...')
+      const nativeInitSuccess = await initializeNativeNotifications(username)
+
+      if (!nativeInitSuccess) {
+        setMessage('⚠️ Notifiche non completamente supportate, continuo comunque...')
       }
 
-      if (permission === 'granted') {
-        setMessage('✅ Permesso concesso! Registrazione dispositivo...')
+      // Registra il dispositivo per ricevere notifiche via Supabase
+      setMessage('✅ Registrazione dispositivo...')
+      const success = await registraDispositivoNotifiche(username)
 
-        // Registra il dispositivo per ricevere notifiche
-        const success = await registraDispositivoNotifiche(username)
-
-        if (success) {
-          setMessage('✅ Dispositivo registrato! Riceverai notifiche push.')
-          setTimeout(() => {
-            onClose()
-          }, 2000)
-        } else {
-          setMessage('❌ Errore nella registrazione del dispositivo. Prova più tardi.')
-        }
-      } else if (permission === 'denied') {
-        setMessage('❌ Hai rifiutato le notifiche. Potrai attivarle dalle impostazioni del browser.')
+      if (success) {
+        setMessage('✅ Dispositivo registrato! Riceverai notifiche push.')
+        console.log('✅ Notifiche completamente configurate per:', username)
+        
+        setTimeout(() => {
+          onClose()
+        }, 2000)
       } else {
-        setMessage('⚠️ Richiesta di notifiche annullata')
+        setMessage('❌ Errore nella registrazione del dispositivo. Prova più tardi.')
       }
     } catch (error) {
       console.error('Errore:', error)
@@ -75,7 +74,7 @@ export default function NotificationPrompt({ username, onClose }) {
       <h2 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>🔔 Notifiche Push</h2>
       
       <p style={{ marginBottom: '20px', color: '#666' }}>
-        Attiva le notifiche per ricevere gli aggiornamenti quando non sei sull'app.
+        Attiva le notifiche per ricevere gli aggiornamenti quando non sei sull'app, anche in background.
       </p>
 
       {message && (
@@ -136,3 +135,4 @@ export default function NotificationPrompt({ username, onClose }) {
     </div>
   )
 }
+

@@ -1,27 +1,76 @@
 {
-  "name": "FWM Software",
+  "name": "FWM Software - Gestione Classifiche Formula 1",
   "short_name": "FWM",
-  "description": "FWM Software - Gestione Classifiche e Weekend Formula 1",
+  "description": "FWM Software - Gestione Classifiche e Weekend Formula 1 con notifiche push in tempo reale",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#007AFF",
   "orientation": "portrait-primary",
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/press.png",
+      "src": "/icona_notifiche.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/press.png",
+      "src": "/icona_notifiche.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
     }
   ],
-  "screenshots": [],
+  "screenshots": [
+    {
+      "src": "/icona_notifiche.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
   "categories": ["productivity", "sports"],
-  "lang": "it-IT"
+  "lang": "it-IT",
+  "dir": "ltr",
+  "shortcuts": [
+    {
+      "name": "Calendario Accrediti",
+      "short_name": "Calendario",
+      "description": "Visualizza il calendario degli accrediti",
+      "url": "/calendario",
+      "icons": [
+        {
+          "src": "/icona_notifiche.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Disponibilità Weekend",
+      "short_name": "Weekend",
+      "description": "Gestisci la disponibilità per i weekend",
+      "url": "/disponibilita",
+      "icons": [
+        {
+          "src": "/icona_notifiche.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
 }
+
