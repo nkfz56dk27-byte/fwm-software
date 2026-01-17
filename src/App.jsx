@@ -2435,6 +2435,10 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
 
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Caricamento...</div>
 
+  // ...existing code...
+  const formula1 = classifiche.find(c => c.nome === "Formula 1");
+  const formulaE = classifiche.find(c => c.nome === "Formula E");
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '20px' : '40px' }}>
       <div style={{ position: 'absolute', top: isMobile ? '10px' : '20px', left: isMobile ? '10px' : '20px', right: isMobile ? '10px' : '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
@@ -2467,12 +2471,10 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
             }}
           >
             {modalitaElimina ? (
-              /* ✔️ V verde */
               <svg viewBox="0 0 24 24" width={isMobile ? "20" : "24"} height={isMobile ? "20" : "24"} fill="white">
                 <path d="M9 16.2l-3.5-3.5 1.4-1.4L9 13.4l8.1-8.1 1.4 1.4z" />
               </svg>
             ) : (
-              /* 🗑️ Cestino bianco */
               <img
                 src={CestinoSVG}
                 alt="Cestino"
@@ -2488,15 +2490,15 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '40px' }}>
-          {classifiche[0] && <button onClick={() => onOpenClassifica(classifiche[0].id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula 1</button>}
-          {classifiche[1] && <button onClick={() => onOpenClassifica(classifiche[1].id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula E</button>}
+          {formula1 && <button onClick={() => onOpenClassifica(formula1.id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula 1</button>}
+          {formulaE && <button onClick={() => onOpenClassifica(formulaE.id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula E</button>}
         </div>
         <button onClick={() => setShowAltreClassifiche(!showAltreClassifiche)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>
           {showAltreClassifiche ? 'Chiudi Altre Classifiche' : 'Altre Classifiche'}
         </button>
         {showAltreClassifiche && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '540px' }}>
-            {classifiche.slice(2).map(c => (
+            {classifiche.filter(c => c.nome !== "Formula 1" && c.nome !== "Formula E").map(c => (
               <div key={c.id} style={{ display: 'flex', gap: '10px' }}>
                 {modalitaElimina && <button onClick={() => eliminaClassifica(c.id)} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: '#FF3B30', color: 'white', fontSize: '24px', cursor: 'pointer' }}>−</button>}
                 <button onClick={() => !modalitaElimina && onOpenClassifica(c.id)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
