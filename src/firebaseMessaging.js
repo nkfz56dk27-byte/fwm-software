@@ -35,7 +35,7 @@ export async function getFirebaseToken(username) {
 
     // Ottieni il token FCM
     const token = await getToken(messaging, {
-      vapidKey: 'BKjxqPsqJXqfAyLFJJ6uE-0RjhLfQFyZ6sZ8x4QZ8t4Y9K_Q9Z9Z9Z9Z9Z9Z9Z9Z9Z9'
+      vapidKey: 'BJGXWXkiYyFKydho7dfS3wr83G_z2FIHJ1tCzgUsWTcLeYQFPdrCVk55Hy1XtqOvVxtkEL6HvthoH52klD8L_yU'
     })
 
     if (token) {
