@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 
 app.use(express.json());
-app.use('/api/send-notification', require('./send-notification'));
+app.use('/api/send-notification', require('./send-fcm-notification'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
