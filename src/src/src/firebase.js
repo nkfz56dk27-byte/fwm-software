@@ -1,3 +1,18 @@
+import { supabase } from '../supabaseClient'
+// Salva o aggiorna il token FCM su Supabase
+export async function salvaTokenFCM(token, browserInfo = navigator.userAgent) {
+  if (!token) return;
+  try {
+    await supabase.from('firebase_tokens').upsert({
+      token,
+      browser_info: browserInfo,
+      last_updated: new Date().toISOString()
+    }, { onConflict: 'token' })
+    console.log('✅ Token FCM salvato su Supabase:', token)
+  } catch (err) {
+    console.error('❌ Errore salvataggio token FCM:', err)
+  }
+}
 import { initializeApp } from 'firebase/app'
 import { getMessaging, getToken, onMessage } from 'firebase/messaging'
 
@@ -23,6 +38,7 @@ export async function richiediPermessoNotifiche() {
         vapidKey: 'BGvqYWgPKX88CXE1ZfhyCTnsgsgjvrK0FxO-007YdC-3t96_khYZjlG9HiNO5SFKx1VhAoPyQwHGaqnBW-vwW_0'
       })
       console.log('🔔 Token notifiche:', token)
+      await salvaTokenFCM(token)
       return token
     } else {
       console.log('❌ Permesso notifiche negato')
@@ -32,6 +48,13 @@ export async function richiediPermessoNotifiche() {
     console.error('Errore richiesta permesso:', error)
     return null
   }
+}
+// Aggiorna il token FCM su Supabase quando cambia
+import { onTokenRefresh } from 'firebase/messaging'
+onTokenRefresh(messaging, async () => {
+  const token = await getToken(messaging)
+  await salvaTokenFCM(token)
+})
 }
 
 // Gestisci notifiche in foreground (quando il sito è aperto)
