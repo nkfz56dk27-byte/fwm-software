@@ -2079,7 +2079,23 @@ function NuovaClassificaModal({ onClose, onSave }) {
     e.preventDefault()
     if (!nome.trim()) return
     const { error } = await supabase.from('classifiche').insert([{ nome, piloti: [], gp: [], costruttori: [], is_f1_or_fe: false }])
-    if (!error) onSave()
+    if (!error) {
+      // Invia notifica push tramite backend
+      try {
+        await fetch('/api/send-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            titolo: '🏁 Nuova classifica',
+            messaggio: `La classifica "${nome}" è stata creata.`,
+            tipo: 'classifica_creata'
+          })
+        })
+      } catch (err) {
+        console.error('❌ Errore invio notifica push:', err)
+      }
+      onSave()
+    }
   }
   return (
     <div className="modal-container">
