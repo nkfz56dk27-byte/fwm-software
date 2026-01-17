@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from './supabaseClient.js'
-import { getFirebaseToken } from '../firebaseMessaging'
+import { getFirebaseToken } from '../../firebaseMessaging'
 
 function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('')
