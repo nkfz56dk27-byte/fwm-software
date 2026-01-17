@@ -47,6 +47,11 @@ function Login({ onLoginSuccess }) {
 
       // Salva l'username per tracking notifiche
       sessionStorage.setItem('username', username)
+
+      // Logga la sessione utente Supabase per debug
+      const sessionResult = await supabase.auth.getSession();
+      console.log('Supabase session dopo login:', sessionResult);
+
       // Salva/aggiorna il token FCM su Supabase
       await getFirebaseToken(username)
       onLoginSuccess(data)
