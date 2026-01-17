@@ -62,9 +62,29 @@ function Login({ onLoginSuccess }) {
       const sessionResult = await supabase.auth.getSession();
       console.log('Supabase session dopo login:', sessionResult);
 
-      // Salva/aggiorna il token FCM su Supabase
-      await getFirebaseToken(username)
+      // Chiama onLoginSuccess PRIMA di salvare il token, così la sessione è attiva
       onLoginSuccess(data.user)
+
+      // Attendi che la sessione sia valida prima di salvare il token
+      const waitForSession = async () => {
+        let tries = 0;
+        let session = null;
+        while (tries < 10) {
+          const sessionResult = await supabase.auth.getSession();
+          session = sessionResult?.data?.session;
+          if (session && session.user && session.user.id) {
+            break;
+          }
+          await new Promise(res => setTimeout(res, 300));
+          tries++;
+        }
+        if (session && session.user && session.user.id) {
+          await getFirebaseToken(username);
+        } else {
+          console.warn('[DEBUG] Nessuna sessione valida dopo il login, token NON salvato');
+        }
+      };
+      waitForSession();
     } catch (err) {
       console.error('Login error:', err)
       if (err.message?.includes('localStorage')) {
