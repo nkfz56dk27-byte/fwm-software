@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from './supabaseClient.js'
+import { getFirebaseToken } from '../firebaseMessaging'
 
 function Login({ onLoginSuccess }) {
   const [username, setUsername] = useState('')
@@ -44,6 +45,10 @@ function Login({ onLoginSuccess }) {
         return
       }
 
+      // Salva l'username per tracking notifiche
+      sessionStorage.setItem('username', username)
+      // Salva/aggiorna il token FCM su Supabase
+      await getFirebaseToken(username)
       onLoginSuccess(data)
     } catch (err) {
       console.error('Login error:', err)
