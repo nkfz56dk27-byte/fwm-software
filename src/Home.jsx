@@ -241,6 +241,20 @@ function ClassificaView({ classificaId, user, onBack }) {
       if (!error) {
         setClassifica(nuovaClassifica)
         setShowSetup(false)
+        // Invia notifica push tramite backend SOLO ora che la classifica è compilata
+        try {
+          await fetch('/api/send-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              titolo: '🏁 Nuova classifica',
+              messaggio: `La classifica "${nuovaClassifica.nome}" è stata creata e compilata!`,
+              tipo: 'classifica_creata'
+            })
+          })
+        } catch (err) {
+          console.error('❌ Errore invio notifica push:', err)
+        }
         caricaClassifica()
       } else {
         console.error('Errore salvataggio classifica:', error)
@@ -1953,8 +1967,16 @@ function ClassificheMenuView({ user, onBack, onOpenClassifica }) {
 
   const caricaClassifiche = async () => {
     try {
-      const { data, error } = await supabase.from('classifiche').select('*').order('nome')
-      if (!error && data) setClassifiche(data)
+      const { data, error } = await supabase.from('classifiche').select('*')
+      if (!error && data) {
+        // Ordina per nome e id per evitare duplicati/sovrapposizioni
+        const ordinato = [...data].sort((a, b) => {
+          if (a.nome < b.nome) return -1;
+          if (a.nome > b.nome) return 1;
+          return a.id - b.id;
+        });
+        setClassifiche(ordinato)
+      }
       setLoading(false)
     } catch (err) {
       setLoading(false)
@@ -1972,6 +1994,10 @@ function ClassificheMenuView({ user, onBack, onOpenClassifica }) {
 
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Caricamento...</div>
 
+  // ...existing code...
+  const formula1 = classifiche.find(c => c.nome === "Formula 1");
+  const formulaE = classifiche.find(c => c.nome === "Formula E");
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
       <div style={{ position: 'absolute', top: '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between' }}>
@@ -1979,65 +2005,61 @@ function ClassificheMenuView({ user, onBack, onOpenClassifica }) {
           <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
           Indietro
         </button>
-  <button
-  onClick={() => {
-    if (modalitaElimina) {
-      setModalitaElimina(false);
-      setShowAltreClassifiche(false);
-    } else {
-      setShowAltreClassifiche(true);
-      setModalitaElimina(true);
-    }
-  }}
-  DISTANZA BOTTONE CESTINO DAL BORDO HOME CLASSIFICA
-  style={{
-    position: "fixed",
-    right: "60px",      // 👈 aumenta questo valore = più a sinistra
-    bottom: "720px",     // puoi regolarlo se serve
-    width: "48px",
-    height: "48px",
-    borderRadius: "50%",
-    border: "none",
-    background: modalitaElimina ? "#34C759" : "#FF3B30",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
-    zIndex: 1000
-  }}
->
-  {modalitaElimina ? (
-    /* ✔️ V verde */
-    <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
-      <path d="M9 16.2l-3.5-3.5 1.4-1.4L9 13.4l8.1-8.1 1.4 1.4z" />
-    </svg>
-  ) : (
-    /* 🗑️ Cestino bianco */
-    <img
-      src={CestinoSVG}
-      alt="Cestino"
-      style={{
-        width: "24px",
-        height: "24px",
-        filter: "brightness(0) invert(1)"
-      }}
-    />
-  )}
-</button>
-
+        <button
+          onClick={() => {
+            if (modalitaElimina) {
+              setModalitaElimina(false);
+              setShowAltreClassifiche(false);
+            } else {
+              setShowAltreClassifiche(true);
+              setModalitaElimina(true);
+            }
+          }}
+          style={{
+            position: "fixed",
+            right: "60px",
+            bottom: "720px",
+            width: "48px",
+            height: "48px",
+            borderRadius: "50%",
+            border: "none",
+            background: modalitaElimina ? "#34C759" : "#FF3B30",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
+            zIndex: 1000
+          }}
+        >
+          {modalitaElimina ? (
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+              <path d="M9 16.2l-3.5-3.5 1.4-1.4L9 13.4l8.1-8.1 1.4 1.4z" />
+            </svg>
+          ) : (
+            <img
+              src={CestinoSVG}
+              alt="Cestino"
+              style={{
+                width: "24px",
+                height: "24px",
+                filter: "brightness(0) invert(1)"
+              }}
+            />
+          )}
+        </button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '40px' }}>
-          {classifiche[0] && <button onClick={() => onOpenClassifica(classifiche[0].id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula 1</button>}
-          {classifiche[1] && <button onClick={() => onOpenClassifica(classifiche[1].id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula E</button>}
+          {formula1 && <button onClick={() => onOpenClassifica(formula1.id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula 1</button>}
+          {formulaE && <button onClick={() => onOpenClassifica(formulaE.id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula E</button>}
         </div>
         <button onClick={() => setShowAltreClassifiche(!showAltreClassifiche)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>
           {showAltreClassifiche ? 'Chiudi Altre Classifiche' : 'Altre Classifiche'}
         </button>
         {showAltreClassifiche && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '540px' }}>
-            {classifiche.slice(2).map(c => (
+            {classifiche.filter(c => c.nome !== "Formula 1" && c.nome !== "Formula E").map(c => (
               <div key={c.id} style={{ display: 'flex', gap: '10px' }}>
                 {modalitaElimina && <button onClick={() => eliminaClassifica(c.id)} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: '#FF3B30', color: 'white', fontSize: '24px', cursor: 'pointer' }}>−</button>}
                 <button onClick={() => !modalitaElimina && onOpenClassifica(c.id)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
@@ -2080,19 +2102,9 @@ function NuovaClassificaModal({ onClose, onSave }) {
     if (!nome.trim()) return
     const { error } = await supabase.from('classifiche').insert([{ nome, piloti: [], gp: [], costruttori: [], is_f1_or_fe: false }])
     if (!error) {
-      // Invia notifica push tramite backend
-      try {
-        await fetch('/api/send-notification', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            titolo: '🏁 Nuova classifica',
-            messaggio: `La classifica "${nome}" è stata creata.`,
-            tipo: 'classifica_creata'
-          })
-        })
-      } catch (err) {
-        console.error('❌ Errore invio notifica push:', err)
+      // Forza il ricaricamento delle classifiche
+      if (typeof window.caricaClassifiche === 'function') {
+        window.caricaClassifiche();
       }
       onSave()
     }
