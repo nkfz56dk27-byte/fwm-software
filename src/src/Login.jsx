@@ -12,6 +12,7 @@ function Login({ onLoginSuccess }) {
     e.preventDefault()
     setError('')
     setLoading(true)
+    console.log('[DEBUG LOGIN] Inizio handleLogin')
 
     try {
       // Verifica che localStorage sia disponibile
@@ -25,10 +26,12 @@ function Login({ onLoginSuccess }) {
         .select('email')
         .eq('username', username)
         .single()
+      console.log('[DEBUG LOGIN] userData:', userData, 'userError:', userError)
 
       if (userError || !userData?.email) {
         setError('Username o password errati')
         setLoading(false)
+        console.log('[DEBUG LOGIN] Errore lookup email')
         return
       }
 
@@ -37,6 +40,7 @@ function Login({ onLoginSuccess }) {
         email: userData.email,
         password: password
       })
+      console.log('[DEBUG LOGIN] Risultato signInWithPassword:', { data, error })
 
       if (error) {
         console.error('Supabase Auth error:', error)
@@ -52,18 +56,21 @@ function Login({ onLoginSuccess }) {
       if (!data?.user) {
         setError('Username o password errati')
         setLoading(false)
+        console.log('[DEBUG LOGIN] Nessun user dopo signInWithPassword')
         return
       }
 
       // Salva l'username per tracking notifiche
       sessionStorage.setItem('username', username)
+      console.log('[DEBUG LOGIN] Username salvato in sessionStorage')
 
       // Logga la sessione utente Supabase per debug
       const sessionResult = await supabase.auth.getSession();
-      console.log('Supabase session dopo login:', sessionResult);
+      console.log('[DEBUG LOGIN] Supabase session dopo login:', sessionResult)
 
       // Chiama onLoginSuccess PRIMA di salvare il token, così la sessione è attiva
       onLoginSuccess(data.user)
+      console.log('[DEBUG LOGIN] onLoginSuccess chiamato')
 
       // Attendi che la sessione sia valida prima di salvare il token
       const waitForSession = async () => {
@@ -72,6 +79,7 @@ function Login({ onLoginSuccess }) {
         while (tries < 10) {
           const sessionResult = await supabase.auth.getSession();
           session = sessionResult?.data?.session;
+          console.log(`[DEBUG LOGIN] Tentativo attesa sessione #${tries+1}:`, sessionResult)
           if (session && session.user && session.user.id) {
             break;
           }
@@ -79,9 +87,10 @@ function Login({ onLoginSuccess }) {
           tries++;
         }
         if (session && session.user && session.user.id) {
+          console.log('[DEBUG LOGIN] Sessione valida trovata, salvo token')
           await getFirebaseToken(username);
         } else {
-          console.warn('[DEBUG] Nessuna sessione valida dopo il login, token NON salvato');
+          console.warn('[DEBUG LOGIN] Nessuna sessione valida dopo il login, token NON salvato');
         }
       };
       waitForSession();
