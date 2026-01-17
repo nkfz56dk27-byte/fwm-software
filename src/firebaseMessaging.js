@@ -8,7 +8,7 @@ import { messaging, getToken, onMessage } from './firebase'
  * @param {string} username
  * @returns {Promise<string|null>}
  */
-export async function getFirebaseToken(username) {
+export async function getFirebaseToken(username, user_uid = null) {
   if (!messaging) {
     console.warn('⚠️ Firebase Messaging non disponibile')
     return null
@@ -42,7 +42,7 @@ export async function getFirebaseToken(username) {
       console.log('✅ Firebase Token ottenuto:', token.substring(0, 20) + '...')
       
       // Salva il token su Supabase per tracking
-      await saveFirebaseToken(username, token)
+      await saveFirebaseToken(username, token, user_uid)
       
       return token
     } else {
@@ -58,15 +58,17 @@ export async function getFirebaseToken(username) {
 /**
  * Salva il token FCM su Supabase
  */
-async function saveFirebaseToken(username, token) {
+async function saveFirebaseToken(username, token, user_uid = null) {
   try {
     const { supabase } = await import('./supabaseClient')
     // Log sessione utente
     const sessionResult = await supabase.auth.getSession();
     console.log('[DEBUG] Sessione Supabase prima di upsert token:', sessionResult);
-
-    // Prendi l'user_uid se autenticato
-    const user_uid = sessionResult?.data?.session?.user?.id || null;
+    // Usa user_uid passato dalla funzione, se non c'è prova a prenderlo dalla sessione
+    let final_user_uid = user_uid;
+    if (!final_user_uid) {
+      final_user_uid = sessionResult?.data?.session?.user?.id || null;
+    }
 
     // Log dati inviati
     const payload = {
@@ -74,7 +76,7 @@ async function saveFirebaseToken(username, token) {
       token: token,
       browser_info: navigator.userAgent.substring(0, 100),
       last_updated: new Date().toISOString(),
-      user_uid: user_uid
+      user_uid: final_user_uid
     };
     console.log('[DEBUG] Payload upsert token:', payload);
 

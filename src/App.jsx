@@ -274,7 +274,7 @@ function App() {
       console.log('[DEBUG LOGIN] Username salvato in sessionStorage')
       // Inizializza Firebase Cloud Messaging per notifiche push reali
       console.log('[DEBUG LOGIN] Inizializzando Firebase Messaging...')
-      const fcmToken = await getFirebaseToken(username)
+      const fcmToken = await getFirebaseToken(username, data[0]?.id)
       console.log('[DEBUG LOGIN] Token FCM ottenuto:', fcmToken)
       if (fcmToken) {
         console.log('[DEBUG LOGIN] Firebase token ottenuto - notifiche push attive')
