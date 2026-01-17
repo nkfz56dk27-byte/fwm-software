@@ -1,5 +1,54 @@
+/**
+ * Invia notifica per creazione nuova classifica
+ * @param {string} nomeClassifica - Nome della classifica creata
+ */
+export async function notificaClassificaCreata(nomeClassifica) {
+  return await inviaNotificaPush({
+    titolo: '🏁 Nuova classifica',
+    messaggio: `La classifica "${nomeClassifica}" è stata creata.`,
+    tipo: 'classifica_creata',
+    data: {
+      classifica: nomeClassifica
+    }
+  })
+}
 // Sistema di notifiche push intelligente
 // Invia notifiche SOLO quando l'utente NON è sul sito
+/**
+ * Funzione di test: mostra una notifica locale (Notification API)
+ * Usare da console: window.mostraNotificaLocale('Titolo', 'Messaggio')
+ */
+export function mostraNotificaLocale(titolo = '🏁 Nuova classifica', messaggio = 'La classifica di test è stata creata.') {
+  if (typeof Notification !== 'undefined') {
+    if (Notification.permission === 'granted') {
+      new Notification(titolo, {
+        body: messaggio,
+        icon: '/icona_notifiche.png',
+        badge: '/icona_notifiche.png'
+      });
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          new Notification(titolo, {
+            body: messaggio,
+            icon: '/icona_notifiche.png',
+            badge: '/icona_notifiche.png'
+          });
+        }
+      });
+    }
+  } else {
+    alert('Notification API non supportata dal browser.');
+  }
+}
+
+/**
+ * Funzione di test: invia una notifica di nuova classifica con titolo/emote aggiornato
+ * Usare da console: window.testNotificaClassificaCreata('Nome di test')
+ */
+export async function testNotificaClassificaCreata(nomeClassifica = 'Test') {
+  return await notificaClassificaCreata(nomeClassifica)
+}
 
 const ONESIGNAL_APP_ID = '929f6f156-9a35-4a5f-900c-4e77e881e899'
 const ONESIGNAL_REST_API_KEY = 'os_v2_app_skpw6vu2gvff7eamjz36rapithmhbxuxj3oed2uosta3aqfgyr45gwu6jq4r4dwxh2o3ahtlndft7lz42mvqlqb6ek2nstrnpd5o7ba'
@@ -127,7 +176,7 @@ export async function inviaNotificaPush(options) {
 export async function notificaClassificaAggiornata(nomeClassifica, dettagli = '') {
   return await inviaNotificaPush({
     titolo: '🏁 Classifica Aggiornata',
-    messaggio: `${nomeClassifica}${dettagli ? ': ' + dettagli : ''}`,
+    messaggio: `La classifica "${nomeClassifica}" è stata aggiornata${dettagli ? ': ' + dettagli : ''}.`,
     tipo: NOTIFICATION_TYPES.CLASSIFICA_AGGIORNATA,
     data: {
       classifica: nomeClassifica,
@@ -235,3 +284,8 @@ export async function notificaUtentiSpecifici(usernames, titolo, messaggio) {
     targetUsers: usernames
   })
 }
+  // Espone la funzione di test nel window per uso da console
+  if (typeof window !== 'undefined') {
+    window.testNotificaClassificaCreata = testNotificaClassificaCreata;
+      window.mostraNotificaLocale = mostraNotificaLocale;
+  }

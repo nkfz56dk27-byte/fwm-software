@@ -29,7 +29,7 @@ async function sendTestNotification() {
       .from('push_notifications')
       .insert([
         {
-          title: '🔔 Notifica di Prova',
+          title: '🏁 Nuova classifica',
           body: 'Questa è una notifica di test da Supabase!',
           notification_type: 'test',
           target_all: true,

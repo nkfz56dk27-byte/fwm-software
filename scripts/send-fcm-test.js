@@ -26,7 +26,7 @@ async function sendTestNotification() {
   try {
     const message = {
       notification: {
-        title: '🔔 Notifica di Prova Firebase',
+        title: '🏁 Nuova classifica',
         body: 'Questa notifica viene dal Service Worker quando il browser è chiuso!'
       },
       data: {
