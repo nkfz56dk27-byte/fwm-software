@@ -11,6 +11,8 @@ import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
+import { initializeOneSignal } from './src/onesignal.js'
+import NotificationPrompt from './src/NotificationPrompt.jsx'
 
 import './App.css'
 
@@ -38,6 +40,7 @@ function App() {
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Stato per mostrare il prompt notifiche
 
   async function caricaNotificheCalendario(username) {
     try {
@@ -84,6 +87,13 @@ function App() {
       }
       setUser(data[0])
       setMustChangePassword(data[0].deve_cambiare_password)
+      
+      // Inizializza OneSignal quando l'utente fa login
+      await initializeOneSignal()
+      
+      // Mostra il prompt per le notifiche push
+      setShowNotificationPrompt(true)
+      
       setLoading(false)
     } catch (err) {
       setLoginError('Errore di connessione')
@@ -168,7 +178,12 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
-  return <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowPhotoEditor(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+  return (
+    <>
+      <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowPhotoEditor(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+      {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
+    </>
+  )
 }
 // ===== CLASSIFICA VIEW COMPLETA =====
 function ClassificaView({ classificaId, user, onBack }) {
@@ -2086,7 +2101,7 @@ function NuovaClassificaModal({ onClose, onSave }) {
 }
 
 /// ===== HOME VIEW =====
-function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMainMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
+function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, onOpenClassificheMainMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
   const [categorie, setCategorie] = useState([])
   const [categorieUtente, setCategorieUtente] = useState([])
   
@@ -2135,6 +2150,12 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenClassificheMainMenu, o
               Gestione
             </button>
           )}
+          <button className="btn-header" onClick={onOpenDispositiviNotifiche} title="Visualizza i tuoi dispositivi per le notifiche push">
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 18c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm5-3H7V4h10v13z"/>
+            </svg>
+            📱 Dispositivi
+          </button>
         </div>
         <div className="header-right">
           <button className="btn-header" onClick={onLogout}>

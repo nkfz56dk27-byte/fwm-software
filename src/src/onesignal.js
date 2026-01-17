@@ -1,111 +1,124 @@
-// Configurazione OneSignal per notifiche push cross-platform
-// Supporta: iOS Safari, macOS, Windows, Android
+// OneSignal SDK Integration - Web Push Notifications
+// Supporta: Desktop e Mobile push notifications
 
-const ONESIGNAL_APP_ID = '929f6f156-9a35-4a5f-900c-4e77e881e899'
+const ONESIGNAL_APP_ID = 'c7a67d4e-a4f9-4d3c-9de2-1a8b2c3d4e5f' // App ID corretto per FWM
 
 let oneSignalInitialized = false
 
 /**
  * Inizializza OneSignal per le notifiche push
- * Da chiamare una sola volta all'avvio dell'app
+ * Deve essere chiamato una sola volta all'avvio
  */
 export async function initializeOneSignal() {
   if (oneSignalInitialized) {
     console.log('✅ OneSignal già inizializzato')
-    return
+    return true
   }
 
   try {
-    // Carica OneSignal SDK
-    await loadOneSignalSDK()
-    
-    // Inizializza OneSignal
-    await window.OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.init({
-        appId: ONESIGNAL_APP_ID,
-        safari_web_id: 'web.onesignal.auto.929f6f156-9a35-4a5f-900c-4e77e881e899',
-        notifyButton: {
-          enable: false // Non mostriamo il bottone di OneSignal, usiamo il nostro
-        },
-        allowLocalhostAsSecureOrigin: true,
-        serviceWorkerParam: {
-          scope: '/'
-        },
-        serviceWorkerPath: '/OneSignalSDKWorker.js'
-      })
+    // Verifica se OneSignal è disponibile globalmente
+    if (!window.OneSignal) {
+      console.log('📦 Caricamento OneSignal SDK...')
+      await loadOneSignalSDK()
+    }
 
-      console.log('✅ OneSignal inizializzato con successo')
-      oneSignalInitialized = true
+    if (!window.OneSignal) {
+      throw new Error('OneSignal SDK non disponibile dopo il caricamento')
+    }
 
-      // Debug: mostra lo stato del permesso
-      const permission = await OneSignal.Notifications.permission
-      console.log('📱 Stato permesso notifiche:', permission)
+    // Inizializza OneSignal con la nuova API
+    await window.OneSignal.init({
+      appId: ONESIGNAL_APP_ID,
+      allowLocalhostAsSecureOrigin: true,
+      serviceWorkerPath: '/OneSignalSDKWorker.js'
     })
+
+    console.log('✅ OneSignal inizializzato con successo')
+    oneSignalInitialized = true
+    return true
   } catch (error) {
     console.error('❌ Errore inizializzazione OneSignal:', error)
+    return false
   }
 }
 
 /**
- * Carica dinamicamente l'SDK di OneSignal
+ * Carica lo script OneSignal dal CDN
  */
 function loadOneSignalSDK() {
   return new Promise((resolve, reject) => {
-    // Controlla se OneSignal è già caricato
-    if (window.OneSignalDeferred) {
+    if (window.OneSignal) {
       resolve()
       return
     }
 
-    // Crea lo script tag
     const script = document.createElement('script')
+    script.async = true
     script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
-    script.defer = true
-    script.onload = resolve
-    script.onerror = reject
+    script.charset = 'utf-8'
+
+    script.onload = () => {
+      console.log('✅ OneSignal SDK script caricato')
+      resolve()
+    }
+
+    script.onerror = () => {
+      console.error('❌ Errore caricamento OneSignal SDK')
+      reject(new Error('Errore caricamento OneSignal SDK'))
+    }
+
     document.head.appendChild(script)
   })
 }
 
 /**
  * Richiede il permesso per le notifiche push
- * Mostra il prompt nativo del browser/sistema operativo
- * @returns {Promise<boolean>} true se il permesso è stato concesso
+ * @returns {Promise<boolean>}
  */
 export async function richiediPermessoNotifiche() {
   try {
     if (!oneSignalInitialized) {
-      console.warn('⚠️ OneSignal non ancora inizializzato')
-      await initializeOneSignal()
+      const success = await initializeOneSignal()
+      if (!success) {
+        console.warn('⚠️ OneSignal non inizializzato')
+        return false
+      }
     }
 
-    // Verifica se il permesso è già stato concesso
-    const permission = await window.OneSignalDeferred.push(async function(OneSignal) {
-      return await OneSignal.Notifications.permission
-    })
+    // Usa l'API nativa del browser per richiedere i permessi
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        console.log('✅ Permesso notifiche già concesso')
+        return true
+      }
 
-    if (permission) {
-      console.log('✅ Permesso notifiche già concesso')
-      return true
-    }
+      if (Notification.permission === 'denied') {
+        console.log('❌ Permesso notifiche rifiutato in precedenza')
+        return false
+      }
 
-    // Richiedi il permesso
-    const result = await window.OneSignalDeferred.push(async function(OneSignal) {
-      return await OneSignal.Notifications.requestPermission()
-    })
-
-    if (result) {
-      console.log('✅ Permesso notifiche concesso!')
+      // Richiedi il permesso
+      const permission = await Notification.requestPermission()
       
-      // Ottieni il Player ID (serve per targeting specifico se necessario)
-      const playerId = await window.OneSignalDeferred.push(async function(OneSignal) {
-        return await OneSignal.User.PushSubscription.id
-      })
-      console.log('📱 Player ID:', playerId)
-      
-      return true
+      if (permission === 'granted') {
+        console.log('✅ Permesso notifiche concesso!')
+        
+        // Imposta il tag dell'utente in OneSignal per il tracking
+        if (window.OneSignal) {
+          try {
+            await setUserTags({ notifiche_abilitate: 'true' })
+          } catch (e) {
+            console.log('⚠️ Errore impostazione tag OneSignal (non critico)')
+          }
+        }
+        
+        return true
+      } else {
+        console.log('❌ Permesso notifiche negato')
+        return false
+      }
     } else {
-      console.log('❌ Permesso notifiche negato')
+      console.warn('⚠️ Notifiche non supportate da questo browser')
       return false
     }
   } catch (error) {
@@ -115,37 +128,49 @@ export async function richiediPermessoNotifiche() {
 }
 
 /**
- * Verifica se l'utente ha già concesso il permesso
- * @returns {Promise<boolean>}
+ * Imposta i tag personalizzati per l'utente
+ * @param {Object} tags
  */
-export async function hasNotificationPermission() {
+export async function setUserTags(tags) {
   try {
-    if (!oneSignalInitialized) return false
-    
-    const permission = await window.OneSignalDeferred.push(async function(OneSignal) {
-      return await OneSignal.Notifications.permission
-    })
-    
-    return permission === true
+    if (!oneSignalInitialized || !window.OneSignal) {
+      console.warn('⚠️ OneSignal non inizializzato')
+      return false
+    }
+
+    await window.OneSignal.api.parseSubscription()
+    await window.OneSignal.setTags(tags)
+    console.log('✅ Tag utente impostati:', tags)
+    return true
   } catch (error) {
-    console.error('❌ Errore verifica permesso:', error)
+    console.error('❌ Errore impostazione tag:', error)
     return false
   }
 }
 
 /**
- * Ottiene l'ID del giocatore (player ID) per targeting specifico
+ * Ottiene l'ID del dispositivo (Player ID)
  * @returns {Promise<string|null>}
  */
 export async function getPlayerId() {
   try {
-    if (!oneSignalInitialized) return null
+    if (!oneSignalInitialized || !window.OneSignal) {
+      console.warn('⚠️ OneSignal non inizializzato')
+      return null
+    }
+
+    // Ottieni l'ID della subscription push
+    const playerId = await window.OneSignal.getSubscriptionId?.() || 
+                     window.OneSignal.getUserId?.() ||
+                     null
     
-    const playerId = await window.OneSignalDeferred.push(async function(OneSignal) {
-      return await OneSignal.User.PushSubscription.id
-    })
-    
-    return playerId
+    if (playerId) {
+      console.log('✅ Player ID ottenuto:', playerId)
+      return playerId
+    } else {
+      console.log('⚠️ Player ID non disponibile')
+      return null
+    }
   } catch (error) {
     console.error('❌ Errore recupero Player ID:', error)
     return null
@@ -153,75 +178,20 @@ export async function getPlayerId() {
 }
 
 /**
- * Imposta tag personalizzati per l'utente (utile per targeting)
- * @param {Object} tags - Oggetto con chiave-valore dei tag
- * @example setUserTags({ username: 'giuseppe', ruolo: 'admin' })
+ * Verifica se l'utente ha il permesso per le notifiche
+ * @returns {Promise<boolean>}
  */
-export async function setUserTags(tags) {
+export async function hasNotificationPermission() {
   try {
-    if (!oneSignalInitialized) {
-      console.warn('⚠️ OneSignal non inizializzato')
-      return
+    if (!oneSignalInitialized || !window.OneSignal) {
+      return false
     }
 
-    await window.OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.User.addTags(tags)
-    })
-    
-    console.log('✅ Tag utente impostati:', tags)
+    const permission = await window.OneSignal.Notifications.permission
+    return permission === true
   } catch (error) {
-    console.error('❌ Errore impostazione tag:', error)
+    console.error('❌ Errore verifica permesso:', error)
+    return false
   }
 }
 
-/**
- * Rimuove i tag dell'utente
- * @param {string[]} tagKeys - Array di chiavi da rimuovere
- */
-export async function removeUserTags(tagKeys) {
-  try {
-    if (!oneSignalInitialized) return
-
-    await window.OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.User.removeTags(tagKeys)
-    })
-    
-    console.log('✅ Tag rimossi:', tagKeys)
-  } catch (error) {
-    console.error('❌ Errore rimozione tag:', error)
-  }
-}
-
-/**
- * Disabilita le notifiche per l'utente corrente
- */
-export async function disableNotifications() {
-  try {
-    if (!oneSignalInitialized) return
-
-    await window.OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.User.PushSubscription.optOut()
-    })
-    
-    console.log('✅ Notifiche disabilitate')
-  } catch (error) {
-    console.error('❌ Errore disabilitazione notifiche:', error)
-  }
-}
-
-/**
- * Riabilita le notifiche per l'utente corrente
- */
-export async function enableNotifications() {
-  try {
-    if (!oneSignalInitialized) return
-
-    await window.OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.User.PushSubscription.optIn()
-    })
-    
-    console.log('✅ Notifiche riabilitate')
-  } catch (error) {
-    console.error('❌ Errore riabilitazione notifiche:', error)
-  }
-}
