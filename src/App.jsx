@@ -255,59 +255,62 @@ function App() {
     e.preventDefault()
     setLoading(true)
     setLoginError('')
+    console.log('[DEBUG LOGIN] Inizio handleLogin')
     try {
+      console.log('[DEBUG LOGIN] Chiamata supabase.from utenti', { username, password })
       const { data, error } = await supabase.from('utenti').select('*').eq('username', username).eq('password', password).limit(1)
+      console.log('[DEBUG LOGIN] Risultato query utenti:', { data, error })
       if (error || !data || data.length === 0) {
         setLoginError('Username o password non corretti')
         setLoading(false)
+        console.log('[DEBUG LOGIN] Login fallito: credenziali errate')
         return
       }
       setUser(data[0])
       setMustChangePassword(data[0].deve_cambiare_password)
-      
+      console.log('[DEBUG LOGIN] Login riuscito, user:', data[0])
       // Salva l'username per le funzioni di test notifiche
       sessionStorage.setItem('username', username)
-      
+      console.log('[DEBUG LOGIN] Username salvato in sessionStorage')
       // Inizializza Firebase Cloud Messaging per notifiche push reali
-      console.log('🔥 Inizializzando Firebase Messaging...')
+      console.log('[DEBUG LOGIN] Inizializzando Firebase Messaging...')
       const fcmToken = await getFirebaseToken(username)
+      console.log('[DEBUG LOGIN] Token FCM ottenuto:', fcmToken)
       if (fcmToken) {
-        console.log('✅ Firebase token ottenuto - notifiche push attive')
+        console.log('[DEBUG LOGIN] Firebase token ottenuto - notifiche push attive')
         setupForegroundMessaging((notifica) => {
-          console.log('📬 FCM notifica ricevuta in foreground:', notifica.titolo)
+          console.log('[DEBUG LOGIN] FCM notifica ricevuta in foreground:', notifica.titolo)
           setToastNotification(notifica)
         })
       }
-      
       // Inizializza le notifiche native per iOS/Android in background
-      console.log('📱 Inizializzando notifiche native per iOS/Android...')
+      console.log('[DEBUG LOGIN] Inizializzando notifiche native per iOS/Android...')
       const { initializeNativeNotifications, setupNotificationMessageListener } = await import('./nativeNotificationHandler')
       await initializeNativeNotifications(username)
-      
       // Setup listener per i messaggi del Service Worker
       setupNotificationMessageListener((event) => {
-        console.log('📬 Notifica cliccata - Navigazione:', event.url)
-        // Qui puoi aggiungere logica per navigare all'URL della notifica
+        console.log('[DEBUG LOGIN] Notifica cliccata - Navigazione:', event.url)
       })
-      
       // Mostra il prompt per le notifiche push SOLO se non è già registrato
       const { getDeviceId } = await import('./pushNotificationService')
       const deviceId = getDeviceId()
+      console.log('[DEBUG LOGIN] DeviceId:', deviceId)
       const { data: dispositivo } = await supabase
         .from('push_devices')
         .select('device_id')
         .eq('username', username)
         .eq('device_id', deviceId)
         .limit(1)
-      
+      console.log('[DEBUG LOGIN] Query push_devices:', dispositivo)
       // Mostra prompt solo se il dispositivo NON è ancora registrato
       if (!dispositivo || dispositivo.length === 0) {
         setShowNotificationPrompt(true)
+        console.log('[DEBUG LOGIN] Prompt notifiche push mostrato')
       }
-      
       setLoading(false)
+      console.log('[DEBUG LOGIN] Fine handleLogin')
     } catch (err) {
-      console.error('❌ Errore durante il login:', err)
+      console.error('[DEBUG LOGIN] Errore durante il login:', err)
       setLoginError('Errore di connessione')
       setLoading(false)
     }
@@ -2842,6 +2845,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
 
 // ===== LOGIN =====
 function LoginView({ username, setUsername, password, setPassword, showPassword, setShowPassword, loginError, loading, handleLogin }) {
+  console.log('[DEBUG LOGIN] Render LoginView', { username, password, loginError, loading })
   return (
     <div className="login-container">
       <div className="login-card">
