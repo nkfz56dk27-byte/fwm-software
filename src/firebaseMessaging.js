@@ -65,12 +65,16 @@ async function saveFirebaseToken(username, token) {
     const sessionResult = await supabase.auth.getSession();
     console.log('[DEBUG] Sessione Supabase prima di upsert token:', sessionResult);
 
+    // Prendi l'user_uid se autenticato
+    const user_uid = sessionResult?.data?.session?.user?.id || null;
+
     // Log dati inviati
     const payload = {
       username: username,
       token: token,
       browser_info: navigator.userAgent.substring(0, 100),
-      last_updated: new Date().toISOString()
+      last_updated: new Date().toISOString(),
+      user_uid: user_uid
     };
     console.log('[DEBUG] Payload upsert token:', payload);
 
