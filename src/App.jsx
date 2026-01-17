@@ -266,15 +266,33 @@ function App() {
         console.log('[DEBUG LOGIN] Login fallito: credenziali errate')
         return
       }
-      setUser(data[0])
-      setMustChangePassword(data[0].deve_cambiare_password)
-      console.log('[DEBUG LOGIN] Login riuscito, user:', data[0])
+      const user = data[0];
+      setUser(user)
+      setMustChangePassword(user.deve_cambiare_password)
+      console.log('[DEBUG LOGIN] Login riuscito, user:', user)
+      // 1. Login anche su Supabase Auth (necessario per RLS)
+      if (!user.email) {
+        setLoginError('Utente senza email, impossibile login Auth')
+        setLoading(false)
+        return
+      }
+      console.log('[DEBUG LOGIN] Login su Supabase Auth con email:', user.email)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: password
+      });
+      console.log('[DEBUG LOGIN] Risultato signInWithPassword:', { authData, authError });
+      if (authError) {
+        setLoginError('Errore autenticazione Supabase Auth: ' + authError.message)
+        setLoading(false)
+        return
+      }
       // Salva l'username per le funzioni di test notifiche
       sessionStorage.setItem('username', username)
       console.log('[DEBUG LOGIN] Username salvato in sessionStorage')
       // Inizializza Firebase Cloud Messaging per notifiche push reali
       console.log('[DEBUG LOGIN] Inizializzando Firebase Messaging...')
-      const fcmToken = await getFirebaseToken(username, data[0]?.id)
+      const fcmToken = await getFirebaseToken(username, user.id)
       console.log('[DEBUG LOGIN] Token FCM ottenuto:', fcmToken)
       if (fcmToken) {
         console.log('[DEBUG LOGIN] Firebase token ottenuto - notifiche push attive')
