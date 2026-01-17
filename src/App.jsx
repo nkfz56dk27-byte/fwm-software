@@ -23,6 +23,7 @@ import NotificationPrompt from './NotificationPrompt.jsx'
 import { ascolaNotificheRealtime } from './pushNotificationService'
 import GestioneDispositiviNotifiche from './GestioneDispositiviNotifiche.jsx'
 import { ToastNotification } from './ToastNotification.jsx'
+import { getFirebaseToken, setupForegroundMessaging } from './firebaseMessaging'
 
 import './App.css'
 
@@ -266,6 +267,17 @@ function App() {
       
       // Inizializza OneSignal quando l'utente fa login
       await initializeOneSignal()
+      
+      // Inizializza Firebase Cloud Messaging per notifiche push reali
+      console.log('🔥 Inizializzando Firebase Messaging...')
+      const fcmToken = await getFirebaseToken(username)
+      if (fcmToken) {
+        console.log('✅ Firebase token ottenuto - notifiche push attive')
+        setupForegroundMessaging((notifica) => {
+          console.log('📬 FCM notifica ricevuta in foreground:', notifica.titolo)
+          setToastNotification(notifica)
+        })
+      }
       
       // Mostra il prompt per le notifiche push SOLO se non è già registrato
       const { getDeviceId } = await import('./pushNotificationService')
