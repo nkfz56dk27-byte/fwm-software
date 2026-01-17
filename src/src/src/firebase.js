@@ -1,14 +1,15 @@
 import { supabase } from '../supabaseClient'
-// Salva o aggiorna il token FCM su Supabase
-export async function salvaTokenFCM(token, browserInfo = navigator.userAgent) {
-  if (!token) return;
+// Salva o aggiorna il token FCM su Supabase, associando l'username
+export async function salvaTokenFCM(token, username, browserInfo = navigator.userAgent) {
+  if (!token || !username) return;
   try {
     await supabase.from('firebase_tokens').upsert({
       token,
+      username,
       browser_info: browserInfo,
       last_updated: new Date().toISOString()
     }, { onConflict: 'token' })
-    console.log('✅ Token FCM salvato su Supabase:', token)
+    console.log('✅ Token FCM salvato su Supabase:', token, username)
   } catch (err) {
     console.error('❌ Errore salvataggio token FCM:', err)
   }
@@ -38,7 +39,9 @@ export async function richiediPermessoNotifiche() {
         vapidKey: 'BGvqYWgPKX88CXE1ZfhyCTnsgsgjvrK0FxO-007YdC-3t96_khYZjlG9HiNO5SFKx1VhAoPyQwHGaqnBW-vwW_0'
       })
       console.log('🔔 Token notifiche:', token)
-      await salvaTokenFCM(token)
+      // Recupera l'username loggato (ad esempio da sessionStorage)
+      const username = sessionStorage.getItem('username') || '';
+      await salvaTokenFCM(token, username)
       return token
     } else {
       console.log('❌ Permesso notifiche negato')
@@ -53,7 +56,8 @@ export async function richiediPermessoNotifiche() {
 import { onTokenRefresh } from 'firebase/messaging'
 onTokenRefresh(messaging, async () => {
   const token = await getToken(messaging)
-  await salvaTokenFCM(token)
+  const username = sessionStorage.getItem('username') || '';
+  await salvaTokenFCM(token, username)
 })
 }
 
