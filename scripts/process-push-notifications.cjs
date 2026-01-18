@@ -4,6 +4,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const admin = require('firebase-admin');
 console.log('firebase-admin version:', admin.SDK_VERSION);
+console.log('Percorso firebase-admin:', require.resolve('firebase-admin'));
 const path = require('path');
 const fs = require('fs');
 
