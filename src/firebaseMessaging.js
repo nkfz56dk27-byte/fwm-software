@@ -82,15 +82,13 @@ async function saveFirebaseToken(username, token, user_uid = null) {
     }
     // Log dati inviati
 
-    // Recupera device_id dal localStorage (come fa getDeviceId)
-    let deviceId = null;
+
+    // Usa sempre la funzione getDeviceId per coerenza
+    let deviceId;
     try {
-      deviceId = localStorage.getItem('fwm_device_id');
+      const { getDeviceId } = await import('./pushNotificationService');
+      deviceId = getDeviceId();
     } catch (e) {
-      // fallback: deviceId non disponibile
-    }
-    if (!deviceId) {
-      // fallback: genera un id temporaneo (non dovrebbe mai servire)
       deviceId = 'unknown-device';
     }
 
@@ -134,17 +132,16 @@ export function setupForegroundMessaging(callback) {
 
   onMessage(messaging, (payload) => {
     console.log('📬 FCM messaggio ricevuto in foreground:', payload)
-    
-    const notifica = {
-      titolo: payload.notification?.title || '🔔 Notifica',
-      messaggio: payload.notification?.body || '',
-      url: payload.data?.url || '/',
-      id: payload.messageId
+    if (document.visibilityState === 'visible') {
+      // Mostra solo toast React, NON notifica di sistema
+      const notifica = {
+        titolo: payload.notification?.title || '🔔 Notifica',
+        messaggio: payload.notification?.body || '',
+        url: payload.data?.url || '/',
+        id: payload.messageId
+      }
+      if (callback) callback(notifica)
     }
-    
-    // Chiama il callback
-    if (callback) {
-      callback(notifica)
-    }
+    // NON chiamare Notification API qui!
   })
 }
