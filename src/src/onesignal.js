@@ -16,17 +16,24 @@ export async function initializeOneSignal() {
   }
 
   try {
-    // Verifica se OneSignal è disponibile globalmente
+
+    // Carica SDK se non presente
     if (!window.OneSignal) {
       console.log('📦 Caricamento OneSignal SDK...')
       await loadOneSignalSDK()
     }
 
+    // Attendi che OneSignal sia disponibile (max 2s)
+    let tentativi = 0;
+    while (!window.OneSignal && tentativi < 20) {
+      await new Promise(r => setTimeout(r, 100));
+      tentativi++;
+    }
     if (!window.OneSignal) {
       throw new Error('OneSignal SDK non disponibile dopo il caricamento')
     }
 
-    // Inizializza OneSignal con la nuova API
+    // Inizializza OneSignal
     await window.OneSignal.init({
       appId: ONESIGNAL_APP_ID,
       allowLocalhostAsSecureOrigin: true,
