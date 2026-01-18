@@ -1,7 +1,7 @@
 // OneSignal SDK Integration - Web Push Notifications
 // Supporta: Desktop e Mobile push notifications
 
-const ONESIGNAL_APP_ID = 'os_v2_app_gk6j4nvcvrcjzid4oalixgz6g5hixkki7lxezn5zocmjx62jajrodin74o2ddebyw36a2map5rprjbrq5h4p6intqgxzjfwfu6isrpy' // App ID OneSignal
+const ONESIGNAL_APP_ID = '32bc9e36-a2ac-449c-a07c-70168b9b3e37'; // App ID OneSignal
 
 let oneSignalInitialized = false
 
@@ -30,7 +30,8 @@ export async function initializeOneSignal() {
     await window.OneSignal.init({
       appId: ONESIGNAL_APP_ID,
       allowLocalhostAsSecureOrigin: true,
-      serviceWorkerPath: '/OneSignalSDKWorker.js'
+      serviceWorkerPath: '/OneSignalSDKWorker.js',
+      notifyButton: { enable: true }
     })
 
     console.log('✅ OneSignal inizializzato con successo')
