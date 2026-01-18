@@ -428,8 +428,7 @@ function App() {
       <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
       {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
       {toastNotification && <ToastNotification notification={toastNotification} onClose={() => setToastNotification(null)} />}
-      {/* Bottone test notifiche solo per admin/dev */}
-      {user && (user.ruolo === 'admin' || window.location.hostname === 'localhost') && <NotificaTestButton />}
+      {/* ...rimosso NotificaTestButton... */}
     </>
   )
 }
