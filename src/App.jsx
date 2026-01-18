@@ -319,14 +319,21 @@ function App() {
       console.log('[DEBUG LOGIN] Username salvato in sessionStorage')
       // Inizializza Firebase Cloud Messaging per notifiche push reali
       console.log('[DEBUG LOGIN] Inizializzando Firebase Messaging...')
-      const fcmToken = await getFirebaseToken(username, user.id)
-      console.log('[DEBUG LOGIN] Token FCM ottenuto:', fcmToken)
-      if (fcmToken) {
-        console.log('[DEBUG LOGIN] Firebase token ottenuto - notifiche push attive')
-        setupForegroundMessaging((notifica) => {
-          console.log('[DEBUG LOGIN] FCM notifica ricevuta in foreground:', notifica.titolo)
-          setToastNotification(notifica)
-        })
+      // Forza sempre la richiesta e il salvataggio del token FCM
+      try {
+        const fcmToken = await getFirebaseToken(username, user.id)
+        console.log('[DEBUG LOGIN] Token FCM ottenuto:', fcmToken)
+        if (fcmToken) {
+          console.log('[DEBUG LOGIN] Firebase token ottenuto - notifiche push attive')
+          setupForegroundMessaging((notifica) => {
+            console.log('[DEBUG LOGIN] FCM notifica ricevuta in foreground:', notifica.titolo)
+            setToastNotification(notifica)
+          })
+        } else {
+          console.warn('[DEBUG LOGIN] Nessun token FCM ottenuto, controlla permessi e Service Worker')
+        }
+      } catch (err) {
+        console.error('[DEBUG LOGIN] Errore forzato getFirebaseToken:', err)
       }
       // Inizializza le notifiche native per iOS/Android in background
       console.log('[DEBUG LOGIN] Inizializzando notifiche native per iOS/Android...')
