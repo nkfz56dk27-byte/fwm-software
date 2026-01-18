@@ -2,7 +2,7 @@ name: Process Push Notifications
 
 on:
   schedule:
-    - cron: '*/1 * * * *' # ogni 1 minuto
+    - cron: '*/5 * * * *' # ogni 5 minuti
   workflow_dispatch:
 
 jobs:
