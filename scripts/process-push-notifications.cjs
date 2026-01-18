@@ -52,7 +52,18 @@ async function processNotifications() {
     };
     // Invia la notifica a tutti i token
     if (tokens.length > 0) {
-      await messaging.sendMulticast({ tokens, ...message });
+      console.log('Invio a tokens:', tokens);
+      const response = await messaging.sendMulticast({ tokens, ...message });
+      console.log('Risposta Firebase:', response);
+      if (response.failureCount > 0) {
+        response.responses.forEach((resp, idx) => {
+          if (!resp.success) {
+            console.error(`Errore invio token ${tokens[idx]}:`, resp.error);
+          }
+        });
+      }
+    } else {
+      console.warn('Nessun token trovato per invio notifiche.');
     }
     // Aggiorna lo status a 'sent'
     await supabase
