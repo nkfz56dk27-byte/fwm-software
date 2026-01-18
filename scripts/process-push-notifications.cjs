@@ -2,7 +2,7 @@
 // Esegui: node scripts/process-push-notifications.js
 
 const { createClient } = require('@supabase/supabase-js');
-const { sendOneSignalNotification } = require('./send-onesignal');
+const { sendOneSignalNotification } = require('./send-onesignal.cjs');
 
 // Configura Supabase
 const supabase = createClient(
