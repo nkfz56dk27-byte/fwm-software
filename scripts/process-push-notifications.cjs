@@ -2,9 +2,8 @@
 // Esegui: node scripts/process-push-notifications.js
 
 const { createClient } = require('@supabase/supabase-js');
-const admin = require('firebase-admin');
-console.log('firebase-admin version:', admin.SDK_VERSION);
-console.log('Percorso firebase-admin:', require.resolve('firebase-admin'));
+const adminRaw = require('firebase-admin');
+const admin = adminRaw.default || adminRaw;
 const path = require('path');
 const fs = require('fs');
 
@@ -24,9 +23,6 @@ if (!admin.apps.length) {
   });
 }
 const messaging = admin.messaging();
-console.log('Funzioni disponibili su messaging:', Object.keys(messaging));
-console.log('Export di admin.messaging:', admin.messaging);
-console.log('Export di admin:', Object.keys(admin));
 
 async function processNotifications() {
   // 1. Prendi tutte le notifiche pending
@@ -55,32 +51,15 @@ async function processNotifications() {
         url: '/'
       }
     };
-    // Invia la notifica a tutti i token (uno per uno)
+    // Invia la notifica a tutti i token (uno per uno, compatibile ovunque)
     if (tokens.length > 0) {
-      console.log('Invio a tokens:', tokens);
-      if (typeof messaging.sendToDevice === 'function') {
-        for (const token of tokens) {
-          try {
-            const response = await messaging.sendToDevice(token, message);
-            console.log(`Risposta Firebase per token ${token}:`, response);
-          } catch (err) {
-            console.error(`Errore invio token ${token}:`, err);
-          }
+      for (const token of tokens) {
+        try {
+          await messaging.send({ token, ...message });
+        } catch (err) {
+          /* errore silenzioso, log minimale */
         }
-      } else if (typeof messaging.send === 'function') {
-        for (const token of tokens) {
-          try {
-            const response = await messaging.send({ token, ...message });
-            console.log(`Risposta Firebase (send) per token ${token}:`, response);
-          } catch (err) {
-            console.error(`Errore invio token ${token} con send:`, err);
-          }
-        }
-      } else {
-        console.error('Nessun metodo valido per invio notifiche trovato su messaging!');
       }
-    } else {
-      console.warn('Nessun token trovato per invio notifiche.');
     }
     // Aggiorna lo status a 'sent'
     await supabase
