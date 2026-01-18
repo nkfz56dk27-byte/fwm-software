@@ -3735,6 +3735,41 @@ function NuovaPaginaView({ onClose, user }) {
           return;
         }
 
+        // Invio notifica push automatica penalty points
+        import('./src/pushNotifications.js').then(async ({ inviaNotificaPush }) => {
+          try {
+            console.log('[PenaltyPoints] Invio notifica automatica penalty:', {
+              pilota: nuovaInfrazione.pilotaId,
+              punti: infrazioneDB.punti,
+              motivo: infrazioneDB.motivo,
+              campionato_id: campionatoSelezionato.id
+            });
+            const res = await inviaNotificaPush({
+              titolo: 'Nuova penalità',
+              messaggio: `Il pilota ${nuovaInfrazione.pilotaId} ha ricevuto ${infrazioneDB.punti} punto/i per: ${infrazioneDB.motivo}`,
+              tipo: 'infrazione',
+              url: window.location.origin,
+              data: {
+                pilota_id: nuovaInfrazione.pilotaId,
+                campionato_id: campionatoSelezionato.id,
+                motivo: infrazioneDB.motivo,
+                punti: infrazioneDB.punti
+              }
+            });
+            console.log('[PenaltyPoints] RISPOSTA inviaNotificaPush:', res);
+            if (res.success) {
+              console.log('[PenaltyPoints] Notifica push inviata con successo:', res);
+              alert('✅ Notifica penalty points inviata!');
+            } else {
+              console.error('[PenaltyPoints] Errore invio notifica push:', res.error);
+              alert('❌ Errore invio notifica push penalty points: ' + (res.error?.errors?.[0] || res.error));
+            }
+          } catch (err) {
+            console.error('[PenaltyPoints] ERRORE invio notifica push (catch):', err);
+            alert('❌ Errore invio notifica push penalty points: ' + err.message);
+          }
+        });
+
         // Aggiorna stato locale solo se il DB va a buon fine
         const infrazione = {
           ...infrazioneDB,
