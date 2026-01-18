@@ -51,17 +51,16 @@ async function processNotifications() {
         url: '/'
       }
     };
-    // Invia la notifica a tutti i token
+    // Invia la notifica a tutti i token (uno per uno)
     if (tokens.length > 0) {
       console.log('Invio a tokens:', tokens);
-      const response = await messaging.sendMulticast({ tokens, ...message });
-      console.log('Risposta Firebase:', response);
-      if (response.failureCount > 0) {
-        response.responses.forEach((resp, idx) => {
-          if (!resp.success) {
-            console.error(`Errore invio token ${tokens[idx]}:`, resp.error);
-          }
-        });
+      for (const token of tokens) {
+        try {
+          const response = await messaging.sendToDevice(token, message);
+          console.log(`Risposta Firebase per token ${token}:`, response);
+        } catch (err) {
+          console.error(`Errore invio token ${token}:`, err);
+        }
       }
     } else {
       console.warn('Nessun token trovato per invio notifiche.');
