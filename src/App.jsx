@@ -3651,51 +3651,31 @@ function NuovaPaginaView({ onClose, user }) {
             expiryDate: data[0].data_scadenza,
             gpBan: ''
           }
-<<<<<<< HEAD
-=======
-          
->>>>>>> f8d2180 (Fix: rinominato notificationTester.js in .jsx e installato Vite per build con JSX)
-          const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || []
-          setPenaltyDetails({
+          const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || [];
+          const nuoviDettagli = {
             ...penaltyDetails,
             [`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`]: [...infrazioniPilota, infrazione]
-          })
+          };
+          setPenaltyDetails(nuoviDettagli);
+
+          // Salva su Supabase
+          try {
+            await supabase
+              .from('classifiche')
+              .update({ penalty_points: nuoviDettagli })
+              .eq('id', campionatoSelezionato.id);
+          } catch (err) {
+            console.error('Errore salvataggio su Supabase:', err);
+          }
+
+          setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null });
+          setShowAggiungiInfrazione(false);
         }
       } catch (err) {
-        console.error('Errore salvataggio su Supabase:', err)
-        alert('Errore nel salvataggio')
+        console.error('Errore salvataggio su Supabase:', err);
+        alert('Errore nel salvataggio');
       }
-      setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null })
-      setShowAggiungiInfrazione(false)
     }
-
-        reason: nuovaInfrazione.motivo,
-        dateAdded: nuovaInfrazione.dataInfrazione,
-        expiryDate: expiryDate,
-        gpBan: ''
-      }
-
-      const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || []
-      const nuoviDettagli = {
-        ...penaltyDetails,
-        [`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`]: [...infrazioniPilota, infrazione]
-      }
-      setPenaltyDetails(nuoviDettagli)
-
-      // Salva su Supabase
-      try {
-        await supabase
-          .from('classifiche')
-          .update({ penalty_points: nuoviDettagli })
-          .eq('id', campionatoSelezionato.id)
-      } catch (err) {
-        console.error('Errore salvataggio su Supabase:', err)
-      }
-
-      setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null })
-      setShowAggiungiInfrazione(false)
-    }
->>>>>>> f8d2180 (Fix: rinominato notificationTester.js in .jsx e installato Vite per build con JSX)
 
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 998, padding: '20px' }}>
