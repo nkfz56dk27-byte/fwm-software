@@ -3644,12 +3644,31 @@ function NuovaPaginaView({ onClose, user }) {
         }
 
         const expiryDate = calculateExpiryDate(nuovaInfrazione.dataInfrazione);
+        // Prepara oggetto per il DB
+        const infrazioneDB = {
+          campionato_id: campionatoSelezionato.id,
+          pilota_id: nuovaInfrazione.pilotaId,
+          punti: parseInt(nuovaInfrazione.punti),
+          motivo: nuovaInfrazione.motivo,
+          data_infrazione: nuovaInfrazione.dataInfrazione,
+          data_scadenza: expiryDate
+        };
+
+        // Salva su Supabase
+        const { data, error } = await supabase.from('infrazioni').insert([infrazioneDB]);
+        if (error) {
+          alert('❌ Errore nel salvataggio su Supabase');
+          return;
+        }
+
+        // Aggiorna stato locale solo se il DB va a buon fine
         const infrazione = {
-          id: `infrazione_${Date.now()}`,
-          points: nuovaInfrazione.punti,
-          reason: nuovaInfrazione.motivo,
-          dateAdded: nuovaInfrazione.dataInfrazione,
-          expiryDate: expiryDate,
+          ...infrazioneDB,
+          id: data && data[0] && data[0].id ? data[0].id : `infrazione_${Date.now()}`,
+          points: infrazioneDB.punti,
+          reason: infrazioneDB.motivo,
+          dateAdded: infrazioneDB.data_infrazione,
+          expiryDate: infrazioneDB.data_scadenza,
           gpBan: ''
         };
         const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || [];
@@ -3658,16 +3677,6 @@ function NuovaPaginaView({ onClose, user }) {
           [`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`]: [...infrazioniPilota, infrazione]
         };
         setPenaltyDetails(nuoviDettagli);
-
-        // Salva su Supabase
-        try {
-          await supabase
-            .from('classifiche')
-            .update({ penalty_points: nuoviDettagli })
-            .eq('id', campionatoSelezionato.id);
-        } catch (err) {
-          console.error('Errore salvataggio su Supabase:', err);
-        }
 
         setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null });
         setShowAggiungiInfrazione(false);
