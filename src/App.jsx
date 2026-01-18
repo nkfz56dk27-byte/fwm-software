@@ -3290,8 +3290,7 @@ function NuovaPaginaView({ onClose, user }) {
       punti: parseInt(nuovaInfrazione.punti),
       motivo: nuovaInfrazione.motivo,
       data_infrazione: dataOggi.toISOString().split('T')[0],
-      data_scadenza: dataScadenza.toISOString().split('T')[0],
-      gp_ban: totalPuntiDopo > 12 ? nuovaInfrazione.gpBan : null
+      data_scadenza: dataScadenza.toISOString().split('T')[0]
     }
 
     // Inserisci su Supabase
