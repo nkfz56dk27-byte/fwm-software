@@ -2518,44 +2518,27 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
                 <button onClick={() => !modalitaElimina && onOpenClassifica(c.id)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
               </div>
             ))}
-           <div style={{ display: 'flex', justifyContent: 'center', padding: '20px', gap: '20px' }}>
+           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '30px 0' }}>
   {isAdmin && !modalitaElimina && (
-    <>
-      <button
-        onClick={() => setShowNuova(true)}
-        style={{
-          width: '250px',
-          height: '80px',
-          background: '#34C759',
-          color: 'white',
-          border: 'none',
-          borderRadius: '25px',
-          fontSize: '24px',
-          fontWeight: 'bold',
-          cursor: 'pointer',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-        }}
-      >
-        Nuova Classifica
-      </button>
-      <button
-        onClick={() => setShowNuova(true)}
-        style={{
-          width: '250px',
-          height: '80px',
-          background: '#007AFF',
-          color: 'white',
-          border: 'none',
-          borderRadius: '25px',
-          fontSize: '24px',
-          fontWeight: 'bold',
-          cursor: 'pointer',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-        }}
-      >
-        Nuova Classifica Personalizzata
-      </button>
-    </>
+    <button
+      onClick={() => setShowNuova(true)}
+      style={{
+        width: '320px',
+        height: '90px',
+        background: '#34C759',
+        color: 'white',
+        border: 'none',
+        borderRadius: '30px',
+        fontSize: '28px',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
+        textAlign: 'center',
+        margin: '0 auto'
+      }}
+    >
+      Nuova Classifica Personalizzata
+    </button>
   )}
 </div>
 
