@@ -81,9 +81,23 @@ async function saveFirebaseToken(username, token, user_uid = null) {
       console.log('[LOG] Ricavato final_user_uid dalla sessione:', final_user_uid);
     }
     // Log dati inviati
+
+    // Recupera device_id dal localStorage (come fa getDeviceId)
+    let deviceId = null;
+    try {
+      deviceId = localStorage.getItem('fwm_device_id');
+    } catch (e) {
+      // fallback: deviceId non disponibile
+    }
+    if (!deviceId) {
+      // fallback: genera un id temporaneo (non dovrebbe mai servire)
+      deviceId = 'unknown-device';
+    }
+
     const payload = {
       username: username,
       token: token,
+      device_id: deviceId,
       browser_info: navigator.userAgent.substring(0, 100),
       last_updated: new Date().toISOString(),
       user_uid: final_user_uid
@@ -93,7 +107,7 @@ async function saveFirebaseToken(username, token, user_uid = null) {
     // Log pre-query
     console.log('[LOG] Chiamo upsert su firebase_tokens con payload:', payload);
     const { data, error } = await supabase.from('firebase_tokens').upsert(payload, {
-      onConflict: 'username,token'
+      onConflict: 'username,device_id'
     });
 
     // Log risposta Supabase
