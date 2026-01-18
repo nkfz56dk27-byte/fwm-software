@@ -16,6 +16,8 @@ jobs:
           node-version: '18'
       - name: Clean npm cache
         run: npm cache clean --force
+      - name: Remove node_modules and lockfile
+        run: rm -rf node_modules package-lock.json
       - run: npm install
       - name: Create Firebase service account file
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > firebase-service-account.json
