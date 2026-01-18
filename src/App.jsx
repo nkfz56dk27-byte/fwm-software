@@ -3268,14 +3268,13 @@ function NuovaPaginaView({ onClose, user }) {
     alert(`✅ Campionato "${nuovoCampionato.nome}" importato con successo!`)
   }
 
-  const aggiungiInfrazione = () => {
+  const aggiungiInfrazione = async () => {
     if (!nuovaInfrazione.motivo.trim()) {
       alert('❌ Inserisci il motivo dell\'infrazione')
       return
     }
 
     const totalPuntiDopo = getTotalPenaltyPoints(pilotaSelezionato.id) + parseInt(nuovaInfrazione.punti)
-    
     if (totalPuntiDopo > 12 && !nuovaInfrazione.gpBan) {
       alert('❌ Inserisci il GP per cui il pilota è bannato')
       return
@@ -3284,18 +3283,36 @@ function NuovaPaginaView({ onClose, user }) {
     const dataOggi = new Date()
     const dataScadenza = new Date(dataOggi.getFullYear() + 1, dataOggi.getMonth(), dataOggi.getDate())
 
-    const infrazione = {
-      id: `infrazione_${Date.now()}`,
-      points: parseInt(nuovaInfrazione.punti),
-      reason: nuovaInfrazione.motivo,
-      dateAdded: dataOggi.toISOString().split('T')[0],
-      expiryDate: dataScadenza.toISOString().split('T')[0],
-      gpBan: totalPuntiDopo > 12 ? nuovaInfrazione.gpBan : null
+    // Prepara oggetto per il DB
+    const infrazioneDB = {
+      campionato_id: campionatoSelezionato.id,
+      pilota_id: pilotaSelezionato.id,
+      punti: parseInt(nuovaInfrazione.punti),
+      motivo: nuovaInfrazione.motivo,
+      data_infrazione: dataOggi.toISOString().split('T')[0],
+      data_scadenza: dataScadenza.toISOString().split('T')[0],
+      gp_ban: totalPuntiDopo > 12 ? nuovaInfrazione.gpBan : null
     }
 
+    // Inserisci su Supabase
+    const { error } = await supabase.from('infrazioni').insert([infrazioneDB])
+    if (error) {
+      alert('❌ Errore nel salvataggio su Supabase')
+      return
+    }
+
+    // Aggiorna stato locale solo se il DB va a buon fine
+    const infrazione = {
+      ...infrazioneDB,
+      id: `infrazione_${Date.now()}`,
+      points: infrazioneDB.punti,
+      reason: infrazioneDB.motivo,
+      dateAdded: infrazioneDB.data_infrazione,
+      expiryDate: infrazioneDB.data_scadenza,
+      gpBan: infrazioneDB.gp_ban
+    }
     const pilotaId = pilotaSelezionato.id
     const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${pilotaId}`] || []
-
     setPenaltyDetails({
       ...penaltyDetails,
       [`${campionatoSelezionato.id}_${pilotaId}`]: [...infrazioniPilota, infrazione]
