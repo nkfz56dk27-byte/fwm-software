@@ -183,7 +183,7 @@ export async function inviaNotificaAUtente(destinatario, options) {
 
     console.log(`📤 Invio notifica a ${destinatario}:`, { titolo, messaggio })
 
-    const { error } = await supabase.from('notifiche_push').insert({
+    const { data: insertData, error } = await supabase.from('notifiche_push').insert({
       destinatario: destinatario,
       titolo: titolo,
       messaggio: messaggio,

@@ -3294,7 +3294,7 @@ function NuovaPaginaView({ onClose, user }) {
     }
 
     // Inserisci su Supabase
-    const { error } = await supabase.from('infrazioni').insert([infrazioneDB])
+    const { data, error } = await supabase.from('infrazioni').insert([infrazioneDB])
     if (error) {
       alert('❌ Errore nel salvataggio su Supabase')
       return
@@ -3645,11 +3645,11 @@ function NuovaPaginaView({ onClose, user }) {
 
         const expiryDate = calculateExpiryDate(nuovaInfrazione.dataInfrazione);
         const infrazione = {
-          id: data[0].id,
-          points: data[0].punti,
-          reason: data[0].motivo,
-          dateAdded: data[0].data_infrazione,
-          expiryDate: data[0].data_scadenza,
+          id: `infrazione_${Date.now()}`,
+          points: nuovaInfrazione.punti,
+          reason: nuovaInfrazione.motivo,
+          dateAdded: nuovaInfrazione.dataInfrazione,
+          expiryDate: expiryDate,
           gpBan: ''
         };
         const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || [];
