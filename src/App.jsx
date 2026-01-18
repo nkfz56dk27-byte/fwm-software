@@ -2565,7 +2565,26 @@ function NuovaClassificaModal({ onClose, onSave }) {
     e.preventDefault()
     if (!nome.trim()) return
     const { error } = await supabase.from('classifiche_custom').insert([{ nome, piloti: [], gp: [], costruttori: [] }])
-    if (!error) onSave()
+    if (!error) {
+      // Invia notifica push
+      try {
+        const { getClassificaCreataNotification } = await import('./notificationTemplates.js');
+        const notifica = getClassificaCreataNotification(nome);
+        await supabase.from('push_notifications').insert([
+          {
+            title: notifica.titolo,
+            body: notifica.messaggio,
+            notification_type: notifica.tipo,
+            target_all: true,
+            created_at: new Date().toISOString(),
+            status: 'pending'
+          }
+        ]);
+      } catch (err) {
+        console.error('Errore invio notifica:', err);
+      }
+      onSave();
+    }
   }
   return (
     <div className="modal-container">
