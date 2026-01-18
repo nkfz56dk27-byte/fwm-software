@@ -734,7 +734,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
       </div>
     </div>
   )
-}
+//}
 
 function calcolaPuntiPosizione(pos, tipoGara, classifica = null) {
   // Se è attivo il modificatore libero, usa l'array personalizzato
@@ -950,71 +950,42 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
         setLoading(false)
       }
     }
-            if (!pilota) return
-            
-            let punti = calcolaPuntiPosizione(pos, garaVecchia.tipo_gara, classifica)
-            if (classifica.punti_pole_attivo && String(garaVecchia.pole_id) === String(pilotaId)) {
-              punti += classifica.punti_pole_valore || 3
-            }
-            if (classifica.giro_veloce_attivo && String(garaVecchia.giro_veloce_id) === String(pilotaId)) {
-              punti += classifica.giro_veloce_valore || 1
-            }
-            
-            console.log(`${pilota.nome}: -${punti} pts (rimozione risultato vecchio)`)
-            pilota.punti = Math.max(0, (pilota.punti || 0) - punti)
-            
-            const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
-            if (costruttore) {
-              costruttore.punti = Math.max(0, (costruttore.punti || 0) - punti)
-            }
-          })
-        })
-      }
-      
-      // Calcola e assegna punti NUOVI per ogni gara del GP
-      gpFinale.gare.forEach(gara => {
-        Object.entries(gara.risultati).forEach(([pilotaId, pos]) => {
-          const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
-          if (!pilota) {
-            console.warn('Pilota non trovato:', pilotaId)
-            return
-          }
-          
-          let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
-          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
-            punti += classifica.punti_pole_valore || 3
-          }
-          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
-            punti += classifica.giro_veloce_valore || 1
-          }
-          
-          console.log(`${pilota.nome}: +${punti} pts (pos ${pos}, tipo ${gara.tipo_gara})`)
-          
-          pilota.punti = (pilota.punti || 0) + punti
-          
-          const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
-          if (costruttore) {
-            costruttore.punti = (costruttore.punti || 0) + punti
-          } else {
-            console.warn('Costruttore non trovato:', pilota.team)
-          }
-        })
-      })
-      
-      nuoviPiloti.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((p, i) => {
-        p.distacco = i === 0 ? 0 : (nuoviPiloti[0].punti || 0) - (p.punti || 0)
-      })
-      
-      nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
-        c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0)
-      })
-      
-      console.log('Salvando classifica aggiornata:', { piloti: nuoviPiloti, costruttori: nuoviCostruttori })
-      
-      onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori })
-      onClose()
-    }
   }
+  // Calcola e assegna punti NUOVI per ogni gara del GP
+  gpFinale.gare.forEach(gara => {
+    Object.entries(gara.risultati).forEach(([pilotaId, pos]) => {
+      const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
+      if (!pilota) {
+        console.warn('Pilota non trovato:', pilotaId)
+        return
+      }
+      let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
+      if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
+        punti += classifica.punti_pole_valore || 3
+      }
+      if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
+        punti += classifica.giro_veloce_valore || 1
+      }
+      console.log(`${pilota.nome}: +${punti} pts (pos ${pos}, tipo ${gara.tipo_gara})`)
+      pilota.punti = (pilota.punti || 0) + punti
+      const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
+      if (costruttore) {
+        costruttore.punti = (costruttore.punti || 0) + punti
+      } else {
+        console.warn('Costruttore non trovato:', pilota.team)
+      }
+    })
+  })
+  nuoviPiloti.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((p, i) => {
+    p.distacco = i === 0 ? 0 : (nuoviPiloti[0].punti || 0) - (p.punti || 0)
+  })
+  nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
+    c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0)
+  })
+  console.log('Salvando classifica aggiornata:', { piloti: nuoviPiloti, costruttori: nuoviCostruttori })
+  onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori })
+  onClose()
+}
 
   const garaNoNDispudata = () => {
     const gare = [...gp.gare]
