@@ -3,6 +3,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const admin = require('firebase-admin');
+console.log('firebase-admin version:', require('firebase-admin/package.json').version);
 const path = require('path');
 const fs = require('fs');
 
