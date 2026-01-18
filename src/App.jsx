@@ -940,7 +940,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                 expiryDate: infrazione.data_scadenza,
                 gpBan: ''
               })
-            })
+            };
             setPenaltyDetails(details)
           }
         }
