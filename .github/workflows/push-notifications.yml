@@ -19,6 +19,8 @@ jobs:
       - name: Remove node_modules and lockfile
         run: rm -rf node_modules package-lock.json
       - run: npm install
+      - name: Force reinstall firebase-admin
+        run: npm install firebase-admin@latest --save --force
       - name: Create Firebase service account file
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > firebase-service-account.json
       - name: Run push notification script
