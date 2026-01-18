@@ -254,6 +254,22 @@ export async function getDispositiviUtente(username) {
 }
 
 // Funzione di test FCM per browser
+  export async function sendPushNotification({ title, body, url = '/', data = {} }) {
+    try {
+      const res = await fetch('/api/send-notification', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ title, body, url, data })
+      });
+      if (!res.ok) throw new Error('Errore invio notifica');
+      return await res.json();
+    } catch (err) {
+      console.error('Errore invio notifica:', err);
+      return { success: false, error: err.message };
+    }
+  }
 export async function testFCMPushSetup() {
   try {
     const token = await import('./firebase').then(m => m.richiediPermessoNotifiche())
