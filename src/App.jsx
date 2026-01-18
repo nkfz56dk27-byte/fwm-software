@@ -3852,6 +3852,8 @@ function NuovaPaginaView({ onClose, user }) {
             top: '30px',
             right: '30px',
             padding: '15px 25px',
+            minWidth: '200px',
+            minHeight: '56px',
             background: '#34C759',
             color: 'white',
             border: 'none',
@@ -3861,10 +3863,15 @@ function NuovaPaginaView({ onClose, user }) {
             cursor: 'pointer',
             boxShadow: '0 4px 10px rgba(52, 199, 89, 0.3)',
             transition: 'opacity 0.2s',
-            zIndex: 50
+            zIndex: 50,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            userSelect: 'none',
+            touchAction: 'manipulation'
           }}
-          onMouseOver={(e) => e.target.style.opacity = '0.9'}
-          onMouseOut={(e) => e.target.style.opacity = '1'}
+          onMouseOver={e => e.target.style.opacity = '0.9'}
+          onMouseOut={e => e.target.style.opacity = '1'}
         >
           Aggiungi Infrazione
         </button>
@@ -3874,12 +3881,65 @@ function NuovaPaginaView({ onClose, user }) {
 
   // MODALE DETTAGLI PILOTA
   if (pilotaSelezionato) {
+
     const totalPunti = getTotalPenaltyPoints(pilotaSelezionato.id)
     const isBanned = totalPunti > 12
     const infrazioni = penaltyDetails[`${campionatoSelezionato.id}_${pilotaSelezionato.id}`] || []
 
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '40px 20px', overflow: 'auto', zIndex: 997 }}>
+        {/* Tasto Ban Scontato in alto a destra della pagina */}
+        {isBanned && (
+          <button
+            onClick={async () => {
+              if (window.confirm('Sei sicuro di azzerare il ban e tutte le infrazioni di questo pilota?')) {
+                try {
+                  await supabase
+                    .from('infrazioni')
+                    .delete()
+                    .eq('campionato_id', campionatoSelezionato.id)
+                    .eq('pilota_id', pilotaSelezionato.id)
+                  setPenaltyDetails({
+                    ...penaltyDetails,
+                    [`${campionatoSelezionato.id}_${pilotaSelezionato.id}`]: []
+                  })
+                  alert('Ban azzerato! Tutte le infrazioni del pilota sono state eliminate.')
+                } catch (err) {
+                  console.error('Errore azzeramento ban:', err)
+                  alert('Errore nell\'azzeramento del ban')
+                }
+              }
+            }}
+            style={{
+              position: 'fixed',
+              top: 20,
+              right: 20,
+              padding: '15px 25px',
+              minWidth: '200px',
+              minHeight: '56px',
+              background: '#FF3B30',
+              color: 'white',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(255, 59, 48, 0.4)',
+              transition: 'all 0.2s',
+              zIndex: 2000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              userSelect: 'none',
+              touchAction: 'manipulation'
+            }}
+            onMouseOver={e => { e.target.style.opacity = '0.9'; e.target.style.transform = 'scale(1.05)' }}
+            onMouseOut={e => { e.target.style.opacity = '1'; e.target.style.transform = 'scale(1)' }}
+          >
+            Ban Scontato
+          </button>
+        )}
+
         <div style={{ position: 'absolute', top: '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', zIndex: 100 }}>
           <button onClick={() => setPilotaSelezionato(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
             <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
@@ -3893,11 +3953,33 @@ function NuovaPaginaView({ onClose, user }) {
           </div>
 
           <div style={{ background: 'rgba(0, 0, 0, 0.5)', border: '2px solid rgba(255, 255, 255, 0.5)', borderRadius: '15px', padding: '25px', marginBottom: '25px', textAlign: 'center', position: 'relative', boxShadow: '0 8px 25px rgba(0, 0, 0, 0.4)' }}>
-            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', marginBottom: '10px', fontWeight: '600', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>PUNTI PENALITÀ</div>
-            <div style={{ fontSize: '56px', fontWeight: 'bold', color: totalPunti > 12 ? '#FF3B30' : '#00D4FF', marginBottom: '15px', textShadow: '0 2px 5px rgba(0,0,0,0.5)' }}>
-              {totalPunti}/12
+            <div style={{ position: 'relative', width: '100%', minHeight: '70px' }}>
+              {totalPunti > 12 && (
+                <div style={{
+                  position: 'absolute',
+                  left: '50%',
+                  top: '22px',
+                  transform: 'translateX(-50%) rotate(-12deg)',
+                  background: '#FF3B30',
+                  color: 'white',
+                  padding: '4px 32px',
+                  borderRadius: '20px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                  letterSpacing: '0.5px',
+                  zIndex: 10,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
+                }}>
+                  RACE BAN
+                </div>
+              )}
+              <div style={{ fontSize: '56px', fontWeight: 'bold', color: totalPunti > 12 ? '#FF3B30' : '#00D4FF', marginBottom: '15px', marginTop: totalPunti > 12 ? '28px' : '0', textShadow: '0 2px 5px rgba(0,0,0,0.5)' }}>
+                {totalPunti}/12
+              </div>
             </div>
-            
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)', marginBottom: '10px', fontWeight: '600', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>PUNTI PENALITÀ</div>
             <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', flexWrap: 'wrap' }}>
               {[...Array(12)].map((_, i) => (
                 <div
@@ -3913,95 +3995,42 @@ function NuovaPaginaView({ onClose, user }) {
                 />
               ))}
             </div>
-
-            {isBanned && (
-              <button
-                onClick={async () => {
-                  if (window.confirm('Sei sicuro di azzerare il ban e tutte le infrazioni di questo pilota?')) {
-                    try {
-                      await supabase
-                        .from('infrazioni')
-                        .delete()
-                        .eq('campionato_id', campionatoSelezionato.id)
-                        .eq('pilota_id', pilotaSelezionato.id)
-                      
-                      setPenaltyDetails({
-                        ...penaltyDetails,
-                        [`${campionatoSelezionato.id}_${pilotaSelezionato.id}`]: []
-                      })
-                      alert('Ban azzerato! Tutte le infrazioni del pilota sono state eliminate.')
-                    } catch (err) {
-                      console.error('Errore azzeramento ban:', err)
-                      alert('Errore nell\'azzeramento del ban')
-                    }
-                  }
-                }}
-                style={{
-                  position: 'relative',
-                  display: 'inline-block',
-                  marginBottom: '15px',
-                  padding: '10px 20px',
-                  background: '#FF3B30',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(255, 59, 48, 0.4)',
-                  transition: 'all 0.2s',
-                  zIndex: 999
-                }}
-                onMouseOver={(e) => {
-                  e.target.style.opacity = '0.9'
-                  e.target.style.transform = 'scale(1.05)'
-                }}
-                onMouseOut={(e) => {
-                  e.target.style.opacity = '1'
-                  e.target.style.transform = 'scale(1)'
-                }}
-              >
-                Ban Scontato
-              </button>
+            <h3 style={{ color: 'white', marginBottom: '15px', fontSize: '16px', fontWeight: '700', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>Infrazioni ({infrazioni.length})</h3>
+            {infrazioni.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(100vh - 500px)', overflowY: 'auto', paddingRight: '10px' }}>
+                {infrazioni.map(infrazione => {
+                  const handleMouseOver = (e) => e.target.style.opacity = '0.9'
+                  const handleMouseOut = (e) => e.target.style.opacity = '1'
+                  const puntiLabel = infrazione.points === 1 ? 'punto' : 'punti'
+                  return (
+                    <div key={infrazione.id} style={{ background: 'rgba(0, 0, 0, 0.9)', border: '2px solid rgba(255, 255, 255, 0.2)', padding: '15px 20px', borderRadius: '10px', display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1.2fr', gap: '30px', alignItems: 'center', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.5)', transition: 'opacity 0.2s', cursor: 'pointer', opacity: '1' }} onMouseOver={handleMouseOver} onMouseOut={handleMouseOut}>
+                      <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                        {infrazione.points} {puntiLabel}
+                      </div>
+                      <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                        {infrazione.expiryDate}
+                      </div>
+                      <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                        {infrazione.reason}
+                        {infrazione.gpBan && <div style={{ fontSize: '12px', color: '#FF3B30', marginTop: '4px', fontWeight: '600' }}>Ban: {infrazione.gpBan}</div>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(100vh - 500px)', overflowY: 'auto', paddingRight: '10px' }}>
+                <div style={{ background: 'rgba(0, 0, 0, 0.7)', border: '2px solid rgba(255, 255, 255, 0.3)', padding: '15px 20px', borderRadius: '10px', display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1.2fr', gap: '30px', alignItems: 'center', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)' }}>
+                  <div style={{ color: '#00D4FF', fontWeight: '700', fontSize: '13px', textShadow: '0 1px 3px rgba(0,0,0,0.5)', letterSpacing: '0.5px' }}>PUNTI</div>
+                  <div style={{ color: '#00D4FF', fontWeight: '700', fontSize: '13px', textShadow: '0 1px 3px rgba(0,0,0,0.5)', letterSpacing: '0.5px' }}>SCADENZA</div>
+                  <div style={{ color: '#00D4FF', fontWeight: '700', fontSize: '13px', textShadow: '0 1px 3px rgba(0,0,0,0.5)', letterSpacing: '0.5px' }}>MOTIVO</div>
+                </div>
+                <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', padding: '20px', borderRadius: '10px', background: 'rgba(0,0,0,0.3)', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+                  Nessuna infrazione
+                </div>
+              </div>
             )}
           </div>
-
-          <h3 style={{ color: 'white', marginBottom: '15px', fontSize: '16px', fontWeight: '700', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>Infrazioni ({infrazioni.length})</h3>
-          
-          {infrazioni.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(100vh - 500px)', overflowY: 'auto', paddingRight: '10px' }}>
-              {infrazioni.map(infrazione => {
-                const handleMouseOver = (e) => e.target.style.opacity = '0.9'
-                const handleMouseOut = (e) => e.target.style.opacity = '1'
-                const puntiLabel = infrazione.points === 1 ? 'punto' : 'punti'
-                return (
-                  <div key={infrazione.id} style={{ background: 'rgba(0, 0, 0, 0.9)', border: '2px solid rgba(255, 255, 255, 0.2)', padding: '15px 20px', borderRadius: '10px', display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1.2fr', gap: '30px', alignItems: 'center', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.5)', transition: 'opacity 0.2s', cursor: 'pointer', opacity: '1' }} onMouseOver={handleMouseOver} onMouseOut={handleMouseOut}>
-                    <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-                      {infrazione.points} {puntiLabel}
-                    </div>
-                    <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-                      {infrazione.expiryDate}
-                    </div>
-                    <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-                      {infrazione.reason}
-                      {infrazione.gpBan && <div style={{ fontSize: '12px', color: '#FF3B30', marginTop: '4px', fontWeight: '600' }}>Ban: {infrazione.gpBan}</div>}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(100vh - 500px)', overflowY: 'auto', paddingRight: '10px' }}>
-              <div style={{ background: 'rgba(0, 0, 0, 0.7)', border: '2px solid rgba(255, 255, 255, 0.3)', padding: '15px 20px', borderRadius: '10px', display: 'grid', gridTemplateColumns: '0.6fr 1.2fr 1.2fr', gap: '30px', alignItems: 'center', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.3)' }}>
-                <div style={{ color: '#00D4FF', fontWeight: '700', fontSize: '13px', textShadow: '0 1px 3px rgba(0,0,0,0.5)', letterSpacing: '0.5px' }}>PUNTI</div>
-                <div style={{ color: '#00D4FF', fontWeight: '700', fontSize: '13px', textShadow: '0 1px 3px rgba(0,0,0,0.5)', letterSpacing: '0.5px' }}>SCADENZA</div>
-                <div style={{ color: '#00D4FF', fontWeight: '700', fontSize: '13px', textShadow: '0 1px 3px rgba(0,0,0,0.5)', letterSpacing: '0.5px' }}>MOTIVO</div>
-              </div>
-              <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.6)', padding: '20px', borderRadius: '10px', background: 'rgba(0,0,0,0.3)', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-                Nessuna infrazione
-              </div>
-            </div>
-          )}
         </div>
       </div>
     )
