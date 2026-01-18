@@ -3637,45 +3637,45 @@ function NuovaPaginaView({ onClose, user }) {
     }
 
     const handleSalvaInfrazione = async () => {
-      if (!nuovaInfrazione.pilotaId || !nuovaInfrazione.motivo || !nuovaInfrazione.dataInfrazione) {
-        alert('Compila tutti i campi')
-        return
-      }
-
-      const expiryDate = calculateExpiryDate(nuovaInfrazione.dataInfrazione)
-          const infrazione = {
-            id: data[0].id,
-            points: data[0].punti,
-            reason: data[0].motivo,
-            dateAdded: data[0].data_infrazione,
-            expiryDate: data[0].data_scadenza,
-            gpBan: ''
-          }
-          const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || [];
-          const nuoviDettagli = {
-            ...penaltyDetails,
-            [`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`]: [...infrazioniPilota, infrazione]
-          };
-          setPenaltyDetails(nuoviDettagli);
-
-          // Salva su Supabase
-          try {
-            await supabase
-              .from('classifiche')
-              .update({ penalty_points: nuoviDettagli })
-              .eq('id', campionatoSelezionato.id);
-          } catch (err) {
-            console.error('Errore salvataggio su Supabase:', err);
-          }
-
-          setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null });
-          setShowAggiungiInfrazione(false);
+      try {
+        if (!nuovaInfrazione.pilotaId || !nuovaInfrazione.motivo || !nuovaInfrazione.dataInfrazione) {
+          alert('Compila tutti i campi');
+          return;
         }
+
+        const expiryDate = calculateExpiryDate(nuovaInfrazione.dataInfrazione);
+        const infrazione = {
+          id: data[0].id,
+          points: data[0].punti,
+          reason: data[0].motivo,
+          dateAdded: data[0].data_infrazione,
+          expiryDate: data[0].data_scadenza,
+          gpBan: ''
+        };
+        const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || [];
+        const nuoviDettagli = {
+          ...penaltyDetails,
+          [`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`]: [...infrazioniPilota, infrazione]
+        };
+        setPenaltyDetails(nuoviDettagli);
+
+        // Salva su Supabase
+        try {
+          await supabase
+            .from('classifiche')
+            .update({ penalty_points: nuoviDettagli })
+            .eq('id', campionatoSelezionato.id);
+        } catch (err) {
+          console.error('Errore salvataggio su Supabase:', err);
+        }
+
+        setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null });
+        setShowAggiungiInfrazione(false);
       } catch (err) {
         console.error('Errore salvataggio su Supabase:', err);
         alert('Errore nel salvataggio');
       }
-    }
+    };
 
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 998, padding: '20px' }}>
