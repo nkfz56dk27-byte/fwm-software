@@ -913,42 +913,43 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
              [{ id: Date.now(), tipo_gara: 'f2sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'featureRace', risultati: {}, completata: false }]
     }
     setGp(nuovoGP)
-    setStep(1)
-  }
+    useEffect(() => {
+      caricaCampionati()
+    }, [])
 
-  const salvaRisultatiGara = () => {
-    const gare = [...gp.gare]
-    gare[garaCorrente] = {
-      ...gare[garaCorrente],
-      risultati,
-      pole_id: poleId,
-      giro_veloce_id: giroVeloceId,
-      completata: true
+    const caricaCampionati = async () => {
+      try {
+        // Leggi solo dalla tabella classifiche_custom
+        const { data, error } = await supabase.from('classifiche_custom').select('*')
+        if (!error && data) {
+          setCampionati(data)
+          // Carica infrazioni dalla tabella infrazioni
+          const { data: infrazioni, error: infError } = await supabase.from('infrazioni').select('*')
+          if (!infError && infrazioni) {
+            const details = {}
+            infrazioni.forEach(infrazione => {
+              const key = `${infrazione.campionato_id}_${infrazione.pilota_id}`
+              if (!details[key]) {
+                details[key] = []
+              }
+              details[key].push({
+                id: infrazione.id,
+                points: infrazione.punti,
+                reason: infrazione.motivo,
+                dateAdded: infrazione.data_infrazione,
+                expiryDate: infrazione.data_scadenza,
+                gpBan: ''
+              })
+            })
+            setPenaltyDetails(details)
+          }
+        }
+        setLoading(false)
+      } catch (err) {
+        console.error('Errore caricamento campionati:', err)
+        setLoading(false)
+      }
     }
-    
-    const gpAggiornato = { ...gp, gare }
-    
-    if (garaCorrente < gp.gare.length - 1) {
-      setGp(gpAggiornato)
-      setGaraCorrente(garaCorrente + 1)
-      setRisultati({})
-      setPoleId(null)
-      setGiroVeloceId(null)
-    } else {
-      const gpFinale = { ...gpAggiornato, completato: true }
-      const nuoviGP = classifica.gp ? [...classifica.gp.filter(g => g.id !== gpFinale.id), gpFinale] : [gpFinale]
-      
-      const nuoviPiloti = [...classifica.piloti]
-      const nuoviCostruttori = [...classifica.costruttori]
-      
-      // Se è una MODIFICA, sottrai i punti vecchi
-      if (gpPreselezionato && gpPreselezionato.completato) {
-        console.log('MODIFICA: Sottraggo punti vecchi...')
-        gpPreselezionato.gare.forEach(garaVecchia => {
-          if (!garaVecchia.completata || garaVecchia.non_disputata) return
-          
-          Object.entries(garaVecchia.risultati || {}).forEach(([pilotaId, pos]) => {
-            const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
             if (!pilota) return
             
             let punti = calcolaPuntiPosizione(pos, garaVecchia.tipo_gara, classifica)
@@ -3495,17 +3496,21 @@ function NuovaPaginaView({ onClose, user }) {
     }
 
     try {
+      console.log('[DEBUG] Provo a salvare nuovo campionato su classifiche_custom:', nuovoCampionato)
       const { data, error } = await supabase.from('classifiche_custom').insert([nuovoCampionato])
       if (error) {
+        console.error('[DEBUG] Errore salvataggio campionato:', error)
         alert('❌ Errore nel salvataggio su Supabase: ' + (error.message || error.details || error))
         return
       }
-      setCampionati([...campionati, { ...nuovoCampionato, id: data[0]?.id || `campionato_${Date.now()}` }])
+      alert(`✅ Campionato "${nuovoCampionato.nome}" creato con successo!`)
       setNuovoCampionatoForm({ nome: '', piloti: [] })
       setShowCreaZero(false)
       setShowAggiungiMenu(false)
-      alert(`✅ Campionato "${nuovoCampionato.nome}" creato con successo!`)
+      // Ricarica la lista campionati per aggiornare la UI
+      caricaCampionati()
     } catch (err) {
+      console.error('[DEBUG] Errore imprevisto nel salvataggio:', err)
       alert('❌ Errore imprevisto nel salvataggio: ' + err.message)
     }
   }
