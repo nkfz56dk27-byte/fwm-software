@@ -23,6 +23,7 @@ import { notificaClassificaAggiornata } from './src/pushNotifications.js'
 import { initializeOneSignal } from './src/onesignal.js'
 import NotificationPrompt from './NotificationPrompt.jsx'
 import { ascolaNotificheRealtime } from './pushNotificationService'
+import { sendPushNotification } from './pushNotificationService'
 import GestioneDispositiviNotifiche from './GestioneDispositiviNotifiche.jsx'
 import { ToastNotification } from './ToastNotification.jsx'
 import { getFirebaseToken, setupForegroundMessaging } from './firebaseMessaging'
@@ -423,12 +424,22 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
+  const handleSendNotification = async () => {
+    await sendPushNotification({
+      title: 'Test Notifica',
+      body: 'Questa è una notifica inviata da OneSignal tramite API backend!',
+      url: '/',
+      data: { tipo: 'test' }
+    });
+    alert('Notifica inviata!');
+  };
+
   return (
     <>
       <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+      <button style={{position:'fixed',bottom:16,right:16,zIndex:9999}} onClick={handleSendNotification}>Invia notifica di test</button>
       {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
       {toastNotification && <ToastNotification notification={toastNotification} onClose={() => setToastNotification(null)} />}
-      {/* ...rimosso NotificaTestButton... */}
     </>
   )
 }
