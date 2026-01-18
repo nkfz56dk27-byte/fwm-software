@@ -2425,8 +2425,13 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
 
   const caricaClassifiche = async () => {
     try {
-      const { data, error } = await supabase.from('classifiche').select('*').order('nome')
-      if (!error && data) setClassifiche(data)
+      // Carica sia classifiche standard che custom
+      const { data: standard, error: err1 } = await supabase.from('classifiche').select('*').order('nome')
+      const { data: custom, error: err2 } = await supabase.from('classifiche_custom').select('*').order('nome')
+      let tutte = []
+      if (!err1 && Array.isArray(standard)) tutte = tutte.concat(standard)
+      if (!err2 && Array.isArray(custom)) tutte = tutte.concat(custom.map(c => ({ ...c, isCustom: true })))
+      setClassifiche(tutte)
       setLoading(false)
     } catch (err) {
       setLoading(false)
@@ -2513,25 +2518,44 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
                 <button onClick={() => !modalitaElimina && onOpenClassifica(c.id)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
               </div>
             ))}
-           <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+           <div style={{ display: 'flex', justifyContent: 'center', padding: '20px', gap: '20px' }}>
   {isAdmin && !modalitaElimina && (
-    <button
-      onClick={() => setShowNuova(true)}
-      style={{
-        width: '250px',
-        height: '80px',
-        background: '#34C759',
-        color: 'white',
-        border: 'none',
-        borderRadius: '25px',
-        fontSize: '24px',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
-      }}
-    >
-      Nuova Classifica
-    </button>
+    <>
+      <button
+        onClick={() => setShowNuova(true)}
+        style={{
+          width: '250px',
+          height: '80px',
+          background: '#34C759',
+          color: 'white',
+          border: 'none',
+          borderRadius: '25px',
+          fontSize: '24px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+        }}
+      >
+        Nuova Classifica
+      </button>
+      <button
+        onClick={() => setShowNuova(true)}
+        style={{
+          width: '250px',
+          height: '80px',
+          background: '#007AFF',
+          color: 'white',
+          border: 'none',
+          borderRadius: '25px',
+          fontSize: '24px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+        }}
+      >
+        Nuova Classifica Personalizzata
+      </button>
+    </>
   )}
 </div>
 
