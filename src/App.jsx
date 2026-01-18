@@ -3495,7 +3495,7 @@ function NuovaPaginaView({ onClose, user }) {
     }
 
     try {
-      const { data, error } = await supabase.from('classifiche').insert([nuovoCampionato])
+      const { data, error } = await supabase.from('classifiche_custom').insert([nuovoCampionato])
       if (error) {
         alert('❌ Errore nel salvataggio su Supabase: ' + (error.message || error.details || error))
         return
