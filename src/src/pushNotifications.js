@@ -88,83 +88,43 @@ export async function inviaNotificaPush(options) {
     targetUsers = [] // Se vuoto, invia a tutti
   } = options
 
-  // IMPORTANTE: Verifica se l'utente è SUL SITO
-  // Se la tab è visibile, NON inviare la notifica push
-  if (!document.hidden) {
-    console.log('✅ Utente sul sito - notifica push NON inviata (usa notifiche interne)')
-    return { success: false, reason: 'user_on_site' }
-  }
+  // Invio sempre la notifica push tramite API Vercel
 
   try {
     console.log('📤 Invio notifica push:', { titolo, messaggio, tipo })
 
-    const requestBody = {
-      app_id: ONESIGNAL_APP_ID,
-      headings: { it: titolo, en: titolo },
-      contents: { it: messaggio, en: messaggio },
-      url: url,
-      data: {
-        tipo: tipo,
-        timestamp: new Date().toISOString(),
-        ...data
-      },
-      // Icona e badge
-      chrome_web_icon: '/icona_notifiche.png',
-      firefox_icon: '/icona_notifiche.png',
-      chrome_web_badge: '/icona_notifiche.png',
-      // Suono
-      ios_sound: 'default',
-      android_sound: 'default',
-      // Priorità
-      priority: 10,
-      // Web push options
-      web_buttons: [
-        {
-          id: 'open',
-          text: 'Apri',
-          icon: '/icona_notifiche.png',
-          url: url
-        }
-      ]
-    }
-
-    // Se targetUsers è specificato, invia solo a quegli utenti
-    if (targetUsers.length > 0) {
-      // Usa i tag per targetizzare utenti specifici
-      requestBody.filters = targetUsers.map((username, index) => {
-        const filter = { field: 'tag', key: 'username', relation: '=', value: username }
-        // Aggiungi OR tra i filtri (tranne per l'ultimo)
-        if (index < targetUsers.length - 1) {
-          return [filter, { operator: 'OR' }]
-        }
-        return [filter]
-      }).flat()
-    } else {
-      // Invia a tutti gli utenti iscritti
-      requestBody.included_segments = ['All']
-    }
-
-    const response = await fetch('https://api.onesignal.com/notifications', {
+    // Invio tramite API Vercel
+    const apiUrl =
+      window.location.hostname === 'localhost'
+        ? 'http://localhost:3000/api/send-notification'
+        : '/api/send-notification';
+    const res = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Key ${ONESIGNAL_REST_API_KEY}`
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(requestBody)
-    })
-
-    const result = await response.json()
-
-    if (response.ok) {
-      console.log('✅ Notifica push inviata con successo!', result)
-      return { success: true, data: result }
+      body: JSON.stringify({
+        title: titolo,
+        body: messaggio,
+        url,
+        data: {
+          tipo,
+          timestamp: new Date().toISOString(),
+          ...data
+        }
+      })
+    });
+    const result = await res.json();
+    if (res.ok) {
+      console.log('✅ Notifica push inviata con successo!', result);
+      return { success: true, data: result };
     } else {
-      console.error('❌ Errore invio notifica:', result)
-      return { success: false, error: result }
+      console.error('❌ Errore invio notifica:', result);
+      return { success: false, error: result };
     }
   } catch (error) {
-    console.error('❌ Errore invio notifica push:', error)
-    return { success: false, error: error.message }
+    console.error('❌ Errore invio notifica push:', error);
+    return { success: false, error: error.message };
   }
 }
 

@@ -256,7 +256,11 @@ export async function getDispositiviUtente(username) {
 // Funzione di test FCM per browser
   export async function sendPushNotification({ title, body, url = '/', data = {} }) {
     try {
-      const res = await fetch('/api/send-notification', {
+      const apiUrl =
+        window.location.hostname === 'localhost'
+          ? 'http://localhost:3000/api/send-notification'
+          : '/api/send-notification';
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

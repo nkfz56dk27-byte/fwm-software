@@ -3326,17 +3326,21 @@ function NuovaPaginaView({ onClose, user }) {
       return
     }
 
-    // Inserisci notifica personalizzata in push_notifications
-    const notifica = {
-      title: 'Nuova penalità',
-      body: `Il pilota ${pilotaSelezionato.nome} ha ricevuto ${infrazioneDB.punti} punto/i per: ${infrazioneDB.motivo}`,
-      status: 'pending',
-      notification_type: 'infrazione',
-      pilota_id: pilotaSelezionato.id,
-      campionato_id: campionatoSelezionato.id,
-      created_at: new Date().toISOString()
-    }
-    await supabase.from('push_notifications').insert([notifica])
+    // Invio notifica push automatica tramite OneSignal
+    import('./src/pushNotifications.js').then(({ inviaNotificaPush }) => {
+      inviaNotificaPush({
+        titolo: 'Nuova penalità',
+        messaggio: `Il pilota ${pilotaSelezionato.nome} ha ricevuto ${infrazioneDB.punti} punto/i per: ${infrazioneDB.motivo}`,
+        tipo: 'infrazione',
+        url: window.location.origin,
+        data: {
+          pilota_id: pilotaSelezionato.id,
+          campionato_id: campionatoSelezionato.id,
+          motivo: infrazioneDB.motivo,
+          punti: infrazioneDB.punti
+        }
+      });
+    });
 
     // Aggiorna stato locale solo se il DB va a buon fine
     const infrazione = {
