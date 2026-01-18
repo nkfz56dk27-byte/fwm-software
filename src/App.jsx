@@ -3739,9 +3739,15 @@ function NuovaPaginaView({ onClose, user }) {
         import('./src/pushNotifications.js').then(async ({ inviaNotificaPush }) => {
           try {
             // Trova il nome del pilota selezionato
-            const pilotaObj = campionatoSelezionato.piloti?.find(p => p.id === nuovaInfrazione.pilotaId);
-            const pilotaNome = pilotaObj?.nome || `ID ${nuovaInfrazione.pilotaId}`;
-            const categoriaNome = campionatoSelezionato?.nome || 'Categoria';
+            let pilotaNome = '';
+            let categoriaNome = campionatoSelezionato?.nome || 'Categoria';
+            // Trova il nome pilota in modo robusto
+            if (campionatoSelezionato.piloti && Array.isArray(campionatoSelezionato.piloti)) {
+              const pilotaObj = campionatoSelezionato.piloti.find(p => String(p.id) === String(nuovaInfrazione.pilotaId));
+              pilotaNome = pilotaObj?.nome || `ID ${nuovaInfrazione.pilotaId}`;
+            } else {
+              pilotaNome = `ID ${nuovaInfrazione.pilotaId}`;
+            }
             console.log('[PenaltyPoints] Invio notifica automatica penalty:', {
               categoria: categoriaNome,
               pilota: pilotaNome,
