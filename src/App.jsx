@@ -3475,25 +3475,38 @@ function NuovaPaginaView({ onClose, user }) {
       alert('❌ Inserisci il nome del campionato')
       return
     }
-    
+    // Protezione: vieta nomi "Formula 1" o "Formula E"
+    const nomeLower = nuovoCampionatoForm.nome.trim().toLowerCase()
+    if (nomeLower === 'formula 1' || nomeLower === 'formula e') {
+      alert('❌ Non puoi creare una classifica con nome "Formula 1" o "Formula E". Queste sono riservate!')
+      return
+    }
     if (nuovoCampionatoForm.piloti.length === 0) {
       alert('❌ Aggiungi almeno un pilota')
       return
     }
 
     const nuovoCampionato = {
-      id: `campionato_${Date.now()}`,
       nome: nuovoCampionatoForm.nome,
       piloti: nuovoCampionatoForm.piloti,
       costruttori: [],
       gp: []
     }
 
-    setCampionati([...campionati, nuovoCampionato])
-    setNuovoCampionatoForm({ nome: '', piloti: [] })
-    setShowCreaZero(false)
-    setShowAggiungiMenu(false)
-    alert(`✅ Campionato "${nuovoCampionato.nome}" creato con successo!`)
+    try {
+      const { data, error } = await supabase.from('classifiche').insert([nuovoCampionato])
+      if (error) {
+        alert('❌ Errore nel salvataggio su Supabase: ' + (error.message || error.details || error))
+        return
+      }
+      setCampionati([...campionati, { ...nuovoCampionato, id: data[0]?.id || `campionato_${Date.now()}` }])
+      setNuovoCampionatoForm({ nome: '', piloti: [] })
+      setShowCreaZero(false)
+      setShowAggiungiMenu(false)
+      alert(`✅ Campionato "${nuovoCampionato.nome}" creato con successo!`)
+    } catch (err) {
+      alert('❌ Errore imprevisto nel salvataggio: ' + err.message)
+    }
   }
 
   if (loading) {
