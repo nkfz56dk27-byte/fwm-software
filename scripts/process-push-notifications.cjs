@@ -23,6 +23,7 @@ if (!admin.apps.length) {
   });
 }
 const messaging = admin.messaging();
+console.log('Funzioni disponibili su messaging:', Object.keys(messaging));
 
 async function processNotifications() {
   // 1. Prendi tutte le notifiche pending
@@ -54,13 +55,26 @@ async function processNotifications() {
     // Invia la notifica a tutti i token (uno per uno)
     if (tokens.length > 0) {
       console.log('Invio a tokens:', tokens);
-      for (const token of tokens) {
-        try {
-          const response = await messaging.sendToDevice(token, message);
-          console.log(`Risposta Firebase per token ${token}:`, response);
-        } catch (err) {
-          console.error(`Errore invio token ${token}:`, err);
+      if (typeof messaging.sendToDevice === 'function') {
+        for (const token of tokens) {
+          try {
+            const response = await messaging.sendToDevice(token, message);
+            console.log(`Risposta Firebase per token ${token}:`, response);
+          } catch (err) {
+            console.error(`Errore invio token ${token}:`, err);
+          }
         }
+      } else if (typeof messaging.send === 'function') {
+        for (const token of tokens) {
+          try {
+            const response = await messaging.send({ token, ...message });
+            console.log(`Risposta Firebase (send) per token ${token}:`, response);
+          } catch (err) {
+            console.error(`Errore invio token ${token} con send:`, err);
+          }
+        }
+      } else {
+        console.error('Nessun metodo valido per invio notifiche trovato su messaging!');
       }
     } else {
       console.warn('Nessun token trovato per invio notifiche.');
