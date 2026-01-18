@@ -3327,33 +3327,49 @@ function NuovaPaginaView({ onClose, user }) {
     }
 
     // Invio notifica push automatica tramite OneSignal
+    console.log('[PenaltyPoints] PREPARO invio notifica push penalty:', {
+      pilota: pilotaSelezionato?.nome,
+      punti: infrazioneDB?.punti,
+      motivo: infrazioneDB?.motivo,
+      campionato_id: campionatoSelezionato?.id,
+      pilota_id: pilotaSelezionato?.id
+    });
     import('./src/pushNotifications.js').then(async ({ inviaNotificaPush }) => {
-      console.log('[PenaltyPoints] Invio notifica push penalty:', {
-        pilota: pilotaSelezionato.nome,
-        punti: infrazioneDB.punti,
-        motivo: infrazioneDB.motivo
-      });
       try {
-        const res = await inviaNotificaPush({
+        console.log('[PenaltyPoints] CHIAMO inviaNotificaPush', {
           titolo: 'Nuova penalità',
-          messaggio: `Il pilota ${pilotaSelezionato.nome} ha ricevuto ${infrazioneDB.punti} punto/i per: ${infrazioneDB.motivo}`,
+          messaggio: `Il pilota ${pilotaSelezionato?.nome} ha ricevuto ${infrazioneDB?.punti} punto/i per: ${infrazioneDB?.motivo}`,
           tipo: 'infrazione',
           url: window.location.origin,
           data: {
-            pilota_id: pilotaSelezionato.id,
-            campionato_id: campionatoSelezionato.id,
-            motivo: infrazioneDB.motivo,
-            punti: infrazioneDB.punti
+            pilota_id: pilotaSelezionato?.id,
+            campionato_id: campionatoSelezionato?.id,
+            motivo: infrazioneDB?.motivo,
+            punti: infrazioneDB?.punti
           }
         });
+        const res = await inviaNotificaPush({
+          titolo: 'Nuova penalità',
+          messaggio: `Il pilota ${pilotaSelezionato?.nome} ha ricevuto ${infrazioneDB?.punti} punto/i per: ${infrazioneDB?.motivo}`,
+          tipo: 'infrazione',
+          url: window.location.origin,
+          data: {
+            pilota_id: pilotaSelezionato?.id,
+            campionato_id: campionatoSelezionato?.id,
+            motivo: infrazioneDB?.motivo,
+            punti: infrazioneDB?.punti
+          }
+        });
+        console.log('[PenaltyPoints] RISPOSTA inviaNotificaPush:', res);
         if (res.success) {
           console.log('[PenaltyPoints] Notifica push inviata con successo:', res);
+          alert('✅ Notifica penalty points inviata!');
         } else {
           console.error('[PenaltyPoints] Errore invio notifica push:', res.error);
           alert('❌ Errore invio notifica push penalty points: ' + (res.error?.errors?.[0] || res.error));
         }
       } catch (err) {
-        console.error('[PenaltyPoints] Errore invio notifica push (catch):', err);
+        console.error('[PenaltyPoints] ERRORE invio notifica push (catch):', err);
         alert('❌ Errore invio notifica push penalty points: ' + err.message);
       }
     });
