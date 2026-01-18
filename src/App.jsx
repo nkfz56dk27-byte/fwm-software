@@ -3637,29 +3637,38 @@ function NuovaPaginaView({ onClose, user }) {
     }
 
     const handleSalvaInfrazione = async () => {
+      // Validazione campi obbligatori
       if (!nuovaInfrazione.pilotaId || !nuovaInfrazione.motivo || !nuovaInfrazione.dataInfrazione) {
         alert('Compila tutti i campi')
         return
       }
 
       const expiryDate = calculateExpiryDate(nuovaInfrazione.dataInfrazione)
-      
-      // Salva su Supabase nella tabella infrazioni
+      const payload = {
+        campionato_id: campionatoSelezionato.id,
+        pilota_id: nuovaInfrazione.pilotaId,
+        punti: parseInt(nuovaInfrazione.punti),
+        motivo: nuovaInfrazione.motivo,
+        data_infrazione: nuovaInfrazione.dataInfrazione,
+        data_scadenza: expiryDate
+      }
+      // Log dettagliato per debug
+      console.log('[DEBUG] Payload infrazione da salvare:', payload)
+
+      // Controllo campi null/undefined
+      const missing = Object.entries(payload).filter(([k, v]) => v === null || v === undefined || v === '' || (typeof v === 'number' && isNaN(v)))
+      if (missing.length > 0) {
+        alert('Errore: campo mancante o non valido: ' + missing.map(([k]) => k).join(', '))
+        return
+      }
+
       try {
         const { data, error } = await supabase
           .from('infrazioni')
-          .insert({
-            campionato_id: campionatoSelezionato.id,
-            pilota_id: nuovaInfrazione.pilotaId,
-            punti: parseInt(nuovaInfrazione.punti),
-            motivo: nuovaInfrazione.motivo,
-            data_infrazione: nuovaInfrazione.dataInfrazione,
-            data_scadenza: expiryDate
-          })
+          .insert(payload)
           .select()
-        
         if (!error && data) {
-          // Aggiorna lo stato locale con l'infrazione salvata
+          // Aggiorna lo stato locale solo se il salvataggio va a buon fine
           const infrazione = {
             id: data[0].id,
             points: data[0].punti,
@@ -3668,62 +3677,25 @@ function NuovaPaginaView({ onClose, user }) {
             expiryDate: data[0].data_scadenza,
             gpBan: ''
           }
-          
           const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || []
           setPenaltyDetails({
             ...penaltyDetails,
             [`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`]: [...infrazioniPilota, infrazione]
           })
-          
           alert('Infrazione salvata con successo!')
         } else {
-          alert('Errore nel salvataggio')
+          console.error('[SUPABASE ERROR]', error)
+          alert('Errore nel salvataggio: ' + (error?.message || ''))
         }
       } catch (err) {
         console.error('Errore salvataggio su Supabase:', err)
         alert('Errore nel salvataggio')
       }
-
       setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null })
       setShowAggiungiInfrazione(false)
     }
 
-    const handleSalvaInfrazione_OLD = async () => {
-      if (!nuovaInfrazione.pilotaId || !nuovaInfrazione.motivo || !nuovaInfrazione.dataInfrazione) {
-        alert('Compila tutti i campi')
-        return
-      }
-
-      const expiryDate = calculateExpiryDate(nuovaInfrazione.dataInfrazione)
-      const infrazione = {
-        id: Date.now(),
-        points: parseInt(nuovaInfrazione.punti),
-        reason: nuovaInfrazione.motivo,
-        dateAdded: nuovaInfrazione.dataInfrazione,
-        expiryDate: expiryDate,
-        gpBan: ''
-      }
-
-      const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || []
-      const nuoviDettagli = {
-        ...penaltyDetails,
-        [`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`]: [...infrazioniPilota, infrazione]
-      }
-      setPenaltyDetails(nuoviDettagli)
-
-      // Salva su Supabase
-      try {
-        await supabase
-          .from('classifiche')
-          .update({ penalty_points: nuoviDettagli })
-          .eq('id', campionatoSelezionato.id)
-      } catch (err) {
-        console.error('Errore salvataggio su Supabase:', err)
-      }
-
-      setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null })
-      setShowAggiungiInfrazione(false)
-    }
+    // RIMOSSO: handleSalvaInfrazione_OLD e ogni salvataggio su classifiche.penalty_points
 
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 998, padding: '20px' }}>

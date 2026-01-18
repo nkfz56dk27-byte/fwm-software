@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /**
  * Helper per testare le notifiche in background
  * Aggiungi questo codice nella console DevTools per testare
@@ -6,22 +7,39 @@
 // TEST 1: Controlla il supporto delle notifiche
 async function testNotificationSupport() {
   console.log('🧪 TEST 1: Supporto Notifiche')
+=======
+// notificationTester.js - Test notifiche push e Supabase
+import { inviaNotificaAUtente } from './pushNotificationService'
+
+export async function testNotificationSupport() {
+  console.log('🧪 TEST: Supporto Notifiche')
+>>>>>>> 079afb9 (Deploy: integrazione notifiche push mobile, fix FCM, test e istruzioni)
   console.log('- Notification API:', 'Notification' in window)
   console.log('- Service Workers:', 'serviceWorker' in navigator)
   console.log('- Push Manager:', 'PushManager' in window)
   console.log('- Permesso attuale:', Notification.permission)
 }
 
+<<<<<<< HEAD
 // TEST 2: Registra il Service Worker
 async function testServiceWorkerRegistration() {
   console.log('🧪 TEST 2: Registrazione Service Worker')
+=======
+export async function testServiceWorkerRegistration() {
+  console.log('🧪 TEST: Registrazione Service Worker')
+>>>>>>> 079afb9 (Deploy: integrazione notifiche push mobile, fix FCM, test e istruzioni)
   if (!('serviceWorker' in navigator)) {
     console.warn('Service Workers non supportati')
     return false
   }
+<<<<<<< HEAD
   
   try {
     const reg = await navigator.serviceWorker.register('/service-worker.js')
+=======
+  try {
+    const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+>>>>>>> 079afb9 (Deploy: integrazione notifiche push mobile, fix FCM, test e istruzioni)
     console.log('✅ Service Worker registrato:', reg)
     return true
   } catch (error) {
@@ -30,6 +48,7 @@ async function testServiceWorkerRegistration() {
   }
 }
 
+<<<<<<< HEAD
 // TEST 3: Ottieni il Firebase Token
 async function testFirebaseToken() {
   console.log('🧪 TEST 3: Firebase Token')
@@ -63,6 +82,14 @@ async function testShowNotification() {
     return false
   }
   
+=======
+export async function testShowNotification() {
+  console.log('🧪 TEST: Mostra Notifica Di Test')
+  if (Notification.permission !== 'granted') {
+    alert('Permesso notifiche non concesso')
+    return false
+  }
+>>>>>>> 079afb9 (Deploy: integrazione notifiche push mobile, fix FCM, test e istruzioni)
   try {
     if ('serviceWorker' in navigator) {
       const reg = await navigator.serviceWorker.ready
@@ -82,6 +109,7 @@ async function testShowNotification() {
   }
 }
 
+<<<<<<< HEAD
 // TEST 5: Sottoscrivi a Web Push
 async function testWebPushSubscription() {
   console.log('🧪 TEST 5: Web Push Subscription')
@@ -116,42 +144,12 @@ async function testSupabaseStatus() {
   try {
     const { supabase } = await import('./supabaseClient')
     
-    // Testa la connessione
-    const { data, error } = await supabase
-      .from('push_devices')
-      .select('count', { count: 'exact', head: true })
-    
-    if (error) {
-      console.error('❌ Errore Supabase:', error)
-      return false
-    }
-    
-    console.log('✅ Supabase connesso')
-    return true
-  } catch (error) {
-    console.error('❌ Errore:', error)
-    return false
-  }
 }
 
 // TEST 7: Controlla i dispositivi registrati
 async function testRegisteredDevices(username) {
   console.log(`🧪 TEST 7: Dispositivi Registrati per ${username}`)
   
-  try {
-    const { getDispositiviUtente } = await import('./pushNotificationService')
-    const devices = await getDispositiviUtente(username)
-    
-    console.log(`✅ Dispositivi trovati: ${devices.length}`)
-    devices.forEach((device, index) => {
-      console.log(`  ${index + 1}. ${device.device_type} - Ultimo accesso: ${device.ultimo_accesso}`)
-    })
-    
-    return devices
-  } catch (error) {
-    console.error('❌ Errore:', error)
-    return []
-  }
 }
 
 // TEST 8: Invia una notifica di test via Supabase
@@ -160,25 +158,30 @@ async function testSendNotification(username) {
   if (!username) {
     username = sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user'
   }
-  
-  console.log(`🧪 TEST 8: Invia Notifica A ${username}`)
-  
-  try {
-    const { inviaNotificaAUtente } = await import('./pushNotificationService')
-    
-    const success = await inviaNotificaAUtente(username, {
-      titolo: '🧪 Test Notifica Supabase',
-      messaggio: 'Se vedi questa notifica, il sistema funziona!',
-      url: '/calendario',
-      data: { test: true, timestamp: new Date().toISOString() }
-    })
-    
     if (success) {
       console.log('✅ Notifica inviata con successo')
     } else {
       console.log('❌ Errore nell\'invio della notifica')
     }
     
+=======
+    if (success) {
+      console.log('✅ Notifica inviata con successo')
+      // Mostra anche una notifica locale visibile
+      if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready
+        await reg.showNotification('🧪 Test Notifica Supabase', {
+          body: 'Se vedi questa notifica, il sistema funziona!',
+          icon: '/android-chrome-512x512.png',
+          badge: '/android-chrome-512x512.png',
+          tag: 'test-notification-supabase',
+          requireInteraction: true
+        })
+      }
+    } else {
+      console.log('❌ Errore nell\'invio della notifica')
+    }
+>>>>>>> 079afb9 (Deploy: integrazione notifiche push mobile, fix FCM, test e istruzioni)
     return success
   } catch (error) {
     console.error('❌ Errore:', error)
@@ -186,6 +189,7 @@ async function testSendNotification(username) {
   }
 }
 
+<<<<<<< HEAD
 // TEST 9: Mostra un report completo
 async function testFullReport(username = 'test_user') {
   console.log('═══════════════════════════════════════════════════')
@@ -229,10 +233,26 @@ async function testFullReport(username = 'test_user') {
     await testSendNotification(username)
   }
   
+=======
+export async function testFullReport(username = 'test_user') {
+  console.log('═══════════════════════════════════════════════════')
+  console.log('🧪 REPORT COMPLETO NOTIFICHE')
+  console.log('═══════════════════════════════════════════════════')
+  await testNotificationSupport()
+  console.log('\n')
+  const swOk = await testServiceWorkerRegistration()
+  console.log('\n')
+  if (swOk) {
+    await testShowNotification()
+    console.log('\n')
+    await testSendNotification(username)
+  }
+>>>>>>> 079afb9 (Deploy: integrazione notifiche push mobile, fix FCM, test e istruzioni)
   console.log('\n═══════════════════════════════════════════════════')
   console.log('🧪 REPORT COMPLETATO')
   console.log('═══════════════════════════════════════════════════')
 }
+<<<<<<< HEAD
 
 // TEST 10: Monitora i messaggi del Service Worker
 function monitorServiceWorker() {
@@ -283,3 +303,5 @@ export {
   testFullReport,
   monitorServiceWorker
 }
+=======
+>>>>>>> 079afb9 (Deploy: integrazione notifiche push mobile, fix FCM, test e istruzioni)
