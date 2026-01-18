@@ -2,10 +2,7 @@
 // Esegui: node scripts/process-push-notifications.js
 
 const { createClient } = require('@supabase/supabase-js');
-const adminRaw = require('firebase-admin');
-const admin = adminRaw.default || adminRaw;
-const path = require('path');
-const fs = require('fs');
+const { sendOneSignalNotification } = require('./send-onesignal');
 
 // Configura Supabase
 const supabase = createClient(
@@ -13,16 +10,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || 'INSERISCI_LA_SERVICE_ROLE_KEY_SUPABASE'
 );
 
-// Configura Firebase Admin
-const credentialsPath = path.join(__dirname, '../firebase-service-account.json');
-const serviceAccount = require(credentialsPath);
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    projectId: 'fwm-notifiche'
-  });
-}
-const messaging = admin.messaging();
+
 
 async function processNotifications() {
   // 1. Prendi tutte le notifiche pending
@@ -31,41 +19,35 @@ async function processNotifications() {
     .select('*')
     .eq('status', 'pending');
   if (error) throw error;
+  console.log(`[DEBUG] Notifiche pending trovate: ${notifications ? notifications.length : 0}`);
 
-  // 2. Prendi tutti i token FCM
-  const { data: tokensData, error: tokenError } = await supabase
-    .from('firebase_tokens')
-    .select('token');
-  if (tokenError) throw tokenError;
-  const tokens = (tokensData || []).map(row => row.token).filter(Boolean);
+
 
   for (const notif of notifications) {
-    const message = {
-      notification: {
+    try {
+      await sendOneSignalNotification({
         title: notif.title,
-        body: notif.body
-      },
-      data: {
-        tipo: notif.notification_type || 'info',
-        timestamp: new Date().toISOString(),
-        url: '/'
-      }
-    };
-    // Invia la notifica a tutti i token (uno per uno, compatibile ovunque)
-    if (tokens.length > 0) {
-      for (const token of tokens) {
-        try {
-          await messaging.send({ token, ...message });
-        } catch (err) {
-          /* errore silenzioso, log minimale */
+        body: notif.body,
+        url: '/',
+        data: {
+          tipo: notif.notification_type || 'info',
+          timestamp: new Date().toISOString()
         }
-      }
+      });
+      console.log(`[DEBUG] Notifica inviata tramite OneSignal: ${notif.title}`);
+    } catch (err) {
+      console.log(`[DEBUG] Errore invio OneSignal:`, err && err.message);
     }
     // Aggiorna lo status a 'sent'
-    await supabase
+    const { error: updateError } = await supabase
       .from('push_notifications')
       .update({ status: 'sent' })
       .eq('id', notif.id);
+    if (updateError) {
+      console.log(`[DEBUG] Errore update notifica id ${notif.id}:`, updateError.message);
+    } else {
+      console.log(`[DEBUG] Notifica id ${notif.id} aggiornata a sent`);
+    }
   }
   console.log('✅ Notifiche processate!');
 }
