@@ -3490,7 +3490,8 @@ function NuovaPaginaView({ onClose, user }) {
       nome: nuovoCampionatoForm.nome,
       piloti: nuovoCampionatoForm.piloti,
       costruttori: [],
-      gp: []
+      gp: [],
+      is_f1_or_fe: null
     }
 
     try {
