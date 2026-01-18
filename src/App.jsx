@@ -93,6 +93,14 @@ function App() {
 
     setNotificheUnsubscribe(() => unsubscribe)
 
+    // Ascolta le notifiche push in foreground (FCM)
+    setupForegroundMessaging((notifica) => {
+      // Mostra il toast solo se la tab è attiva
+      if (document.visibilityState === 'visible') {
+        setToastNotification(notifica)
+      }
+    })
+
     // Cleanup: stoppa l'ascolto quando il componente si smonta
     return () => {
       if (unsubscribe) {
@@ -270,23 +278,6 @@ function App() {
       setUser(user)
       setMustChangePassword(user.deve_cambiare_password)
       console.log('[DEBUG LOGIN] Login riuscito, user:', user)
-      // 1. Login anche su Supabase Auth (necessario per RLS)
-      if (!user.email) {
-        setLoginError('Utente senza email, impossibile login Auth')
-        setLoading(false)
-        return
-      }
-      console.log('[DEBUG LOGIN] Login su Supabase Auth con email:', user.email)
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: password
-      });
-      console.log('[DEBUG LOGIN] Risultato signInWithPassword:', { authData, authError });
-      if (authError) {
-        setLoginError('Errore autenticazione Supabase Auth: ' + authError.message)
-        setLoading(false)
-        return
-      }
       // Salva l'username per le funzioni di test notifiche
       sessionStorage.setItem('username', username)
       console.log('[DEBUG LOGIN] Username salvato in sessionStorage')
