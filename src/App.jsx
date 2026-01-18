@@ -3307,12 +3307,25 @@ function NuovaPaginaView({ onClose, user }) {
       data_scadenza: dataScadenza.toISOString().split('T')[0]
     }
 
+
     // Inserisci su Supabase
     const { data, error } = await supabase.from('infrazioni').insert([infrazioneDB])
     if (error) {
       alert('❌ Errore nel salvataggio su Supabase')
       return
     }
+
+    // Inserisci notifica personalizzata in push_notifications
+    const notifica = {
+      title: 'Nuova penalità',
+      body: `Il pilota ${pilotaSelezionato.nome} ha ricevuto ${infrazioneDB.punti} punto/i per: ${infrazioneDB.motivo}`,
+      status: 'pending',
+      notification_type: 'infrazione',
+      pilota_id: pilotaSelezionato.id,
+      campionato_id: campionatoSelezionato.id,
+      created_at: new Date().toISOString()
+    }
+    await supabase.from('push_notifications').insert([notifica])
 
     // Aggiorna stato locale solo se il DB va a buon fine
     const infrazione = {
