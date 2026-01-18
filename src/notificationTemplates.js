@@ -1,3 +1,29 @@
+/**
+ * Genera il testo della notifica per creazione classifica
+ * @param {string} nomeClassifica
+ * @returns {Object} { titolo, messaggio, tipo }
+ */
+export function getClassificaCreataNotification(nomeClassifica) {
+  return {
+    titolo: '🏁 Nuova classifica',
+    messaggio: `La classifica "${nomeClassifica}" è stata creata.`,
+    tipo: 'classifica_creata'
+  };
+}
+
+/**
+ * Genera il testo della notifica per aggiornamento classifica
+ * @param {string} nomeClassifica
+ * @param {string} dettagli (opzionale)
+ * @returns {Object} { titolo, messaggio, tipo }
+ */
+export function getClassificaAggiornataNotification(nomeClassifica, dettagli = '') {
+  return {
+    titolo: '🏁 Classifica Aggiornata',
+    messaggio: `La classifica "${nomeClassifica}" è stata aggiornata${dettagli ? ': ' + dettagli : ''}.`,
+    tipo: 'classifica_aggiornata'
+  };
+}
 // src/notificationTemplates.js
 
 /**
