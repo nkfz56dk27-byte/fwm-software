@@ -7,7 +7,14 @@ export default async function handler(req, res) {
   const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
   const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 
-  const { title, body, url = '/', data = {} } = req.body;
+    let fetchFn;
+    try {
+      fetchFn = (typeof fetch !== 'undefined') ? fetch : require('node-fetch');
+    } catch (e) {
+      fetchFn = require('node-fetch');
+    }
+
+    const { title, body, url = '/', data = {} } = req.body;
 
   const payload = {
     app_id: ONESIGNAL_APP_ID,
@@ -19,7 +26,7 @@ export default async function handler(req, res) {
   };
 
   try {
-    const response = await fetch('https://onesignal.com/api/v1/notifications', {
+      const response = await fetchFn('https://onesignal.com/api/v1/notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -27,13 +34,14 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(payload)
     });
-    if (!response.ok) {
-      const err = await response.text();
-      return res.status(500).json({ success: false, error: err });
+      if (!response.ok) {
+        console.error('❌ OneSignal API error:', result);
+        return res.status(500).json({ success: false, error: result });
     }
     const result = await response.json();
     return res.status(200).json({ success: true, result });
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+      console.error('❌ Serverless error:', error);
+      return res.status(500).json({ success: false, error: error.message });
   }
 }
