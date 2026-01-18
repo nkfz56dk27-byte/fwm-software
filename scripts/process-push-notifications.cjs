@@ -25,6 +25,8 @@ if (!admin.apps.length) {
 }
 const messaging = admin.messaging();
 console.log('Funzioni disponibili su messaging:', Object.keys(messaging));
+console.log('Export di admin.messaging:', admin.messaging);
+console.log('Export di admin:', Object.keys(admin));
 
 async function processNotifications() {
   // 1. Prendi tutte le notifiche pending
