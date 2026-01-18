@@ -3738,31 +3738,54 @@ function NuovaPaginaView({ onClose, user }) {
         // Invio notifica push automatica penalty points
         import('./src/pushNotifications.js').then(async ({ inviaNotificaPush }) => {
           try {
+            // Trova il nome del pilota selezionato
+            const pilotaObj = campionatoSelezionato.piloti?.find(p => p.id === nuovaInfrazione.pilotaId);
+            const pilotaNome = pilotaObj?.nome || `ID ${nuovaInfrazione.pilotaId}`;
+            const categoriaNome = campionatoSelezionato?.nome || 'Categoria';
             console.log('[PenaltyPoints] Invio notifica automatica penalty:', {
-              pilota: nuovaInfrazione.pilotaId,
+              categoria: categoriaNome,
+              pilota: pilotaNome,
               punti: infrazioneDB.punti,
               motivo: infrazioneDB.motivo,
               campionato_id: campionatoSelezionato.id
             });
-            const res = await inviaNotificaPush({
-              titolo: 'Nuova penalità',
-              messaggio: `Il pilota ${nuovaInfrazione.pilotaId} ha ricevuto ${infrazioneDB.punti} punto/i per: ${infrazioneDB.motivo}`,
-              tipo: 'infrazione',
-              url: window.location.origin,
-              data: {
-                pilota_id: nuovaInfrazione.pilotaId,
-                campionato_id: campionatoSelezionato.id,
-                motivo: infrazioneDB.motivo,
-                punti: infrazioneDB.punti
+            if (infrazioneDB.punti === 1) {
+              // Notifica speciale per penalità di 1 punto
+              const res1 = await inviaNotificaPush({
+                titolo: 'Nuova penalità',
+                messaggio: `${categoriaNome} ${pilotaNome} ha ricevuto 1 punto penalità per: ${infrazioneDB.motivo}`,
+                tipo: 'infrazione_minima',
+                url: window.location.origin,
+                data: {
+                  pilota_id: nuovaInfrazione.pilotaId,
+                  campionato_id: campionatoSelezionato.id,
+                  motivo: infrazioneDB.motivo,
+                  punti: infrazioneDB.punti
+                }
+              });
+              console.log('[PenaltyPoints] RISPOSTA inviaNotificaPush (minima):', res1);
+            } else if (infrazioneDB.punti >= 2) {
+              // Notifica standard solo per penalità >= 2 punti
+              const res = await inviaNotificaPush({
+                titolo: 'Nuova penalità',
+                messaggio: `${categoriaNome} ${pilotaNome} ha ricevuto ${infrazioneDB.punti} punti penalità per: ${infrazioneDB.motivo}`,
+                tipo: 'infrazione',
+                url: window.location.origin,
+                data: {
+                  pilota_id: nuovaInfrazione.pilotaId,
+                  campionato_id: campionatoSelezionato.id,
+                  motivo: infrazioneDB.motivo,
+                  punti: infrazioneDB.punti
+                }
+              });
+              console.log('[PenaltyPoints] RISPOSTA inviaNotificaPush:', res);
+              if (res.success) {
+                console.log('[PenaltyPoints] Notifica push inviata con successo:', res);
+                alert('✅ Notifica penalty points inviata!');
+              } else {
+                console.error('[PenaltyPoints] Errore invio notifica push:', res.error);
+                alert('❌ Errore invio notifica push penalty points: ' + (res.error?.errors?.[0] || res.error));
               }
-            });
-            console.log('[PenaltyPoints] RISPOSTA inviaNotificaPush:', res);
-            if (res.success) {
-              console.log('[PenaltyPoints] Notifica push inviata con successo:', res);
-              alert('✅ Notifica penalty points inviata!');
-            } else {
-              console.error('[PenaltyPoints] Errore invio notifica push:', res.error);
-              alert('❌ Errore invio notifica push penalty points: ' + (res.error?.errors?.[0] || res.error));
             }
           } catch (err) {
             console.error('[PenaltyPoints] ERRORE invio notifica push (catch):', err);
