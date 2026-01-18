@@ -27,19 +27,19 @@ export default async function handler(req, res) {
 
   try {
       const response = await fetchFn('https://onesignal.com/api/v1/notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${ONESIGNAL_API_KEY}`
-      },
-      body: JSON.stringify(payload)
-    });
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${ONESIGNAL_API_KEY}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
       if (!response.ok) {
         console.error('❌ OneSignal API error:', result);
         return res.status(500).json({ success: false, error: result });
-    }
-    const result = await response.json();
-    return res.status(200).json({ success: true, result });
+      }
+      return res.status(200).json({ success: true, result });
   } catch (error) {
       console.error('❌ Serverless error:', error);
       return res.status(500).json({ success: false, error: error.message });
