@@ -2439,11 +2439,20 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
   }
 
   const eliminaClassifica = async (id) => {
-    if (!confirm('Eliminare questa classifica? Questa azione non può essere annullata.')) return
-    const { error } = await supabase.from('classifiche').delete().eq('id', id)
+    if (!confirm('Eliminare questa classifica? Questa azione non può essere annullata.')) return;
+    // Trova la classifica selezionata
+    const classifica = classifiche.find(c => c.id === id);
+    let error = null;
+    if (classifica && classifica.isCustom) {
+      // Elimina da classifiche_custom
+      ({ error } = await supabase.from('classifiche_custom').delete().eq('id', id));
+    } else {
+      // Elimina da classifiche
+      ({ error } = await supabase.from('classifiche').delete().eq('id', id));
+    }
     if (!error) {
-      caricaClassifiche()
-      setModalitaElimina(false)
+      caricaClassifiche();
+      setModalitaElimina(false);
     }
   }
 
