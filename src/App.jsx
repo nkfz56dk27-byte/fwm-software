@@ -397,8 +397,12 @@ function App() {
     return <NuovaPaginaView onClose={() => setShowNuovaPagina(false)} />
   }
 
-  if (showClassifica) {
+  if (showClassifica && classificaId) {
     return <ClassificaView classificaId={classificaId} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
+  }
+  // Schermata HomeView come default dopo login
+  if (user) {
+    return <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
   }
 
   // ← AGGIUNTO: Render condizionale RitaglioImmagine
@@ -468,7 +472,20 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
 
   const caricaClassifica = async () => {
     try {
-      const { data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single()
+      // Recupera la classifica dalla tabella corretta
+      let data, error
+      // Prova prima la tabella standard
+      ({ data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single())
+      if (!error && data) {
+        setClassifica(data)
+        if (!data.piloti || data.piloti.length === 0) {
+          setShowSetup(true)
+        }
+        setLoading(false)
+        return
+      }
+      // Se non trovata, prova la tabella custom
+      ({ data, error } = await supabase.from('classifiche_custom').select('*').eq('id', classificaId).single())
       if (!error && data) {
         setClassifica(data)
         if (!data.piloti || data.piloti.length === 0) {
@@ -2461,8 +2478,12 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
 
   const caricaClassifiche = async () => {
     try {
-      const { data, error } = await supabase.from('classifiche').select('*').order('nome')
-      if (!error && data) setClassifiche(data)
+      const { data: standard, error: err1 } = await supabase.from('classifiche').select('*').order('nome')
+      const { data: custom, error: err2 } = await supabase.from('classifiche_custom').select('*').order('nome')
+      let tutte = []
+      if (!err1 && Array.isArray(standard)) tutte = tutte.concat(standard)
+      if (!err2 && Array.isArray(custom)) tutte = tutte.concat(custom.map(c => ({ ...c, isCustom: true })))
+      setClassifiche(tutte)
       setLoading(false)
     } catch (err) {
       setLoading(false)
@@ -2471,7 +2492,14 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
 
   const eliminaClassifica = async (id) => {
     if (!confirm('Eliminare questa classifica? Questa azione non può essere annullata.')) return
-    const { error } = await supabase.from('classifiche').delete().eq('id', id)
+    // Trova la classifica per capire se è custom
+    const classifica = classifiche.find(c => c.id === id)
+    let error = null
+    if (classifica && classifica.isCustom) {
+      ({ error } = await supabase.from('classifiche_custom').delete().eq('id', id))
+    } else {
+      ({ error } = await supabase.from('classifiche').delete().eq('id', id))
+    }
     if (!error) {
       caricaClassifiche()
       setModalitaElimina(false)
@@ -2533,7 +2561,7 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
           </button>
         )}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center', width: '100%' }}>
         <div style={{ display: 'flex', gap: '40px' }}>
           {formula1 && <button onClick={() => onOpenClassifica(formula1.id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula 1</button>}
           {formulaE && <button onClick={() => onOpenClassifica(formulaE.id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula E</button>}
@@ -2584,7 +2612,7 @@ function NuovaClassificaModal({ onClose, onSave }) {
   const handleSave = async (e) => {
     e.preventDefault()
     if (!nome.trim()) return
-    const { error } = await supabase.from('classifiche_custom').insert([{ nome, piloti: [], gp: [], costruttori: [], is_f1_or_fe: false }])
+    const { error } = await supabase.from('classifiche_custom').insert([{ nome, piloti: [], gp: [], costruttori: [] }])
     if (!error) onSave()
   }
   return (
