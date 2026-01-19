@@ -503,23 +503,6 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
       let isCreazione = false;
       let createdId = null;
       let createdData = null;
-      let eraVuotaPrima = false;
-
-      // Recupera la classifica attuale per capire se era "vuota"
-      let classificaAttuale = null;
-      if (classificaId) {
-        if (typeof classificaId === 'object' && classificaId.isCustom) {
-          const { data } = await supabase.from('classifiche_custom').select('*').eq('id', classificaId.id).single();
-          classificaAttuale = data;
-        } else {
-          const { data } = await supabase.from('classifiche').select('*').eq('id', classificaId).single();
-          classificaAttuale = data;
-        }
-        if (classificaAttuale && (!classificaAttuale.piloti || classificaAttuale.piloti.length === 0) && (!classificaAttuale.gp || classificaAttuale.gp.length === 0)) {
-          eraVuotaPrima = true;
-        }
-      }
-
       if (!classificaId) {
         // CREAZIONE NUOVA CLASSIFICA
         isCreazione = true;
@@ -551,11 +534,6 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
           } else {
             setClassificaId(createdId);
           }
-        } else if (eraVuotaPrima && (nuovaClassifica.piloti?.length > 0 || nuovaClassifica.gp?.length > 0)) {
-          // Era vuota prima e ora ha piloti o GP: notifica creazione
-          setClassifica(nuovaClassifica);
-          setShowSetup(false);
-          setToastNotification(getClassificaCreataNotification(nuovaClassifica.nome));
         } else {
           setClassifica(nuovaClassifica);
           setShowSetup(false);
