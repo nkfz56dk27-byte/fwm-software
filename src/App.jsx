@@ -501,16 +501,20 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
 
       let error;
       let isCreazione = false;
+      let createdId = null;
+      let createdData = null;
       if (!classificaId) {
         // CREAZIONE NUOVA CLASSIFICA
         isCreazione = true;
         let insertResult;
         if (nuovaClassifica.isCustom) {
-          insertResult = await supabase.from('classifiche_custom').insert([updateObj]);
+          insertResult = await supabase.from('classifiche_custom').insert([updateObj]).select().single();
         } else {
-          insertResult = await supabase.from('classifiche').insert([updateObj]);
+          insertResult = await supabase.from('classifiche').insert([updateObj]).select().single();
         }
         error = insertResult.error;
+        createdData = insertResult.data;
+        createdId = createdData?.id;
       } else {
         // AGGIORNAMENTO CLASSIFICA ESISTENTE
         if (classificaId && typeof classificaId === 'object' && classificaId.isCustom) {
@@ -520,11 +524,19 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         }
       }
       if (!error) {
-        setClassifica(nuovaClassifica)
-        setShowSetup(false)
-        if (isCreazione) {
-          setToastNotification(getClassificaCreataNotification(nuovaClassifica.nome));
+        if (isCreazione && createdData) {
+          setClassifica(createdData);
+          setShowSetup(false);
+          setToastNotification(getClassificaCreataNotification(createdData.nome));
+          // Aggiorna classificaId per future modifiche
+          if (nuovaClassifica.isCustom) {
+            setClassificaId({ id: createdId, isCustom: true });
+          } else {
+            setClassificaId(createdId);
+          }
         } else {
+          setClassifica(nuovaClassifica);
+          setShowSetup(false);
           setToastNotification(getClassificaAggiornataNotification(nuovaClassifica.nome, 'Nuovi risultati disponibili'));
           await notificaClassificaAggiornata(
             nuovaClassifica.nome,
@@ -532,7 +544,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
             user.username
           )
         }
-        caricaClassifica()
+        caricaClassifica();
       } else {
         console.error('Errore salvataggio classifica:', error)
         alert('❌ Errore durante il salvataggio della classifica')
