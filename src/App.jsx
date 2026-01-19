@@ -1563,7 +1563,7 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         {salvando ? 'Salvando...' : 'Salva Impostazioni'}
       </button>
     </div>
-  )
+  );
 }
 
 function CambiaPilotaView({ classifica, onClose, onSave }) {
@@ -2518,8 +2518,7 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
       </div>
       {showNuova && <NuovaClassificaModal onClose={() => setShowNuova(false)} onSave={() => { caricaClassifiche(); setShowNuova(false) }} />}
     </div>
-  )
-}
+    )
 
 function NuovaClassificaModal({ onClose, onSave }) {
   // Step 0: Nome classifica
