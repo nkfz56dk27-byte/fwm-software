@@ -1,4 +1,37 @@
 /**
+ * Invia la notifica di creazione weekend per una categoria (helper per centralizzare la logica)
+ * @param {string} nomeWeekend
+ * @param {string} categoriaId
+ * @param {string} creatoreUsername
+ * @param {function} inviaNotificaAUtente - funzione per inviare la notifica push
+ * @param {Array} categorie - array delle categorie disponibili
+ * @param {object} supabase - istanza supabase
+ * @returns {Promise<void>}
+ */
+export async function notificaCreazioneWeekendCategoria(nomeWeekend, categoriaId, creatoreUsername, inviaNotificaAUtente, categorie, supabase) {
+  const categoriaNome = categorie.find(c => c.id === categoriaId)?.nome || '';
+  const { titolo, messaggio, tipo } = getCreazioneWeekendCategoriaNotification(nomeWeekend, categoriaNome, creatoreUsername);
+  const { data: utenti, error } = await supabase
+    .from('utenti')
+    .select('username')
+    .eq('categoria_id', categoriaId)
+    .eq('attivo', true);
+  if (error) {
+    console.error('Errore recupero utenti categoria:', error);
+    return;
+  }
+  if (!utenti || utenti.length === 0) return;
+  for (const utente of utenti) {
+    await inviaNotificaAUtente(utente.username, {
+      titolo,
+      messaggio,
+      tipo,
+      url: '/',
+      data: { weekend: nomeWeekend, categoria: categoriaId }
+    });
+  }
+}
+/**
  * Genera il testo della notifica per creazione classifica
  * @param {string} nomeClassifica
  * @returns {Object} { titolo, messaggio, tipo }
