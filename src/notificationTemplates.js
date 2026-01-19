@@ -1,3 +1,8 @@
+// ATTENZIONE: Le notifiche PUSH e le notifiche INTERNE devono restare SEPARATE.
+// - Le notifiche interne vanno SOLO nelle tabelle interne (notifiche_disponibilita, notifiche_calendario, ecc.)
+// - Le notifiche push NON devono MAI essere salvate nelle tabelle delle notifiche interne.
+// - Se aggiungi nuove notifiche push, assicurati che non "inquinino" le tabelle delle notifiche interne.
+// - Se aggiungi nuove notifiche interne, assicurati che non parta una push a meno che non sia richiesto esplicitamente.
 /**
  * Invia la notifica di creazione weekend per una categoria (helper per centralizzare la logica)
  * @param {string} nomeWeekend
