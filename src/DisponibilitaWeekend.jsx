@@ -354,7 +354,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       weekend.categoria_id,
       utenteCorrente.username,
       inviaNotificaAUtente,
-      CATEGORIE,
+      categorie,
       supabase
     )
     
