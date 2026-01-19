@@ -1,0 +1,26 @@
+-- SQL per creare la tabella classifiche_custom con tutti i campi richiesti
+CREATE TABLE IF NOT EXISTS classifiche_custom (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT NOT NULL,
+  piloti JSONB DEFAULT '[]',
+  gp JSONB DEFAULT '[]',
+  costruttori JSONB DEFAULT '[]',
+  punti_pole_attivo BOOLEAN DEFAULT FALSE,
+  punti_pole_valore INTEGER DEFAULT 0,
+  giro_veloce_attivo BOOLEAN DEFAULT FALSE,
+  giro_veloce_valore INTEGER DEFAULT 0,
+  usa_sistema_fia BOOLEAN DEFAULT FALSE,
+  usa_sprint BOOLEAN DEFAULT FALSE,
+  usa_modificatore_libero BOOLEAN DEFAULT FALSE,
+  numero_piloti_punti INTEGER DEFAULT 0,
+  punti_per_posizione JSONB DEFAULT '[]',
+  numero_gp_stagione INTEGER DEFAULT 0,
+  numero_sprint_stagione INTEGER DEFAULT 0,
+  usa_sync_automatica BOOLEAN DEFAULT FALSE,
+  url_sync TEXT,
+  ultimo_aggiornamento TIMESTAMP,
+  created_at TIMESTAMP DEFAULT now(),
+  updated_at TIMESTAMP DEFAULT now(),
+  modificatore_libero_punti JSONB DEFAULT '[]',
+  modificatore_libero_numero INTEGER DEFAULT 0
+);
