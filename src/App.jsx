@@ -388,14 +388,10 @@ function App() {
     return <ClassificheMainMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(false) }} onOpenClassificheMenu={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(true) }} onOpenNuovaPagina={() => { setShowClassificheMainMenu(false); setShowNuovaPagina(true) }} />
   }
 
-<<<<<<< HEAD
-  if (showClassificheMenu) {
-    return <ClassificheMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMenu(false); setShowClassificheMainMenu(true) }} onOpenClassifica={(id) => { setClassificaId(id); setShowClassifica(true); setShowClassificheMenu(false) }} />
-=======
   const [classificaCustom, setClassificaCustom] = useState(false);
   if (showClassificheMenu) {
     return <ClassificheMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMenu(false); setShowClassificheMainMenu(true) }} onOpenClassifica={(id, isCustom) => { setClassificaId(id); setClassificaCustom(!!isCustom); setShowClassifica(true); setShowClassificheMenu(false) }} />
->>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
+  }
   }
 
   if (showNuovaPagina) {
@@ -403,11 +399,7 @@ function App() {
   }
 
   if (showClassifica) {
-<<<<<<< HEAD
-    return <ClassificaView classificaId={classificaId} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
-=======
-    return <ClassificaView classificaId={classificaId} isCustom={classificaCustom} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null); setClassificaCustom(false) }} />
->>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
+  return <ClassificaView classificaId={classificaId} isCustom={classificaCustom} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null); setClassificaCustom(false) }} />
   }
 
   // ← AGGIUNTO: Render condizionale RitaglioImmagine
@@ -2448,13 +2440,6 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
   }
 
   const eliminaClassifica = async (id) => {
-<<<<<<< HEAD
-    if (!confirm('Eliminare questa classifica? Questa azione non può essere annullata.')) return
-    const { error } = await supabase.from('classifiche').delete().eq('id', id)
-    if (!error) {
-      caricaClassifiche()
-      setModalitaElimina(false)
-=======
     if (!confirm('Eliminare questa classifica? Questa azione non può essere annullata.')) return;
     // Trova la classifica selezionata
     const classifica = classifiche.find(c => c.id === id);
@@ -2469,7 +2454,7 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
     if (!error) {
       caricaClassifiche();
       setModalitaElimina(false);
->>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
+    }
     }
   }
 
@@ -2541,11 +2526,7 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
             {classifiche.filter(c => c.nome !== "Formula 1" && c.nome !== "Formula E").map(c => (
               <div key={c.id} style={{ display: 'flex', gap: '10px' }}>
                 {modalitaElimina && <button onClick={() => eliminaClassifica(c.id)} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: '#FF3B30', color: 'white', fontSize: '24px', cursor: 'pointer' }}>−</button>}
-<<<<<<< HEAD
-                <button onClick={() => !modalitaElimina && onOpenClassifica(c.id)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
-=======
                 <button onClick={() => !modalitaElimina && onOpenClassifica(c.id, c.isCustom)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
->>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
               </div>
             ))}
            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '30px 0' }}>
