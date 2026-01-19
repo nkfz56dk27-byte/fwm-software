@@ -431,52 +431,16 @@ function App() {
     alert('Notifica inviata!');
   };
 
-  return (
-    <>
-      <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
-      <button style={{position:'fixed',bottom:16,right:16,zIndex:9999}} onClick={handleSendNotification}>Invia notifica di test</button>
-      {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
-      {toastNotification && <ToastNotification notification={toastNotification} onClose={() => setToastNotification(null)} />}
-    </>
-  );
-/// ===== HOME VIEW =====
-// ===== CLASSIFICA VIEW COMPLETA =====
-function ClassificaView({ classificaId, user, isMobile, onBack }) {
-  const [classifica, setClassifica] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [showSetup, setShowSetup] = useState(false)
-  const [showImpostazioni, setShowImpostazioni] = useState(false)
-  const [showInserimentoGP, setShowInserimentoGP] = useState(false)
-  const [showGrafico, setShowGrafico] = useState(false)
-  const [gpSelezionato, setGpSelezionato] = useState(null)
-  const [expandedGP, setExpandedGP] = useState({})
-
-  const isAdmin = user.ruolo === 'admin'
-
-  useEffect(() => {
-    caricaClassifica()
-  }, [classificaId])
-
-  useEffect(() => {
-    if (classifica) {
-      document.title = `FWM - ${classifica.nome}`
-    }
-  }, [classifica])
-
-  const caricaClassifica = async () => {
-    try {
-      const { data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single()
-      if (!error && data) {
-        setClassifica(data)
-        if (!data.piloti || data.piloti.length === 0) {
-          setShowSetup(true)
-        }
-      }
-      setLoading(false)
-    } catch (err) {
-      setLoading(false)
-    }
-  }
+    return (
+      <>
+        <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+        <button style={{position:'fixed',bottom:16,right:16,zIndex:9999}} onClick={handleSendNotification}>Invia notifica di test</button>
+        {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
+        {toastNotification && <ToastNotification notification={toastNotification} onClose={() => setToastNotification(null)} />}
+      </>
+    );
+}
+// ...existing code...
 
   const salvaClassifica = async (nuovaClassifica) => {
     try {
@@ -2555,7 +2519,6 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
       {showNuova && <NuovaClassificaModal onClose={() => setShowNuova(false)} onSave={() => { caricaClassifiche(); setShowNuova(false) }} />}
     </div>
   )
-}
 
 function NuovaClassificaModal({ onClose, onSave }) {
   // Step 0: Nome classifica
