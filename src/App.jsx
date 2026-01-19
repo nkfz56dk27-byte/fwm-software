@@ -2561,35 +2561,6 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
   )
 }
 
-<<<<<<< HEAD
-function NuovaClassificaModal({ onClose, onSave }) {
-  const [nome, setNome] = useState('')
-  const handleSave = async (e) => {
-    e.preventDefault()
-    if (!nome.trim()) return
-    const { error } = await supabase.from('classifiche_custom').insert([{ nome, piloti: [], gp: [], costruttori: [] }])
-    if (!error) onSave()
-  }
-  return (
-    <div className="modal-container">
-      <div className="modal-card" style={{ width: '450px' }}>
-        <div className="modal-header">
-          <h2>Crea nuova classifica</h2>
-          <button className="btn-close" onClick={onClose}>✕</button>
-        </div>
-        <form onSubmit={handleSave} className="modal-form">
-          <div className="form-group">
-            <label className="form-label">Nome classifica</label>
-            <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} className="form-input" placeholder="Es: Moto GP, Indycar..." required autoFocus />
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="btn-cancel" onClick={onClose}>Annulla</button>
-            <button type="submit" className="btn-save">Salva</button>
-          </div>
-        </form>
-      </div>
-=======
-
 function NuovaClassificaModal({ onClose, onSave }) {
   // Step 0: Nome classifica
   // Step 1: Piloti/Team/Colore
@@ -2641,34 +2612,35 @@ function NuovaClassificaModal({ onClose, onSave }) {
       alert('Aggiungi almeno un pilota')
       return
     }
-      try {
-        const { error: insertError, data: insertData } = await supabase.from('classifiche_custom').insert([{ nome, piloti, gp, costruttori }]).select();
-        if (!insertError && insertData && insertData.length > 0) {
-          try {
-            const { getClassificaCreataNotification } = await import('./notificationTemplates.js');
-            const notifica = getClassificaCreataNotification(nome);
-            await supabase.from('push_notifications').insert([
-              { titolo: 'Classifica creata', messaggio: notifica, data: new Date().toISOString() }
-            ]);
-          } catch (notifErr) {
-            // Notifica fallita, logga errore ma continua
-            console.error('Errore invio notifica:', notifErr);
-          }
-          // Recupera la classifica appena creata e aggiorna stato
-          setClassifica(insertData[0]);
-          if (!insertData[0].piloti || insertData[0].piloti.length === 0) {
-            setShowSetup(true);
-          }
-          setLoading(false);
-          onSave();
-        } else {
-          alert('Errore nella creazione della classifica');
-          setLoading(false);
+    try {
+      const { error: insertError, data: insertData } = await supabase.from('classifiche_custom').insert([{ nome, piloti, gp, costruttori }]).select();
+      if (!insertError && insertData && insertData.length > 0) {
+        try {
+          const { getClassificaCreataNotification } = await import('./notificationTemplates.js');
+          const notifica = getClassificaCreataNotification(nome);
+          await supabase.from('push_notifications').insert([
+            { titolo: 'Classifica creata', messaggio: notifica, data: new Date().toISOString() }
+          ]);
+        } catch (notifErr) {
+          // Notifica fallita, logga errore ma continua
+          console.error('Errore invio notifica:', notifErr);
         }
-      } catch (err) {
+        // Recupera la classifica appena creata e aggiorna stato
+        // setClassifica(insertData[0]); // Se serve aggiornare lo stato
+        // if (!insertData[0].piloti || insertData[0].piloti.length === 0) {
+        //   setShowSetup(true);
+        // }
+        // setLoading(false);
+        onSave();
+      } else {
         alert('Errore nella creazione della classifica');
-        setLoading(false);
+        // setLoading(false);
       }
+    } catch (err) {
+      alert('Errore nella creazione della classifica');
+      // setLoading(false);
+    }
+  }
 
   return (
     <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
@@ -2750,7 +2722,9 @@ function NuovaClassificaModal({ onClose, onSave }) {
           <button onClick={salvaClassificaCustom} style={{ width: '100%', padding: '18px', background: '#34C759', color: 'white', border: 'none', borderRadius: '15px', fontSize: '22px', fontWeight: 'bold', cursor: 'pointer' }}>Conferma e Salva</button>
         </div>
       )}
->>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
+    </div>
+  )
+}
     </div>
   )
 }
