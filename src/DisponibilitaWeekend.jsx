@@ -3,7 +3,7 @@ import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
 import { notificaDisponibilitaWeekend } from './src/pushNotifications'
 import { inviaNotificaAUtente } from './pushNotificationService'
-import { getCreazioneWeekendCategoriaNotification } from './notificationTemplates'
+import { getCreazioneWeekendCategoriaNotification, notificaCreazioneWeekendCategoria } from './notificationTemplates'
 
 // ===== MAPPING UTENTE → REDATTORE =====
 const UTENTE_TO_REDATTORE = {
@@ -325,30 +325,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     }
   }, [utenteCorrente])
 
-  // Funzione per inviare notifica agli utenti della categoria
-  async function notificaCreazioneWeekendCategoria(nomeWeekend, categoriaId, creatoreUsername) {
-    const categoriaNome = CATEGORIE.find(c => c.id === categoriaId)?.nome || ''
-    const { titolo, messaggio, tipo } = getCreazioneWeekendCategoriaNotification(nomeWeekend, categoriaNome, creatoreUsername)
-    const { data: utenti, error } = await supabase
-      .from('utenti')
-      .select('username')
-      .eq('categoria_id', categoriaId)
-      .eq('attivo', true)
-    if (error) {
-      console.error('Errore recupero utenti categoria:', error)
-      return
-    }
-    if (!utenti || utenti.length === 0) return
-    for (const utente of utenti) {
-      await inviaNotificaAUtente(utente.username, {
-        titolo,
-        messaggio,
-        tipo,
-        url: '/',
-        data: { weekend: nomeWeekend, categoria: categoriaId }
-      })
-    }
-  }
+
 
   async function creaWeekend() {
     if (!nomeGP || !date) return
@@ -372,7 +349,14 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       return
     }
     // Invio notifica agli utenti della categoria
-    await notificaCreazioneWeekendCategoria(weekend.nome_gp, weekend.categoria_id, utenteCorrente.username)
+    await notificaCreazioneWeekendCategoria(
+      weekend.nome_gp,
+      weekend.categoria_id,
+      utenteCorrente.username,
+      inviaNotificaAUtente,
+      CATEGORIE,
+      supabase
+    )
     
     if (usaTemplate && templateSelezionato) {
       // Carica il template selezionato
