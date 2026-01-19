@@ -389,7 +389,6 @@ function App() {
   if (showClassificheMenu) {
     return <ClassificheMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMenu(false); setShowClassificheMainMenu(true) }} onOpenClassifica={(id, isCustom) => { setClassificaId(id); setClassificaCustom(!!isCustom); setShowClassifica(true); setShowClassificheMenu(false) }} />
   }
-  }
 
   if (showNuovaPagina) {
     return <NuovaPaginaView onClose={() => setShowNuovaPagina(false)} />
@@ -4343,4 +4342,5 @@ function NuovaPaginaView({ onClose, user }) {
     </div>
   )
 }
+
 export default App
