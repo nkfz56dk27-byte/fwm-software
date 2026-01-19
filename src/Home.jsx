@@ -2230,7 +2230,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, 
                     style={{ width: "60px", height: "50px", filter: "brightness(0) invert(1)" }}
                   />
                 </div>
-                <h3 className="card-title">RITAGLIO FOTO</h3>
+                <h3 className="card-title">RITAGLIO IMMAGINE</h3>
                 <p className="card-subtitle">Ritaglia immagini<br />1200x729 px</p>
               </div>
 
