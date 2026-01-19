@@ -1,0 +1,935 @@
+/* ===== RESET & BASE ===== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'SF Pro Rounded', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* ===== TESTO FORMATTATO ===== */
+.testo-formattato {
+  line-height: 1.6;
+}
+
+.testo-formattato strong {
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.testo-formattato em {
+  font-style: italic;
+  color: #059669;
+}
+
+.modifiche-apportate {
+  margin-top: 20px;
+  padding: 15px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.modifiche-apportate h4 {
+  margin: 0 0 10px 0;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.modifiche-apportate ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.modifiche-apportate li {
+  margin: 5px 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+/* ===== LOGIN & PASSWORD CHANGE ===== */
+.login-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(128, 128, 128, 0.05);
+  padding: 20px;
+}
+.login-card {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  padding: 50px;
+  width: 100%;
+  max-width: 450px;
+}
+.login-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+.f1-icon {
+  font-size: 80px;
+  margin-bottom: 10px;
+}
+.warning-icon {
+  font-size: 60px;
+  margin-bottom: 10px;
+}
+.login-title {
+  font-size: 36px;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 10px;
+}
+.login-subtitle {
+  font-size: 16px;
+  color: #666;
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+}
+.form-label .icon {
+  width: 16px;
+  height: 16px;
+}
+.form-input {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  border: none;
+  background: rgba(128, 128, 128, 0.1);
+  border-radius: 8px;
+  outline: none;
+}
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(128, 128, 128, 0.1);
+  border-radius: 8px;
+}
+.password-input-wrapper .form-input {
+  background: transparent;
+  padding-right: 50px;
+}
+.toggle-password {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  font-size: 16px;
+}
+.error-message {
+  background: #fee;
+  color: #c00;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: center;
+}
+.btn-login {
+  width: 100%;
+  padding: 14px;
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+  background: #007AFF;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-login:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+  color: #9ca3af;
+}
+.btn-login.btn-green {
+  background: #34C759;
+  color: white;
+}
+
+/* ===== HOME CONTAINER ===== */
+.home-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: url('/sfondo-fwm.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* ===== HEADER ===== */
+.home-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 20px;
+  flex-shrink: 0;
+}
+.header-left, .header-right {
+  display: flex;
+  gap: 10px;
+}
+.btn-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  color: white;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.5));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+}
+.btn-header:hover {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.btn-header .icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* ===== TITOLO ===== */
+.home-title {
+  text-align: center;
+  flex-shrink: 0;
+  padding: 8px 20px;
+}
+.title-main {
+  font-size: 38px;
+  font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', sans-serif;
+  color: white;
+  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  margin-bottom: 0;
+}
+
+/* ===== CARDS WRAPPER ===== */
+.home-cards-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 18px;
+  padding: 10px 20px 15px;
+  overflow-x: hidden;
+}
+.home-cards-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 25px;
+  flex-shrink: 0;
+}
+.home-card {
+  width: 190px;
+  height: 190px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+.home-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6);
+}
+
+/* ===== ICONE CARD ===== */
+.card-icon-wrapper {
+  width: 75px;
+  height: 75px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.card-blue .card-icon-wrapper {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.9), rgba(0, 122, 255, 0.7));
+}
+.card-green .card-icon-wrapper {
+  background: linear-gradient(135deg, rgba(52, 199, 89, 0.9), rgba(52, 199, 89, 0.7));
+}
+.card-purple .card-icon-wrapper {
+  background: linear-gradient(135deg, rgba(175, 82, 222, 0.9), rgba(175, 82, 222, 0.7));
+}
+.card-yellow .card-icon-wrapper {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.9), rgba(255, 193, 7, 0.7));
+}
+.card-red .card-icon-wrapper {
+  background: linear-gradient(135deg, rgba(255, 59, 48, 0.9), rgba(220, 20, 60, 0.7));
+}
+
+/* ===== TESTI CARD ===== */
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', sans-serif;
+  color: white;
+  text-align: center;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.5);
+  line-height: 1.2;
+}
+.card-subtitle {
+  font-size: 10px;
+  color: white;
+  text-align: center;
+  line-height: 1.3;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  white-space: pre-line;
+}
+
+/* ===== FOOTER ===== */
+.home-footer {
+  text-align: center;
+  padding: 12px;
+  flex-shrink: 0;
+}
+.version-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* ===== GESTIONE UTENTI ===== */
+.gestione-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.gestione-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 30px;
+  background: white;
+  flex-shrink: 0;
+}
+.btn-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #007AFF;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+}
+.btn-back .icon {
+  width: 20px;
+  height: 20px;
+}
+.gestione-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #000;
+}
+.btn-nuovo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  background: #34C759;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-nuovo:hover {
+  opacity: 0.9;
+}
+.btn-nuovo .icon {
+  width: 20px;
+  height: 20px;
+}
+.divider {
+  height: 1px;
+  background: #e0e0e0;
+  flex-shrink: 0;
+}
+.gestione-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 30px;
+}
+.loading {
+  text-align: center;
+  padding: 40px;
+  font-size: 16px;
+  color: #666;
+}
+.utenti-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+.utente-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 15px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+.utente-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 200px;
+}
+.utente-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.utente-nome {
+  font-size: 16px;
+  font-weight: 600;
+  color: #000;
+}
+.utente-username {
+  font-size: 12px;
+  color: #666;
+}
+.utente-ruolo {
+  font-size: 14px;
+  color: #666;
+  width: 150px;
+}
+.utente-password {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #666;
+  width: 200px;
+}
+.status-icon {
+  width: 16px;
+  height: 16px;
+}
+.utente-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+.btn-action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-action:hover {
+  opacity: 0.8;
+}
+.btn-blue {
+  color: #007AFF;
+  background: rgba(0, 122, 255, 0.1);
+}
+.btn-green {
+  color: #34C759;
+  background: rgba(52, 199, 89, 0.1);
+}
+.btn-orange {
+  color: #FF9500;
+  background: rgba(255, 149, 0, 0.1);
+}
+.icon-small {
+  width: 14px;
+  height: 14px;
+}
+
+/* ===== MODALI ===== */
+.modal-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-card {
+  background: white;
+  border-radius: 15px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 25px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+.modal-header h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #000;
+}
+.btn-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #f0f0f0;
+  color: #666;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.btn-close:hover {
+  background: #e0e0e0;
+}
+.modal-form {
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+.btn-cancel {
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #666;
+  background: #f0f0f0;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-cancel:hover {
+  background: #e0e0e0;
+}
+.btn-save {
+  padding: 10px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  background: #34C759;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-save:hover {
+  opacity: 0.9;
+}
+
+/* ===== MOBILE RESPONSIVE (max-width: 768px) ===== */
+@media (max-width: 768px) {
+  /* Previeni scroll orizzontale globale */
+  body, html {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+  }
+  
+  * {
+    max-width: 100vw;
+  }
+
+  /* ===== LOGIN MOBILE ===== */
+  .login-container {
+    padding: 15px;
+  }
+  .login-card {
+    padding: 30px 20px;
+    max-width: 100%;
+  }
+  .login-title {
+    font-size: 24px;
+  }
+  .f1-icon {
+    font-size: 50px;
+  }
+  .warning-icon {
+    font-size: 45px;
+  }
+  .login-subtitle {
+    font-size: 14px;
+  }
+
+  /* ===== HOME MOBILE - BOTTONI PIÙ SCURI ===== */
+  .home-header {
+    flex-direction: column;
+    padding: 10px;
+    gap: 12px; /* AUMENTATO da 8px */
+    margin-top: 15px; /* SCESO */
+  }
+  .header-left, .header-right {
+    width: 100%;
+    justify-content: center;
+    gap: 10px; /* SPAZIO TRA BOTTONI */
+  }
+  .btn-header {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    min-height: 44px;
+    background: rgba(0, 0, 0, 0.8) !important; /* PIÙ SCURO da 0.75 */
+    font-weight: 700;
+  }
+  .btn-header:active {
+    background: rgba(0, 0, 0, 0.9) !important; /* PIÙ SCURO da 0.85 */
+  }
+  .btn-header .icon {
+    width: 14px;
+    height: 14px;
+  }
+  
+  /* Header-right in colonna su mobile */
+  .header-right {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  /* Correzione per iPhone - pulsante eventi orizzontale */
+  .header-right .btn-header {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 8px;
+    font-size: 12px;
+    white-space: nowrap;
+    min-height: 44px;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.8));
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .header-right .btn-header:active {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.9));
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  /* Fix per iPhone Safari */
+  @supports (-webkit-touch-callout: none) {
+    .header-right .btn-header {
+      padding: 12px 8px;
+    }
+  }
+  
+  .home-title {
+    padding: 8px;
+  }
+  .title-main {
+    font-size: 26px;
+  }
+  
+  /* Cards mobile - 2 colonne */
+  .home-cards-wrapper {
+    padding: 8px;
+    gap: 8px;
+  }
+  .home-cards-row {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .home-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 135px !important;
+    padding: 10px 6px !important;
+    gap: 6px !important;
+  }
+  .card-icon-wrapper {
+    width: 50px !important;
+    height: 50px !important;
+  }
+  /* LOGHI PNG/SVG PIÙ PICCOLI - solo mobile */
+  .card-icon-wrapper img,
+  .card-icon-wrapper svg {
+    max-width: 32px !important;
+    max-height: 32px !important;
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .card-title {
+    font-size: 12px !important;
+    line-height: 1.1 !important;
+  }
+  .card-subtitle {
+    font-size: 9px !important;
+  }
+  
+  /* ===== GESTIONE UTENTI MOBILE - BOTTONI PIÙ SCURI ===== */
+  .gestione-header {
+    flex-direction: column;
+    padding: 10px;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .btn-back {
+    align-self: flex-start;
+    font-size: 15px;
+    padding: 10px 0;
+    min-height: 44px;
+  }
+  .gestione-title {
+    font-size: 18px;
+    text-align: center;
+    padding: 5px 0;
+  }
+  
+  /* Bottoni gestione - PIÙ SCURI */
+  .gestione-header > div {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+  .btn-nuovo {
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
+    font-size: 14px;
+    min-height: 48px;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .btn-nuovo .icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .gestione-content {
+    padding: 10px;
+  }
+  
+  /* Utente row - stack verticale */
+  .utente-row {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 15px 12px;
+    gap: 12px;
+  }
+  .utente-info {
+    width: 100%;
+  }
+  .utente-nome {
+    font-size: 15px;
+  }
+  .utente-username {
+    font-size: 12px;
+  }
+  .utente-ruolo {
+    width: 100%;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .utente-password {
+    width: 100%;
+    font-size: 12px;
+  }
+  .status-icon {
+    width: 14px;
+    height: 14px;
+  }
+  
+  /* Actions - 3 colonne verticali con testo sotto icona */
+  .utente-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin-left: 0;
+  }
+  .btn-action {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 4px;
+    font-size: 10px;
+    min-height: 52px;
+    flex-direction: column;
+    gap: 4px;
+    font-weight: 600;
+  }
+  .icon-small {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* ===== MODALI MOBILE ===== */
+  .modal-card {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+  .modal-header {
+    padding: 12px 15px;
+  }
+  .modal-header h2 {
+    font-size: 17px;
+  }
+  .btn-close {
+    width: 36px;
+    height: 36px;
+    font-size: 22px;
+  }
+  .modal-form {
+    padding: 15px;
+  }
+  
+  /* Form elements */
+  .form-group {
+    gap: 6px;
+  }
+  .form-label {
+    font-size: 13px;
+  }
+  .form-input {
+    padding: 12px;
+    font-size: 16px;
+  }
+  select {
+    padding: 12px;
+    font-size: 16px;
+  }
+  textarea {
+    padding: 12px;
+    font-size: 16px;
+    min-height: 100px;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .modal-actions button {
+    width: 100%;
+    padding: 14px;
+    font-size: 15px;
+    min-height: 48px;
+  }
+  .btn-cancel, .btn-save {
+    width: 100%;
+    padding: 14px;
+    min-height: 48px;
+  }
+}
+
+/* ===== DESKTOP LARGE (1920px+) ===== */
+@media (min-width: 1920px) {
+  .home-card {
+    width: 210px;
+    height: 210px;
+  }
+  .card-icon-wrapper {
+    width: 85px;
+    height: 85px;
+  }
+  .title-main {
+    font-size: 44px;
+  }
+  .home-cards-row {
+    gap: 30px;
+  }
+  .home-cards-wrapper {
+    gap: 22px;
+  }
+  }
+
