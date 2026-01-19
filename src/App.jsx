@@ -2559,14 +2559,60 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
   )
 }
 
+
 function NuovaClassificaModal({ onClose, onSave }) {
+  // Step 0: Nome classifica
+  // Step 1: Piloti/Team/Colore
+  // Step 2: GP/Weekend
+  const [step, setStep] = useState(0)
   const [nome, setNome] = useState('')
-  const handleSave = async (e) => {
-    e.preventDefault()
-    if (!nome.trim()) return
-    const { error } = await supabase.from('classifiche_custom').insert([{ nome, piloti: [], gp: [], costruttori: [] }])
+  const [piloti, setPiloti] = useState([])
+  const [costruttori, setCostruttori] = useState([])
+  const [gp, setGp] = useState([])
+  const [nomePilota, setNomePilota] = useState('')
+  const [teamPilota, setTeamPilota] = useState('')
+  const [colorePilota, setColorePilota] = useState('#0066FF')
+  const [nomeGP, setNomeGP] = useState('')
+  const [tipoWeekend, setTipoWeekend] = useState('standard')
+
+  const aggiungiPilota = () => {
+    if (!nomePilota || !teamPilota) return
+    const nuovoPilota = { id: Date.now(), nome: nomePilota, team: teamPilota, colore: colorePilota, punti: 0, distacco: 0, attivo: true }
+    setPiloti([...piloti, nuovoPilota])
+    if (!costruttori.find(c => c.nome === teamPilota)) {
+      setCostruttori([...costruttori, { id: Date.now() + 1, nome: teamPilota, colore: colorePilota, punti: 0, distacco: 0 }])
+    }
+    setNomePilota('')
+    setTeamPilota('')
+    setColorePilota('#0066FF')
+  }
+
+  const rimuoviPilota = (id) => {
+    setPiloti(piloti.filter(p => p.id !== id))
+  }
+
+  const aggiungiGP = () => {
+    if (!nomeGP) return
+    const nuovoGP = { id: Date.now(), nome: nomeGP, tipo_weekend: tipoWeekend, completato: false, gare: [] }
+    setGp([...gp, nuovoGP])
+    setNomeGP('')
+  }
+
+  const rimuoviGP = (id) => {
+    setGp(gp.filter(g => g.id !== id))
+  }
+
+  const salvaClassificaCustom = async () => {
+    if (!nome.trim()) {
+      alert('Inserisci il nome della classifica')
+      return
+    }
+    if (piloti.length === 0) {
+      alert('Aggiungi almeno un pilota')
+      return
+    }
+    const { error } = await supabase.from('classifiche_custom').insert([{ nome, piloti, gp, costruttori }])
     if (!error) {
-      // Invia notifica push
       try {
         const { getClassificaCreataNotification } = await import('./notificationTemplates.js');
         const notifica = getClassificaCreataNotification(nome);
@@ -2586,24 +2632,87 @@ function NuovaClassificaModal({ onClose, onSave }) {
       onSave();
     }
   }
+
   return (
-    <div className="modal-container">
-      <div className="modal-card" style={{ width: '450px' }}>
-        <div className="modal-header">
-          <h2>Crea nuova classifica</h2>
-          <button className="btn-close" onClick={onClose}>✕</button>
-        </div>
-        <form onSubmit={handleSave} className="modal-form">
-          <div className="form-group">
-            <label className="form-label">Nome classifica</label>
-            <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} className="form-input" placeholder="Es: Moto GP, Indycar..." required autoFocus />
-          </div>
-          <div className="modal-actions">
-            <button type="button" className="btn-cancel" onClick={onClose}>Annulla</button>
-            <button type="submit" className="btn-save">Salva</button>
-          </div>
-        </form>
+    <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
+      <button onClick={step === 0 ? onClose : () => setStep(step - 1)} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Indietro</button>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
+        {[0, 1, 2].map(i => <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: step === i ? '#34C759' : '#ddd' }} />)}
       </div>
+      {step === 0 && (
+        <div>
+          <h2 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>Nome Classifica Personalizzata</h2>
+          <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder="Es: Moto GP, Indycar..." style={{ width: '100%', padding: '15px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '20px', marginBottom: '30px' }} autoFocus />
+          <button onClick={() => setStep(1)} style={{ width: '100%', padding: '18px', background: '#34C759', color: 'white', border: 'none', borderRadius: '15px', fontSize: '22px', fontWeight: 'bold', cursor: 'pointer' }}>Prosegui</button>
+        </div>
+      )}
+      {step === 1 && (
+        <div>
+          <h2 style={{ fontSize: '24px', marginBottom: '20px', textAlign: 'center' }}>Inserisci Piloti e Team</h2>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome Pilota</label>
+            <input type="text" value={nomePilota} onChange={e => setNomePilota(e.target.value)} placeholder="es. Max Verstappen" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Team</label>
+            <input type="text" value={teamPilota} onChange={e => setTeamPilota(e.target.value)} placeholder="es. Red Bull Racing" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Colore Team</label>
+            <input type="color" value={colorePilota} onChange={e => setColorePilota(e.target.value)} style={{ width: '100%', height: '50px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer' }} />
+          </div>
+          <button onClick={aggiungiPilota} style={{ width: '100%', padding: '15px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>Aggiungi Pilota</button>
+          {piloti.length > 0 && (
+            <div style={{ marginBottom: '25px' }}>
+              <h3 style={{ marginBottom: '15px', fontSize: '18px', borderBottom: '2px solid #f0f0f0', paddingBottom: '8px' }}>Piloti inseriti: {piloti.length}</h3>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
+                {piloti.map((p) => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8f9fa', borderRadius: '12px', marginBottom: '10px', border: '1px solid #eee' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: p.colore, border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}></div>
+                      <div style={{ fontSize: '15px', color: '#333' }}><strong>{p.nome}</strong> <span style={{ opacity: 0.7, marginLeft: '5px' }}>({p.team})</span></div>
+                    </div>
+                    <button onClick={() => rimuoviPilota(p.id)} style={{ background: 'none', border: 'none', color: '#FF3B30', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <button onClick={() => setStep(2)} style={{ width: '100%', padding: '18px', background: '#34C759', color: 'white', border: 'none', borderRadius: '15px', fontSize: '22px', fontWeight: 'bold', cursor: 'pointer' }}>Prosegui</button>
+        </div>
+      )}
+      {step === 2 && (
+        <div>
+          <h2 style={{ fontSize: '24px', marginBottom: '20px', textAlign: 'center' }}>Inserisci GP e Weekend</h2>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome GP</label>
+            <input type="text" value={nomeGP} onChange={e => setNomeGP(e.target.value)} placeholder="es. GP Italia" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Tipo Weekend</label>
+            <select value={tipoWeekend} onChange={e => setTipoWeekend(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }}>
+              <option value="standard">Standard</option>
+              <option value="sprintF1">Sprint F1</option>
+              <option value="f2">F2</option>
+            </select>
+          </div>
+          <button onClick={aggiungiGP} style={{ width: '100%', padding: '15px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>Aggiungi GP</button>
+          {gp.length > 0 && (
+            <div style={{ marginBottom: '25px' }}>
+              <h3 style={{ marginBottom: '15px', fontSize: '18px', borderBottom: '2px solid #f0f0f0', paddingBottom: '8px' }}>GP inseriti: {gp.length}</h3>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
+                {gp.map((g) => (
+                  <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8f9fa', borderRadius: '12px', marginBottom: '10px', border: '1px solid #eee' }}>
+                    <div style={{ fontSize: '15px', color: '#333' }}><strong>{g.nome}</strong> <span style={{ opacity: 0.7, marginLeft: '5px' }}>({g.tipo_weekend})</span></div>
+                    <button onClick={() => rimuoviGP(g.id)} style={{ background: 'none', border: 'none', color: '#FF3B30', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          <button onClick={salvaClassificaCustom} style={{ width: '100%', padding: '18px', background: '#34C759', color: 'white', border: 'none', borderRadius: '15px', fontSize: '22px', fontWeight: 'bold', cursor: 'pointer' }}>Conferma e Salva</button>
+        </div>
+      )}
     </div>
   )
 }
