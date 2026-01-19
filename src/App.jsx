@@ -2612,32 +2612,34 @@ function NuovaClassificaModal({ onClose, onSave }) {
       alert('Aggiungi almeno un pilota')
       return
     }
-    const { error } = await supabase.from('classifiche_custom').insert([{ nome, piloti, gp, costruttori }])
-    if (!error) {
       try {
-        const { getClassificaCreataNotification } = await import('./notificationTemplates.js');
-        const notifica = getClassificaCreataNotification(nome);
-        await supabase.from('push_notifications').insert([
+        const { error: insertError, data: insertData } = await supabase.from('classifiche_custom').insert([{ nome, piloti, gp, costruttori }]).select();
+        if (!insertError && insertData && insertData.length > 0) {
           try {
-            let data, error;
-            if (isCustom) {
-              ({ data, error } = await supabase.from('classifiche_custom').select('*').eq('id', classificaId).single());
-            } else {
-              ({ data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single());
-            }
-            if (!error && data) {
-              setClassifica(data)
-              if (!data.piloti || data.piloti.length === 0) {
-                setShowSetup(true)
-              }
-            }
-            setLoading(false)
-          } catch (err) {
-            setLoading(false)
+            const { getClassificaCreataNotification } = await import('./notificationTemplates.js');
+            const notifica = getClassificaCreataNotification(nome);
+            await supabase.from('push_notifications').insert([
+              { titolo: 'Classifica creata', messaggio: notifica, data: new Date().toISOString() }
+            ]);
+          } catch (notifErr) {
+            // Notifica fallita, logga errore ma continua
+            console.error('Errore invio notifica:', notifErr);
           }
-      onSave();
-    }
-  }
+          // Recupera la classifica appena creata e aggiorna stato
+          setClassifica(insertData[0]);
+          if (!insertData[0].piloti || insertData[0].piloti.length === 0) {
+            setShowSetup(true);
+          }
+          setLoading(false);
+          onSave();
+        } else {
+          alert('Errore nella creazione della classifica');
+          setLoading(false);
+        }
+      } catch (err) {
+        alert('Errore nella creazione della classifica');
+        setLoading(false);
+      }
 
   return (
     <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
@@ -4343,5 +4345,5 @@ function NuovaPaginaView({ onClose, user }) {
     </div>
   )
 }
-
+}
 export default App
