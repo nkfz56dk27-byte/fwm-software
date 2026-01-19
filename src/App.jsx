@@ -19,6 +19,7 @@ import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
 import EventiMobileMenu from './EventiMobileMenu.jsx'
 import { notificaClassificaAggiornata } from './src/pushNotifications.js'
+import { getClassificaCreataNotification, getClassificaAggiornataNotification } from './notificationTemplates.js'
 
 import { initializeOneSignal } from './src/onesignal.js'
 import NotificationPrompt from './NotificationPrompt.jsx'
@@ -499,20 +500,38 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
       }
 
       let error;
-      if (classificaId && typeof classificaId === 'object' && classificaId.isCustom) {
-        ({ error } = await supabase.from('classifiche_custom').update(updateObj).eq('id', classificaId.id));
+      let isCreazione = false;
+      if (!classificaId) {
+        // CREAZIONE NUOVA CLASSIFICA
+        isCreazione = true;
+        let insertResult;
+        if (nuovaClassifica.isCustom) {
+          insertResult = await supabase.from('classifiche_custom').insert([updateObj]);
+        } else {
+          insertResult = await supabase.from('classifiche').insert([updateObj]);
+        }
+        error = insertResult.error;
       } else {
-        ({ error } = await supabase.from('classifiche').update(updateObj).eq('id', classificaId));
+        // AGGIORNAMENTO CLASSIFICA ESISTENTE
+        if (classificaId && typeof classificaId === 'object' && classificaId.isCustom) {
+          ({ error } = await supabase.from('classifiche_custom').update(updateObj).eq('id', classificaId.id));
+        } else {
+          ({ error } = await supabase.from('classifiche').update(updateObj).eq('id', classificaId));
+        }
       }
       if (!error) {
         setClassifica(nuovaClassifica)
         setShowSetup(false)
-        // INVIA NOTIFICA PUSH per classifica aggiornata (sistema intelligente multi-device)
-        await notificaClassificaAggiornata(
-          nuovaClassifica.nome,
-          'Nuovi risultati disponibili',
-          user.username
-        )
+        if (isCreazione) {
+          setToastNotification(getClassificaCreataNotification(nuovaClassifica.nome));
+        } else {
+          setToastNotification(getClassificaAggiornataNotification(nuovaClassifica.nome, 'Nuovi risultati disponibili'));
+          await notificaClassificaAggiornata(
+            nuovaClassifica.nome,
+            'Nuovi risultati disponibili',
+            user.username
+          )
+        }
         caricaClassifica()
       } else {
         console.error('Errore salvataggio classifica:', error)
