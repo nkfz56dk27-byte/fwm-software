@@ -16,6 +16,8 @@ import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
 import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
+// Import esplicito di LoginView
+import { LoginView } from './Home.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
 import EventiMobileMenu from './EventiMobileMenu.jsx'
 import { notificaClassificaAggiornata } from './src/pushNotifications.js'
