@@ -1,4 +1,6 @@
 // ...existing code...
+import { useState, useEffect } from 'react'
+import { supabase } from './supabaseClient'
 import CoppaSVG from "./assets/coppa.svg"
 import StatistichePNG from "./assets/Statistiche.png"
 import PenaltypointSVG from "./assets/Penalitypoint.svg"
@@ -9,7 +11,6 @@ import CestinoSVG from "./assets/cestino.svg"
 import CheckSVG from "./assets/check.svg"
 import VidaPNG from "./assets/vida.png"
 import RitaglioImmagine from './RitaglioImmagine'
-import ClassificheMenuView from './ClassificheMenuView';
 import VidaMenu from './VidaMenu'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
@@ -18,6 +19,7 @@ import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
 import EventiMobileMenu from './EventiMobileMenu.jsx'
 import { notificaClassificaAggiornata } from './src/pushNotifications.js'
+
 import { initializeOneSignal } from './src/onesignal.js'
 import NotificationPrompt from './NotificationPrompt.jsx'
 import { ascolaNotificheRealtime } from './pushNotificationService'
@@ -25,6 +27,7 @@ import { sendPushNotification } from './pushNotificationService'
 import GestioneDispositiviNotifiche from './GestioneDispositiviNotifiche.jsx'
 import { ToastNotification } from './ToastNotification.jsx'
 import { getFirebaseToken, setupForegroundMessaging } from './firebaseMessaging'
+
 import './App.css'
 
 function App() {
@@ -75,11 +78,57 @@ function App() {
     console.log('📱 isMobile iniziale:', isMobile, 'width:', window.innerWidth)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-// ===== MENU CLASSIFICHE =====
-// Spostato in src/ClassificheMenuView.jsx
-    async function caricaNotificheCalendario(username) {
-      try {
-        // ...existing code...
+
+  // Effect per ascoltare le notifiche realtime quando l'utente è loggato
+  useEffect(() => {
+    if (!user) {
+      // Se l'utente si disconnette, stoppa l'ascolto
+      if (notificheUnsubscribe) {
+        notificheUnsubscribe()
+        setNotificheUnsubscribe(null)
+      }
+      return
+    }
+
+    // Avvia l'ascolto delle notifiche realtime
+    console.log('🎧 Avvio ascolto notifiche realtime per:', user.username)
+    const unsubscribe = ascolaNotificheRealtime(user.username, (notifica) => {
+      console.log('🔔 Notifica ricevuta in App.jsx:', notifica)
+      // Mostra il toast fallback in-app
+      setToastNotification(notifica)
+    })
+
+    setNotificheUnsubscribe(() => unsubscribe)
+
+    // Ascolta le notifiche push in foreground (FCM)
+    setupForegroundMessaging((notifica) => {
+      // Mostra il toast solo se la tab è attiva
+      if (document.visibilityState === 'visible') {
+        setToastNotification(notifica)
+      }
+    })
+
+    // Cleanup: stoppa l'ascolto quando il componente si smonta
+    return () => {
+      if (unsubscribe) {
+        unsubscribe()
+      }
+    }
+  }, [user])
+
+  async function caricaNotificheCalendario(username) {
+    try {
+      console.log('🔍 DEBUG HOME: Inizio caricaNotificheCalendario')
+      console.log('🔍 DEBUG HOME: username:', username)
+      
+      const { data: notifiche } = await supabase.from('notifiche_calendario').select('*').order('created_at', { ascending: false }).limit(50)
+      console.log('🔍 DEBUG HOME: notifiche totali caricate:', notifiche?.length || 0)
+      
+      const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', username)
+      console.log('🔍 DEBUG HOME: notifiche lette caricate:', lette?.length || 0)
+      
+      const idsLette = new Set((lette || []).map(l => l.notifica_id))
+      console.log('🔍 DEBUG HOME: IDs lette:', Array.from(idsLette))
       
       const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id))
       console.log('🔍 DEBUG HOME: notifiche non lette calcolate:', nonLette.length)
@@ -340,9 +389,8 @@ function App() {
     return <ClassificheMainMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(false) }} onOpenClassificheMenu={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(true) }} onOpenNuovaPagina={() => { setShowClassificheMainMenu(false); setShowNuovaPagina(true) }} />
   }
 
-  const [classificaCustom, setClassificaCustom] = useState(false);
   if (showClassificheMenu) {
-    return <ClassificheMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMenu(false); setShowClassificheMainMenu(true) }} onOpenClassifica={(id, isCustom) => { setClassificaId(id); setClassificaCustom(!!isCustom); setShowClassifica(true); setShowClassificheMenu(false) }} />
+    return <ClassificheMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMenu(false); setShowClassificheMainMenu(true) }} onOpenClassifica={(id) => { setClassificaId(id); setShowClassifica(true); setShowClassificheMenu(false) }} />
   }
 
   if (showNuovaPagina) {
@@ -350,7 +398,7 @@ function App() {
   }
 
   if (showClassifica) {
-  return <ClassificaView classificaId={classificaId} isCustom={classificaCustom} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null); setClassificaCustom(false) }} />
+    return <ClassificaView classificaId={classificaId} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
   }
 
   // ← AGGIUNTO: Render condizionale RitaglioImmagine
@@ -386,16 +434,52 @@ function App() {
     alert('Notifica inviata!');
   };
 
-    return (
-      <>
-        <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
-        <button style={{position:'fixed',bottom:16,right:16,zIndex:9999}} onClick={handleSendNotification}>Invia notifica di test</button>
-        {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
-        {toastNotification && <ToastNotification notification={toastNotification} onClose={() => setToastNotification(null)} />}
-      </>
-    );
+  return (
+    <>
+      <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+      <button style={{position:'fixed',bottom:16,right:16,zIndex:9999}} onClick={handleSendNotification}>Invia notifica di test</button>
+      {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
+      {toastNotification && <ToastNotification notification={toastNotification} onClose={() => setToastNotification(null)} />}
+    </>
+  )
 }
-// ...existing code...
+// ===== CLASSIFICA VIEW COMPLETA =====
+function ClassificaView({ classificaId, user, isMobile, onBack }) {
+  const [classifica, setClassifica] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [showSetup, setShowSetup] = useState(false)
+  const [showImpostazioni, setShowImpostazioni] = useState(false)
+  const [showInserimentoGP, setShowInserimentoGP] = useState(false)
+  const [showGrafico, setShowGrafico] = useState(false)
+  const [gpSelezionato, setGpSelezionato] = useState(null)
+  const [expandedGP, setExpandedGP] = useState({})
+
+  const isAdmin = user.ruolo === 'admin'
+
+  useEffect(() => {
+    caricaClassifica()
+  }, [classificaId])
+
+  useEffect(() => {
+    if (classifica) {
+      document.title = `FWM - ${classifica.nome}`
+    }
+  }, [classifica])
+
+  const caricaClassifica = async () => {
+    try {
+      const { data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single()
+      if (!error && data) {
+        setClassifica(data)
+        if (!data.piloti || data.piloti.length === 0) {
+          setShowSetup(true)
+        }
+      }
+      setLoading(false)
+    } catch (err) {
+      setLoading(false)
+    }
+  }
 
   const salvaClassifica = async (nuovaClassifica) => {
     try {
@@ -650,7 +734,7 @@ function App() {
       </div>
     </div>
   )
-//}
+}
 
 function calcolaPuntiPosizione(pos, tipoGara, classifica = null) {
   // Se è attivo il modificatore libero, usa l'array personalizzato
@@ -829,79 +913,107 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
              [{ id: Date.now(), tipo_gara: 'f2sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'featureRace', risultati: {}, completata: false }]
     }
     setGp(nuovoGP)
-    useEffect(() => {
-      caricaCampionati()
-    }, [])
+    setStep(1)
+  }
 
-    const caricaCampionati = async () => {
-      try {
-        // Leggi solo dalla tabella classifiche_custom
-        const { data, error } = await supabase.from('classifiche_custom').select('*')
-        if (!error && data) {
-          setCampionati(data)
-          // Carica infrazioni dalla tabella infrazioni
-          const { data: infrazioni, error: infError } = await supabase.from('infrazioni').select('*')
-          if (!infError && infrazioni) {
-            const details = {}
-            infrazioni.forEach(infrazione => {
-              const key = `${infrazione.campionato_id}_${infrazione.pilota_id}`
-              if (!details[key]) {
-                details[key] = []
-              }
-              details[key].push({
-                id: infrazione.id,
-                points: infrazione.punti,
-                reason: infrazione.motivo,
-                dateAdded: infrazione.data_infrazione,
-                expiryDate: infrazione.data_scadenza,
-                gpBan: ''
-              })
-            })
-            setPenaltyDetails(details)
-          }
-        }
-        setLoading(false)
-      } catch (err) {
-        console.error('Errore caricamento campionati:', err)
-        setLoading(false)
+  const salvaRisultatiGara = () => {
+    const gare = [...gp.gare]
+    gare[garaCorrente] = {
+      ...gare[garaCorrente],
+      risultati,
+      pole_id: poleId,
+      giro_veloce_id: giroVeloceId,
+      completata: true
+    }
+    
+    const gpAggiornato = { ...gp, gare }
+    
+    if (garaCorrente < gp.gare.length - 1) {
+      setGp(gpAggiornato)
+      setGaraCorrente(garaCorrente + 1)
+      setRisultati({})
+      setPoleId(null)
+      setGiroVeloceId(null)
+    } else {
+      const gpFinale = { ...gpAggiornato, completato: true }
+      const nuoviGP = classifica.gp ? [...classifica.gp.filter(g => g.id !== gpFinale.id), gpFinale] : [gpFinale]
+      
+      const nuoviPiloti = [...classifica.piloti]
+      const nuoviCostruttori = [...classifica.costruttori]
+      
+      // Se è una MODIFICA, sottrai i punti vecchi
+      if (gpPreselezionato && gpPreselezionato.completato) {
+        console.log('MODIFICA: Sottraggo punti vecchi...')
+        gpPreselezionato.gare.forEach(garaVecchia => {
+          if (!garaVecchia.completata || garaVecchia.non_disputata) return
+          
+          Object.entries(garaVecchia.risultati || {}).forEach(([pilotaId, pos]) => {
+            const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
+            if (!pilota) return
+            
+            let punti = calcolaPuntiPosizione(pos, garaVecchia.tipo_gara, classifica)
+            if (classifica.punti_pole_attivo && String(garaVecchia.pole_id) === String(pilotaId)) {
+              punti += classifica.punti_pole_valore || 3
+            }
+            if (classifica.giro_veloce_attivo && String(garaVecchia.giro_veloce_id) === String(pilotaId)) {
+              punti += classifica.giro_veloce_valore || 1
+            }
+            
+            console.log(`${pilota.nome}: -${punti} pts (rimozione risultato vecchio)`)
+            pilota.punti = Math.max(0, (pilota.punti || 0) - punti)
+            
+            const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
+            if (costruttore) {
+              costruttore.punti = Math.max(0, (costruttore.punti || 0) - punti)
+            }
+          })
+        })
       }
+      
+      // Calcola e assegna punti NUOVI per ogni gara del GP
+      gpFinale.gare.forEach(gara => {
+        Object.entries(gara.risultati).forEach(([pilotaId, pos]) => {
+          const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
+          if (!pilota) {
+            console.warn('Pilota non trovato:', pilotaId)
+            return
+          }
+          
+          let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
+          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
+            punti += classifica.punti_pole_valore || 3
+          }
+          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
+            punti += classifica.giro_veloce_valore || 1
+          }
+          
+          console.log(`${pilota.nome}: +${punti} pts (pos ${pos}, tipo ${gara.tipo_gara})`)
+          
+          pilota.punti = (pilota.punti || 0) + punti
+          
+          const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
+          if (costruttore) {
+            costruttore.punti = (costruttore.punti || 0) + punti
+          } else {
+            console.warn('Costruttore non trovato:', pilota.team)
+          }
+        })
+      })
+      
+      nuoviPiloti.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((p, i) => {
+        p.distacco = i === 0 ? 0 : (nuoviPiloti[0].punti || 0) - (p.punti || 0)
+      })
+      
+      nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
+        c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0)
+      })
+      
+      console.log('Salvando classifica aggiornata:', { piloti: nuoviPiloti, costruttori: nuoviCostruttori })
+      
+      onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori })
+      onClose()
     }
   }
-  // Calcola e assegna punti NUOVI per ogni gara del GP
-  gpFinale.gare.forEach(gara => {
-    Object.entries(gara.risultati).forEach(([pilotaId, pos]) => {
-      const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
-      if (!pilota) {
-        console.warn('Pilota non trovato:', pilotaId)
-        return
-      }
-      let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
-      if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
-        punti += classifica.punti_pole_valore || 3
-      }
-      if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
-        punti += classifica.giro_veloce_valore || 1
-      }
-      console.log(`${pilota.nome}: +${punti} pts (pos ${pos}, tipo ${gara.tipo_gara})`)
-      pilota.punti = (pilota.punti || 0) + punti
-      const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
-      if (costruttore) {
-        costruttore.punti = (costruttore.punti || 0) + punti
-      } else {
-        console.warn('Costruttore non trovato:', pilota.team)
-      }
-    })
-  })
-  nuoviPiloti.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((p, i) => {
-    p.distacco = i === 0 ? 0 : (nuoviPiloti[0].punti || 0) - (p.punti || 0)
-  })
-  nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
-    c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0)
-  })
-  console.log('Salvando classifica aggiornata:', { piloti: nuoviPiloti, costruttori: nuoviCostruttori })
-  onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori })
-  onClose()
-}
 
   const garaNoNDispudata = () => {
     const gare = [...gp.gare]
@@ -1315,7 +1427,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       </button>
     </div>
   )
-// ...existing code...
+}
 
 // ===== IMPOSTAZIONI CLASSIFICA =====
 function ImpostazioniClassifica({ classifica, onClose, onSave }) {
@@ -1518,7 +1630,7 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         {salvando ? 'Salvando...' : 'Salva Impostazioni'}
       </button>
     </div>
-  );
+  )
 }
 
 function CambiaPilotaView({ classifica, onClose, onSave }) {
@@ -2329,7 +2441,7 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
   const [loading, setLoading] = useState(true)
   const [showAltreClassifiche, setShowAltreClassifiche] = useState(false)
   const [modalitaElimina, setModalitaElimina] = useState(false)
-  // Rimossa gestione classifica personalizzata
+  const [showNuova, setShowNuova] = useState(false)
 
   const isAdmin = user.ruolo === 'admin'
 
@@ -2341,13 +2453,8 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
 
   const caricaClassifiche = async () => {
     try {
-      // Carica sia classifiche standard che custom
-      const { data: standard, error: err1 } = await supabase.from('classifiche').select('*').order('nome')
-      const { data: custom, error: err2 } = await supabase.from('classifiche_custom').select('*').order('nome')
-      let tutte = []
-      if (!err1 && Array.isArray(standard)) tutte = tutte.concat(standard)
-      if (!err2 && Array.isArray(custom)) tutte = tutte.concat(custom.map(c => ({ ...c, isCustom: true })))
-      setClassifiche(tutte)
+      const { data, error } = await supabase.from('classifiche').select('*').order('nome')
+      if (!error && data) setClassifiche(data)
       setLoading(false)
     } catch (err) {
       setLoading(false)
@@ -2355,20 +2462,11 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
   }
 
   const eliminaClassifica = async (id) => {
-    if (!confirm('Eliminare questa classifica? Questa azione non può essere annullata.')) return;
-    // Trova la classifica selezionata
-    const classifica = classifiche.find(c => c.id === id);
-    let error = null;
-    if (classifica && classifica.isCustom) {
-      // Elimina da classifiche_custom
-      ({ error } = await supabase.from('classifiche_custom').delete().eq('id', id));
-    } else {
-      // Elimina da classifiche
-      ({ error } = await supabase.from('classifiche').delete().eq('id', id));
-    }
+    if (!confirm('Eliminare questa classifica? Questa azione non può essere annullata.')) return
+    const { error } = await supabase.from('classifiche').delete().eq('id', id)
     if (!error) {
-      caricaClassifiche();
-      setModalitaElimina(false);
+      caricaClassifiche()
+      setModalitaElimina(false)
     }
   }
 
@@ -2440,181 +2538,65 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
             {classifiche.filter(c => c.nome !== "Formula 1" && c.nome !== "Formula E").map(c => (
               <div key={c.id} style={{ display: 'flex', gap: '10px' }}>
                 {modalitaElimina && <button onClick={() => eliminaClassifica(c.id)} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: '#FF3B30', color: 'white', fontSize: '24px', cursor: 'pointer' }}>−</button>}
-                <button onClick={() => !modalitaElimina && onOpenClassifica(c.id, c.isCustom)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
+                <button onClick={() => !modalitaElimina && onOpenClassifica(c.id)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
               </div>
             ))}
-           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '30px 0' }}>
-        {/* Bottone classifica personalizzata rimosso */}
+           <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+  {isAdmin && !modalitaElimina && (
+    <button
+      onClick={() => setShowNuova(true)}
+      style={{
+        width: '250px',
+        height: '80px',
+        background: '#34C759',
+        color: 'white',
+        border: 'none',
+        borderRadius: '25px',
+        fontSize: '24px',
+        fontWeight: 'bold',
+        cursor: 'pointer',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+      }}
+    >
+      Nuova Classifica
+    </button>
+  )}
 </div>
 
           </div>
         )}
       </div>
-      {/* Modal classifica personalizzata rimossa */}
+      {showNuova && <NuovaClassificaModal onClose={() => setShowNuova(false)} onSave={() => { caricaClassifiche(); setShowNuova(false) }} />}
     </div>
-    )
+  )
+}
 
 function NuovaClassificaModal({ onClose, onSave }) {
-  // Step 0: Nome classifica
-  // Step 1: Piloti/Team/Colore
-  // Step 2: GP/Weekend
-  const [step, setStep] = useState(0)
   const [nome, setNome] = useState('')
-  const [piloti, setPiloti] = useState([])
-  const [costruttori, setCostruttori] = useState([])
-  const [gp, setGp] = useState([])
-  const [nomePilota, setNomePilota] = useState('')
-  const [teamPilota, setTeamPilota] = useState('')
-  const [colorePilota, setColorePilota] = useState('#0066FF')
-  const [nomeGP, setNomeGP] = useState('')
-  const [tipoWeekend, setTipoWeekend] = useState('standard')
-
-  const aggiungiPilota = () => {
-    if (!nomePilota || !teamPilota) return
-    const nuovoPilota = { id: Date.now(), nome: nomePilota, team: teamPilota, colore: colorePilota, punti: 0, distacco: 0, attivo: true }
-    setPiloti([...piloti, nuovoPilota])
-    if (!costruttori.find(c => c.nome === teamPilota)) {
-      setCostruttori([...costruttori, { id: Date.now() + 1, nome: teamPilota, colore: colorePilota, punti: 0, distacco: 0 }])
-    }
-    setNomePilota('')
-    setTeamPilota('')
-    setColorePilota('#0066FF')
+  const handleSave = async (e) => {
+    e.preventDefault()
+    if (!nome.trim()) return
+    const { error } = await supabase.from('classifiche').insert([{ nome, piloti: [], gp: [], costruttori: [], is_f1_or_fe: false }])
+    if (!error) onSave()
   }
-
-  const rimuoviPilota = (id) => {
-    setPiloti(piloti.filter(p => p.id !== id))
-  }
-
-  const aggiungiGP = () => {
-    if (!nomeGP) return
-    const nuovoGP = { id: Date.now(), nome: nomeGP, tipo_weekend: tipoWeekend, completato: false, gare: [] }
-    setGp([...gp, nuovoGP])
-    setNomeGP('')
-  }
-
-  const rimuoviGP = (id) => {
-    setGp(gp.filter(g => g.id !== id))
-  }
-
-  const salvaClassificaCustom = async () => {
-    if (!nome.trim()) {
-      alert('Inserisci il nome della classifica')
-      return
-    }
-    if (piloti.length === 0) {
-      alert('Aggiungi almeno un pilota')
-      return
-    }
-    try {
-      const { error: insertError, data: insertData } = await supabase.from('classifiche_custom').insert([{ nome, piloti, gp, costruttori }]).select();
-      if (!insertError && insertData && insertData.length > 0) {
-        try {
-          const { getClassificaCreataNotification } = await import('./notificationTemplates.js');
-          const notifica = getClassificaCreataNotification(nome);
-          await supabase.from('push_notifications').insert([
-            { titolo: 'Classifica creata', messaggio: notifica, data: new Date().toISOString() }
-          ]);
-        } catch (notifErr) {
-          // Notifica fallita, logga errore ma continua
-          console.error('Errore invio notifica:', notifErr);
-        }
-        // Recupera la classifica appena creata e aggiorna stato
-        // setClassifica(insertData[0]); // Se serve aggiornare lo stato
-        // if (!insertData[0].piloti || insertData[0].piloti.length === 0) {
-        //   setShowSetup(true);
-        // }
-        // setLoading(false);
-        onSave();
-      } else {
-        alert('Errore nella creazione della classifica');
-        // setLoading(false);
-      }
-    } catch (err) {
-      alert('Errore nella creazione della classifica');
-      // setLoading(false);
-    }
-  }
-
   return (
-    <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
-      <button onClick={step === 0 ? onClose : () => setStep(step - 1)} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Indietro</button>
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
-        {[0, 1, 2].map(i => <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: step === i ? '#34C759' : '#ddd' }} />)}
+    <div className="modal-container">
+      <div className="modal-card" style={{ width: '450px' }}>
+        <div className="modal-header">
+          <h2>Crea nuova classifica</h2>
+          <button className="btn-close" onClick={onClose}>✕</button>
+        </div>
+        <form onSubmit={handleSave} className="modal-form">
+          <div className="form-group">
+            <label className="form-label">Nome classifica</label>
+            <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} className="form-input" placeholder="Es: Moto GP, Indycar..." required autoFocus />
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn-cancel" onClick={onClose}>Annulla</button>
+            <button type="submit" className="btn-save">Salva</button>
+          </div>
+        </form>
       </div>
-      {step === 0 && (
-        <div>
-          <h2 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>Nome Classifica Personalizzata</h2>
-          <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder="Es: Moto GP, Indycar..." style={{ width: '100%', padding: '15px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '20px', marginBottom: '30px' }} autoFocus />
-          <button onClick={() => setStep(1)} style={{ width: '100%', padding: '18px', background: '#34C759', color: 'white', border: 'none', borderRadius: '15px', fontSize: '22px', fontWeight: 'bold', cursor: 'pointer' }}>Prosegui</button>
-        </div>
-      )}
-      {step === 1 && (
-        <div>
-          <h2 style={{ fontSize: '24px', marginBottom: '20px', textAlign: 'center' }}>Inserisci Piloti e Team</h2>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome Pilota</label>
-            <input type="text" value={nomePilota} onChange={e => setNomePilota(e.target.value)} placeholder="es. Max Verstappen" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
-          </div>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Team</label>
-            <input type="text" value={teamPilota} onChange={e => setTeamPilota(e.target.value)} placeholder="es. Red Bull Racing" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
-          </div>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Colore Team</label>
-            <input type="color" value={colorePilota} onChange={e => setColorePilota(e.target.value)} style={{ width: '100%', height: '50px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer' }} />
-          </div>
-          <button onClick={aggiungiPilota} style={{ width: '100%', padding: '15px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>Aggiungi Pilota</button>
-          {piloti.length > 0 && (
-            <div style={{ marginBottom: '25px' }}>
-              <h3 style={{ marginBottom: '15px', fontSize: '18px', borderBottom: '2px solid #f0f0f0', paddingBottom: '8px' }}>Piloti inseriti: {piloti.length}</h3>
-              <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
-                {piloti.map((p) => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8f9fa', borderRadius: '12px', marginBottom: '10px', border: '1px solid #eee' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: p.colore, border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}></div>
-                      <div style={{ fontSize: '15px', color: '#333' }}><strong>{p.nome}</strong> <span style={{ opacity: 0.7, marginLeft: '5px' }}>({p.team})</span></div>
-                    </div>
-                    <button onClick={() => rimuoviPilota(p.id)} style={{ background: 'none', border: 'none', color: '#FF3B30', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <button onClick={() => setStep(2)} style={{ width: '100%', padding: '18px', background: '#34C759', color: 'white', border: 'none', borderRadius: '15px', fontSize: '22px', fontWeight: 'bold', cursor: 'pointer' }}>Prosegui</button>
-        </div>
-      )}
-      {step === 2 && (
-        <div>
-          <h2 style={{ fontSize: '24px', marginBottom: '20px', textAlign: 'center' }}>Inserisci GP e Weekend</h2>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome GP</label>
-            <input type="text" value={nomeGP} onChange={e => setNomeGP(e.target.value)} placeholder="es. GP Italia" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
-          </div>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Tipo Weekend</label>
-            <select value={tipoWeekend} onChange={e => setTipoWeekend(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }}>
-              <option value="standard">Standard</option>
-              <option value="sprintF1">Sprint F1</option>
-              <option value="f2">F2</option>
-            </select>
-          </div>
-          <button onClick={aggiungiGP} style={{ width: '100%', padding: '15px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>Aggiungi GP</button>
-          {gp.length > 0 && (
-            <div style={{ marginBottom: '25px' }}>
-              <h3 style={{ marginBottom: '15px', fontSize: '18px', borderBottom: '2px solid #f0f0f0', paddingBottom: '8px' }}>GP inseriti: {gp.length}</h3>
-              <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
-                {gp.map((g) => (
-                  <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8f9fa', borderRadius: '12px', marginBottom: '10px', border: '1px solid #eee' }}>
-                    <div style={{ fontSize: '15px', color: '#333' }}><strong>{g.nome}</strong> <span style={{ opacity: 0.7, marginLeft: '5px' }}>({g.tipo_weekend})</span></div>
-                    <button onClick={() => rimuoviGP(g.id)} style={{ background: 'none', border: 'none', color: '#FF3B30', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <button onClick={salvaClassificaCustom} style={{ width: '100%', padding: '18px', background: '#34C759', color: 'white', border: 'none', borderRadius: '15px', fontSize: '22px', fontWeight: 'bold', cursor: 'pointer' }}>Conferma e Salva</button>
-        </div>
-      )}
     </div>
   )
 }
@@ -3493,43 +3475,25 @@ function NuovaPaginaView({ onClose, user }) {
       alert('❌ Inserisci il nome del campionato')
       return
     }
-    // Protezione: vieta nomi "Formula 1" o "Formula E"
-    const nomeLower = nuovoCampionatoForm.nome.trim().toLowerCase()
-    if (nomeLower === 'formula 1' || nomeLower === 'formula e') {
-      alert('❌ Non puoi creare una classifica con nome "Formula 1" o "Formula E". Queste sono riservate!')
-      return
-    }
+    
     if (nuovoCampionatoForm.piloti.length === 0) {
       alert('❌ Aggiungi almeno un pilota')
       return
     }
 
     const nuovoCampionato = {
+      id: `campionato_${Date.now()}`,
       nome: nuovoCampionatoForm.nome,
       piloti: nuovoCampionatoForm.piloti,
       costruttori: [],
-      gp: [],
-      is_f1_or_fe: null
+      gp: []
     }
 
-    try {
-      console.log('[DEBUG] Provo a salvare nuovo campionato su classifiche_custom:', nuovoCampionato)
-      const { data, error } = await supabase.from('classifiche_custom').insert([nuovoCampionato])
-      if (error) {
-        console.error('[DEBUG] Errore salvataggio campionato:', error)
-        alert('❌ Errore nel salvataggio su Supabase: ' + (error.message || error.details || error))
-        return
-      }
-      alert(`✅ Campionato "${nuovoCampionato.nome}" creato con successo!`)
-      setNuovoCampionatoForm({ nome: '', piloti: [] })
-      setShowCreaZero(false)
-      setShowAggiungiMenu(false)
-      // Ricarica la lista campionati per aggiornare la UI
-      caricaCampionati()
-    } catch (err) {
-      console.error('[DEBUG] Errore imprevisto nel salvataggio:', err)
-      alert('❌ Errore imprevisto nel salvataggio: ' + err.message)
-    }
+    setCampionati([...campionati, nuovoCampionato])
+    setNuovoCampionatoForm({ nome: '', piloti: [] })
+    setShowCreaZero(false)
+    setShowAggiungiMenu(false)
+    alert(`✅ Campionato "${nuovoCampionato.nome}" creato con successo!`)
   }
 
   if (loading) {
