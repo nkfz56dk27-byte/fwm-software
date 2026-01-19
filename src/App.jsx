@@ -2519,6 +2519,7 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
       {showNuova && <NuovaClassificaModal onClose={() => setShowNuova(false)} onSave={() => { caricaClassifiche(); setShowNuova(false) }} />}
     </div>
   )
+}
 
 function NuovaClassificaModal({ onClose, onSave }) {
   // Step 0: Nome classifica
