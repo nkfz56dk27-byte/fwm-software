@@ -57,3 +57,58 @@ export function getPenaltyNotification({ punti, pilotaId, piloti, categoriaNome,
   }
   return null;
 }
+
+/**
+ * Genera il testo della notifica per creazione weekend di una categoria
+ * @param {string} nomeWeekend
+ * @param {string} categoriaNome
+ * @param {string} creatoreUsername
+ * @returns {Object} { titolo, messaggio, tipo }
+ */
+export function getCreazioneWeekendCategoriaNotification(nomeWeekend, categoriaNome, creatoreUsername) {
+  return {
+    titolo: `Nuovo weekend disponibilità (${categoriaNome}) aperto.`,
+    messaggio: `${creatoreUsername} ha aperto le prenotazioni per ${nomeWeekend} di ${categoriaNome}: seleziona ora i tuoi articoli`,
+    tipo: 'creazione_weekend_categoria'
+  };
+}
+
+/**
+ * Genera il testo della notifica per selezione articoli in un weekend di una categoria
+ * @param {string} nomeWeekend
+ * @param {string} categoriaNome
+ * @param {string} username
+ * @param {number} quantiArticoli
+ * @returns {Object} { titolo, messaggio, tipo }
+ */
+
+/**
+ * Notifica per selezione di UN SOLO articolo
+ * @param {string} nomeWeekend
+ * @param {string} categoriaNome
+ * @param {string} username
+ * @returns {Object} { titolo, messaggio, tipo }
+ */
+export function getSelezioneArticoloSingoloWeekendCategoriaNotification(nomeWeekend, categoriaNome, username) {
+  return {
+    titolo: `Articolo selezionato per ${nomeWeekend} (${categoriaNome})`,
+    messaggio: `${username} ha selezionato 1 articolo per il weekend di ${categoriaNome}`,
+    tipo: 'selezione_articolo_singolo_weekend_categoria'
+  };
+}
+
+/**
+ * Notifica per selezione di DUE O PIÙ articoli
+ * @param {string} nomeWeekend
+ * @param {string} categoriaNome
+ * @param {string} username
+ * @param {number} quantiArticoli
+ * @returns {Object} { titolo, messaggio, tipo }
+ */
+export function getSelezioneArticoliMultipliWeekendCategoriaNotification(nomeWeekend, categoriaNome, username, quantiArticoli) {
+  return {
+    titolo: `Articoli selezionati per ${nomeWeekend} (${categoriaNome})`,
+    messaggio: `${username} ha selezionato ${quantiArticoli} articoli per il weekend di ${categoriaNome}`,
+    tipo: 'selezione_articoli_multipli_weekend_categoria'
+  };
+}
