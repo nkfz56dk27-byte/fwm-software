@@ -2289,7 +2289,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, 
 }
 
 // ===== LOGIN =====
-function LoginView({ username, setUsername, password, setPassword, showPassword, setShowPassword, loginError, loading, handleLogin }) {
+export function LoginView({ username, setUsername, password, setPassword, showPassword, setShowPassword, loginError, loading, handleLogin }) {
   return (
     <div className="login-container">
       <div className="login-card">
