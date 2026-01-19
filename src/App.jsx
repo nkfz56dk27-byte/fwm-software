@@ -2374,7 +2374,7 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
   const [loading, setLoading] = useState(true)
   const [showAltreClassifiche, setShowAltreClassifiche] = useState(false)
   const [modalitaElimina, setModalitaElimina] = useState(false)
-  const [showNuova, setShowNuova] = useState(false)
+  // Rimossa gestione classifica personalizzata
 
   const isAdmin = user.ruolo === 'admin'
 
@@ -2490,33 +2490,13 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
               </div>
             ))}
            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '30px 0' }}>
-  {isAdmin && !modalitaElimina && (
-    <button
-      onClick={() => setShowNuova(true)}
-      style={{
-        width: '320px',
-        height: '90px',
-        background: '#34C759',
-        color: 'white',
-        border: 'none',
-        borderRadius: '30px',
-        fontSize: '28px',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-        textAlign: 'center',
-        margin: '0 auto'
-      }}
-    >
-      Nuova Classifica Personalizzata
-    </button>
-  )}
+        {/* Bottone classifica personalizzata rimosso */}
 </div>
 
           </div>
         )}
       </div>
-      {showNuova && <NuovaClassificaModal onClose={() => setShowNuova(false)} onSave={() => { caricaClassifiche(); setShowNuova(false) }} />}
+      {/* Modal classifica personalizzata rimossa */}
     </div>
     )
 
