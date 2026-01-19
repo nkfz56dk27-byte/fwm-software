@@ -397,35 +397,28 @@ function App() {
     return <NuovaPaginaView onClose={() => setShowNuovaPagina(false)} />
   }
 
+  // PRIORITÀ: modali e pannelli
+  if (showRitaglioImmagine) {
+    return <RitaglioImmagine user={user} onClose={() => setShowRitaglioImmagine(false)} />
+  }
+  if (showVidaMenu) {
+    return <VidaMenu onClose={() => setShowVidaMenu(false)} />
+  }
+  if (showEventiMobile) {
+    return <EventiMobileMenu onClose={() => setShowEventiMobile(false)} />
+  }
+  if (showCalendario) {
+    return <CalendarioAccrediti utenteCorrente={user} onClose={() => setShowCalendario(false)} onNotificheChange={() => user && user.username && caricaNotificheCalendario(user.username)} />
+  }
+  if (showDisponibilita) {
+    return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
+  }
   if (showClassifica && classificaId) {
     return <ClassificaView classificaId={classificaId} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
   }
   // Schermata HomeView come default dopo login
   if (user) {
     return <HomeView user={user} isMobile={isMobile} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} onOpenVidaMenu={() => setShowVidaMenu(true)} onOpenEventiMobile={() => setShowEventiMobile(true)} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
-  }
-
-  // ← AGGIUNTO: Render condizionale RitaglioImmagine
-  if (showRitaglioImmagine) {
-    return <RitaglioImmagine user={user} onClose={() => setShowRitaglioImmagine(false)} />
-  }
-
-  // ← AGGIUNTO: Render condizionale Vida Menu
-  if (showVidaMenu) {
-    return <VidaMenu onClose={() => setShowVidaMenu(false)} />
-  }
-
-  // ← AGGIUNTO: Render condizionale Eventi Mobile
-  if (showEventiMobile) {
-    return <EventiMobileMenu onClose={() => setShowEventiMobile(false)} />
-  }
-
-  if (showCalendario) {
-    return <CalendarioAccrediti utenteCorrente={user} onClose={() => setShowCalendario(false)} onNotificheChange={() => user && user.username && caricaNotificheCalendario(user.username)} />
-  }
-
-  if (showDisponibilita) {
-    return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
   const handleSendNotification = async () => {

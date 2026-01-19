@@ -35,11 +35,7 @@ function App() {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [passwordError, setPasswordError] = useState('')
-<<<<<<< HEAD
-  const [showPhotoEditor, setShowPhotoEditor] = useState(false)
-=======
   const [showRitaglioImmagine, setShowRitaglioImmagine] = useState(false)
->>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
   const [showCalendario, setShowCalendario] = useState(false)
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
@@ -172,15 +168,10 @@ function App() {
     return <ClassificaView classificaId={classificaId} user={user} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
   }
 
-<<<<<<< HEAD
-  // ← AGGIUNTO: Render condizionale PhotoEditor
-  if (showPhotoEditor) {
-    return <PhotoEditor onClose={() => setShowPhotoEditor(false)} />
-=======
   // ← AGGIUNTO: Render condizionale RitaglioImmagine
   if (showRitaglioImmagine) {
+    console.log('👁️ showRitaglioImmagine:', showRitaglioImmagine)
     return <RitaglioImmagine onClose={() => setShowRitaglioImmagine(false)} user={user} />
->>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
   }
 
   if (showCalendario) {
@@ -193,11 +184,7 @@ function App() {
 
   return (
     <>
-<<<<<<< HEAD
-      <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowPhotoEditor(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
-=======
       <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
->>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
       {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
     </>
   )
@@ -2236,7 +2223,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, 
                 </p>
               </div>
 
-              <div className="home-card card-green" onClick={onOpenRitaglio} style={{ cursor: 'pointer' }}>
+              <div className="home-card card-green" onClick={() => { console.log('🟢 CLICK RITAGLIO IMMAGINE'); onOpenRitaglio(); }} style={{ cursor: 'pointer' }}>
                 <div className="card-icon-wrapper">
                   <img
                     src={FotoSVG}
