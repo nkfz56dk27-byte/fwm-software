@@ -23,7 +23,7 @@ export default function NotificheDisponibilitaModal({ notifiche, onClose, onSegn
           }
         </div>
         <div style={{ padding: '15px', borderTop: '1px solid #e0e0e0' }}>
-          <button onClick={onSegnaTutteLette} style={{ width: '100%', padding: '12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>Segna tutte come lette</button>
+          <button onClick={onSegnaTutteLette} style={{ width: '100%', padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>Segna tutte come lette</button>
         </div>
       </div>
     </div>
