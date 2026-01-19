@@ -472,29 +472,21 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
 
   const caricaClassifica = async () => {
     try {
-      // Recupera la classifica dalla tabella corretta
-      let data, error
-      // Prova prima la tabella standard
-      ({ data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single())
-      if (!error && data) {
-        setClassifica(data)
-        if (!data.piloti || data.piloti.length === 0) {
-          setShowSetup(true)
-        }
-        setLoading(false)
-        return
+      let data, error;
+      if (classificaId && typeof classificaId === 'object' && classificaId.isCustom) {
+        ({ data, error } = await supabase.from('classifiche_custom').select('*').eq('id', classificaId.id).single());
+      } else {
+        ({ data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single());
       }
-      // Se non trovata, prova la tabella custom
-      ({ data, error } = await supabase.from('classifiche_custom').select('*').eq('id', classificaId).single())
       if (!error && data) {
-        setClassifica(data)
+        setClassifica(data);
         if (!data.piloti || data.piloti.length === 0) {
-          setShowSetup(true)
+          setShowSetup(true);
         }
       }
-      setLoading(false)
+      setLoading(false);
     } catch (err) {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -513,18 +505,21 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         updateObj.is_f1_or_fe = nuovaClassifica.is_f1_or_fe
       }
 
-      const { error } = await supabase.from('classifiche').update(updateObj).eq('id', classificaId)
+      let error;
+      if (classificaId && typeof classificaId === 'object' && classificaId.isCustom) {
+        ({ error } = await supabase.from('classifiche_custom').update(updateObj).eq('id', classificaId.id));
+      } else {
+        ({ error } = await supabase.from('classifiche').update(updateObj).eq('id', classificaId));
+      }
       if (!error) {
         setClassifica(nuovaClassifica)
         setShowSetup(false)
-        
         // INVIA NOTIFICA PUSH per classifica aggiornata (sistema intelligente multi-device)
         await notificaClassificaAggiornata(
           nuovaClassifica.nome,
           'Nuovi risultati disponibili',
-          user.username  // ← Sistema multi-device: invia solo ad altri dispositivi
+          user.username
         )
-        
         caricaClassifica()
       } else {
         console.error('Errore salvataggio classifica:', error)
@@ -2217,7 +2212,9 @@ function SetupIniziale({ classifica, onSave, onBack }) {
   }
 
   const confermaESalva = () => {
-    onSave({ ...classifica, piloti, costruttori, gp, numero_gp_stagione: numeroGP, numero_sprint_stagione: numeroSprint })
+    const safeNumeroGP = isNaN(parseInt(numeroGP)) ? 0 : parseInt(numeroGP);
+    const safeNumeroSprint = isNaN(parseInt(numeroSprint)) ? 0 : parseInt(numeroSprint);
+    onSave({ ...classifica, piloti, costruttori, gp, numero_gp_stagione: safeNumeroGP, numero_sprint_stagione: safeNumeroSprint })
   }
 
   return (
@@ -2574,7 +2571,16 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
             {classifiche.filter(c => c.nome !== "Formula 1" && c.nome !== "Formula E").map(c => (
               <div key={c.id} style={{ display: 'flex', gap: '10px' }}>
                 {modalitaElimina && <button onClick={() => eliminaClassifica(c.id)} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: '#FF3B30', color: 'white', fontSize: '24px', cursor: 'pointer' }}>−</button>}
-                <button onClick={() => !modalitaElimina && onOpenClassifica(c.id)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
+                <button onClick={() => {
+                  if (!modalitaElimina) {
+                    console.log('[ClassificheMenuView] onOpenClassifica id:', c.id, 'nome:', c.nome, 'isCustom:', c.isCustom)
+                    if (c.isCustom) {
+                      onOpenClassifica({ id: c.id, isCustom: true })
+                    } else {
+                      onOpenClassifica(c.id)
+                    }
+                  }
+                }} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
               </div>
             ))}
            <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
@@ -2991,33 +2997,25 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
 
   useEffect(() => { caricaUtenti() }, [])
 
-  const caricaUtenti = async () => {
+  const caricaClassifica = async () => {
     try {
-      const { data, error } = await supabase.from('utenti').select('*').order('username')
-      if (!error && data) setUtenti(data)
-      setLoading(false)
+      let data, error;
+      if (classificaId && typeof classificaId === 'object' && classificaId.isCustom) {
+        ({ data, error } = await supabase.from('classifiche_custom').select('*').eq('id', classificaId.id).single());
+      } else {
+        ({ data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single());
+      }
+      if (!error && data) {
+        setClassifica(data);
+        if (!data.piloti || data.piloti.length === 0) {
+          setShowSetup(true);
+        }
+      }
+      setLoading(false);
     } catch (err) {
-      setLoading(false)
+      setLoading(false);
     }
   }
-
-  const cambiaRuolo = async (utente) => {
-    const nuovoRuolo = utente.ruolo === 'admin' ? 'redattore' : 'admin'
-    const { error } = await supabase.from('utenti').update({ ruolo: nuovoRuolo }).eq('id', utente.id)
-    if (!error) caricaUtenti()
-  }
-
-  const resetPassword = async (utente) => {
-    if (!confirm(`Resettare la password di ${utente.username} a quella iniziale?`)) return
-    const { error } = await supabase.from('utenti').update({ password: 'FWM2025APP!?!', deve_cambiare_password: true }).eq('id', utente.id)
-    if (!error) caricaUtenti()
-  }
-
-  if (showNuovo) return <NuovoUtenteView onClose={() => setShowNuovo(false)} onSave={() => { caricaUtenti(); setShowNuovo(false) }} />
-  if (editUtente) return <ModificaUtenteView utente={editUtente} onClose={() => setEditUtente(null)} onSave={() => { caricaUtenti(); setEditUtente(null) }} />
-  if (showCategorie) return <GestioneCategorie onClose={() => setShowCategorie(false)} />
-  if (showTemplateArticoli) return <GestioneTemplateArticoli onClose={() => setShowTemplateArticoli(false)} />
-
   return (
     <div className="gestione-container">
       <div className="gestione-header">
