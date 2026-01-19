@@ -415,7 +415,13 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
   if (showClassifica && classificaId) {
-    return <ClassificaView classificaId={classificaId} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
+    return <ClassificaView 
+      classificaId={classificaId} 
+      user={user} 
+      isMobile={isMobile} 
+      onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} 
+      setToastNotification={setToastNotification}
+    />
   }
   // Schermata HomeView come default dopo login
   if (user) {
@@ -442,7 +448,7 @@ function App() {
   )
 }
 // ===== CLASSIFICA VIEW COMPLETA =====
-function ClassificaView({ classificaId, user, isMobile, onBack }) {
+function ClassificaView({ classificaId, user, isMobile, onBack, setToastNotification }) {
   const [classifica, setClassifica] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showSetup, setShowSetup] = useState(false)
@@ -527,7 +533,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         if (isCreazione && createdData) {
           setClassifica(createdData);
           setShowSetup(false);
-          setToastNotification(getClassificaCreataNotification(createdData.nome));
+          setToastNotification && setToastNotification(getClassificaCreataNotification(createdData.nome));
           // Aggiorna classificaId per future modifiche
           if (nuovaClassifica.isCustom) {
             setClassificaId({ id: createdId, isCustom: true });
@@ -537,7 +543,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         } else {
           setClassifica(nuovaClassifica);
           setShowSetup(false);
-          setToastNotification(getClassificaAggiornataNotification(nuovaClassifica.nome, 'Nuovi risultati disponibili'));
+          setToastNotification && setToastNotification(getClassificaAggiornataNotification(nuovaClassifica.nome, 'Nuovi risultati disponibili'));
           await notificaClassificaAggiornata(
             nuovaClassifica.nome,
             'Nuovi risultati disponibili',
