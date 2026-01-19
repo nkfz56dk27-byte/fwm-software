@@ -6,7 +6,7 @@ import DisponibilitàSVG from "./assets/disponibilità.svg"
 import PressPNG from "./assets/press.png"
 import CestinoSVG from "./assets/cestino.svg"
 import CheckSVG from "./assets/check.svg"
-import PhotoEditor from './PhotoEditor'
+import RitaglioImmagine from './RitaglioImmagine.jsx'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
@@ -35,7 +35,7 @@ function App() {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [passwordError, setPasswordError] = useState('')
-  const [showPhotoEditor, setShowPhotoEditor] = useState(false)
+  const [showRitaglioImmagine, setShowRitaglioImmagine] = useState(false)
   const [showCalendario, setShowCalendario] = useState(false)
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
@@ -168,9 +168,9 @@ function App() {
     return <ClassificaView classificaId={classificaId} user={user} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
   }
 
-  // ← AGGIUNTO: Render condizionale PhotoEditor
-  if (showPhotoEditor) {
-    return <PhotoEditor onClose={() => setShowPhotoEditor(false)} />
+  // ← AGGIUNTO: Render condizionale RitaglioImmagine
+  if (showRitaglioImmagine) {
+    return <RitaglioImmagine onClose={() => setShowRitaglioImmagine(false)} user={user} />
   }
 
   if (showCalendario) {
@@ -183,7 +183,7 @@ function App() {
 
   return (
     <>
-      <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowPhotoEditor(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+      <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
       {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
     </>
   )
