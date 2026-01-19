@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import CoppaSVG from "./assets/coppa.svg"
@@ -6,14 +7,13 @@ import DisponibilitàSVG from "./assets/disponibilità.svg"
 import PressPNG from "./assets/press.png"
 import CestinoSVG from "./assets/cestino.svg"
 import CheckSVG from "./assets/check.svg"
-import PhotoEditor from './PhotoEditor'
+import RitaglioImmagine from './RitaglioImmagine.jsx'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
 import GestioneCategorie from './GestioneCategorie.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
 import { initializeOneSignal } from './src/onesignal.js'
 import NotificationPrompt from './src/NotificationPrompt.jsx'
-
 import './App.css'
 
 function App() {
@@ -35,7 +35,11 @@ function App() {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [passwordError, setPasswordError] = useState('')
+<<<<<<< HEAD
   const [showPhotoEditor, setShowPhotoEditor] = useState(false)
+=======
+  const [showRitaglioImmagine, setShowRitaglioImmagine] = useState(false)
+>>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
   const [showCalendario, setShowCalendario] = useState(false)
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
@@ -168,9 +172,15 @@ function App() {
     return <ClassificaView classificaId={classificaId} user={user} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
   }
 
+<<<<<<< HEAD
   // ← AGGIUNTO: Render condizionale PhotoEditor
   if (showPhotoEditor) {
     return <PhotoEditor onClose={() => setShowPhotoEditor(false)} />
+=======
+  // ← AGGIUNTO: Render condizionale RitaglioImmagine
+  if (showRitaglioImmagine) {
+    return <RitaglioImmagine onClose={() => setShowRitaglioImmagine(false)} user={user} />
+>>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
   }
 
   if (showCalendario) {
@@ -183,7 +193,11 @@ function App() {
 
   return (
     <>
+<<<<<<< HEAD
       <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowPhotoEditor(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+=======
+      <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+>>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
       {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
     </>
   )
@@ -2230,7 +2244,11 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, 
                     style={{ width: "60px", height: "50px", filter: "brightness(0) invert(1)" }}
                   />
                 </div>
+<<<<<<< HEAD
                 <h3 className="card-title">RITAGLIO FOTO</h3>
+=======
+                <h3 className="card-title">RITAGLIO IMMAGINE</h3>
+>>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
                 <p className="card-subtitle">Ritaglia immagini<br />1200x729 px</p>
               </div>
 
@@ -2289,7 +2307,11 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, 
 }
 
 // ===== LOGIN =====
+<<<<<<< HEAD
 function LoginView({ username, setUsername, password, setPassword, showPassword, setShowPassword, loginError, loading, handleLogin }) {
+=======
+export function LoginView({ username, setUsername, password, setPassword, showPassword, setShowPassword, loginError, loading, handleLogin }) {
+>>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
   return (
     <div className="login-container">
       <div className="login-card">
