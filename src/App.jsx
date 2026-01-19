@@ -2415,7 +2415,6 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
       caricaClassifiche();
       setModalitaElimina(false);
     }
-    }
   }
 
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Caricamento...</div>
