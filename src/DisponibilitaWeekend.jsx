@@ -1,10 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import html2canvas from 'html2canvas'
-import { notificaDisponibilitaWeekend } from './src/pushNotifications'
-import { inviaNotificaAUtente } from './pushNotificationService'
-import { getCreazioneWeekendCategoriaNotification, notificaCreazioneWeekendCategoria } from './notificationTemplates'
-import NotificheDisponibilitaModal from './NotificheDisponibilitaModal.jsx'
 
 // ===== MAPPING UTENTE → REDATTORE =====
 const UTENTE_TO_REDATTORE = {
@@ -326,83 +322,6 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     }
   }, [utenteCorrente])
 
-
-
-  async function creaWeekend() {
-    if (!nomeGP || !date) return
-    setSalvando(true)
-    
-    const { data: weekend, error: errorWeekend } = await supabase
-      .from('weekend')
-      .insert({ 
-        nome_gp: nomeGP, 
-        data: date, 
-        redattori: Array.from(redattori).sort(),
-        categoria_id: categoriaSelezionata
-      })
-      .select()
-      .single()
-    
-    if (errorWeekend) {
-      console.error('Errore creazione weekend:', errorWeekend)
-      alert('Errore nella creazione del weekend')
-      setSalvando(false)
-      return
-    }
-    // Invio notifica agli utenti della categoria
-    await notificaCreazioneWeekendCategoria(
-      weekend.nome_gp,
-      weekend.categoria_id,
-      utenteCorrente.username,
-      inviaNotificaAUtente,
-      categorie,
-      supabase
-    )
-    
-    if (usaTemplate && templateSelezionato) {
-      // Carica il template selezionato
-      const template = templates.find(t => t.id === parseInt(templateSelezionato))
-      if (template && template.articoli) {
-        const articoli = template.articoli.map(t => ({ 
-          weekend_id: weekend.id, 
-          titolo: t.titolo, 
-          categoria: t.categoria, 
-          giorno: t.giorno, 
-          stato: 'libero', 
-          range_grassetto: t.range_grassetto || [] 
-        }))
-        const { error: errorArticoli } = await supabase.from('articoli').insert(articoli)
-        if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
-      }
-    } else if (usaTemplate) {
-      // Fallback al template hardcoded se nessun template selezionato
-      const articoli = TEMPLATE_ARTICOLI.map(t => ({ 
-        weekend_id: weekend.id, 
-        titolo: t.titolo, 
-        categoria: t.categoria, 
-        giorno: t.giorno, 
-        stato: 'libero', 
-        range_grassetto: [] 
-      }))
-      const { error: errorArticoli } = await supabase.from('articoli').insert(articoli)
-      if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
-    }
-    
-    // Crea notifica (non blocca se fallisce)
-    try {
-      if (onCreaNotifica) {
-        await onCreaNotifica(`Nuovo weekend aperto: ${nomeGP} (${date})`, weekend.id)
-      }
-      // Invia notifica agli utenti della categoria
-      await notificaCreazioneWeekendCategoria(nomeGP, categoriaSelezionata)
-    } catch (err) {
-      console.error('Errore creazione notifica:', err)
-    }
-    
-    setSalvando(false)
-    onCreated()
-  }
-
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? '10px' : '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0' }}>
@@ -524,12 +443,11 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       {showNuovo && <NuovoWeekendModal categoria={categoria} onClose={() => setShowNuovo(false)} onCreated={() => { setShowNuovo(false); caricaWeekends(); }} onCreaNotifica={creaNotifica} />}
       
       {showNotifiche && (
-        <NotificheDisponibilitaModal 
+        <NotificheModal 
           notifiche={notifiche} 
           onClose={() => setShowNotifiche(false)} 
           onSegnaLetta={segnaComeLetta} 
           onSegnaTutteLette={segnaTutteComeLette} 
-          isMobile={isMobile}
         />
       )}
     </div>
@@ -702,8 +620,6 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
       setSalvando(false)
       return
     }
-    // Invio notifica agli utenti della categoria
-    await notificaCreazioneWeekendCategoria(weekend.nome_gp, weekend.categoria_id, utenteCorrente.username)
     
     if (usaTemplate && templateSelezionato) {
       // Carica il template selezionato
@@ -734,17 +650,32 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
       if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
     }
     
-    // Crea notifica (non blocca se fallisce)
+    // Crea notifica interna (non blocca se fallisce)
     try {
       if (onCreaNotifica) {
         await onCreaNotifica(`Nuovo weekend aperto: ${nomeGP} (${date})`, weekend.id)
       }
-      // Invia notifica agli utenti della categoria
-      await notificaCreazioneWeekendCategoria(nomeGP, categoriaSelezionata)
     } catch (err) {
       console.error('Errore creazione notifica:', err)
     }
-    
+
+    // INVIO NOTIFICA PUSH (PLUS, SEPARATA)
+    try {
+      // Import dinamico per evitare problemi SSR
+      const { inviaNotificaAUtente } = await import('./pushNotificationService')
+      // Notifica a tutti i redattori selezionati
+      for (const redattore of redattori) {
+        await inviaNotificaAUtente(redattore, {
+          titolo: 'Nuovo weekend disponibile',
+          messaggio: `È stato aperto il weekend: ${nomeGP} (${date})`,
+          url: '/',
+          data: { weekend_id: weekend.id }
+        })
+      }
+    } catch (err) {
+      console.error('Errore invio notifica push:', err)
+    }
+
     setSalvando(false)
     onCreated()
   }
@@ -885,80 +816,43 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   }
 
   async function salvaArticoli(conferma = false) {
-    setSalvando(true)
-    for (const id of articoliSelezionati) {
-      await supabase.from('articoli').update({ stato: 'assegnato', assegnato_a: nomeRedattore }).eq('id', id)
+  setSalvando(true)
+  for (const id of articoliSelezionati) {
+    await supabase.from('articoli').update({ stato: 'assegnato', assegnato_a: nomeRedattore }).eq('id', id)
+  }
+  const articoliMiei = articoli.filter(a => a.assegnato_a === nomeRedattore)
+  for (const art of articoliMiei) {
+    if (!articoliSelezionati.has(art.id)) {
+      await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
     }
-    const articoliMiei = articoli.filter(a => a.assegnato_a === nomeRedattore)
-    for (const art of articoliMiei) {
-      if (!articoliSelezionati.has(art.id)) {
-        await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
+  }
+  
+  // CREA NOTIFICA quando conferma
+if (conferma && articoliSelezionati.size > 0) {
+  await supabase.from('notifiche_disponibilita').insert({
+    messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
+    weekend_id: weekend.id
+  })
+  
+  // Forza ricarica notifiche per farle apparire subito
+  window.dispatchEvent(new Event('ricarica-notifiche'))
+}
+  
+  // PULISCE selezioni temporanee dopo conferma
+  if (channelRef.current) {
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'selezione',
+      payload: {
+        username: nomeRedattore,
+        articoli: []
       }
-    }
-    // CREA NOTIFICA quando conferma
-    if (conferma && articoliSelezionati.size > 0) {
-      // Notifica in tabella notifiche
-      await supabase.from('notifiche_disponibilita').insert({
-        messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
-        weekend_id: weekend.id
-      })
-      // Invio notifica push SOLO agli utenti della categoria del weekend
-      try {
-        const categoriaId = weekend.categoria_id || weekend.categoria; // fallback se diverso
-        const categoriaNome = (CATEGORIE.find(c => c.id === categoriaId)?.nome) || categoriaId || '';
-        let notifica;
-        if (articoliSelezionati.size === 1) {
-          notifica = require('./notificationTemplates').getSelezioneArticoloSingoloWeekendCategoriaNotification(
-            weekend.nome_gp,
-            categoriaNome,
-            nomeRedattore
-          );
-        } else {
-          notifica = require('./notificationTemplates').getSelezioneArticoliMultipliWeekendCategoriaNotification(
-            weekend.nome_gp,
-            categoriaNome,
-            nomeRedattore,
-            articoliSelezionati.size
-          );
-        }
-        const { titolo, messaggio, tipo } = notifica;
-        const { data: utenti, error } = await supabase
-          .from('utenti')
-          .select('username')
-          .eq('categoria_id', categoriaId)
-          .eq('attivo', true);
-        if (!error && utenti && utenti.length > 0) {
-          for (const utente of utenti) {
-            await inviaNotificaAUtente(utente.username, {
-              titolo,
-              messaggio,
-              tipo,
-              url: '/',
-              data: { weekend: weekend.nome_gp, categoria: categoriaId }
-            });
-          }
-        }
-      } catch (e) {
-        console.error('Errore invio notifica selezione articoli:', e);
-      }
-      window.dispatchEvent(new Event('ricarica-notifiche'))
-    }
-    
-    // PULISCE selezioni temporanee dopo conferma
-    if (channelRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'selezione',
-        payload: {
-          username: nomeRedattore,
-          articoli: []
-        }
-      })
-    }
-    
-    setSalvando(false)
-    if (conferma) alert(`✅ Confermati ${articoliSelezionati.size} articoli per ${nomeRedattore}!`)
-    caricaArticoli()
+    })
+  }
+  
+  setSalvando(false)
+  if (conferma) alert(`✅ Confermati ${articoliSelezionati.size} articoli per ${nomeRedattore}!`)
+  caricaArticoli()
 }
 
   function toggleGiorno(giorno) {
@@ -1087,24 +981,13 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
   const [zoom, setZoom] = useState(1)
   const redattoriOrdinati = [...(weekend.redattori || [])].sort()
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ giorno: g, articoli: articoli.filter(a => a.giorno === g.id) }))
-  
-  // Calcola altezza celle basata sul contenuto
-  const calcolaAltezzaCella = (articoliCella) => {
-    const baseHeight = 80
-    const lineHeight = 16
-    const lines = articoliCella.reduce((sum, a) => sum + Math.ceil(a.titolo.length / 30), 0)
-    return Math.max(baseHeight, lines * lineHeight + 20)
-  }
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000 }}>
       <div style={{ background: 'white', borderRadius: '15px', width: '90vw', height: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Tabella {weekend.nome_gp}</div>
-            <div style={{ fontSize: '13px', color: '#666' }}>{weekend.data}</div>
-          </div>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Tabella {weekend.nome_gp}</div>
           <div style={{ width: '90px' }}></div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '12px', background: '#f5f5f7', borderBottom: '1px solid #e0e0e0' }}>
@@ -1131,19 +1014,19 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
                   <tr key={giorno.id}>
                     <td style={{ border: '1px solid black', padding: '10px', background: giorno.colore, fontWeight: 'bold', fontSize: '11px', textAlign: 'center', verticalAlign: 'top' }}>
                       <div style={{ fontSize: '16px', marginBottom: '5px' }}>{giorno.emoji}</div>
-                      <div style={{ fontSize: '12px', fontWeight: 'bold' }}>{giorno.nome.toUpperCase()}</div>
+                      <div>{giorno.nome.toUpperCase()}</div>
                     </td>
                     {redattoriOrdinati.map(r => {
                       const articoliRedattore = arts.filter(a => a.assegnato_a === r)
                       return (
-                        <td key={r} style={{ border: '1px solid #ccc', padding: '10px', background: giorno.colore.replace('0.3', '0.15'), fontSize: '9px', verticalAlign: 'top', height: '120px', overflow: 'auto' }}>
+                        <td key={r} style={{ border: '1px solid #ccc', padding: '8px', background: giorno.colore.replace('0.3', '0.15'), fontSize: '9px', verticalAlign: 'top', height: '120px', overflow: 'auto' }}>
                           {articoliRedattore.map(a => (
                             <div key={a.id} style={{ marginBottom: '4px' }}>{renderTextWithBold(a.titolo, a.range_grassetto)}</div>
                           ))}
                         </td>
                       )
                     })}
-                    <td style={{ border: '1px solid #ccc', padding: '10px', background: giorno.colore.replace('0.3', '0.3'), fontSize: '9px', verticalAlign: 'top', height: '120px', overflow: 'auto' }}>
+                    <td style={{ border: '1px solid #ccc', padding: '8px', background: giorno.colore.replace('0.3', '0.3'), fontSize: '9px', verticalAlign: 'top', height: '120px', overflow: 'auto' }}>
                       {liberi.map(a => (
                         <div key={a.id} style={{ marginBottom: '4px' }}>{renderTextWithBold(a.titolo, a.range_grassetto)}</div>
                       ))}
@@ -1162,16 +1045,296 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  )
+}
+
+
+// ===== ADMIN WEEKEND VIEW =====
+
+function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
+  const [selectedTab, setSelectedTab] = useState('riepilogo')
+  const [showModifica, setShowModifica] = useState(false)
+  const [showExport, setShowExport] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const [showGrassetto, setShowGrassetto] = useState(false)
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000, padding: isMobile ? '0' : '20px' }}>
+      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '1200px', height: isMobile ? '100vh' : '800px', display: 'flex', flexDirection: 'column' }}>
+        {/* HEADER - IDENTICO a selezione articoli */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          padding: isMobile ? '20px 15px' : '20px 30px', 
+          background: 'white', 
+          borderBottom: '1px solid #e0e0e0',
+          borderRadius: isMobile ? '0' : '15px 15px 0 0'
+        }}>
+          {/* Bottone Indietro */}
+          <button 
+            onClick={onClose} 
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              color: '#007AFF', 
+              fontSize: isMobile ? '18px' : '18px', 
+              fontWeight: 'bold', 
+              cursor: 'pointer',
+              padding: 0
+            }}
+          >
+            ← Indietro
+          </button>
+          
+          {/* Titolo centrato */}
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
+            <div style={{ fontSize: '13px', color: '#666' }}>{weekend.data}</div>
+          </div>
+          
+          {/* Bottone Menu */}
+          <div style={{ position: 'relative' }}>
+            <button 
+              onClick={() => setShowMenu(!showMenu)} 
+              style={{ 
+                padding: isMobile ? '8px 16px' : '8px 16px', 
+                background: '#007AFF', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '10px', 
+                cursor: 'pointer', 
+                fontSize: '14px', 
+                fontWeight: '600',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Menu
+            </button>
+            {showMenu && (
+              <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: '5px', background: 'white', border: '1px solid #ddd', borderRadius: '10px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', zIndex: 1000, minWidth: isMobile ? '180px' : '220px', overflow: 'hidden' }}>
+                <button 
+                  onClick={() => { setShowExport(true); setShowMenu(false) }} 
+                  style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', fontWeight: '500', minHeight: '48px', display: 'block' }}
+                >
+                  Esporta JPEG
+                </button>
+                <button 
+                  onClick={() => { setShowGrassetto(true); setShowMenu(false) }} 
+                  style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', fontWeight: '500', minHeight: '48px', display: 'block', borderTop: '1px solid #eee' }}
+                >
+                  Aggiorna Grassetto
+                </button>
+                <button 
+                  onClick={() => { setShowModifica(true); setShowMenu(false) }} 
+                  style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '15px', fontWeight: '500', minHeight: '48px', display: 'block', borderTop: '1px solid #eee' }}
+                >
+                  Modifica Tabella
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* TAB BAR - MIGLIORAMENTO 1: Rimozione tab Log */}
+        <div style={{ 
+          display: 'flex', 
+          borderBottom: '1px solid #e0e0e0', 
+          padding: isMobile ? '0 5px' : '0 30px', 
+          overflowX: 'hidden', // Impedisce lo scroll laterale ora che sono spalmati
+          justifyContent: isMobile ? 'center' : 'flex-start'
+        }}>
+          {[
+            { id: 'riepilogo', label: 'Riepilogo', icon: '' },
+            { id: 'tabella', label: 'Tabella', icon: '' },
+            { id: 'nonAssegnati', label: isMobile ? 'Non Ass.' : 'Non Assegnati', icon: '' }
+          ].map(tab => (
+            <button 
+              key={tab.id} 
+              onClick={() => setSelectedTab(tab.id)} 
+              style={{ 
+                flex: 1, // Spalma i tasti in parti uguali (33% ciascuno)
+                textAlign: 'center', // Centra il testo nel nuovo spazio largo
+                padding: isMobile ? '12px 5px' : '12px', 
+                background: selectedTab === tab.id ? '#007AFF1A' : 'transparent', 
+                border: 'none', 
+                borderBottom: selectedTab === tab.id ? '2px solid #007AFF' : '2px solid transparent', 
+                color: selectedTab === tab.id ? '#007AFF' : '#666', 
+                cursor: 'pointer', 
+                fontSize: isMobile ? '13px' : '14px', 
+                fontWeight: '600', 
+                whiteSpace: 'nowrap' 
+              }}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* CONTENT */}
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {selectedTab === 'riepilogo' && <AdminRiepilogoTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
+          {selectedTab === 'tabella' && <AdminTabellaTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
+          {selectedTab === 'nonAssegnati' && <AdminNonAssegnatiTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
+        </div>
+
+        {/* MODALS */}
+        {showModifica && <ModificaTabellaModal weekend={weekend} articoli={articoli} onClose={() => { setShowModifica(false); onRefresh() }} />}
+        {showExport && <ExportJPEGModal weekend={weekend} articoli={articoli} onClose={() => setShowExport(false)} />}
+      </div>
+    </div>
+  )
+}
+
+// MIGLIORAMENTO 3: Riepilogo con giorni invece di pallini
+function AdminRiepilogoTab({ weekend, articoli, isMobile }) {
+  const totale = articoli.length
+  const assegnati = articoli.filter(a => a.stato === 'assegnato').length
+  const percentuale = totale > 0 ? Math.round((assegnati / totale) * 100) : 0
+  
+  const articoliPerGiorno = GIORNI_WEEKEND.map(g => {
+    const arts = articoli.filter(a => a.giorno === g.id)
+    const ass = arts.filter(a => a.stato === 'assegnato').length
+    return { giorno: g, totale: arts.length, assegnati: ass, percentuale: arts.length > 0 ? Math.round((ass / arts.length) * 100) : 0 }
+  })
+
+  return (
+    <div style={{ padding: isMobile ? '15px' : '30px' }}>
+      <div style={{ marginBottom: isMobile ? '20px' : '30px' }}>
+        <div style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', marginBottom: '15px' }}>📊 STATO ASSEGNAZIONI</div>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '15px' : '20px' }}>
+          <div style={{ flex: 1, padding: isMobile ? '15px' : '20px', background: percentuale > 70 ? '#34C7591A' : '#FF95001A', borderRadius: '15px', textAlign: 'center' }}>
+            <div style={{ fontSize: isMobile ? '13px' : '14px', color: '#666', marginBottom: '5px' }}>Completamento</div>
+            <div style={{ fontSize: isMobile ? '28px' : '36px', fontWeight: 'bold', color: percentuale > 70 ? '#34C759' : '#FF9500' }}>{percentuale}%</div>
+          </div>
+          <div style={{ flex: 1, padding: isMobile ? '15px' : '20px', background: '#007AFF1A', borderRadius: '15px', textAlign: 'center' }}>
+            <div style={{ fontSize: isMobile ? '13px' : '14px', color: '#666', marginBottom: '5px' }}>Articoli Assegnati</div>
+            <div style={{ fontSize: isMobile ? '28px' : '36px', fontWeight: 'bold', color: '#007AFF' }}>{assegnati}/{totale}</div>
+          </div>
+          <div style={{ flex: 1, padding: isMobile ? '15px' : '20px', background: '#AF52DE1A', borderRadius: '15px', textAlign: 'center' }}>
+            <div style={{ fontSize: isMobile ? '13px' : '14px', color: '#666', marginBottom: '5px' }}>Redattori</div>
+            <div style={{ fontSize: isMobile ? '28px' : '36px', fontWeight: 'bold', color: '#AF52DE' }}>{weekend.redattori?.length || 0}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: isMobile ? '20px' : '30px' }}>
+        <div style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', marginBottom: '15px' }}>PROGRESSI PER GIORNO</div>
+        {articoliPerGiorno.map(({ giorno, totale, assegnati, percentuale }) => (
+          <div key={giorno.id} style={{ marginBottom: isMobile ? '12px' : '15px', padding: isMobile ? '12px' : '15px', background: 'white', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: isMobile ? '13px' : '14px' }}>
+              <span style={{ fontWeight: '600' }}>{giorno.emoji} {giorno.nome}</span>
+              <span style={{ color: '#666' }}>{assegnati}/{totale} ({percentuale}%)</span>
+            </div>
+            <div style={{ height: isMobile ? '6px' : '8px', background: '#eee', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ width: `${percentuale}%`, height: '100%', background: giorno.colore.replace('0.3', '1') }}></div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <div style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', marginBottom: '15px' }}>👥 REDATTORI</div>
+        {weekend.redattori?.sort().map(r => {
+          const articoliRedattore = articoli.filter(a => a.assegnato_a === r)
+          return (
+            <div key={r} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? '12px' : '15px', background: 'white', borderRadius: '10px', marginBottom: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', gap: isMobile ? '10px' : '0' }}>
+              <div>
+                <div style={{ fontSize: isMobile ? '15px' : '16px', fontWeight: '600' }}>{r}</div>
+                <div style={{ fontSize: isMobile ? '11px' : '12px', color: '#666' }}>{articoliRedattore.length} articoli confermati</div>
+              </div>
+              {/* MIGLIORAMENTO 3: Giorni invece di pallini */}
+              <div style={{ display: 'flex', gap: isMobile ? '8px' : '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {GIORNI_WEEKEND.map(g => {
+                  const count = articoliRedattore.filter(a => a.giorno === g.id).length
+                  return count > 0 ? (
+                    <div key={g.id} style={{ padding: isMobile ? '3px 8px' : '4px 10px', background: g.colore, borderRadius: '6px', fontSize: isMobile ? '11px' : '12px', fontWeight: '600' }}>
+                      {g.emoji} {count}
+                    </div>
+                  ) : null
+                })}
+                {articoliRedattore.length > 0 ? <span style={{ color: '#34C759', fontSize: isMobile ? '16px' : '18px' }}>✓</span> : <span style={{ color: '#FF9500', fontSize: isMobile ? '11px' : '12px' }}>Non confermato</span>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function AdminTabellaTab({ weekend, articoli, isMobile }) {
+  const [zoom, setZoom] = useState(1)
+  const redattoriOrdinati = [...(weekend.redattori || [])].sort()
+  const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ giorno: g, articoli: articoli.filter(a => a.giorno === g.id) }))
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '15px', borderBottom: '1px solid #e0e0e0' }}>
+        <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>🔍 Zoom: {Math.round(zoom * 100)}%</span>
+        <button onClick={() => setZoom(Math.max(0.5, zoom - 0.25))} disabled={zoom <= 0.5} style={{ padding: '6px 12px', background: zoom > 0.5 ? '#007AFF' : '#ccc', color: 'white', border: 'none', borderRadius: '6px', cursor: zoom > 0.5 ? 'pointer' : 'not-allowed', fontWeight: 'bold' }}>−</button>
+        <button onClick={() => setZoom(1)} style={{ padding: '6px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>100%</button>
+        <button onClick={() => setZoom(Math.min(2.5, zoom + 0.25))} disabled={zoom >= 2.5} style={{ padding: '6px 12px', background: zoom < 2.5 ? '#007AFF' : '#ccc', color: 'white', border: 'none', borderRadius: '6px', cursor: zoom < 2.5 ? 'pointer' : 'not-allowed', fontWeight: 'bold' }}>+</button>
+      </div>
+      <div style={{ overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ borderCollapse: 'collapse', width: 'auto', transform: `scale(${zoom})`, transformOrigin: 'top left', minWidth: isMobile ? '800px' : 'auto' }}>
+          <thead>
+            <tr>
+              <th style={{ border: '1px solid black', padding: '10px', background: '#ddd', fontWeight: 'bold', fontSize: '12px', width: '120px' }}>GIORNO</th>
+              {redattoriOrdinati.map(r => (
+                <th key={r} style={{ border: '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '11px', width: '120px' }}>{r}</th>
+              ))}
+              <th style={{ border: '1px solid black', padding: '10px', background: '#FFE5CC', fontWeight: 'bold', fontSize: '12px', width: '120px' }}>Liberi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {articoliPerGiorno.map(({ giorno, articoli: arts }) => {
+              const liberi = arts.filter(a => a.stato === 'libero')
+              return (
+                <tr key={giorno.id}>
+                  <td style={{ border: '1px solid black', padding: '10px', background: giorno.colore, fontWeight: 'bold', fontSize: '11px', textAlign: 'center', verticalAlign: 'top' }}>
+                    <div style={{ fontSize: '16px', marginBottom: '5px' }}>{giorno.emoji}</div>
+                    <div>{giorno.nome.toUpperCase()}</div>
+                  </td>
+                  {redattoriOrdinati.map(r => {
+                    const articoliRedattore = arts.filter(a => a.assegnato_a === r)
+                    return (
+                      <td key={r} style={{ border: '1px solid #ccc', padding: '8px', background: giorno.colore.replace('0.3', '0.15'), fontSize: '9px', verticalAlign: 'top', height: '120px', overflow: 'auto' }}>
+                        {articoliRedattore.map(a => (
+                          <div key={a.id} style={{ marginBottom: '4px' }}>{renderTextWithBold(a.titolo, a.range_grassetto)}</div>
+                        ))}
+                      </td>
+                    )
+                  })}
+                  <td style={{ border: '1px solid #ccc', padding: '8px', background: giorno.colore.replace('0.3', '0.3'), fontSize: '9px', verticalAlign: 'top', height: '120px', overflow: 'auto' }}>
+                    {liberi.map(a => (
+                      <div key={a.id} style={{ marginBottom: '4px' }}>{renderTextWithBold(a.titolo, a.range_grassetto)}</div>
+                    ))}
+                  </td>
+                </tr>
+              )
+            })}
+            <tr>
+              <td style={{ border: '1px solid black', padding: '10px', background: '#ddd', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>TOT</td>
+              {redattoriOrdinati.map(r => {
+                const tot = articoli.filter(a => a.assegnato_a === r).length
+                return (<td key={r} style={{ border: '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>{tot}</td>)
+              })}
+              <td style={{ border: '1px solid black', padding: '10px', background: '#FFE5CC', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>{articoli.filter(a => a.stato === 'libero').length}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
    {isMobile && (
           <div style={{ fontSize: '11px', color: '#666', fontStyle: 'italic', marginTop: '10px', textAlign: 'center' }}>
             ← Scorri orizzontalmente per vedere tutti i redattori →
           </div>
         )}
       </div>
-    </div>
   )
 }
-
 
 // MIGLIORAMENTO 4: Non assegnati con accordion per giorno
 function AdminNonAssegnatiTab({ weekend, articoli, isMobile }) {
@@ -1458,6 +1621,215 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ===== RICH TEXT EDITOR =====
+
+function RichTextEditor({ text, rangeGrassetto, onChange, onRangesChange }) {
+  const words = getWordsFromText(text)
+
+  function toggleWord(word) {
+    let newRanges = [...rangeGrassetto]
+    let index = 0
+    
+    while ((index = text.indexOf(word, index)) !== -1) {
+      const start = index
+      const end = index + word.length
+      const existingIndex = newRanges.findIndex(r => r.start === start && r.end === end)
+      
+      if (existingIndex !== -1) {
+        newRanges.splice(existingIndex, 1)
+      } else {
+        newRanges.push({ start, end })
+      }
+      
+      index = end
+    }
+    
+    newRanges.sort((a, b) => a.start - b.start)
+    onRangesChange(newRanges)
+  }
+
+  function isWordBold(word) {
+    const index = text.indexOf(word)
+    if (index === -1) return false
+    return rangeGrassetto.some(r => r.start === index && r.end === index + word.length)
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '5px' }}>Titolo Articolo</div>
+      <textarea value={text} onChange={e => onChange(e.target.value)} placeholder="Scrivi il titolo..." style={{ width: '100%', minHeight: '80px', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical' }} />
+      
+      {text && (
+        <>
+          <div style={{ fontSize: '12px', fontWeight: '600', marginTop: '10px', marginBottom: '5px' }}>👁️ Anteprima:</div>
+          <div style={{ padding: '10px', background: '#007AFF1A', borderRadius: '8px', fontSize: '14px', marginBottom: '10px' }}>
+            {renderTextWithBold(text, rangeGrassetto)}
+          </div>
+          
+          <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px' }}>
+            🔤 Clicca per mettere in grassetto:
+            {rangeGrassetto.length > 0 && (
+              <button onClick={() => onRangesChange([])} style={{ marginLeft: '10px', padding: '4px 8px', background: '#FF3B301A', color: '#FF3B30', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>
+                ✕ Rimuovi tutto
+              </button>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {words.map(word => (
+              <button key={word} onClick={() => toggleWord(word)} style={{ padding: '6px 12px', background: isWordBold(word) ? '#007AFF' : '#f0f0f0', color: isWordBold(word) ? 'white' : '#333', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: isWordBold(word) ? 'bold' : 'normal' }}>
+                {isWordBold(word) ? '✓' : '○'} {word}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+
+// ===== MIGLIORAMENTO 6: EXPORT JPEG VERO CON DIMENSIONI DINAMICHE =====
+
+// ===== AGGIORNA GRASSETTO DA TEMPLATE =====
+
+function AggiornaGrassettoModal({ weekend, articoli, onClose }) {
+  const [templates, setTemplates] = useState([])
+  const [templateSelezionato, setTemplateSelezionato] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [aggiornando, setAggiornando] = useState(false)
+
+  useEffect(() => {
+    caricaTemplates()
+  }, [])
+
+  async function caricaTemplates() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('template_articoli')
+      .select('*')
+      .order('nome')
+    setTemplates(data || [])
+    setLoading(false)
+  }
+
+  async function aggiornaGrassetto() {
+    if (!templateSelezionato) {
+      alert('Seleziona un template')
+      return
+    }
+
+    if (!confirm('Vuoi aggiornare il grassetto di tutti gli articoli usando questo template?\n\nGli articoli verranno matchati per titolo.')) {
+      return
+    }
+
+    setAggiornando(true)
+
+    const template = templates.find(t => t.id === parseInt(templateSelezionato))
+    if (!template || !template.articoli) {
+      alert('Template non valido')
+      setAggiornando(false)
+      return
+    }
+
+    let aggiornati = 0
+
+    // Per ogni articolo del weekend
+    for (const articolo of articoli) {
+      // Trova articolo corrispondente nel template (match per titolo)
+      const articoloTemplate = template.articoli.find(a => a.titolo === articolo.titolo)
+      
+      if (articoloTemplate && articoloTemplate.range_grassetto) {
+        // Aggiorna il range_grassetto
+        const { error } = await supabase
+          .from('articoli')
+          .update({ range_grassetto: articoloTemplate.range_grassetto })
+          .eq('id', articolo.id)
+        
+        if (!error) aggiornati++
+      }
+    }
+
+    setAggiornando(false)
+    alert(`✅ Aggiornati ${aggiornati} articoli su ${articoli.length}`)
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 30000 }}>
+      <div style={{ background: 'white', borderRadius: '15px', width: '600px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>🔤 Aggiorna Grassetto</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
+        </div>
+
+        <div style={{ padding: '30px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>Caricamento template...</div>
+          ) : (
+            <>
+              <div style={{ marginBottom: '20px', padding: '15px', background: '#007AFF1A', borderRadius: '10px' }}>
+                <div style={{ fontSize: '14px', color: '#007AFF', fontWeight: '600' }}>ℹ️ Come funziona</div>
+                <div style={{ fontSize: '13px', color: '#666', marginTop: '8px' }}>
+                  Gli articoli verranno matchati per titolo. Se un articolo del weekend ha lo stesso titolo di un articolo nel template, il grassetto verrà copiato dal template.
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '25px' }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Seleziona Template</div>
+                <select
+                  value={templateSelezionato || ''}
+                  onChange={e => setTemplateSelezionato(e.target.value)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '12px', 
+                    borderRadius: '8px', 
+                    border: '1px solid #ddd', 
+                    fontSize: '16px',
+                    background: 'white',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">-- Scegli template --</option>
+                  {templates.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.nome} ({t.articoli?.length || 0} articoli)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {templateSelezionato && (
+                <div style={{ padding: '15px', background: '#34C7591A', borderRadius: '10px', fontSize: '14px', color: '#34C759', fontWeight: '600' }}>
+                  ✓ Pronto per aggiornare {articoli.length} articoli
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
+          <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
+          <button 
+            onClick={aggiornaGrassetto} 
+            disabled={!templateSelezionato || aggiornando || loading} 
+            style={{ 
+              padding: '10px 20px', 
+              background: (!templateSelezionato || aggiornando || loading) ? '#ccc' : '#34C759', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '10px', 
+              cursor: (!templateSelezionato || aggiornando || loading) ? 'not-allowed' : 'pointer', 
+              fontWeight: 'bold' 
+            }}
+          >
+            {aggiornando ? 'Aggiornamento...' : '✓ Aggiorna Grassetto'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1795,9 +2167,183 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <div style={{ fontSize: '42px', fontWeight: 'bold', marginBottom: '10px', color: '#000' }}>{weekend.nome_gp}</div>
             <div style={{ fontSize: '20px', fontWeight: '600', color: '#666', marginBottom: '8px' }}>DISPONIBILITÀ WEEKEND REDATTORI</div>
-            <div style={{ fontSize: '16px', color: '#666', marginBottom: '8px' }}>{weekend.data}</div>
+            <div style={{ fontSize: '16px', color: '#999' }}>{weekend.data}</div>
           </div>
-          {/* ...altri elementi della tabella export... */}
+
+          {/* TABELLA */}
+          <table style={{ borderCollapse: 'collapse', width: 'auto', margin: '0 auto' }}>
+            <thead>
+              <tr>
+                <th style={{ border: '1px solid #000', padding: '12px', background: '#ddd', fontWeight: 'bold', fontSize: '14px', minWidth: '100px', textAlign: 'center' }}>GIORNO</th>
+                {redattoriOrdinati.map(r => (
+                  <th key={r} style={{ border: '1px solid #000', padding: '12px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '13px', minWidth: '140px', textAlign: 'center' }}>{r}</th>
+                ))}
+                <th style={{ border: '1px solid #000', padding: '12px', background: '#FFE5CC', fontWeight: 'bold', fontSize: '14px', minWidth: '140px', textAlign: 'center' }}>Liberi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {articoliPerGiorno.map(({ giorno, articoli: arts }) => {
+                const liberi = arts.filter(a => a.stato === 'libero')
+                const maxArticoliPerCella = Math.max(
+                  ...redattoriOrdinati.map(r => arts.filter(a => a.assegnato_a === r).length),
+                  liberi.length,
+                  1
+                )
+                const altezzaCella = calcolaAltezzaCella([...arts])
+                
+                return (
+                  <tr key={giorno.id}>
+                    <td style={{ border: '1px solid #000', padding: '12px', background: giorno.colore, fontWeight: 'bold', fontSize: '13px', textAlign: 'center', verticalAlign: 'middle', minHeight: `${altezzaCella}px` }}>
+                      <div style={{ fontSize: '24px', marginBottom: '6px' }}>{giorno.emoji}</div>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold' }}>{giorno.nome.toUpperCase()}</div>
+                    </td>
+                    {redattoriOrdinati.map(r => {
+                      const articoliRedattore = arts.filter(a => a.assegnato_a === r)
+                      return (
+                        <td key={r} style={{ border: '1px solid #ccc', padding: '10px', background: giorno.colore.replace('0.3', '0.1'), fontSize: '11px', verticalAlign: 'top', minHeight: `${altezzaCella}px`, lineHeight: '1.4' }}>
+                          {articoliRedattore.map((a, idx) => (
+                            <div key={a.id} style={{ marginBottom: idx < articoliRedattore.length - 1 ? '6px' : '0' }}>
+                              {renderTextWithBold(a.titolo, a.range_grassetto)}
+                            </div>
+                          ))}
+                        </td>
+                      )
+                    })}
+                    <td style={{ border: '1px solid #ccc', padding: '10px', background: giorno.colore.replace('0.3', '0.25'), fontSize: '11px', verticalAlign: 'top', minHeight: `${altezzaCella}px`, lineHeight: '1.4' }}>
+                      {liberi.map((a, idx) => (
+                        <div key={a.id} style={{ marginBottom: idx < liberi.length - 1 ? '6px' : '0' }}>
+                          {renderTextWithBold(a.titolo, a.range_grassetto)}
+                        </div>
+                      ))}
+                    </td>
+                  </tr>
+                )
+              })}
+              
+              {/* RIGA TOTALI */}
+              <tr>
+                <td style={{ border: '1px solid #000', padding: '12px', background: '#ddd', fontWeight: 'bold', fontSize: '14px', textAlign: 'center' }}>TOT</td>
+                {redattoriOrdinati.map(r => {
+                  const tot = articoli.filter(a => a.assegnato_a === r).length
+                  return (
+                    <td key={r} style={{ border: '1px solid #000', padding: '12px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '14px', textAlign: 'center' }}>{tot}</td>
+                  )
+                })}
+                <td style={{ border: '1px solid #000', padding: '12px', background: '#FFE5CC', fontWeight: 'bold', fontSize: '14px', textAlign: 'center' }}>
+                  {articoli.filter(a => a.stato === 'libero').length}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* FOOTER */}
+          <div style={{ textAlign: 'center', marginTop: '25px', fontSize: '11px', color: '#999' }}>
+            Generato: {new Date().toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })} at {new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette }) {
+  return (
+    <div style={{ 
+      position: 'fixed', 
+      top: 0, 
+      left: 0, 
+      right: 0, 
+      bottom: 0, 
+      background: 'rgba(0,0,0,0.5)', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      zIndex: 10000 
+    }}>
+      <div style={{ 
+        background: 'white', 
+        borderRadius: '15px', 
+        width: '600px', 
+        maxHeight: '90vh', 
+        display: 'flex', 
+        flexDirection: 'column' 
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          padding: '20px 30px', 
+          borderBottom: '1px solid #e0e0e0' 
+        }}>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>🔔 Notifiche</div>
+          <button 
+            onClick={onClose} 
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              fontSize: '24px', 
+              cursor: 'pointer', 
+              color: '#666' 
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 30px' }}>
+          {notifiche.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+              Nessuna notifica
+            </div>
+          ) : (
+            notifiche.map(n => (
+              <div 
+                key={n.id} 
+                onClick={() => !n.letta && onSegnaLetta(n.id)} 
+                style={{ 
+                  padding: '15px', 
+                  background: n.letta ? '#f5f5f7' : '#007AFF15', 
+                  borderRadius: '10px', 
+                  marginBottom: '10px', 
+                  cursor: n.letta ? 'default' : 'pointer', 
+                  borderLeft: `4px solid ${n.letta ? '#ccc' : '#007AFF'}` 
+                }}
+              >
+                <div style={{ 
+                  fontSize: '14px', 
+                  fontWeight: n.letta ? 'normal' : 'bold', 
+                  marginBottom: '5px' 
+                }}>
+                  {n.messaggio}
+                </div>
+                <div style={{ fontSize: '11px', color: '#666' }}>
+                  {new Date(n.created_at).toLocaleString('it-IT')}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div style={{ 
+          padding: '20px 30px', 
+          borderTop: '1px solid #e0e0e0', 
+          display: 'flex', 
+          gap: '10px' 
+        }}>
+          <button 
+            onClick={onSegnaTutteLette} 
+            style={{ 
+              flex: 1, 
+              padding: '12px 30px', 
+              background: '#007AFF', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: 'pointer', 
+              fontWeight: 'bold' 
+            }}
+          >
+            Segna tutte come lette
+          </button>
         </div>
       </div>
     </div>

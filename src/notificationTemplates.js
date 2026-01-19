@@ -104,11 +104,11 @@ export function getPenaltyNotification({ punti, pilotaId, piloti, categoriaNome,
  * @returns {Object} { titolo, messaggio, tipo }
  */
 export function getCreazioneWeekendCategoriaNotification(nomeWeekend, categoriaNome, creatoreUsername) {
-  return {
-    titolo: `Nuovo weekend disponibilità (${categoriaNome}) aperto.`,
-    messaggio: `${creatoreUsername} ha aperto le prenotazioni per ${nomeWeekend} di ${categoriaNome}: seleziona ora i tuoi articoli`,
-    tipo: 'creazione_weekend_categoria'
-  };
+    return {
+      titolo: `Nuovo weekend (${categoriaNome}) aperto`,
+      messaggio: `${creatoreUsername} ha aperto le prenotazioni per ${nomeWeekend} del ${data} di ${categoriaNome}: prenota adesso i tuoi articoli`,
+      tipo: 'creazione_weekend_categoria'
+    };
 }
 
 /**
@@ -129,8 +129,8 @@ export function getCreazioneWeekendCategoriaNotification(nomeWeekend, categoriaN
  */
 export function getSelezioneArticoloSingoloWeekendCategoriaNotification(nomeWeekend, categoriaNome, username) {
   return {
-    titolo: `Articolo selezionato per ${nomeWeekend} (${categoriaNome})`,
-    messaggio: `${username} ha selezionato 1 articolo per il weekend di ${categoriaNome}`,
+    titolo: 'Prenotazione articoli',
+    messaggio: `${username} ha selezionato 1 articolo per ${nomeWeekend} del ${data} di ${categoriaNome}`,
     tipo: 'selezione_articolo_singolo_weekend_categoria'
   };
 }
@@ -145,8 +145,8 @@ export function getSelezioneArticoloSingoloWeekendCategoriaNotification(nomeWeek
  */
 export function getSelezioneArticoliMultipliWeekendCategoriaNotification(nomeWeekend, categoriaNome, username, quantiArticoli) {
   return {
-    titolo: `Articoli selezionati per ${nomeWeekend} (${categoriaNome})`,
-    messaggio: `${username} ha selezionato ${quantiArticoli} articoli per il weekend di ${categoriaNome}`,
+    titolo: 'Prenotazione articoli',
+    messaggio: `${username} ha selezionato ${quantiArticoli} articoli per ${nomeWeekend} del ${data} di ${categoriaNome}`,
     tipo: 'selezione_articoli_multipli_weekend_categoria'
   };
 }
