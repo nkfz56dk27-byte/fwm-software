@@ -9,6 +9,7 @@ import CestinoSVG from "./assets/cestino.svg"
 import CheckSVG from "./assets/check.svg"
 import VidaPNG from "./assets/vida.png"
 import RitaglioImmagine from './RitaglioImmagine'
+import ClassificheMenuView from './ClassificheMenuView';
 import VidaMenu from './VidaMenu'
 import CalendarioAccrediti from './CalendarioAccrediti'
 import DisponibilitaWeekend from './DisponibilitaWeekend.jsx'
@@ -74,57 +75,11 @@ function App() {
     console.log('📱 isMobile iniziale:', isMobile, 'width:', window.innerWidth)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-
-  // Effect per ascoltare le notifiche realtime quando l'utente è loggato
-  useEffect(() => {
-    if (!user) {
-      // Se l'utente si disconnette, stoppa l'ascolto
-      if (notificheUnsubscribe) {
-        notificheUnsubscribe()
-        setNotificheUnsubscribe(null)
-      }
-      return
-    }
-
-    // Avvia l'ascolto delle notifiche realtime
-    console.log('🎧 Avvio ascolto notifiche realtime per:', user.username)
-    const unsubscribe = ascolaNotificheRealtime(user.username, (notifica) => {
-      console.log('🔔 Notifica ricevuta in App.jsx:', notifica)
-      // Mostra il toast fallback in-app
-      setToastNotification(notifica)
-    })
-
-    setNotificheUnsubscribe(() => unsubscribe)
-
-    // Ascolta le notifiche push in foreground (FCM)
-    setupForegroundMessaging((notifica) => {
-      // Mostra il toast solo se la tab è attiva
-      if (document.visibilityState === 'visible') {
-        setToastNotification(notifica)
-      }
-    })
-
-    // Cleanup: stoppa l'ascolto quando il componente si smonta
-    return () => {
-      if (unsubscribe) {
-        unsubscribe()
-      }
-    }
-  }, [user])
-
-  async function caricaNotificheCalendario(username) {
-    try {
-      console.log('🔍 DEBUG HOME: Inizio caricaNotificheCalendario')
-      console.log('🔍 DEBUG HOME: username:', username)
-      
-      const { data: notifiche } = await supabase.from('notifiche_calendario').select('*').order('created_at', { ascending: false }).limit(50)
-      console.log('🔍 DEBUG HOME: notifiche totali caricate:', notifiche?.length || 0)
-      
-      const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', username)
-      console.log('🔍 DEBUG HOME: notifiche lette caricate:', lette?.length || 0)
-      
-      const idsLette = new Set((lette || []).map(l => l.notifica_id))
-      console.log('🔍 DEBUG HOME: IDs lette:', Array.from(idsLette))
+// ===== MENU CLASSIFICHE =====
+// Spostato in src/ClassificheMenuView.jsx
+    async function caricaNotificheCalendario(username) {
+      try {
+        // ...existing code...
       
       const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id))
       console.log('🔍 DEBUG HOME: notifiche non lette calcolate:', nonLette.length)
