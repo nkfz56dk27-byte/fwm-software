@@ -4,6 +4,7 @@ import html2canvas from 'html2canvas'
 import { notificaDisponibilitaWeekend } from './src/pushNotifications'
 import { inviaNotificaAUtente } from './pushNotificationService'
 import { getCreazioneWeekendCategoriaNotification, notificaCreazioneWeekendCategoria } from './notificationTemplates'
+import NotificheModal from './CalendarioAccrediti.jsx'
 
 // ===== MAPPING UTENTE → REDATTORE =====
 const UTENTE_TO_REDATTORE = {
