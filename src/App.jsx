@@ -491,6 +491,10 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         numero_gp_stagione: nuovaClassifica.numero_gp_stagione || nuovaClassifica.numeroGP || null,
         numero_sprint_stagione: nuovaClassifica.numero_sprint_stagione || nuovaClassifica.numeroSprint || null,
       }
+      // Gestione is_f1_or_fe: salva solo se booleano
+      if (typeof nuovaClassifica.is_f1_or_fe === 'boolean') {
+        updateObj.is_f1_or_fe = nuovaClassifica.is_f1_or_fe
+      }
 
       const { error } = await supabase.from('classifiche').update(updateObj).eq('id', classificaId)
       if (!error) {
@@ -1452,6 +1456,10 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         usa_modificatore_libero: !!dati.usa_modificatore_libero,
         modificatore_libero_numero: Number(dati.modificatore_libero_numero) || 0,
         modificatore_libero_punti: Array.isArray(dati.modificatore_libero_punti) ? dati.modificatore_libero_punti : []
+      }
+      // Gestione is_f1_or_fe: salva solo se booleano
+      if (typeof dati.is_f1_or_fe === 'boolean') {
+        updateObj.is_f1_or_fe = dati.is_f1_or_fe
       }
 
       const { error } = await supabase.from('classifiche').update(updateObj).eq('id', classifica.id)
