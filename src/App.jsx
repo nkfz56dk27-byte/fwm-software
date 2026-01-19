@@ -389,8 +389,9 @@ function App() {
     return <ClassificheMainMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(false) }} onOpenClassificheMenu={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(true) }} onOpenNuovaPagina={() => { setShowClassificheMainMenu(false); setShowNuovaPagina(true) }} />
   }
 
+  const [classificaCustom, setClassificaCustom] = useState(false);
   if (showClassificheMenu) {
-    return <ClassificheMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMenu(false); setShowClassificheMainMenu(true) }} onOpenClassifica={(id) => { setClassificaId(id); setShowClassifica(true); setShowClassificheMenu(false) }} />
+    return <ClassificheMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMenu(false); setShowClassificheMainMenu(true) }} onOpenClassifica={(id, isCustom) => { setClassificaId(id); setClassificaCustom(!!isCustom); setShowClassifica(true); setShowClassificheMenu(false) }} />
   }
 
   if (showNuovaPagina) {
@@ -398,7 +399,7 @@ function App() {
   }
 
   if (showClassifica) {
-    return <ClassificaView classificaId={classificaId} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null) }} />
+    return <ClassificaView classificaId={classificaId} isCustom={classificaCustom} user={user} isMobile={isMobile} onBack={() => { setShowClassifica(false); setShowClassificheMenu(true); setClassificaId(null); setClassificaCustom(false) }} />
   }
 
   // ← AGGIUNTO: Render condizionale RitaglioImmagine
@@ -2524,7 +2525,7 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
             {classifiche.filter(c => c.nome !== "Formula 1" && c.nome !== "Formula E").map(c => (
               <div key={c.id} style={{ display: 'flex', gap: '10px' }}>
                 {modalitaElimina && <button onClick={() => eliminaClassifica(c.id)} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: '#FF3B30', color: 'white', fontSize: '24px', cursor: 'pointer' }}>−</button>}
-                <button onClick={() => !modalitaElimina && onOpenClassifica(c.id)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
+                <button onClick={() => !modalitaElimina && onOpenClassifica(c.id, c.isCustom)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
               </div>
             ))}
            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '30px 0' }}>
@@ -2617,18 +2618,23 @@ function NuovaClassificaModal({ onClose, onSave }) {
         const { getClassificaCreataNotification } = await import('./notificationTemplates.js');
         const notifica = getClassificaCreataNotification(nome);
         await supabase.from('push_notifications').insert([
-          {
-            title: notifica.titolo,
-            body: notifica.messaggio,
-            notification_type: notifica.tipo,
-            target_all: true,
-            created_at: new Date().toISOString(),
-            status: 'pending'
+          try {
+            let data, error;
+            if (isCustom) {
+              ({ data, error } = await supabase.from('classifiche_custom').select('*').eq('id', classificaId).single());
+            } else {
+              ({ data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single());
+            }
+            if (!error && data) {
+              setClassifica(data)
+              if (!data.piloti || data.piloti.length === 0) {
+                setShowSetup(true)
+              }
+            }
+            setLoading(false)
+          } catch (err) {
+            setLoading(false)
           }
-        ]);
-      } catch (err) {
-        console.error('Errore invio notifica:', err);
-      }
       onSave();
     }
   }
