@@ -2584,7 +2584,7 @@ function NuovaClassificaModal({ onClose, onSave }) {
   const handleSave = async (e) => {
     e.preventDefault()
     if (!nome.trim()) return
-    const { error } = await supabase.from('classifiche').insert([{ nome, piloti: [], gp: [], costruttori: [], is_f1_or_fe: false }])
+    const { error } = await supabase.from('classifiche_custom').insert([{ nome, piloti: [], gp: [], costruttori: [], is_f1_or_fe: false }])
     if (!error) onSave()
   }
   return (
