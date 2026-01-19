@@ -1,7 +1,4 @@
 // ...existing code...
-
-import { useState, useEffect } from 'react'
-import { supabase } from './supabaseClient'
 import CoppaSVG from "./assets/coppa.svg"
 import StatistichePNG from "./assets/Statistiche.png"
 import PenaltypointSVG from "./assets/Penalitypoint.svg"
@@ -442,8 +439,8 @@ function App() {
       {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />}
       {toastNotification && <ToastNotification notification={toastNotification} onClose={() => setToastNotification(null)} />}
     </>
-  )
-}
+  );
+/// ===== HOME VIEW =====
 // ===== CLASSIFICA VIEW COMPLETA =====
 function ClassificaView({ classificaId, user, isMobile, onBack }) {
   const [classifica, setClassifica] = useState(null)
@@ -1400,7 +1397,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       </button>
     </div>
   )
-}
+// ...existing code...
 
 // ===== IMPOSTAZIONI CLASSIFICA =====
 function ImpostazioniClassifica({ classifica, onClose, onSave }) {
@@ -2722,9 +2719,6 @@ function NuovaClassificaModal({ onClose, onSave }) {
           <button onClick={salvaClassificaCustom} style={{ width: '100%', padding: '18px', background: '#34C759', color: 'white', border: 'none', borderRadius: '15px', fontSize: '22px', fontWeight: 'bold', cursor: 'pointer' }}>Conferma e Salva</button>
         </div>
       )}
-    </div>
-  )
-}
     </div>
   )
 }
@@ -4349,9 +4343,4 @@ function NuovaPaginaView({ onClose, user }) {
     </div>
   )
 }
-<<<<<<< HEAD
-
-=======
-}
->>>>>>> bca518427f9088a9e88874b63d0dab2f6c8750a3
 export default App
