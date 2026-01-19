@@ -4,7 +4,7 @@ import html2canvas from 'html2canvas'
 import { notificaDisponibilitaWeekend } from './src/pushNotifications'
 import { inviaNotificaAUtente } from './pushNotificationService'
 import { getCreazioneWeekendCategoriaNotification, notificaCreazioneWeekendCategoria } from './notificationTemplates'
-import NotificheModal from './CalendarioAccrediti.jsx'
+import NotificheDisponibilitaModal from './NotificheDisponibilitaModal.jsx'
 
 // ===== MAPPING UTENTE → REDATTORE =====
 const UTENTE_TO_REDATTORE = {
@@ -524,11 +524,12 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       {showNuovo && <NuovoWeekendModal categoria={categoria} onClose={() => setShowNuovo(false)} onCreated={() => { setShowNuovo(false); caricaWeekends(); }} onCreaNotifica={creaNotifica} />}
       
       {showNotifiche && (
-        <NotificheModal 
+        <NotificheDisponibilitaModal 
           notifiche={notifiche} 
           onClose={() => setShowNotifiche(false)} 
           onSegnaLetta={segnaComeLetta} 
           onSegnaTutteLette={segnaTutteComeLette} 
+          isMobile={isMobile}
         />
       )}
     </div>
