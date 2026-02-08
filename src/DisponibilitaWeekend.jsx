@@ -1184,7 +1184,7 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
-          padding: isMobile ? '20px 15px' : '20px 30px', 
+          padding: isMobile ? '60px 15px 20px 15px' : '20px 30px', 
           background: 'white', 
           borderBottom: '1px solid #e0e0e0',
           borderRadius: isMobile ? '0' : '15px 15px 0 0'
