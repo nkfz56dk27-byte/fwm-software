@@ -727,8 +727,6 @@ body {
 .btn-back.penalty-detail {
   transform: translateY(10px);
 }
-  background: #e0e0e0;
-}
 
 .btn-save {
   padding: 10px 20px;
