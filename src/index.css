@@ -210,7 +210,10 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 20px;
+  padding-top: max(20px, env(safe-area-inset-top));
+  padding-right: 20px;
+  padding-left: 20px;
+  padding-bottom: 20px;
   flex-shrink: 0;
 }
 
@@ -448,7 +451,10 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 30px;
+  padding-top: max(20px, env(safe-area-inset-top));
+  padding-right: 30px;
+  padding-left: 30px;
+  padding-bottom: 20px;
   background: white;
   flex-shrink: 0;
 }
@@ -702,19 +708,25 @@ body {
   margin-top: 10px;
 }
 
-.btn-cancel {
-  padding: 10px 20px;
-  font-size: 16px;
+/* Tasto indietro normale */
+.btn-back {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
   font-weight: 600;
-  color: #666;
-  background: #f0f0f0;
+  color: #007AFF;
+  background: none;
   border: none;
-  border-radius: 8px;
   cursor: pointer;
-  transition: background 0.2s;
+  padding: 8px;
+  transition: transform 0.2s;
 }
 
-.btn-cancel:hover {
+/* Tasto indietro nel dettaglio penalità: abbassato di 10px */
+.btn-back.penalty-detail {
+  transform: translateY(10px);
+}
   background: #e0e0e0;
 }
 
