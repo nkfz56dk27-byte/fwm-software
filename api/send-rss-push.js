@@ -46,12 +46,24 @@ export default async function handler(req, res) {
     for (const notifica of notifichePending) {
 
       try {
+        // LOG: Mostra il valore di article_guid e id notifica
+        console.log(`[RSS PUSH] Notifica ID: ${notifica.id}, article_guid: ${notifica.article_guid}`);
         // Ricostruisci i dati articolo da rss_articles
         const { data: article, error: articleError } = await supabase
           .from('rss_articles')
-          .select('title, description, content, link, feed_id')
+          .select('title, description, content, link, feed_id, guid')
           .eq('guid', notifica.article_guid)
           .maybeSingle();
+
+        // LOG: Mostra il risultato della query articolo
+        if (articleError) {
+          console.error(`[RSS PUSH] Errore query articolo per guid=${notifica.article_guid}:`, articleError);
+        }
+        if (!article) {
+          console.warn(`[RSS PUSH] Articolo non trovato per guid=${notifica.article_guid}`);
+        } else {
+          console.log(`[RSS PUSH] Articolo trovato: guid=${article.guid}, title=${article.title}`);
+        }
 
         if (articleError || !article) {
           console.log(`⚠️ [RSS PUSH] Notifica ${notifica.id}: articolo non trovato`);
@@ -60,7 +72,8 @@ export default async function handler(req, res) {
             .update({ 
               status: 'failed', 
               error: 'Articolo non trovato',
-              sent_at: new Date().toISOString()
+              sent_at: new Date().toISOString(),
+              debug_article_guid: notifica.article_guid
             })
             .eq('id', notifica.id);
           failedCount++;
@@ -130,6 +143,20 @@ export default async function handler(req, res) {
           continue;
         }
 
+
+        // Trova i device dell'utente
+        const { data: devices, error: devicesError } = await supabase
+          .from('push_devices')
+          .select('player_id, username')
+          .eq('username', notifica.username)
+          .not('player_id', 'is', null);
+        console.log(`[RSS PUSH] Device trovati per utente ${notifica.username}:`, devices);
+        if (devicesError) {
+          console.error(`[RSS PUSH] Errore query device:`, devicesError);
+        }
+        if (!devices || devices.length === 0) {
+          console.warn(`[RSS PUSH] Nessun device trovato per utente ${notifica.username}`);
+        }
         console.log(`✅ [RSS PUSH] Notifica ${notifica.id} inviata!`);
         
         await supabase
@@ -147,6 +174,7 @@ export default async function handler(req, res) {
         console.error(`❌ [RSS PUSH] Errore notifica ${notifica.id}:`, error);
         await supabase
           .from('rss_notifications_sent')
+        console.log(`[RSS PUSH] Payload OneSignal:`, oneSignalPayload);
           .update({ 
             status: 'failed', 
             error: error.message,
@@ -158,6 +186,7 @@ export default async function handler(req, res) {
     }
 
     console.log(`✅ [RSS PUSH] Completato! Sent: ${sentCount}, Failed: ${failedCount}`);
+        console.log(`[RSS PUSH] Risposta OneSignal:`, oneSignalResult);
 
     return res.status(200).json({ 
       success: true, 
@@ -175,4 +204,16 @@ export default async function handler(req, res) {
       durationMs: Date.now() - start
     });
   }
-}
+        const updateRes = await supabase
+          .from('rss_notifications_sent')
+          .update({ 
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            onesignal_id: oneSignalResult.id
+          })
+          .eq('id', notifica.id);
+        if (updateRes.error) {
+          console.error(`[RSS PUSH] Errore update status sent:`, updateRes.error);
+        } else {
+          console.log(`[RSS PUSH] Status sent aggiornato per notifica ${notifica.id}`);
+        }
