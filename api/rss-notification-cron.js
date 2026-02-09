@@ -89,7 +89,12 @@ export default async function handler(req, res) {
         let countNuovi = 0, countFiltrati = 0, countUpsertOk = 0, countUpsertErr = 0;
         for (const item of items) {
           const pubDate = getPubDate(item);
-          if (pubDate && pubDate.toISOString() < twoHoursAgo) {
+          let pubDateToUse = pubDate;
+          if (!pubDate) {
+            pubDateToUse = now;
+            console.warn(`[RSS CRON] Articolo guid=${item.guid || item.link || 'NO_GUID'} senza pub_date: uso data corrente (${now.toISOString()})`);
+          }
+          if (pubDateToUse && pubDateToUse.toISOString() < twoHoursAgo) {
             countFiltrati++;
             continue;
           }
@@ -105,7 +110,8 @@ export default async function handler(req, res) {
             description: normalizeItemValue(item.description) || normalizeItemValue(item.summary) || '',
             content: normalizeItemValue(item['content:encoded']) || normalizeItemValue(item.content) || '',
             link: normalizeItemValue(item.link) || null,
-            created_at: pubDate ? pubDate.toISOString() : now.toISOString()
+            pub_date: pubDateToUse.toISOString(),
+            created_at: pubDateToUse.toISOString()
           };
           articles.push(articleObj);
           countNuovi++;
