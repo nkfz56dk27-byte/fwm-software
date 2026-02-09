@@ -155,7 +155,7 @@ export default async function handler(req, res) {
         }
 
         const { error: notifError } = await supabase
-          .from('push_notifications')
+          .from('push_notifications_rss_filter')
           .insert({
             title: article.title || 'Nuovo articolo RSS',
             body: 'Nuovo articolo dai tuoi filtri',
@@ -177,17 +177,17 @@ export default async function handler(req, res) {
       }
     }
 
-    // Dopo aver inserito le notifiche, chiamale per invio
+// Chiama endpoint per inviare le notifiche RSS
 if (sent > 0) {
   try {
-    const pushUrl = `${req.headers.host.startsWith('localhost') ? 'http' : 'https'}://${req.headers.host}/api/send-push-notifications`;
-    console.log(`📤 Chiamo send-push-notifications: ${pushUrl}`);
+    const pushUrl = `${req.headers.host?.startsWith('localhost') ? 'http' : 'https'}://${req.headers.host}/api/send-rss-push`;
+    console.log(`📤 Chiamo send-rss-push: ${pushUrl}`);
     
     fetch(pushUrl, { method: 'POST' }).catch(err => {
-      console.error('❌ Errore chiamata send-push:', err);
+      console.error('❌ Errore chiamata send-rss-push:', err);
     });
   } catch (err) {
-    console.error('❌ Errore fetch send-push:', err);
+    console.error('❌ Errore fetch send-rss-push:', err);
   }
 }
 
