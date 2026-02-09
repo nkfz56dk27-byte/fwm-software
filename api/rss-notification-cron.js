@@ -85,7 +85,7 @@ export default async function handler(req, res) {
           if (pubDate && pubDate.toISOString() < twoHoursAgo) continue;
           const guid = buildGuid(item);
           if (!guid) continue;
-          articles.push({
+          const articleObj = {
             feed_id: feed.id,
             guid,
             title: normalizeItemValue(item.title) || 'Nuovo articolo RSS',
@@ -93,9 +93,19 @@ export default async function handler(req, res) {
             content: normalizeItemValue(item['content:encoded']) || normalizeItemValue(item.content) || '',
             link: normalizeItemValue(item.link) || null,
             created_at: pubDate ? pubDate.toISOString() : now.toISOString()
-          });
+          };
+          articles.push(articleObj);
+          // Inserisci l'articolo in rss_articles_buffer se non esiste già
+          try {
+            await supabase
+              .from('rss_articles_buffer')
+              .upsert([articleObj], { onConflict: ['guid'] });
+          } catch (err) {
+            console.error('❌ Errore upsert rss_articles_buffer:', err);
+          }
         }
-      } catch {
+      } catch (err) {
+        console.error('❌ Errore fetch/parsing feed:', err);
         continue;
       }
     }
