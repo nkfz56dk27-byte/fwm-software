@@ -56,7 +56,8 @@ export default async function handler(req, res) {
   const start = Date.now();
   try {
     const now = new Date();
-    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000).toISOString();
+    // 🔧 MODIFICATO: Processa articoli delle ultime 2 ORE invece di 5 minuti
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
 
     const { data: feeds, error: feedsError } = await supabase
       .from('rss_feeds')
@@ -82,7 +83,8 @@ export default async function handler(req, res) {
         const items = parseItems(xml).slice(0, 30);
         for (const item of items) {
           const pubDate = getPubDate(item);
-          if (pubDate && pubDate.toISOString() < fiveMinutesAgo) continue;
+          // 🔧 MODIFICATO: Filtra per 2 ore invece di 5 minuti
+          if (pubDate && pubDate.toISOString() < twoHoursAgo) continue;
           const guid = buildGuid(item);
           if (!guid) continue;
           articles.push({
@@ -193,6 +195,6 @@ if (sent > 0) {
 
     res.status(200).json({ success: true, sent, durationMs: Date.now() - start });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.status(200).json({ success: false, error: err.message });
   }
 }
