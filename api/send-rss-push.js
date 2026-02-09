@@ -44,10 +44,11 @@ export default async function handler(req, res) {
     let failedCount = 0;
 
     for (const notifica of notifichePending) {
+
       try {
-        // Ricostruisci i dati articolo dal buffer (rss_articles_buffer)
+        // Ricostruisci i dati articolo da rss_articles
         const { data: article, error: articleError } = await supabase
-          .from('rss_articles_buffer')
+          .from('rss_articles')
           .select('title, description, content, link, feed_id')
           .eq('guid', notifica.article_guid)
           .maybeSingle();
