@@ -79,12 +79,20 @@ export default async function handler(req, res) {
           continue;
         }
 
-        // Trova i device dell'utente
-        const { data: devices, error: devicesError } = await supabase
-          .from('push_devices')
-          .select('player_id, username')
-          .eq('username', notifica.username)
-          .not('player_id', 'is', null);
+        // Trova i device dell'utente (dichiarazione UNA SOLA VOLTA per ciclo)
+        let devices, devicesError;
+        try {
+          const res = await supabase
+            .from('push_devices')
+            .select('player_id, username')
+            .eq('username', notifica.username)
+            .not('player_id', 'is', null);
+          devices = res.data;
+          devicesError = res.error;
+        } catch (err) {
+          devices = null;
+          devicesError = err;
+        }
 
         if (devicesError || !devices || devices.length === 0) {
           console.log(`⚠️ [RSS PUSH] Notifica ${notifica.id}: nessun device`);
@@ -162,7 +170,6 @@ export default async function handler(req, res) {
 
       } catch (error) {
         console.error(`❌ [RSS PUSH] Errore notifica ${notifica.id}:`, error);
-        // Se il payload era stato creato, loggalo
         if (typeof oneSignalPayload !== 'undefined') {
           console.log(`[RSS PUSH] Payload OneSignal:`, oneSignalPayload);
         }
