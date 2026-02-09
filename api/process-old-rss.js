@@ -56,7 +56,6 @@ export default async function handler(req, res) {
   const start = Date.now();
   try {
     const now = new Date();
-    // 🔧 DIFFERENZA: Processa articoli delle ultime 48 ORE invece di 5 minuti
     const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
 
     const { data: feeds, error: feedsError } = await supabase
@@ -80,10 +79,9 @@ export default async function handler(req, res) {
         });
         if (!response.ok) continue;
         const xml = await response.text();
-        const items = parseItems(xml).slice(0, 50); // Più articoli
+        const items = parseItems(xml).slice(0, 50);
         for (const item of items) {
           const pubDate = getPubDate(item);
-          // 🔧 DIFFERENZA: Filtra per 48 ore invece di 5 minuti
           if (pubDate && pubDate.toISOString() < twoDaysAgo) continue;
           const guid = buildGuid(item);
           if (!guid) continue;
@@ -148,16 +146,15 @@ export default async function handler(req, res) {
           keywordMatch = userFilters.keywords.some(k => text.includes(k));
         }
 
-        // Invia se matcha FEED oppure KEYWORD (oppure entrambi)
         if (!feedMatch && !keywordMatch) continue;
 
-        // Verifica se già processato
+        // 🔧 FIX: Usa .maybeSingle() invece di .single()
         const { data: existing } = await supabase
           .from('rss_notifications_sent')
           .select('id')
           .eq('username', username)
           .eq('article_guid', guid)
-          .single();
+          .maybeSingle();
 
         if (existing) {
           skipped++;
@@ -169,6 +166,7 @@ export default async function handler(req, res) {
           .insert({ username, article_guid: guid });
 
         if (sentError) {
+          console.error('❌ Errore insert rss_notifications_sent:', sentError);
           continue;
         }
 
@@ -189,13 +187,14 @@ export default async function handler(req, res) {
             created_at: new Date().toISOString()
           });
 
-        if (!notifError) {
+        if (notifError) {
+          console.error('❌ Errore insert push_notifications_rss_filter:', notifError);
+        } else {
           sent++;
         }
       }
     }
 
-    // Chiama endpoint per inviare le notifiche RSS
     if (sent > 0) {
       try {
         const pushUrl = `${req.headers.host?.startsWith('localhost') ? 'http' : 'https'}://${req.headers.host}/api/send-rss-push`;
@@ -217,6 +216,7 @@ export default async function handler(req, res) {
       durationMs: Date.now() - start 
     });
   } catch (err) {
+    console.error('❌ Errore process-old-rss:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 }

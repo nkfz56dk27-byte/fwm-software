@@ -56,7 +56,6 @@ export default async function handler(req, res) {
   const start = Date.now();
   try {
     const now = new Date();
-    // 🔧 MODIFICATO: Processa articoli delle ultime 2 ORE invece di 5 minuti
     const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
 
     const { data: feeds, error: feedsError } = await supabase
@@ -83,7 +82,6 @@ export default async function handler(req, res) {
         const items = parseItems(xml).slice(0, 30);
         for (const item of items) {
           const pubDate = getPubDate(item);
-          // 🔧 MODIFICATO: Filtra per 2 ore invece di 5 minuti
           if (pubDate && pubDate.toISOString() < twoHoursAgo) continue;
           const guid = buildGuid(item);
           if (!guid) continue;
@@ -132,6 +130,7 @@ export default async function handler(req, res) {
     }
 
     let sent = 0;
+    let skipped = 0;
     for (const [username, userFilters] of filtersByUser.entries()) {
       if (userFilters.keywords.length === 0 && userFilters.feedIds.size === 0) continue;
 
@@ -140,19 +139,34 @@ export default async function handler(req, res) {
         if (!guid) continue;
 
         const feedMatch = userFilters.feedIds.has(String(article.feed_id));
+        
         let keywordMatch = false;
-        if (!feedMatch && userFilters.keywords.length > 0) {
+        if (userFilters.keywords.length > 0) {
           const text = normalizeText(`${article.title || ''} ${article.description || ''} ${article.content || ''}`);
           keywordMatch = userFilters.keywords.some(k => text.includes(k));
         }
 
         if (!feedMatch && !keywordMatch) continue;
 
+        // 🔧 FIX: Aggiungo controllo duplicati PRIMA dell'insert usando .maybeSingle()
+        const { data: existing } = await supabase
+          .from('rss_notifications_sent')
+          .select('id')
+          .eq('username', username)
+          .eq('article_guid', guid)
+          .maybeSingle();
+
+        if (existing) {
+          skipped++;
+          continue;
+        }
+
         const { error: sentError } = await supabase
           .from('rss_notifications_sent')
           .insert({ username, article_guid: guid });
 
         if (sentError) {
+          console.error('❌ Errore insert rss_notifications_sent:', sentError);
           continue;
         }
 
@@ -173,29 +187,35 @@ export default async function handler(req, res) {
             created_at: new Date().toISOString()
           });
 
-        if (!notifError) {
+        if (notifError) {
+          console.error('❌ Errore insert push_notifications_rss_filter:', notifError);
+        } else {
           sent++;
         }
       }
     }
 
-// Chiama endpoint per inviare le notifiche RSS
-if (sent > 0) {
-  try {
-    const pushUrl = `${req.headers.host?.startsWith('localhost') ? 'http' : 'https'}://${req.headers.host}/api/send-rss-push`;
-    console.log(`📤 Chiamo send-rss-push: ${pushUrl}`);
-    
-    fetch(pushUrl, { method: 'POST' }).catch(err => {
-      console.error('❌ Errore chiamata send-rss-push:', err);
+    if (sent > 0) {
+      try {
+        const pushUrl = `${req.headers.host?.startsWith('localhost') ? 'http' : 'https'}://${req.headers.host}/api/send-rss-push`;
+        console.log(`📤 Chiamo send-rss-push: ${pushUrl} (${sent} notifiche)`);
+        
+        fetch(pushUrl, { method: 'POST' }).catch(err => {
+          console.error('❌ Errore chiamata send-rss-push:', err);
+        });
+      } catch (err) {
+        console.error('❌ Errore fetch send-rss-push:', err);
+      }
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      sent, 
+      skipped,
+      durationMs: Date.now() - start 
     });
   } catch (err) {
-    console.error('❌ Errore fetch send-rss-push:', err);
+    console.error('❌ Errore rss-notification-cron:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 }
-
-    res.status(200).json({ success: true, sent, durationMs: Date.now() - start });
-  } catch (err) {
-    res.status(200).json({ success: false, error: err.message });
-  }
-}
-
