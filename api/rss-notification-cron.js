@@ -57,6 +57,7 @@ export default async function handler(req, res) {
   try {
     const now = new Date();
     const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
+    console.log(`[RSS CRON] Avvio. Ora: ${now.toISOString()} - Filtro articoli dopo: ${twoHoursAgo}`);
 
     const { data: feeds, error: feedsError } = await supabase
       .from('rss_feeds')
@@ -72,19 +73,31 @@ export default async function handler(req, res) {
     for (const feed of feeds) {
       if (!feed.url) continue;
       try {
+        console.log(`[RSS CRON] Fetch feed: ${feed.url}`);
         const response = await fetch(feed.url, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (RSS Cron)'
           }
         });
-        if (!response.ok) continue;
+        if (!response.ok) {
+          console.log(`[RSS CRON] Feed non ok: ${feed.url} - Status: ${response.status}`);
+          continue;
+        }
         const xml = await response.text();
         const items = parseItems(xml).slice(0, 30);
+        console.log(`[RSS CRON] Feed ${feed.url} - Articoli trovati: ${items.length}`);
+        let countNuovi = 0, countFiltrati = 0, countUpsertOk = 0, countUpsertErr = 0;
         for (const item of items) {
           const pubDate = getPubDate(item);
-          if (pubDate && pubDate.toISOString() < twoHoursAgo) continue;
+          if (pubDate && pubDate.toISOString() < twoHoursAgo) {
+            countFiltrati++;
+            continue;
+          }
           const guid = buildGuid(item);
-          if (!guid) continue;
+          if (!guid) {
+            console.log('[RSS CRON] Articolo senza guid, saltato');
+            continue;
+          }
           const articleObj = {
             feed_id: feed.id,
             guid,
@@ -95,17 +108,26 @@ export default async function handler(req, res) {
             created_at: pubDate ? pubDate.toISOString() : now.toISOString()
           };
           articles.push(articleObj);
+          countNuovi++;
           // Inserisci l'articolo in rss_articles_buffer se non esiste già
           try {
-            await supabase
+            const upsertRes = await supabase
               .from('rss_articles_buffer')
               .upsert([articleObj], { onConflict: ['guid'] });
+            if (upsertRes.error) {
+              countUpsertErr++;
+              console.error(`[RSS CRON] Errore upsert guid=${guid}:`, upsertRes.error);
+            } else {
+              countUpsertOk++;
+            }
           } catch (err) {
-            console.error('❌ Errore upsert rss_articles_buffer:', err);
+            countUpsertErr++;
+            console.error(`[RSS CRON] Errore upsert guid=${guid} (catch):`, err);
           }
         }
+        console.log(`[RSS CRON] Feed ${feed.url} - Nuovi: ${countNuovi}, Filtrati: ${countFiltrati}, Upsert OK: ${countUpsertOk}, Upsert ERR: ${countUpsertErr}`);
       } catch (err) {
-        console.error('❌ Errore fetch/parsing feed:', err);
+        console.error(`[RSS CRON] Errore fetch/parsing feed: ${feed.url}`, err);
         continue;
       }
     }
