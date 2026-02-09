@@ -132,6 +132,7 @@ export default async function handler(req, res) {
     let sent = 0;
     let skipped = 0;
     for (const [username, userFilters] of filtersByUser.entries()) {
+
       if (userFilters.keywords.length === 0 && userFilters.feedIds.size === 0) continue;
 
       for (const article of articles) {
@@ -139,13 +140,11 @@ export default async function handler(req, res) {
         if (!guid) continue;
 
         const feedMatch = userFilters.feedIds.has(String(article.feed_id));
-        
         let keywordMatch = false;
         if (userFilters.keywords.length > 0) {
           const text = normalizeText(`${article.title || ''} ${article.description || ''} ${article.content || ''}`);
           keywordMatch = userFilters.keywords.some(k => text.includes(k));
         }
-
         if (!feedMatch && !keywordMatch) continue;
 
         // 🔧 FIX: Usa .maybeSingle() invece di .single()
@@ -163,35 +162,13 @@ export default async function handler(req, res) {
 
         const { error: sentError } = await supabase
           .from('rss_notifications_sent')
-          .insert({ username, article_guid: guid });
+          .insert({ username, article_guid: guid, status: 'pending' });
 
         if (sentError) {
           console.error('❌ Errore insert rss_notifications_sent:', sentError);
           continue;
         }
-
-        const { error: notifError } = await supabase
-          .from('push_notifications_rss_filter')
-          .insert({
-            title: article.title || 'Nuovo articolo RSS',
-            body: 'Nuovo articolo dai tuoi filtri',
-            notification_type: 'rss_filter',
-            target_all: false,
-            target_users: [username],
-            data: {
-              link: article.link || null,
-              feed_id: article.feed_id,
-              guid
-            },
-            status: 'pending',
-            created_at: new Date().toISOString()
-          });
-
-        if (notifError) {
-          console.error('❌ Errore insert push_notifications_rss_filter:', notifError);
-        } else {
-          sent++;
-        }
+        sent++;
       }
     }
 

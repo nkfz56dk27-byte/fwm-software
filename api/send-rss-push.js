@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -9,12 +10,12 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 export default async function handler(req, res) {
   const start = Date.now();
-  
   try {
-    console.log('📢 [RSS PUSH] Inizio elaborazione notifiche RSS pending...');
+    console.log('📢 [RSS PUSH] Inizio elaborazione notifiche RSS pending (da rss_notifications_sent)...');
 
+    // 1. Leggi tutte le notifiche pending da rss_notifications_sent
     const { data: notifichePending, error: fetchError } = await supabase
-      .from('push_notifications_rss_filter')
+      .from('rss_notifications_sent')
       .select('*')
       .eq('status', 'pending')
       .limit(100);
@@ -44,15 +45,20 @@ export default async function handler(req, res) {
 
     for (const notifica of notifichePending) {
       try {
-        const targetUsers = notifica.target_users || [];
-        
-        if (targetUsers.length === 0) {
-          console.log(`⚠️ [RSS PUSH] Notifica ${notifica.id}: nessun target_user`);
+        // Ricostruisci i dati articolo dal buffer (rss_articles_buffer)
+        const { data: article, error: articleError } = await supabase
+          .from('rss_articles_buffer')
+          .select('title, description, content, link, feed_id')
+          .eq('guid', notifica.article_guid)
+          .maybeSingle();
+
+        if (articleError || !article) {
+          console.log(`⚠️ [RSS PUSH] Notifica ${notifica.id}: articolo non trovato`);
           await supabase
-            .from('push_notifications_rss_filter')
+            .from('rss_notifications_sent')
             .update({ 
               status: 'failed', 
-              error: 'No target users',
+              error: 'Articolo non trovato',
               sent_at: new Date().toISOString()
             })
             .eq('id', notifica.id);
@@ -60,16 +66,17 @@ export default async function handler(req, res) {
           continue;
         }
 
+        // Trova i device dell'utente
         const { data: devices, error: devicesError } = await supabase
           .from('push_devices')
           .select('player_id, username')
-          .in('username', targetUsers)
+          .eq('username', notifica.username)
           .not('player_id', 'is', null);
 
         if (devicesError || !devices || devices.length === 0) {
           console.log(`⚠️ [RSS PUSH] Notifica ${notifica.id}: nessun device`);
           await supabase
-            .from('push_notifications_rss_filter')
+            .from('rss_notifications_sent')
             .update({ 
               status: 'failed', 
               error: 'No devices found',
@@ -83,13 +90,18 @@ export default async function handler(req, res) {
         const playerIds = devices.map(d => d.player_id).filter(Boolean);
         console.log(`🔍 [RSS PUSH] Notifica ${notifica.id}: ${playerIds.length} player_id`);
 
+        // Prepara payload notifica
         const oneSignalPayload = {
           app_id: ONESIGNAL_APP_ID,
           include_player_ids: playerIds,
-          headings: { en: notifica.title || 'Nuovo articolo RSS' },
-          contents: { en: notifica.body || '' },
-          data: notifica.data || {},
-          url: notifica.data?.link || null
+          headings: { en: article.title || 'Nuovo articolo RSS' },
+          contents: { en: article.description || '' },
+          data: {
+            link: article.link || null,
+            feed_id: article.feed_id,
+            guid: notifica.article_guid
+          },
+          url: article.link || null
         };
 
         const oneSignalResponse = await fetch('https://onesignal.com/api/v1/notifications', {
@@ -106,7 +118,7 @@ export default async function handler(req, res) {
         if (!oneSignalResponse.ok) {
           console.error(`❌ [RSS PUSH] OneSignal error:`, oneSignalResult);
           await supabase
-            .from('push_notifications_rss_filter')
+            .from('rss_notifications_sent')
             .update({ 
               status: 'failed', 
               error: JSON.stringify(oneSignalResult),
@@ -120,7 +132,7 @@ export default async function handler(req, res) {
         console.log(`✅ [RSS PUSH] Notifica ${notifica.id} inviata!`);
         
         await supabase
-          .from('push_notifications_rss_filter')
+          .from('rss_notifications_sent')
           .update({ 
             status: 'sent',
             sent_at: new Date().toISOString(),
@@ -133,7 +145,7 @@ export default async function handler(req, res) {
       } catch (error) {
         console.error(`❌ [RSS PUSH] Errore notifica ${notifica.id}:`, error);
         await supabase
-          .from('push_notifications_rss_filter')
+          .from('rss_notifications_sent')
           .update({ 
             status: 'failed', 
             error: error.message,
