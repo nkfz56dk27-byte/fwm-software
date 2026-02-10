@@ -3268,6 +3268,43 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
   const backBtnTop = isMobile ? 40 : 20;
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+      {/* Bottone debug OneSignal player_id */}
+      <button
+        style={{ position: 'absolute', top: 10, right: 10, zIndex: 9999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
+        onClick={async () => {
+          try {
+            let playerId = null;
+            if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+              playerId = await window.OneSignal.User.PushSubscription.id;
+              alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
+            }
+            if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+              playerId = await window.OneSignal.User.onesignalId;
+              alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
+            }
+            if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+              playerId = await window.OneSignal.getSubscriptionId();
+              alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
+            }
+            if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+              playerId = await window.OneSignal.getUserId();
+              alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
+            }
+            if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+              const subscription = await window.OneSignal.getSubscription();
+              playerId = subscription?.id || null;
+              alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
+            }
+            if (playerId) {
+              alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
+            } else {
+              alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
+            }
+          } catch (error) {
+            alert('❌ Errore recupero Player ID: ' + error);
+          }
+        }}
+      >DEBUG Player ID OneSignal</button>
       <div style={{ position: 'absolute', top: `${backBtnTop}px`, left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between' }}>
         <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
           <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: isMobile ? '80px' : '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
