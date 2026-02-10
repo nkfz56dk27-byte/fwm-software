@@ -128,7 +128,7 @@ export default async function handler(req, res) {
           app_id: ONESIGNAL_APP_ID,
           include_player_ids: playerIds,
           headings: { en: article.title || 'Nuovo articolo RSS' },
-          contents: { en: article.description || '' },
+          contents: { en: article.description || article.title || 'Nuovo articolo RSS' },
           data: {
             link: article.link || null,
             feed_id: article.feed_id,
