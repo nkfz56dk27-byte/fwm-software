@@ -126,7 +126,6 @@ function App() {
       setMustChangePassword(utentiData[0].deve_cambiare_password);
       sessionStorage.setItem('username', username);
       localStorage.removeItem('notifichePrompted');
-      await initializeOneSignal();
       setShowNotificationPrompt(true);
       setLoading(false);
     } catch (err) {

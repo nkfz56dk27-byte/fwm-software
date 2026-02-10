@@ -153,7 +153,7 @@ import './App.css'
 function App() {
     // Inizializza OneSignal all'avvio dell'app (mostra popup permesso)
     useEffect(() => {
-      initializeOneSignal();
+      initializeOneSignal(); // Unica chiamata all'avvio
     }, []);
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -454,66 +454,7 @@ function App() {
     }
     
     // Inizializza OneSignal con polling intelligente
-    console.log('[DEBUG LOGIN] Inizializzando OneSignal...')
-    try {
-      const { initializeOneSignal, getPlayerId } = await import('./src/onesignal.js')
-      const oneSignalSuccess = await initializeOneSignal()
-      
-      if (oneSignalSuccess) {
-        console.log('[DEBUG LOGIN] OneSignal inizializzato con successo')
-        
-        // Polling intelligente: controlla ogni secondo per max 30 secondi
-        let tentativi = 0
-        const maxTentativi = 30
-        
-        const checkPlayerId = setInterval(async () => {
-          tentativi++
-          const playerId = await getPlayerId()
-          
-          if (playerId) {
-            console.log(`✅ [DEBUG LOGIN] Player ID ottenuto al tentativo ${tentativi}:`, playerId)
-            clearInterval(checkPlayerId)
-            
-            // Salva il player_id in push_devices
-            try {
-              const { getDeviceId } = await import('./pushNotificationService')
-              const deviceId = getDeviceId()
-              
-              const { error: updateError } = await supabase
-  .from('push_devices')
-  .upsert({
-    username: username,
-    device_id: deviceId,
-    player_id: playerId,
-    browser_info: navigator.userAgent.substring(0, 100),
-    ultimo_accesso: new Date().toISOString(),
-    attivo: true
-  }, {
-    onConflict: 'username,device_id'
-  })
-              
-              if (updateError) {
-                console.error('❌ [DEBUG LOGIN] Errore salvataggio player_id:', updateError)
-              } else {
-                console.log('✅ [DEBUG LOGIN] Player ID salvato in push_devices!')
-              }
-            } catch (saveErr) {
-              console.error('❌ [DEBUG LOGIN] Errore durante salvataggio:', saveErr)
-            }
-          } else if (tentativi >= maxTentativi) {
-            console.warn(`⚠️ [DEBUG LOGIN] Player ID non ottenuto dopo ${maxTentativi} tentativi`)
-            clearInterval(checkPlayerId)
-          } else {
-            console.log(`🔄 [DEBUG LOGIN] Tentativo ${tentativi}/${maxTentativi}: Player ID ancora null, riprovo...`)
-          }
-        }, 1000)
-        
-      } else {
-        console.warn('[DEBUG LOGIN] OneSignal non inizializzato (probabilmente localhost)')
-      }
-    } catch (err) {
-      console.error('[DEBUG LOGIN] Errore inizializzazione OneSignal:', err)
-    }
+    // Rimosso: la registrazione OneSignal viene gestita solo all'avvio
     
     // Inizializza notifiche native
     console.log('[DEBUG LOGIN] Inizializzando notifiche native per iOS/Android...')
