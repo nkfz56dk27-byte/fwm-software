@@ -115,10 +115,10 @@ export default async function handler(req, res) {
           };
           articles.push(articleObj);
           countNuovi++;
-          // Inserisci l'articolo in rss_articles_buffer se non esiste già
+          // Inserisci l'articolo in rss_articles se non esiste già
           try {
             const upsertRes = await supabase
-              .from('rss_articles_buffer')
+              .from('rss_articles')
               .upsert([articleObj], { onConflict: ['guid'] });
             if (upsertRes.error) {
               countUpsertErr++;
