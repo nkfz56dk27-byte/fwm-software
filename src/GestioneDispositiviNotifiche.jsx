@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import { getDispositiviUtente, disabilitaNotifiche } from './pushNotificationService'
 
 export default function GestioneDispositiviNotifiche({ username, onClose }) {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
   const [dispositivi, setDispositivi] = useState([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
@@ -66,7 +67,45 @@ export default function GestioneDispositiviNotifiche({ username, onClose }) {
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', position: 'relative' }}>
+      {isMobile && (
+        <button
+          style={{ position: 'fixed', top: 10, right: 10, zIndex: 99999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
+          onClick={async () => {
+            try {
+              let playerId = null;
+              if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+                playerId = await window.OneSignal.User.PushSubscription.id;
+                alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+                playerId = await window.OneSignal.User.onesignalId;
+                alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+                playerId = await window.OneSignal.getSubscriptionId();
+                alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+                playerId = await window.OneSignal.getUserId();
+                alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+                const subscription = await window.OneSignal.getSubscription();
+                playerId = subscription?.id || null;
+                alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
+              }
+              if (playerId) {
+                alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
+              } else {
+                alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
+              }
+            } catch (error) {
+              alert('❌ Errore recupero Player ID: ' + error);
+            }
+          }}
+        >DEBUG Player ID OneSignal</button>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ margin: 0 }}>📱 I Tuoi Dispositivi</h2>
         <button
