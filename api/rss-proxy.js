@@ -34,7 +34,9 @@ export default async function handler(req, res) {
     const data = await response.text();
     if (!response.ok) {
       console.error('[RSS-PROXY] Errore HTTP', response.status, 'per', feedUrl);
-      res.status(response.status).json({ error: 'Errore HTTP dal feed', status: response.status, url: feedUrl });
+      console.error('[RSS-PROXY] Header risposta:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
+      console.error('[RSS-PROXY] Body preview:', data.slice(0, 500));
+      res.status(response.status).json({ error: 'Errore HTTP dal feed', status: response.status, url: feedUrl, headers: Object.fromEntries(response.headers.entries()), preview: data.slice(0, 500) });
       return;
     }
     if (!data.trim().startsWith('<?xml') && !data.trim().startsWith('<rss') && !data.trim().startsWith('<feed')) {

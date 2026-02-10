@@ -1,5 +1,7 @@
 
+
 import { createClient } from '@supabase/supabase-js';
+import { DateTime } from 'luxon';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -71,7 +73,7 @@ export default async function handler(req, res) {
             .update({ 
               status: 'failed', 
               error: 'Articolo non trovato',
-              sent_at: new Date().toISOString(),
+              sent_at: DateTime.now().setZone('Europe/Rome').toUTC().toISO(),
               debug_article_guid: notifica.article_guid
             })
             .eq('id', notifica.id);
@@ -101,7 +103,7 @@ export default async function handler(req, res) {
             .update({ 
               status: 'failed', 
               error: 'No devices found',
-              sent_at: new Date().toISOString()
+              sent_at: DateTime.now().setZone('Europe/Rome').toUTC().toISO()
             })
             .eq('id', notifica.id);
           failedCount++;
@@ -162,7 +164,7 @@ export default async function handler(req, res) {
           .from('rss_notifications_sent')
           .update({ 
             status: 'sent',
-            sent_at: new Date().toISOString(),
+            sent_at: DateTime.now().setZone('Europe/Rome').toUTC().toISO(),
             onesignal_id: oneSignalResult.id
           })
           .eq('id', notifica.id);
@@ -178,7 +180,7 @@ export default async function handler(req, res) {
           .update({ 
             status: 'failed', 
             error: error.message,
-            sent_at: new Date().toISOString()
+            sent_at: DateTime.now().setZone('Europe/Rome').toUTC().toISO()
           })
           .eq('id', notifica.id);
         failedCount++;

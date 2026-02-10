@@ -539,10 +539,9 @@ function PannelloFonti({ onClose }) {
       if (savedUsername) {
         window.__PANNELLO_FONTI_POLLING_INTERVAL = setInterval(() => {
           if (!isLoadingArticoli) {
-            
             controllaNuoviArticoli();
           }
-        }, 5 * 60 * 1000); // 5 minuti in millisecondi
+        }, 3 * 60 * 1000); // 3 minuti in millisecondi
       }
     }
 

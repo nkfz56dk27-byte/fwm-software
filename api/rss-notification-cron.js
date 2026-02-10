@@ -1,5 +1,7 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { XMLParser } from 'fast-xml-parser';
+import { DateTime } from 'luxon';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,21 +45,33 @@ function parseItems(feedXml) {
   return Array.isArray(items) ? items : [items].filter(Boolean);
 }
 
+
 function getPubDate(item) {
   const pubDateRaw = normalizeItemValue(item.pubDate) ||
     normalizeItemValue(item.published) ||
     normalizeItemValue(item.updated) || '';
-  const date = pubDateRaw ? new Date(pubDateRaw) : null;
-  if (date && !Number.isNaN(date.getTime())) return date;
-  return null;
+  if (!pubDateRaw) return null;
+  // Parsing con luxon, forzando Europe/Rome
+  let dt = DateTime.fromISO(pubDateRaw, { zone: 'utc' });
+  if (!dt.isValid) {
+    dt = DateTime.fromRFC2822(pubDateRaw, { zone: 'utc' });
+  }
+  if (!dt.isValid) {
+    dt = DateTime.fromJSDate(new Date(pubDateRaw), { zone: 'utc' });
+  }
+  if (!dt.isValid) return null;
+  // Converto in Europe/Rome
+  return dt.setZone('Europe/Rome');
 }
 
 export default async function handler(req, res) {
   const start = Date.now();
   try {
-    const now = new Date();
-    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
-    console.log(`[RSS CRON] Avvio. Ora: ${now.toISOString()} - Filtro articoli dopo: ${twoHoursAgo}`);
+
+    // Usa luxon per ora locale Europe/Rome
+    const now = DateTime.now().setZone('Europe/Rome');
+    const twoHoursAgo = now.minus({ hours: 2 });
+    console.log(`[RSS CRON] Avvio. Ora: ${now.toISO()} - Filtro articoli dopo: ${twoHoursAgo.toISO()}`);
 
     const { data: feeds, error: feedsError } = await supabase
       .from('rss_feeds')
@@ -92,9 +106,10 @@ export default async function handler(req, res) {
           let pubDateToUse = pubDate;
           if (!pubDate) {
             pubDateToUse = now;
-            console.warn(`[RSS CRON] Articolo guid=${item.guid || item.link || 'NO_GUID'} senza pub_date: uso data corrente (${now.toISOString()})`);
+            console.warn(`[RSS CRON] Articolo guid=${item.guid || item.link || 'NO_GUID'} senza pub_date: uso data corrente (${now.toISO()})`);
           }
-          if (pubDateToUse && pubDateToUse.toISOString() < twoHoursAgo) {
+          // Filtro: solo articoli pubblicati nelle ultime 2 ore (Europe/Rome)
+          if (pubDateToUse && pubDateToUse < twoHoursAgo) {
             countFiltrati++;
             continue;
           }
@@ -110,8 +125,8 @@ export default async function handler(req, res) {
             description: normalizeItemValue(item.description) || normalizeItemValue(item.summary) || '',
             content: normalizeItemValue(item['content:encoded']) || normalizeItemValue(item.content) || '',
             link: normalizeItemValue(item.link) || null,
-            pub_date: pubDateToUse.toISOString(),
-            created_at: pubDateToUse.toISOString()
+            pub_date: pubDateToUse.toUTC().toISO(),
+            created_at: pubDateToUse.toUTC().toISO()
           };
           articles.push(articleObj);
           countNuovi++;

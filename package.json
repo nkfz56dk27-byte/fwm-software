@@ -21,6 +21,7 @@
     "firebase-admin": "^13.6.0",
     "heic2any": "^0.0.4",
     "html2canvas": "^1.4.1",
+    "luxon": "^3.7.2",
     "node-fetch": "^2.7.0",
     "piexifjs": "^1.0.6",
     "react": "^19.2.0",
