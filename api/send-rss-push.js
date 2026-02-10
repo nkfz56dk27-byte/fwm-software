@@ -86,7 +86,7 @@ export default async function handler(req, res) {
         try {
           const res = await supabase
             .from('push_devices')
-            .select('player_id, username')
+            .select('player_id, username, device_type')
             .eq('username', notifica.username)
             .not('player_id', 'is', null);
           devices = res.data;
@@ -112,6 +112,9 @@ export default async function handler(req, res) {
 
         const playerIds = devices.map(d => d.player_id).filter(Boolean);
         console.log(`🔍 [RSS PUSH] Notifica ${notifica.id}: ${playerIds.length} player_id`);
+        devices.forEach(d => {
+          console.log(`[DEBUG DEVICE] username=${d.username}, player_id=${d.player_id}, device_type=${d.device_type}`);
+        });
         console.log(`[RSS PUSH] Device trovati per utente ${notifica.username}:`, devices);
         if (devicesError) {
           console.error(`[RSS PUSH] Errore query device:`, devicesError);
