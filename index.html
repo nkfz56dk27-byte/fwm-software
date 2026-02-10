@@ -27,6 +27,8 @@
   <script defer src="https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-compat.js"></script>
   
   <title>FWM Software</title>
+  <!-- OneSignal SDK -->
+  <script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js" async></script>
   <style>
     html, body {
       height: 100vh;
@@ -51,5 +53,14 @@
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
+  <script>
+    window.OneSignal = window.OneSignal || [];
+    OneSignal.push(function() {
+      OneSignal.init({
+        appId: "32bc9e36-a2ac-449c-a07c-70168b9b3e37",
+        notifyButton: { enable: true }
+      });
+    });
+  </script>
 </body>
 </html>
