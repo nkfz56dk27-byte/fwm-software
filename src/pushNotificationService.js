@@ -84,18 +84,29 @@ export async function registraDispositivoNotifiche(username) {
 
     // Recupera player_id OneSignal dal browser (se disponibile)
     let playerId = null;
-    if (window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
-      try {
-        playerId = await window.OneSignal.getUserId();
-        console.log('🎯 OneSignal player_id:', playerId);
-        if (!playerId) {
-          console.warn('⚠️ player_id non ottenuto! Controlla permessi browser e Service Worker.');
+    let tentativi = 0;
+    const maxTentativi = 15;
+    while (!playerId && tentativi < maxTentativi) {
+      tentativi++;
+      if (window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+        try {
+          playerId = await window.OneSignal.getUserId();
+          console.log(`🎯 [OneSignal] player_id tentativo ${tentativi}:`, playerId);
+          if (!playerId) {
+            console.warn(`⚠️ [OneSignal] player_id non ottenuto al tentativo ${tentativi}`);
+            await new Promise(res => setTimeout(res, 2000));
+          }
+        } catch (e) {
+          console.warn(`⚠️ [OneSignal] Errore recupero player_id al tentativo ${tentativi}:`, e);
+          await new Promise(res => setTimeout(res, 2000));
         }
-      } catch (e) {
-        console.warn('⚠️ Errore recupero player_id OneSignal:', e);
+      } else {
+        console.warn('⚠️ OneSignal non inizializzato o getUserId non disponibile.');
+        break;
       }
-    } else {
-      console.warn('⚠️ OneSignal non inizializzato o getUserId non disponibile.');
+    }
+    if (!playerId) {
+      console.warn('❌ [OneSignal] player_id non ottenuto dopo tutti i tentativi.');
     }
 
     // Salva il dispositivo su Supabase
@@ -126,27 +137,7 @@ export async function registraDispositivoNotifiche(username) {
     }
 
     // Aggiorna player_id se era null (per utenti già registrati)
-    if (!playerId) {
-      setTimeout(async () => {
-        if (window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
-          try {
-            const newPlayerId = await window.OneSignal.getUserId();
-            console.log('⏰ Timeout player_id OneSignal:', newPlayerId);
-            if (newPlayerId) {
-              const updateResult = await supabase.from('push_devices')
-                .update({ player_id: newPlayerId })
-                .eq('username', username)
-                .eq('device_id', deviceId);
-              console.log('🔄 player_id aggiornato post-permesso:', newPlayerId, updateResult);
-            } else {
-              console.warn('⚠️ player_id ancora null dopo timeout.');
-            }
-          } catch (e) {
-            console.warn('⚠️ Errore aggiornamento player_id OneSignal:', e);
-          }
-        }
-      }, 2000); // Ritenta dopo 2 secondi
-    }
+    // Retry già gestito sopra, non serve timeout aggiuntivo
 
     console.log('✅ Dispositivo registrato per notifiche:', { username, deviceId })
     return true
