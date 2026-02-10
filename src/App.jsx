@@ -3208,7 +3208,83 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
   console.log('📱 ClassificheMainMenuView - isMobile ricevuto:', isMobile)
   const backBtnTop = isMobile ? 40 : 20;
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', minHeight: '100vh' }}>
+      {isMobile && (
+        <button
+          style={{ position: 'fixed', top: 10, right: 10, zIndex: 99999, background: '#FF9500', color: 'white', border: '3px solid #fff', borderRadius: '12px', padding: '16px 22px', fontSize: '18px', fontWeight: 'bold', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', cursor: 'pointer', outline: '2px solid #007AFF' }}
+          onClick={async () => {
+            try {
+              let playerId = null;
+              if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+                playerId = await window.OneSignal.User.PushSubscription.id;
+                alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+                playerId = await window.OneSignal.User.onesignalId;
+                alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+                playerId = await window.OneSignal.getSubscriptionId();
+                alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+                playerId = await window.OneSignal.getUserId();
+                alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+                const subscription = await window.OneSignal.getSubscription();
+                playerId = subscription?.id || null;
+                alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
+              }
+              if (playerId) {
+                alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
+              } else {
+                alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
+              }
+            } catch (error) {
+              alert('❌ Errore recupero Player ID: ' + error);
+            }
+          }}
+        >DEBUG Player ID OneSignal</button>
+      )}
+      {isMobile && (
+        <button
+          style={{ position: 'fixed', top: 10, right: 10, zIndex: 9999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
+          onClick={async () => {
+            try {
+              let playerId = null;
+              if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+                playerId = await window.OneSignal.User.PushSubscription.id;
+                alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+                playerId = await window.OneSignal.User.onesignalId;
+                alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+                playerId = await window.OneSignal.getSubscriptionId();
+                alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+                playerId = await window.OneSignal.getUserId();
+                alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
+              }
+              if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+                const subscription = await window.OneSignal.getSubscription();
+                playerId = subscription?.id || null;
+                alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
+              }
+              if (playerId) {
+                alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
+              } else {
+                alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
+              }
+            } catch (error) {
+              alert('❌ Errore recupero Player ID: ' + error);
+            }
+          }}
+        >DEBUG Player ID OneSignal</button>
+      )}
       {/* Bottone debug OneSignal player_id */}
       <button
         style={{ position: 'absolute', top: 10, right: 10, zIndex: 9999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
