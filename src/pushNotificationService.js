@@ -110,7 +110,32 @@ export async function registraDispositivoNotifiche(username) {
     const deviceId = getDeviceId();
     const deviceType = detectDeviceType();
     const browserInfo = `${username} - ${navigator.userAgent.substring(0, 50)} - ${new Date().toLocaleString('it-IT')}`;
-    console.log('[DEBUG] deviceId:', deviceId, '| deviceType:', deviceType, '| browserInfo:', browserInfo);
+    // Nuove colonne
+    const deviceOs = (() => {
+      const ua = navigator.userAgent.toLowerCase();
+      if (ua.includes('android')) return 'Android';
+      if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ipod')) return 'iOS';
+      if (ua.includes('win')) return 'Windows';
+      if (ua.includes('mac')) return 'macOS';
+      if (ua.includes('linux')) return 'Linux';
+      return 'Unknown';
+    })();
+    const appVersion = window?.APP_VERSION || null;
+    const pushToken = null; // Da valorizzare se usi FCM o altro provider
+    const deviceModel = (() => {
+      // Prova a estrarre modello da userAgent (mobile)
+      const ua = navigator.userAgent;
+      if (/android/i.test(ua)) {
+        const match = ua.match(/; ([^;]+) Build\//);
+        return match ? match[1].trim() : null;
+      }
+      if (/iphone|ipad|ipod/i.test(ua)) {
+        return 'Apple';
+      }
+      return null;
+    })();
+    let lastError = null;
+    console.log('[DEBUG] deviceId:', deviceId, '| deviceType:', deviceType, '| deviceOs:', deviceOs, '| appVersion:', appVersion, '| deviceModel:', deviceModel, '| browserInfo:', browserInfo);
 
     // Recupera player_id OneSignal dal browser (tutti i metodi noti)
     let playerId = null;
@@ -144,13 +169,33 @@ export async function registraDispositivoNotifiche(username) {
       }
     } catch (e) {
       errorMsg = e.message || e.toString();
+      lastError = errorMsg;
       console.warn('[OneSignal] Errore durante il recupero player_id:', errorMsg);
     }
 
     if (!playerId) {
       const msg = '❌ [OneSignal] player_id non ottenuto con nessun metodo.' + (errorMsg ? ' Errore: ' + errorMsg : '');
+      lastError = msg;
       console.warn(msg);
       alert(msg);
+      // Salva comunque il device con last_error valorizzato
+      const upsertPayload = {
+        username: username,
+        device_id: deviceId,
+        device_type: deviceType,
+        browser_info: browserInfo,
+        ultimo_accesso: new Date().toISOString(),
+        attivo: true,
+        player_id: null,
+        device_os: deviceOs,
+        app_version: appVersion,
+        push_token: pushToken,
+        device_model: deviceModel,
+        last_error: lastError
+      };
+      await supabase.from('push_devices').upsert(upsertPayload, {
+        onConflict: 'username,device_id'
+      });
       return false;
     } else {
       alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
@@ -172,15 +217,21 @@ export async function registraDispositivoNotifiche(username) {
       browser_info: browserInfo,
       ultimo_accesso: new Date().toISOString(),
       attivo: true,
-      player_id: playerId
+      player_id: playerId,
+      device_os: deviceOs,
+      app_version: appVersion,
+      push_token: pushToken,
+      device_model: deviceModel,
+      last_error: lastError
     };
     console.log('⬆️ Upsert push_devices payload:', upsertPayload);
     const { error } = await supabase.from('push_devices').upsert(upsertPayload, {
       onConflict: 'username,device_id'
     });
     if (error) {
+      lastError = error.message || error.toString();
       console.warn('⚠️ Errore upsert push_devices:', error);
-      alert('⚠️ Errore salvataggio push_devices: ' + (error.message || error.toString()));
+      alert('⚠️ Errore salvataggio push_devices: ' + lastError);
     } else {
       console.log('✅ Upsert push_devices completato');
       alert('✅ Dispositivo mobile registrato su Supabase!');
