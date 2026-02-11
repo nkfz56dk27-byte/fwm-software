@@ -196,10 +196,9 @@ export async function registraDispositivoNotifiche(username) {
       console.warn('[OneSignal] Errore durante il recupero player_id:', errorMsg);
     }
       });
-=======
+
       console.warn(msg);
       alert(msg);
->>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
       return false;
     } else {
       alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
@@ -221,30 +220,21 @@ export async function registraDispositivoNotifiche(username) {
       browser_info: browserInfo,
       ultimo_accesso: new Date().toISOString(),
       attivo: true,
-<<<<<<< HEAD
       player_id: playerId,
       device_os: deviceOs,
       app_version: appVersion,
       push_token: pushToken,
       device_model: deviceModel,
       last_error: lastError
-=======
-      player_id: playerId
->>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
     };
     console.log('⬆️ Upsert push_devices payload:', upsertPayload);
     const { error } = await supabase.from('push_devices').upsert(upsertPayload, {
       onConflict: 'username,device_id'
     });
     if (error) {
-<<<<<<< HEAD
       lastError = error.message || error.toString();
       console.warn('⚠️ Errore upsert push_devices:', error);
       alert('⚠️ Errore salvataggio push_devices: ' + lastError);
-=======
-      console.warn('⚠️ Errore upsert push_devices:', error);
-      alert('⚠️ Errore salvataggio push_devices: ' + (error.message || error.toString()));
->>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
     } else {
       console.log('✅ Upsert push_devices completato');
       alert('✅ Dispositivo mobile registrato su Supabase!');
@@ -254,12 +244,11 @@ export async function registraDispositivoNotifiche(username) {
     // Retry già gestito sopra, non serve timeout aggiuntivo
 
     console.log('✅ Dispositivo registrato per notifiche:', { username, deviceId })
-    return true
+    return true;
   } catch (error) {
-    console.error('❌ Errore registrazione dispositivo:', error)
-    return false
+    console.error('❌ Errore registrazione dispositivo:', error);
+    return false;
   }
-}
 
 /**
  * Ascolta le notifiche in tempo reale per l'utente corrente
