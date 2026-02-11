@@ -106,30 +106,37 @@ export function getDeviceId() {
  */
 export async function registraDispositivoNotifiche(username) {
   try {
+    console.log('[DEBUG] Inizio registraDispositivoNotifiche per', username);
     const deviceId = getDeviceId();
     const deviceType = detectDeviceType();
     const browserInfo = `${username} - ${navigator.userAgent.substring(0, 50)} - ${new Date().toLocaleString('it-IT')}`;
+    console.log('[DEBUG] deviceId:', deviceId, '| deviceType:', deviceType, '| browserInfo:', browserInfo);
 
     // Recupera player_id OneSignal dal browser (tutti i metodi noti)
     let playerId = null;
     let errorMsg = '';
     try {
+      console.log('[DEBUG] Tentativo METODO 1 - User.PushSubscription.id');
       if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
         playerId = await window.OneSignal.User.PushSubscription.id;
         console.log('[OneSignal] METODO 1 - User.PushSubscription.id:', playerId);
       }
+      console.log('[DEBUG] Tentativo METODO 2 - User.onesignalId');
       if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
         playerId = await window.OneSignal.User.onesignalId;
         console.log('[OneSignal] METODO 2 - User.onesignalId:', playerId);
       }
+      console.log('[DEBUG] Tentativo METODO 3 - getSubscriptionId');
       if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
         playerId = await window.OneSignal.getSubscriptionId();
         console.log('[OneSignal] METODO 3 - getSubscriptionId:', playerId);
       }
+      console.log('[DEBUG] Tentativo METODO 4 - getUserId');
       if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
         playerId = await window.OneSignal.getUserId();
         console.log('[OneSignal] METODO 4 - getUserId:', playerId);
       }
+      console.log('[DEBUG] Tentativo METODO 5 - getSubscription');
       if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
         const subscription = await window.OneSignal.getSubscription();
         playerId = subscription?.id || null;
@@ -151,6 +158,7 @@ export async function registraDispositivoNotifiche(username) {
 
     // Salva il dispositivo su Supabase solo se player_id trovato
     // Pulizia duplicati: elimina tutte le righe con stesso username e device_id prima di upsert
+    console.log('[DEBUG] Pulizia duplicati push_devices per', username, deviceId);
     const deleteResult = await supabase.from('push_devices')
       .delete()
       .eq('username', username)
