@@ -2330,7 +2330,7 @@ function SetupIniziale({ classifica, onSave, onBack }) {
           ← Indietro
         </button>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
-          {[0, 1, 2].map(i => <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: step === i ? '#007AFF' : '#ddd' }} />)}
+          {[0, 1, 2].map(idx => <div key={idx} style={{ width: '12px', height: '12px', borderRadius: '50%', background: step === idx ? '#007AFF' : '#ddd' }} />)}
         </div>
       </div>
 
@@ -2510,7 +2510,7 @@ function SetupIniziale({ classifica, onSave, onBack }) {
             <div style={{ marginBottom: '25px' }}>
               <h3 style={{ marginBottom: '10px', fontSize: '16px', color: '#666' }}>Calendario:</h3>
               <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
-                {gp.map((g, i) => (
+                {gp.map((g, idx) => (
                   <div key={g.id} style={{ 
                     display: 'flex', 
                     justifyContent: 'space-between', 
@@ -2522,7 +2522,7 @@ function SetupIniziale({ classifica, onSave, onBack }) {
                     border: '1px solid #eee'
                   }}>
                     <div style={{ fontSize: '15px' }}>
-                      <strong style={{ color: '#007AFF', marginRight: '8px' }}>{i + 1}.</strong> 
+                      <strong style={{ color: '#007AFF', marginRight: '8px' }}>{idx + 1}.</strong> 
                       {g.nome} {g.tipo_weekend === 'sprintF1' ? '⚡️' : g.tipo_weekend === 'f2' ? '🏎️' : '🏆'}
                     </div>
 
