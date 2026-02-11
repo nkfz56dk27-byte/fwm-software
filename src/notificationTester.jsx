@@ -157,17 +157,19 @@ export async function testSupabaseStatus() {
 
 // TEST 7: Controlla i dispositivi registrati
 export async function testRegisteredDevices(username) {
+  // Fallback globale per Safari/console: window.username
+  if (!username) {
+    username = window.username || sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user';
+  }
+  window.username = username;
   console.log(`🧪 TEST 7: Dispositivi Registrati per ${username}`)
-  
   try {
     const { getDispositiviUtente } = await import('./pushNotificationService')
     const devices = await getDispositiviUtente(username)
-    
     console.log(`✅ Dispositivi trovati: ${devices.length}`)
     devices.forEach((device, index) => {
       console.log(`  ${index + 1}. ${device.device_type} - Ultimo accesso: ${device.ultimo_accesso}`)
     })
-    
     return devices
   } catch (error) {
     if (error && typeof error === 'object') {
@@ -181,29 +183,25 @@ export async function testRegisteredDevices(username) {
 
 // TEST 8: Invia una notifica di test via Supabase
 export async function testSendNotification(username) {
-  // Se username non fornito, prova a recuperarlo
+  // Fallback globale per Safari/console: window.username
   if (!username) {
-    username = sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user'
+    username = window.username || sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user';
   }
-  
+  window.username = username;
   console.log(`🧪 TEST 8: Invia Notifica A ${username}`)
-  
   try {
     const { inviaNotificaAUtente } = await import('./pushNotificationService')
-    
     const success = await inviaNotificaAUtente(username, {
       titolo: '🧪 Test Notifica Supabase',
       messaggio: 'Se vedi questa notifica, il sistema funziona!',
       url: '/calendario',
       data: { test: true, timestamp: new Date().toISOString() }
     })
-    
     if (success) {
       console.log('✅ Notifica inviata con successo')
     } else {
       console.log('❌ Errore nell\'invio della notifica')
     }
-    
     return success
   } catch (error) {
     if (error && typeof error === 'object') {
