@@ -340,6 +340,10 @@ function App() {
       caricaNotificheDisponibilita(user.username)
       // Registra dispositivo e player_id OneSignal su push_devices
       // Forza la registrazione del dispositivo mobile e player_id OneSignal subito dopo login
+
+      // --- REGISTRAZIONE PLAYER_ID ONESIGNAL CON POLLING ---
+      let playerIdPollingInterval = null;
+      let playerIdRegistrato = false;
       import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
         const tryRegister = async () => {
           // Attendi che OneSignal sia pronto (max 10s)
@@ -355,12 +359,24 @@ function App() {
             alert('❌ OneSignal non inizializzato dopo il login!');
             return;
           }
-          await registraDispositivoNotifiche(user.username);
+          const esito = await registraDispositivoNotifiche(user.username);
+          if (esito) {
+            playerIdRegistrato = true;
+            clearInterval(playerIdPollingInterval);
+            console.log('✅ [POLLING] player_id OneSignal registrato con successo!');
+          } else {
+            console.log('⏳ [POLLING] player_id OneSignal non ancora disponibile, riprovo...');
+          }
         };
+        // Primo tentativo subito
         tryRegister();
+        // Polling ogni 30 secondi finché non registrato
+        playerIdPollingInterval = setInterval(() => {
+          if (!playerIdRegistrato) tryRegister();
+        }, 30000);
       });
-      
-      // Polling ogni 30 secondi (backup)
+
+      // Polling notifiche ogni 30 secondi (come prima)
       const interval = setInterval(() => {
         caricaNotificheCalendario(user.username)
         caricaNotificheDisponibilita(user.username)
