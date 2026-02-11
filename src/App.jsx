@@ -175,11 +175,9 @@ function App() {
         }, 2000);
       }
     };
-    // ...existing code...
-
     // --- RENDER PRINCIPALE ---
     return (
-      <>
+      <div>
         {/* ...altri componenti... */}
         {user && (
           <button onClick={abilitaNotifichePush} style={{margin:'16px 0',padding:'10px 20px',fontSize:'1.1em'}}>
@@ -187,7 +185,7 @@ function App() {
           </button>
         )}
         {/* ...altri componenti... */}
-      </>
+      </div>
     );
             // Primo tentativo subito
             tryRegister();
