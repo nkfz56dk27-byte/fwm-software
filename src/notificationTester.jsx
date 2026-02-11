@@ -1,7 +1,10 @@
+<<<<<<< HEAD
 // Fallback globale: definisci window.username all'import se non esiste
 if (typeof window !== 'undefined' && !window.username) {
   window.username = sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user';
 }
+=======
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
 // dummy change to trigger deploy
 /**
  * Helper per testare le notifiche in background
@@ -161,6 +164,7 @@ export async function testSupabaseStatus() {
 
 // TEST 7: Controlla i dispositivi registrati
 export async function testRegisteredDevices(username) {
+<<<<<<< HEAD
   // Fallback globale per Safari/console: window.username
   if (!username) {
     username = window.username || sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user';
@@ -170,10 +174,22 @@ export async function testRegisteredDevices(username) {
   try {
     const { getDispositiviUtente } = await import('./pushNotificationService')
     const devices = await getDispositiviUtente(username)
+=======
+  console.log(`🧪 TEST 7: Dispositivi Registrati per ${username}`)
+  
+  try {
+    const { getDispositiviUtente } = await import('./pushNotificationService')
+    const devices = await getDispositiviUtente(username)
+    
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
     console.log(`✅ Dispositivi trovati: ${devices.length}`)
     devices.forEach((device, index) => {
       console.log(`  ${index + 1}. ${device.device_type} - Ultimo accesso: ${device.ultimo_accesso}`)
     })
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
     return devices
   } catch (error) {
     if (error && typeof error === 'object') {
@@ -187,6 +203,7 @@ export async function testRegisteredDevices(username) {
 
 // TEST 8: Invia una notifica di test via Supabase
 export async function testSendNotification(username) {
+<<<<<<< HEAD
   // Fallback globale per Safari/console: window.username
   if (!username) {
     username = window.username || sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user';
@@ -195,17 +212,37 @@ export async function testSendNotification(username) {
   console.log(`🧪 TEST 8: Invia Notifica A ${username}`)
   try {
     const { inviaNotificaAUtente } = await import('./pushNotificationService')
+=======
+  // Se username non fornito, prova a recuperarlo
+  if (!username) {
+    username = sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user'
+  }
+  
+  console.log(`🧪 TEST 8: Invia Notifica A ${username}`)
+  
+  try {
+    const { inviaNotificaAUtente } = await import('./pushNotificationService')
+    
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
     const success = await inviaNotificaAUtente(username, {
       titolo: '🧪 Test Notifica Supabase',
       messaggio: 'Se vedi questa notifica, il sistema funziona!',
       url: '/calendario',
       data: { test: true, timestamp: new Date().toISOString() }
     })
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
     if (success) {
       console.log('✅ Notifica inviata con successo')
     } else {
       console.log('❌ Errore nell\'invio della notifica')
     }
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
     return success
   } catch (error) {
     if (error && typeof error === 'object') {
@@ -219,6 +256,7 @@ export async function testSendNotification(username) {
 
 // TEST 9: Mostra un report completo
 export async function testFullReport(username = 'test_user') {
+<<<<<<< HEAD
   // Fallback globale per Safari/console: window.username
   if (!username) {
     username = window.username || sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user';
@@ -235,27 +273,64 @@ export async function testFullReport(username = 'test_user') {
   // Test 3: Firebase Token
   console.log('\n')
   const firebaseToken = await testFirebaseToken()
+=======
+  console.log('═══════════════════════════════════════════════════')
+  console.log('🧪 REPORT COMPLETO NOTIFICHE')
+  console.log('═══════════════════════════════════════════════════')
+  
+  // Test 1: Support
+  testNotificationSupport()
+  
+  // Test 2: Service Worker
+  console.log('\n')
+  const swOk = await testServiceWorkerRegistration()
+  
+  // Test 3: Firebase Token
+  console.log('\n')
+  const firebaseToken = await testFirebaseToken()
+  
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
   // Test 4: Notification
   if (swOk) {
     console.log('\n')
     await testShowNotification()
   }
+<<<<<<< HEAD
   // Test 5: Web Push
   console.log('\n')
   await testWebPushSubscription()
   // Test 6: Supabase
   console.log('\n')
   const supabaseOk = await testSupabaseStatus()
+=======
+  
+  // Test 5: Web Push
+  console.log('\n')
+  await testWebPushSubscription()
+  
+  // Test 6: Supabase
+  console.log('\n')
+  const supabaseOk = await testSupabaseStatus()
+  
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
   // Test 7: Devices
   if (supabaseOk) {
     console.log('\n')
     await testRegisteredDevices(username)
   }
+<<<<<<< HEAD
+=======
+  
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
   // Test 8: Send Test Notification
   if (supabaseOk) {
     console.log('\n')
     await testSendNotification(username)
   }
+<<<<<<< HEAD
+=======
+  
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
   console.log('\n═══════════════════════════════════════════════════')
   console.log('🧪 REPORT COMPLETATO')
   console.log('═══════════════════════════════════════════════════')

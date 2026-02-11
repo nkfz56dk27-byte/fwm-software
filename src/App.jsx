@@ -151,6 +151,7 @@ import { getFirebaseToken, setupForegroundMessaging } from './firebaseMessaging'
 import './App.css'
 
 function App() {
+<<<<<<< HEAD
     // Rimuovo l'inizializzazione automatica di OneSignal all'avvio
     // Funzione da chiamare dopo login e su click "Abilita notifiche"
     // Stato per gestire polling player_id OneSignal
@@ -179,6 +180,52 @@ function App() {
     };
     // --- RENDER PRINCIPALE ---
     // Il rendering principale è gestito sotto con HomeView e i vari return condizionali
+=======
+    // Inizializza OneSignal all'avvio dell'app (mostra popup permesso)
+        // Stato per gestire polling player_id OneSignal
+        const [pollingOneSignal, setPollingOneSignal] = useState(false);
+        // Stato utente: parte sempre da null, login obbligatorio
+        const [user, setUser] = useState(null);
+        const [loading, setLoading] = useState(false);
+        const [mustChangePassword, setMustChangePassword] = useState(false);
+        const [showGestione, setShowGestione] = useState(false);
+        const [showDispositiviNotifiche, setShowDispositiviNotifiche] = useState(false);
+        const [showClassificheMainMenu, setShowClassificheMainMenu] = useState(false);
+        const [showClassificheMenu, setShowClassificheMenu] = useState(false);
+        const [showClassifica, setShowClassifica] = useState(false);
+        const [classificaId, setClassificaId] = useState(null);
+        const [showNuovaPagina, setShowNuovaPagina] = useState(false);
+        const [showPannelloFonti, setShowPannelloFonti] = useState(false);
+        const [username, setUsername] = useState('');
+        const [password, setPassword] = useState('');
+
+        // Inizializza OneSignal all'avvio dell'app (mostra popup permesso)
+        useEffect(() => {
+          initializeOneSignal(); // Unica chiamata all'avvio
+        }, []);
+
+        // Funzione per abilitare notifiche push su richiesta esplicita
+        const abilitaNotifichePush = async () => {
+          const ok = await initializeOneSignal();
+          if (ok && window.OneSignal) {
+            // Mostra sempre prima il prompt custom OneSignal, poi quello nativo
+            if (typeof window.OneSignal.showSlidedownPrompt === 'function') {
+              window.OneSignal.showSlidedownPrompt();
+            } else if (typeof window.OneSignal.Slidedown === 'object' && typeof window.OneSignal.Slidedown.prompt === 'function') {
+              window.OneSignal.Slidedown.prompt();
+            }
+            // Avvia polling/registrazione solo dopo il click
+            setPollingOneSignal(true);
+            // Fallback: se il permesso è già stato gestito, mostra un messaggio
+            setTimeout(() => {
+              if (Notification.permission !== 'default') {
+                alert('Permesso notifiche già gestito dal browser. Se vuoi cambiare, modifica i permessi nelle impostazioni del browser.');
+              }
+            }, 2000);
+          }
+        };
+        // --- RENDER PRINCIPALE ---
+        // Il rendering principale è gestito sotto con HomeView e i vari return condizionali
 
   // Effect per ascoltare le notifiche realtime quando l'utente è loggato
   useEffect(() => {

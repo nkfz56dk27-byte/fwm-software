@@ -106,10 +106,6 @@ export function getDeviceId() {
  */
 export async function registraDispositivoNotifiche(username) {
   try {
-    console.log('[DEBUG] Inizio registraDispositivoNotifiche per', username);
-    const deviceId = getDeviceId();
-    const deviceType = detectDeviceType();
-    const browserInfo = `${username} - ${navigator.userAgent.substring(0, 50)} - ${new Date().toLocaleString('it-IT')}`;
     // Nuove colonne
     const deviceOs = (() => {
       const ua = navigator.userAgent.toLowerCase();
@@ -167,35 +163,43 @@ export async function registraDispositivoNotifiche(username) {
         playerId = subscription?.id || null;
         console.log('[OneSignal] METODO 5 - getSubscription:', subscription);
       }
+    try {
+      console.log('[DEBUG] Tentativo METODO 1 - User.PushSubscription.id');
+      if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+        playerId = await window.OneSignal.User.PushSubscription.id;
+        console.log('[OneSignal] METODO 1 - User.PushSubscription.id:', playerId);
+      }
+      console.log('[DEBUG] Tentativo METODO 2 - User.onesignalId');
+      if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+        playerId = await window.OneSignal.User.onesignalId;
+        console.log('[OneSignal] METODO 2 - User.onesignalId:', playerId);
+      }
+      console.log('[DEBUG] Tentativo METODO 3 - getSubscriptionId');
+      if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+        playerId = await window.OneSignal.getSubscriptionId();
+        console.log('[OneSignal] METODO 3 - getSubscriptionId:', playerId);
+      }
+      console.log('[DEBUG] Tentativo METODO 4 - getUserId');
+      if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+        playerId = await window.OneSignal.getUserId();
+        console.log('[OneSignal] METODO 4 - getUserId:', playerId);
+      }
+      console.log('[DEBUG] Tentativo METODO 5 - getSubscription');
+      if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+        const subscription = await window.OneSignal.getSubscription();
+        playerId = subscription?.id || null;
+        console.log('[OneSignal] METODO 5 - getSubscription:', subscription);
+      }
     } catch (e) {
       errorMsg = e.message || e.toString();
       lastError = errorMsg;
       console.warn('[OneSignal] Errore durante il recupero player_id:', errorMsg);
     }
-
-    if (!playerId) {
-      const msg = '❌ [OneSignal] player_id non ottenuto con nessun metodo.' + (errorMsg ? ' Errore: ' + errorMsg : '');
-      lastError = msg;
+      });
+=======
       console.warn(msg);
       alert(msg);
-      // Salva comunque il device con last_error valorizzato
-      const upsertPayload = {
-        username: username,
-        device_id: deviceId,
-        device_type: deviceType,
-        browser_info: browserInfo,
-        ultimo_accesso: new Date().toISOString(),
-        attivo: true,
-        player_id: null,
-        device_os: deviceOs,
-        app_version: appVersion,
-        push_token: pushToken,
-        device_model: deviceModel,
-        last_error: lastError
-      };
-      await supabase.from('push_devices').upsert(upsertPayload, {
-        onConflict: 'username,device_id'
-      });
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
       return false;
     } else {
       alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
@@ -217,21 +221,30 @@ export async function registraDispositivoNotifiche(username) {
       browser_info: browserInfo,
       ultimo_accesso: new Date().toISOString(),
       attivo: true,
+<<<<<<< HEAD
       player_id: playerId,
       device_os: deviceOs,
       app_version: appVersion,
       push_token: pushToken,
       device_model: deviceModel,
       last_error: lastError
+=======
+      player_id: playerId
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
     };
     console.log('⬆️ Upsert push_devices payload:', upsertPayload);
     const { error } = await supabase.from('push_devices').upsert(upsertPayload, {
       onConflict: 'username,device_id'
     });
     if (error) {
+<<<<<<< HEAD
       lastError = error.message || error.toString();
       console.warn('⚠️ Errore upsert push_devices:', error);
       alert('⚠️ Errore salvataggio push_devices: ' + lastError);
+=======
+      console.warn('⚠️ Errore upsert push_devices:', error);
+      alert('⚠️ Errore salvataggio push_devices: ' + (error.message || error.toString()));
+>>>>>>> 08f5642 (first commit: inizializzazione repository locale e sincronizzazione con remoto)
     } else {
       console.log('✅ Upsert push_devices completato');
       alert('✅ Dispositivo mobile registrato su Supabase!');
@@ -310,64 +323,64 @@ export function ascolaNotificheRealtime(username, callback) {
           alert(`📢 Notifica: ${notifica.titolo}\n${notifica.messaggio}`)
         }
 
-        // Chiama il callback
-        if (callback) {
-          callback(notifica)
+        if (!playerId) {
+          const msg = '❌ [OneSignal] player_id non ottenuto con nessun metodo.' + (errorMsg ? ' Errore: ' + errorMsg : '');
+          lastError = msg;
+          console.warn(msg);
+          alert(msg);
+          // Salva comunque il device con last_error valorizzato
+          const upsertPayload = {
+            username: username,
+            device_id: deviceId,
+            device_type: deviceType,
+            browser_info: browserInfo,
+            ultimo_accesso: new Date().toISOString(),
+            attivo: true,
+            player_id: null,
+            device_os: deviceOs,
+            app_version: appVersion,
+            push_token: pushToken,
+            device_model: deviceModel,
+            last_error: lastError
+          };
+          await supabase.from('push_devices').upsert(upsertPayload, {
+            onConflict: 'username,device_id'
+          });
+          return false;
+        } else {
+          alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
         }
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Sottoscritto a notifiche realtime')
-          // Manda un ping al SW per mantenerlo attivo
-          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({
-              type: 'KEEP_ALIVE'
-            })
-          }
-        }
-      })
 
-    // Restituisci funzione per stoppare l'ascolto
-    return () => {
-      subscription.unsubscribe()
-      console.log('❌ Ascolto notifiche stoppato')
-    }
-  } catch (error) {
-    console.error('❌ Errore ascolto notifiche:', error)
-    return () => {}
-  }
-}
+        // Salva il dispositivo su Supabase solo se player_id trovato
+        // Pulizia duplicati: elimina tutte le righe con stesso username e device_id prima di upsert
+        console.log('[DEBUG] Pulizia duplicati push_devices per', username, deviceId);
+        const deleteResult = await supabase.from('push_devices')
+          .delete()
+          .eq('username', username)
+          .eq('device_id', deviceId);
+        console.log('🧹 Pulizia duplicati push_devices:', deleteResult);
 
-/**
- * Invia una notifica a uno specifico utente
- * La notifica viene inviata a TUTTI i dispositivi registrati dell'utente
- * @param {string} destinatario - Username del destinatario
- * @param {Object} options - Opzioni della notifica
- * @param {string} options.titolo - Titolo della notifica
- * @param {string} options.messaggio - Corpo del messaggio
- * @param {string} options.url - URL da aprire al click (opzionale)
- * @param {Object} options.data - Dati aggiuntivi (opzionale)
- * @returns {Promise<boolean>}
- */
-export async function inviaNotificaAUtente(destinatario, options) {
-  try {
-    const { titolo, messaggio, url = '/', data = {} } = options
-
-    console.log(`📤 Invio notifica a ${destinatario}:`, { titolo, messaggio })
-
-    const { data: insertData, error } = await supabase.from('notifiche_push').insert({
-      destinatario: destinatario,
-      titolo: titolo,
-      messaggio: messaggio,
-      url: url,
-      data: data,
-      letta: false,
-      created_at: new Date().toISOString()
-    })
-
-    if (error) {
-      console.error('❌ Errore invio notifica:', error)
-      return false
+        const upsertPayload = {
+          username: username,
+          device_id: deviceId,
+          device_type: deviceType,
+          browser_info: browserInfo,
+          ultimo_accesso: new Date().toISOString(),
+          attivo: true,
+          player_id: playerId,
+          device_os: deviceOs,
+          app_version: appVersion,
+          push_token: pushToken,
+          device_model: deviceModel,
+          last_error: lastError
+        };
+        console.log('⬆️ Upsert push_devices payload:', upsertPayload);
+        const { error } = await supabase.from('push_devices').upsert(upsertPayload, {
+          onConflict: 'username,device_id'
+        });
+        if (error) {
+          lastError = error.message || error.toString();
+          console.warn('⚠️ Errore upsert push_devices:', error);
     }
 
     console.log('✅ Notifica inviata a:', destinatario)
