@@ -153,6 +153,9 @@ import './App.css'
 function App() {
     // Rimuovo l'inizializzazione automatica di OneSignal all'avvio
     // Funzione da chiamare dopo login e su click "Abilita notifiche"
+    // Stato per gestire polling player_id OneSignal
+    const [pollingOneSignal, setPollingOneSignal] = useState(false);
+
     const abilitaNotifichePush = async () => {
       const ok = await initializeOneSignal();
       if (ok && window.OneSignal) {
@@ -162,6 +165,8 @@ function App() {
         } else if (typeof window.OneSignal.Slidedown === 'object' && typeof window.OneSignal.Slidedown.prompt === 'function') {
           window.OneSignal.Slidedown.prompt();
         }
+        // Avvia polling/registrazione solo dopo il click
+        setPollingOneSignal(true);
         // Fallback: se il permesso è già stato gestito, mostra un messaggio
         setTimeout(() => {
           if (Notification.permission !== 'default') {
@@ -175,51 +180,53 @@ function App() {
     {user && (
       <button onClick={abilitaNotifichePush} style={{margin:'16px 0',padding:'10px 20px',fontSize:'1.1em'}}>
         514 Abilita notifiche push
-      </button>
-    )}
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [mustChangePassword, setMustChangePassword] = useState(false)
-  const [showGestione, setShowGestione] = useState(false)
-  const [showDispositiviNotifiche, setShowDispositiviNotifiche] = useState(false)
-  const [showClassificheMainMenu, setShowClassificheMainMenu] = useState(false)
-  const [showClassificheMenu, setShowClassificheMenu] = useState(false)
-  const [showClassifica, setShowClassifica] = useState(false)
-  const [classificaId, setClassificaId] = useState(null)
-  const [showNuovaPagina, setShowNuovaPagina] = useState(false)
-  const [showPannelloFonti, setShowPannelloFonti] = useState(false)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [loginError, setLoginError] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [passwordError, setPasswordError] = useState('')
-  const [showRitaglioImmagine, setShowRitaglioImmagine] = useState(false)
-  const [showCalendario, setShowCalendario] = useState(false)
-  const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
-  const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
-  const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
-  const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
-  const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
-  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Stato per mostrare il prompt notifiche
-  const [notificheUnsubscribe, setNotificheUnsubscribe] = useState(null) // Funzione per stoppare l'ascolto notifiche
-  const [toastNotification, setToastNotification] = useState(null) // Toast fallback per notifiche
-  
-  // Detect mobile
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
-  
-  useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth <= 768
-      setIsMobile(mobile)
-      console.log('📱 isMobile aggiornato:', mobile, 'width:', window.innerWidth)
-    }
-    window.addEventListener('resize', handleResize)
-    console.log('📱 isMobile iniziale:', isMobile, 'width:', window.innerWidth)
-    return () => window.removeEventListener('resize', handleResize)
+      useEffect(() => {
+        if (user && user.username) {
+          // Caricamento iniziale
+          caricaNotificheCalendario(user.username)
+          caricaNotificheDisponibilita(user.username)
+        }
+      }, [user])
+
+      // Polling/registrazione OneSignal SOLO dopo click su "Abilita notifiche push"
+      useEffect(() => {
+        if (pollingOneSignal && user && user.username) {
+          let playerIdPollingInterval = null;
+          let playerIdRegistrato = false;
+          import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
+            const tryRegister = async () => {
+              // Attendi che OneSignal sia pronto (max 10s)
+              let ready = false;
+              for (let i = 0; i < 20; i++) {
+                if (window.OneSignal && (window.OneSignal.User || window.OneSignal.getUserId || window.OneSignal.getSubscriptionId)) {
+                  ready = true;
+                  break;
+                }
+                await new Promise(res => setTimeout(res, 500));
+              }
+              if (!ready) {
+                alert('❌ OneSignal non inizializzato dopo il click!');
+                return;
+              }
+              const esito = await registraDispositivoNotifiche(user.username);
+              if (esito) {
+                playerIdRegistrato = true;
+                clearInterval(playerIdPollingInterval);
+                setPollingOneSignal(false);
+                console.log('✅ [POLLING] player_id OneSignal registrato con successo!');
+              } else {
+                console.log('⏳ [POLLING] player_id OneSignal non ancora disponibile, riprovo...');
+              }
+            };
+            // Primo tentativo subito
+            tryRegister();
+            // Polling ogni 30 secondi finché non registrato
+            playerIdPollingInterval = setInterval(() => {
+              if (!playerIdRegistrato) tryRegister();
+            }, 30000);
+          });
+        }
+      }, [pollingOneSignal, user]);
   }, [])
 
   // Effect per ascoltare le notifiche realtime quando l'utente è loggato
