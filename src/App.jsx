@@ -338,6 +338,10 @@ function App() {
       // Caricamento iniziale
       caricaNotificheCalendario(user.username)
       caricaNotificheDisponibilita(user.username)
+      // Registra dispositivo e player_id OneSignal su push_devices
+      import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
+        registraDispositivoNotifiche(user.username)
+      })
       
       // Polling ogni 30 secondi (backup)
       const interval = setInterval(() => {
