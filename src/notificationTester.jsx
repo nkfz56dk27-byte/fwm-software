@@ -215,47 +215,43 @@ export async function testSendNotification(username) {
 
 // TEST 9: Mostra un report completo
 export async function testFullReport(username = 'test_user') {
+  // Fallback globale per Safari/console: window.username
+  if (!username) {
+    username = window.username || sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user';
+  }
+  window.username = username;
   console.log('═══════════════════════════════════════════════════')
   console.log('🧪 REPORT COMPLETO NOTIFICHE')
   console.log('═══════════════════════════════════════════════════')
-  
   // Test 1: Support
   testNotificationSupport()
-  
   // Test 2: Service Worker
   console.log('\n')
   const swOk = await testServiceWorkerRegistration()
-  
   // Test 3: Firebase Token
   console.log('\n')
   const firebaseToken = await testFirebaseToken()
-  
   // Test 4: Notification
   if (swOk) {
     console.log('\n')
     await testShowNotification()
   }
-  
   // Test 5: Web Push
   console.log('\n')
   await testWebPushSubscription()
-  
   // Test 6: Supabase
   console.log('\n')
   const supabaseOk = await testSupabaseStatus()
-  
   // Test 7: Devices
   if (supabaseOk) {
     console.log('\n')
     await testRegisteredDevices(username)
   }
-  
   // Test 8: Send Test Notification
   if (supabaseOk) {
     console.log('\n')
     await testSendNotification(username)
   }
-  
   console.log('\n═══════════════════════════════════════════════════')
   console.log('🧪 REPORT COMPLETATO')
   console.log('═══════════════════════════════════════════════════')
