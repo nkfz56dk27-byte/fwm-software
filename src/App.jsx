@@ -155,8 +155,19 @@ function App() {
     // Funzione da chiamare dopo login e su click "Abilita notifiche"
     const abilitaNotifichePush = async () => {
       const ok = await initializeOneSignal();
-      if (ok && window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
-        window.OneSignal.showSlidedownPrompt();
+      if (ok && window.OneSignal) {
+        // Mostra sempre prima il prompt custom OneSignal, poi quello nativo
+        if (typeof window.OneSignal.showSlidedownPrompt === 'function') {
+          window.OneSignal.showSlidedownPrompt();
+        } else if (typeof window.OneSignal.Slidedown === 'object' && typeof window.OneSignal.Slidedown.prompt === 'function') {
+          window.OneSignal.Slidedown.prompt();
+        }
+        // Fallback: se il permesso è già stato gestito, mostra un messaggio
+        setTimeout(() => {
+          if (Notification.permission !== 'default') {
+            alert('Permesso notifiche già gestito dal browser. Se vuoi cambiare, modifica i permessi nelle impostazioni del browser.');
+          }
+        }, 2000);
       }
     };
     // Esempio: mostra il pulsante solo dopo login
