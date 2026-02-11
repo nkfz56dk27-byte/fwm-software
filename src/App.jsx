@@ -175,49 +175,20 @@ function App() {
         }, 2000);
       }
     };
-    // Esempio: mostra il pulsante solo dopo login
     // ...existing code...
-    {user && (
-      <button onClick={abilitaNotifichePush} style={{margin:'16px 0',padding:'10px 20px',fontSize:'1.1em'}}>
-        514 Abilita notifiche push
-      useEffect(() => {
-        if (user && user.username) {
-          // Caricamento iniziale
-          caricaNotificheCalendario(user.username)
-          caricaNotificheDisponibilita(user.username)
-        }
-      }, [user])
 
-      // Polling/registrazione OneSignal SOLO dopo click su "Abilita notifiche push"
-      useEffect(() => {
-        if (pollingOneSignal && user && user.username) {
-          let playerIdPollingInterval = null;
-          let playerIdRegistrato = false;
-          import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
-            const tryRegister = async () => {
-              // Attendi che OneSignal sia pronto (max 10s)
-              let ready = false;
-              for (let i = 0; i < 20; i++) {
-                if (window.OneSignal && (window.OneSignal.User || window.OneSignal.getUserId || window.OneSignal.getSubscriptionId)) {
-                  ready = true;
-                  break;
-                }
-                await new Promise(res => setTimeout(res, 500));
-              }
-              if (!ready) {
-                alert('❌ OneSignal non inizializzato dopo il click!');
-                return;
-              }
-              const esito = await registraDispositivoNotifiche(user.username);
-              if (esito) {
-                playerIdRegistrato = true;
-                clearInterval(playerIdPollingInterval);
-                setPollingOneSignal(false);
-                console.log('✅ [POLLING] player_id OneSignal registrato con successo!');
-              } else {
-                console.log('⏳ [POLLING] player_id OneSignal non ancora disponibile, riprovo...');
-              }
-            };
+    // --- RENDER PRINCIPALE ---
+    return (
+      <>
+        {/* ...altri componenti... */}
+        {user && (
+          <button onClick={abilitaNotifichePush} style={{margin:'16px 0',padding:'10px 20px',fontSize:'1.1em'}}>
+            🔔 Abilita notifiche push
+          </button>
+        )}
+        {/* ...altri componenti... */}
+      </>
+    );
             // Primo tentativo subito
             tryRegister();
             // Polling ogni 30 secondi finché non registrato
