@@ -1,4 +1,32 @@
 /**
+ * Invia una notifica push di test al player_id specificato
+ * @param {string} playerId - Player ID OneSignal
+ * @param {string} titolo - Titolo della notifica
+ * @param {string} messaggio - Messaggio della notifica
+ */
+export async function inviaNotificaPushTest(playerId, titolo = 'Test Push', messaggio = 'Questa è una notifica di test') {
+  const ONESIGNAL_APP_ID = '32bc9e36-a2ac-449c-a07c-70168b9b3e37'; // Sostituisci con il tuo app_id se diverso
+  const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_API_KEY || '';
+  const payload = {
+    app_id: ONESIGNAL_APP_ID,
+    include_player_ids: [playerId],
+    headings: { en: titolo },
+    contents: { en: messaggio },
+    data: { test: true }
+  };
+  const response = await fetch('https://onesignal.com/api/v1/notifications', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Basic ${ONESIGNAL_REST_API_KEY}`
+    },
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json();
+  console.log('[TEST PUSH] Risposta OneSignal:', result);
+  return result;
+}
+/**
  * Inserisce una notifica nella tabella push_notifications (OneSignal pipeline)
  * @param {Object} param0 - Oggetto con i dati della notifica
  * @param {string} param0.title - Titolo della notifica
@@ -78,38 +106,50 @@ export function getDeviceId() {
  */
 export async function registraDispositivoNotifiche(username) {
   try {
-    const deviceId = getDeviceId()
-    const deviceType = detectDeviceType()
-    const browserInfo = `${username} - ${navigator.userAgent.substring(0, 50)} - ${new Date().toLocaleString('it-IT')}`
+    const deviceId = getDeviceId();
+    const deviceType = detectDeviceType();
+    const browserInfo = `${username} - ${navigator.userAgent.substring(0, 50)} - ${new Date().toLocaleString('it-IT')}`;
 
-    // Recupera player_id OneSignal dal browser (se disponibile)
+    // Recupera player_id OneSignal dal browser (tutti i metodi noti)
     let playerId = null;
-    let tentativi = 0;
-    const maxTentativi = 15;
-    while (!playerId && tentativi < maxTentativi) {
-      tentativi++;
-      if (window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
-        try {
-          playerId = await window.OneSignal.getUserId();
-          console.log(`🎯 [OneSignal] player_id tentativo ${tentativi}:`, playerId);
-          if (!playerId) {
-            console.warn(`⚠️ [OneSignal] player_id non ottenuto al tentativo ${tentativi}`);
-            await new Promise(res => setTimeout(res, 2000));
-          }
-        } catch (e) {
-          console.warn(`⚠️ [OneSignal] Errore recupero player_id al tentativo ${tentativi}:`, e);
-          await new Promise(res => setTimeout(res, 2000));
-        }
-      } else {
-        console.warn('⚠️ OneSignal non inizializzato o getUserId non disponibile.');
-        break;
+    let errorMsg = '';
+    try {
+      if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+        playerId = await window.OneSignal.User.PushSubscription.id;
+        console.log('[OneSignal] METODO 1 - User.PushSubscription.id:', playerId);
       }
-    }
-    if (!playerId) {
-      console.warn('❌ [OneSignal] player_id non ottenuto dopo tutti i tentativi.');
+      if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+        playerId = await window.OneSignal.User.onesignalId;
+        console.log('[OneSignal] METODO 2 - User.onesignalId:', playerId);
+      }
+      if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+        playerId = await window.OneSignal.getSubscriptionId();
+        console.log('[OneSignal] METODO 3 - getSubscriptionId:', playerId);
+      }
+      if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+        playerId = await window.OneSignal.getUserId();
+        console.log('[OneSignal] METODO 4 - getUserId:', playerId);
+      }
+      if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+        const subscription = await window.OneSignal.getSubscription();
+        playerId = subscription?.id || null;
+        console.log('[OneSignal] METODO 5 - getSubscription:', subscription);
+      }
+    } catch (e) {
+      errorMsg = e.message || e.toString();
+      console.warn('[OneSignal] Errore durante il recupero player_id:', errorMsg);
     }
 
-    // Salva il dispositivo su Supabase
+    if (!playerId) {
+      const msg = '❌ [OneSignal] player_id non ottenuto con nessun metodo.' + (errorMsg ? ' Errore: ' + errorMsg : '');
+      console.warn(msg);
+      alert(msg);
+      return false;
+    } else {
+      alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
+    }
+
+    // Salva il dispositivo su Supabase solo se player_id trovato
     // Pulizia duplicati: elimina tutte le righe con stesso username e device_id prima di upsert
     const deleteResult = await supabase.from('push_devices')
       .delete()
@@ -132,8 +172,10 @@ export async function registraDispositivoNotifiche(username) {
     });
     if (error) {
       console.warn('⚠️ Errore upsert push_devices:', error);
+      alert('⚠️ Errore salvataggio push_devices: ' + (error.message || error.toString()));
     } else {
       console.log('✅ Upsert push_devices completato');
+      alert('✅ Dispositivo mobile registrato su Supabase!');
     }
 
     // Aggiorna player_id se era null (per utenti già registrati)
