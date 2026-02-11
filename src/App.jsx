@@ -140,7 +140,7 @@ import ProssimoEvento from './ProssimoEvento.jsx'
 import EventiMobileMenu from './EventiMobileMenu.jsx'
 import { notificaClassificaAggiornata } from './src/pushNotifications.js'
 
-import { initializeOneSignal } from './src/onesignal.js'
+import { initializeOneSignal } from './src/src/onesignal.js'
 import NotificationPrompt from './NotificationPrompt.jsx'
 import { ascolaNotificheRealtime } from './pushNotificationService'
 import { sendPushNotification } from './pushNotificationService'
