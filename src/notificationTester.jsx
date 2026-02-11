@@ -1,3 +1,7 @@
+// Fallback globale: definisci window.username all'import se non esiste
+if (typeof window !== 'undefined' && !window.username) {
+  window.username = sessionStorage.getItem('username') || localStorage.getItem('username') || 'test_user';
+}
 // dummy change to trigger deploy
 /**
  * Helper per testare le notifiche in background
