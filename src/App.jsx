@@ -187,16 +187,6 @@ function App() {
         {/* ...altri componenti... */}
       </div>
     );
-            // Primo tentativo subito
-            tryRegister();
-            // Polling ogni 30 secondi finché non registrato
-            playerIdPollingInterval = setInterval(() => {
-              if (!playerIdRegistrato) tryRegister();
-            }, 30000);
-          });
-        }
-      }, [pollingOneSignal, user]);
-  }, [])
 
   // Effect per ascoltare le notifiche realtime quando l'utente è loggato
   useEffect(() => {
