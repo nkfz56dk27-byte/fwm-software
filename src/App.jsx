@@ -657,17 +657,30 @@ function App() {
   return (
     <>
       {/* Bottone visibile solo dopo login e se non già granted */}
-      {user && Notification && Notification.permission !== 'granted' && (
+      {/* Bottone abilitazione notifiche push rimosso su richiesta */}
+      {showDebugOneSignalButton && isMobile && (typeof Notification === 'undefined' || Notification.permission === 'default') && (
         <button
-          style={{position:'fixed',bottom:20,right:20,zIndex:99999,padding:'14px 22px',background:'#FF9500',color:'#fff',border:'none',borderRadius:'8px',fontWeight:'bold',boxShadow:'0 2px 8px rgba(0,0,0,0.2)',cursor:'pointer'}}
-          onClick={abilitaNotifichePush}
-        >
-          Abilita notifiche push
-        </button>
-      )}
-      {showDebugOneSignalButton && (
-        <button
-          style={{position:'fixed',bottom:20,right:20,zIndex:99999,padding:'12px 18px',background:'#FF9500',color:'#fff',border:'none',borderRadius:'8px',fontWeight:'bold',boxShadow:'0 2px 8px rgba(0,0,0,0.2)',cursor:'pointer'}}
+          style={{
+            position: 'fixed',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            bottom: 32,
+            zIndex: 99999,
+            padding: '8px 18px',
+            background: '#fff',
+            color: '#111',
+            border: '4px solid #e53935',
+            borderRadius: '12px',
+            fontWeight: 'bold',
+            fontSize: '1.25rem',
+            boxShadow: '0 3px 12px rgba(0,0,0,0.10)',
+            cursor: 'pointer',
+            transition: 'transform 0.1s',
+            fontFamily: 'inherit',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
           onClick={async () => {
             if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
               window.OneSignal.showSlidedownPrompt();
@@ -677,7 +690,8 @@ function App() {
             }
           }}
         >
-          Forza popup notifiche OneSignal
+          <img src="/icona_notifiche.png" alt="notifiche" style={{height:'54px',width:'54px',objectFit:'contain',marginRight:'12px'}} />
+          <span style={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>Attiva notifiche push</span>
         </button>
       )}
       <HomeView
