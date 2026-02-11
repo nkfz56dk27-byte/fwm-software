@@ -155,6 +155,20 @@ function App() {
     // Funzione da chiamare dopo login e su click "Abilita notifiche"
     // Stato per gestire polling player_id OneSignal
     const [pollingOneSignal, setPollingOneSignal] = useState(false);
+    // Stato utente (fallback temporaneo per evitare ReferenceError)
+    const [user, setUser] = useState(null);
+
+    // Esempio: recupera user da localStorage/sessionStorage o da supabase (adatta secondo la tua logica auth)
+    useEffect(() => {
+      // Fallback: recupera user da localStorage/sessionStorage (modifica secondo la tua logica auth)
+      const storedUser = window.localStorage.getItem('user');
+      if (storedUser) {
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch {}
+      }
+      // TODO: sostituisci con la logica auth reale (es: supabase.auth.getUser())
+    }, []);
 
     const abilitaNotifichePush = async () => {
       const ok = await initializeOneSignal();
