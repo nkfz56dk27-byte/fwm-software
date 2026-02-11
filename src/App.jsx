@@ -151,6 +151,9 @@ import { getFirebaseToken, setupForegroundMessaging } from './firebaseMessaging'
 import './App.css'
 
 function App() {
+      // DEBUG: Bottone per forzare il popup OneSignal se non appare
+      const showDebugOneSignalButton = process.env.NODE_ENV !== 'production' || window.location.hostname.includes('localhost');
+
     // Inizializza OneSignal all'avvio dell'app (mostra popup permesso)
     useEffect(() => {
       initializeOneSignal(); // Unica chiamata all'avvio
@@ -626,6 +629,21 @@ function App() {
 
   return (
     <>
+      {showDebugOneSignalButton && (
+        <button
+          style={{position:'fixed',bottom:20,right:20,zIndex:99999,padding:'12px 18px',background:'#FF9500',color:'#fff',border:'none',borderRadius:'8px',fontWeight:'bold',boxShadow:'0 2px 8px rgba(0,0,0,0.2)',cursor:'pointer'}}
+          onClick={async () => {
+            if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
+              window.OneSignal.showSlidedownPrompt();
+              alert('Richiesta popup OneSignal forzata!');
+            } else {
+              alert('OneSignal non è pronto o il metodo non è disponibile.');
+            }
+          }}
+        >
+          Forza popup notifiche OneSignal
+        </button>
+      )}
       <HomeView
         user={user}
         isMobile={isMobile}
