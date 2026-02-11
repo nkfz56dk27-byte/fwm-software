@@ -190,17 +190,7 @@ function App() {
       }
     };
     // --- RENDER PRINCIPALE ---
-    return (
-      <div>
-        {/* ...altri componenti... */}
-        {user && (
-          <button onClick={abilitaNotifichePush} style={{margin:'16px 0',padding:'10px 20px',fontSize:'1.1em'}}>
-            🔔 Abilita notifiche push
-          </button>
-        )}
-        {/* ...altri componenti... */}
-      </div>
-    );
+    // Il rendering principale è gestito sotto con HomeView e i vari return condizionali
 
   // Effect per ascoltare le notifiche realtime quando l'utente è loggato
   useEffect(() => {
