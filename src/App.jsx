@@ -155,9 +155,45 @@ function App() {
       const showDebugOneSignalButton = process.env.NODE_ENV !== 'production' || window.location.hostname.includes('localhost');
 
     // Inizializza OneSignal all'avvio dell'app (mostra popup permesso)
+    // Inizializza OneSignal solo dopo login
     useEffect(() => {
-      initializeOneSignal(); // Unica chiamata all'avvio
-    }, []);
+      if (user && user.username) {
+        (async () => {
+          await initializeOneSignal();
+          // Mostra SEMPRE il popup OneSignal dopo login
+          if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
+            window.OneSignal.showSlidedownPrompt();
+          }
+        })();
+      }
+    }, [user]);
+
+    // Funzione per gestire accettazione OneSignal e prompt nativo
+    async function handleOneSignalAccepted() {
+      // Mostra il prompt nativo solo dopo accettazione OneSignal
+      if ('Notification' in window && Notification.permission === 'default') {
+        try {
+          const perm = await Notification.requestPermission();
+          if (perm === 'granted') {
+            // Avvia la logica di registrazione dispositivo
+            if (user && user.username) {
+              import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
+                registraDispositivoNotifiche(user.username);
+              });
+            }
+          }
+        } catch (e) {
+          console.error('Errore richiesta permesso nativo:', e);
+        }
+      } else if (Notification.permission === 'granted') {
+        // Se già granted, registra direttamente
+        if (user && user.username) {
+          import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
+            registraDispositivoNotifiche(user.username);
+          });
+        }
+      }
+    }
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
   const [mustChangePassword, setMustChangePassword] = useState(false)
@@ -629,6 +665,22 @@ function App() {
 
   return (
     <>
+      {/* Listener OneSignal: chiama handleOneSignalAccepted solo quando l'utente accetta il popup OneSignal */}
+      {user && window.OneSignal && (
+        <script dangerouslySetInnerHTML={{
+          __html: `
+            window.OneSignal && window.OneSignal.on && window.OneSignal.on('subscriptionChange', function(isSubscribed) {
+              if (isSubscribed) {
+                window.dispatchEvent(new CustomEvent('OneSignalAccepted'));
+              }
+            });
+          `
+        }} />
+      )}
+      {/* Listener React per evento custom */}
+      {user && (
+        <OneSignalAcceptedListener onAccept={handleOneSignalAccepted} />
+      )}
       {showDebugOneSignalButton && (
         <button
           style={{position:'fixed',bottom:20,right:20,zIndex:99999,padding:'12px 18px',background:'#FF9500',color:'#fff',border:'none',borderRadius:'8px',fontWeight:'bold',boxShadow:'0 2px 8px rgba(0,0,0,0.2)',cursor:'pointer'}}
