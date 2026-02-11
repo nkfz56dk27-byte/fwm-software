@@ -48,20 +48,13 @@ export async function initializeOneSignal() {
       promptOptions: {
         slidedown: {
           enabled: true,
-          autoPrompt: true,
+          autoPrompt: false, // Mostra il prompt solo su richiesta esplicita
           actionMessage: "Vuoi ricevere le nostre notifiche?",
           acceptButton: "Sì, grazie!",
           cancelButton: "No grazie"
         }
       }
     });
-
-    // Forza la visualizzazione del popup anche dopo l'init
-    setTimeout(() => {
-      if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
-        window.OneSignal.showSlidedownPrompt();
-      }
-    }, 1000);
 
     oneSignalInitialized = true
     return true

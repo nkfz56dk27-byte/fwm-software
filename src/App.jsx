@@ -151,10 +151,21 @@ import { getFirebaseToken, setupForegroundMessaging } from './firebaseMessaging'
 import './App.css'
 
 function App() {
-    // Inizializza OneSignal all'avvio dell'app (mostra popup permesso)
-    useEffect(() => {
-      initializeOneSignal(); // Unica chiamata all'avvio
-    }, []);
+    // Rimuovo l'inizializzazione automatica di OneSignal all'avvio
+    // Funzione da chiamare dopo login e su click "Abilita notifiche"
+    const abilitaNotifichePush = async () => {
+      const ok = await initializeOneSignal();
+      if (ok && window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
+        window.OneSignal.showSlidedownPrompt();
+      }
+    };
+    // Esempio: mostra il pulsante solo dopo login
+    // ...existing code...
+    {user && (
+      <button onClick={abilitaNotifichePush} style={{margin:'16px 0',padding:'10px 20px',fontSize:'1.1em'}}>
+        514 Abilita notifiche push
+      </button>
+    )}
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(false)
   const [mustChangePassword, setMustChangePassword] = useState(false)
