@@ -2756,6 +2756,10 @@ function NuovaClassificaModal({ onClose, onSave }) {
 
 /// ===== HOME VIEW =====
 function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheMainMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, onOpenVidaMenu, onOpenEventiMobile, notificheNonLetteCalendario, notificheNonLetteDisponibilita, onOpenPannelloFonti }) {
+    // Stato per mostrare/nascondere il bottone debug Player ID OneSignal
+    const [showDebugPlayerIdBtn, setShowDebugPlayerIdBtn] = React.useState(() => {
+      return !localStorage.getItem('debugPlayerIdClicked');
+    });
   const [prossimoEvento, setProssimoEvento] = useState(null)
   
   useEffect(() => {
@@ -3025,53 +3029,46 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
 
       <div className="home-footer">
         {/* Bottone debug per ottenere il Player ID OneSignal, visibile solo se non già cliccato */}
-        {(() => {
-          const [showDebugPlayerIdBtn, setShowDebugPlayerIdBtn] = React.useState(() => {
-            return !localStorage.getItem('debugPlayerIdClicked');
-          });
-          React.useEffect(() => {}, []); // Forza React a trattare come componente
-          if (!showDebugPlayerIdBtn) return null;
-          return (
-            <button
-              style={{ position: 'relative', left: '50%', transform: 'translateX(-50%)', marginBottom: 16, zIndex: 99999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
-              onClick={async () => {
-                try {
-                  let playerId = null;
-                  if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
-                    playerId = await window.OneSignal.User.PushSubscription.id;
-                    alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
-                  }
-                  if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
-                    playerId = await window.OneSignal.User.onesignalId;
-                    alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
-                  }
-                  if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
-                    playerId = await window.OneSignal.getSubscriptionId();
-                    alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
-                  }
-                  if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
-                    playerId = await window.OneSignal.getUserId();
-                    alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
-                  }
-                  if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
-                    const subscription = await window.OneSignal.getSubscription();
-                    playerId = subscription?.id || null;
-                    alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
-                  }
-                  if (playerId) {
-                    alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
-                  } else {
-                    alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
-                  }
-                } catch (error) {
-                  alert('❌ Errore recupero Player ID: ' + error);
+        {showDebugPlayerIdBtn && (
+          <button
+            style={{ position: 'relative', left: '50%', transform: 'translateX(-50%)', marginBottom: 16, zIndex: 99999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
+            onClick={async () => {
+              try {
+                let playerId = null;
+                if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+                  playerId = await window.OneSignal.User.PushSubscription.id;
+                  alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
                 }
-                localStorage.setItem('debugPlayerIdClicked', '1');
-                setShowDebugPlayerIdBtn(false);
-              }}
-            >DEBUG Player ID OneSignal</button>
-          );
-        })()}
+                if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+                  playerId = await window.OneSignal.User.onesignalId;
+                  alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
+                }
+                if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+                  playerId = await window.OneSignal.getSubscriptionId();
+                  alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
+                }
+                if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+                  playerId = await window.OneSignal.getUserId();
+                  alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
+                }
+                if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+                  const subscription = await window.OneSignal.getSubscription();
+                  playerId = subscription?.id || null;
+                  alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
+                }
+                if (playerId) {
+                  alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
+                } else {
+                  alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
+                }
+              } catch (error) {
+                alert('❌ Errore recupero Player ID: ' + error);
+              }
+              localStorage.setItem('debugPlayerIdClicked', '1');
+              setShowDebugPlayerIdBtn(false);
+            }}
+          >DEBUG Player ID OneSignal</button>
+        )}
         <p className="version-text">Versione 2.0</p>
       </div>
     </div>
