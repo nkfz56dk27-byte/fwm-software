@@ -165,17 +165,28 @@ function App() {
           await new Promise((resolve) => {
             const handler = async (isSubscribed) => {
               if (isSubscribed) {
-                window.OneSignal.off && window.OneSignal.off('subscriptionChange', handler);
+                window.OneSignal.off && typeof window.OneSignal.off === 'function' && window.OneSignal.off('subscriptionChange', handler);
                 resolve();
               }
             };
-            if (window.OneSignal.on) {
-              window.OneSignal.on('subscriptionChange', handler);
-            }
+            // Attendi che OneSignal.on sia disponibile
+            const waitForOn = async () => {
+              let tentativi = 0;
+              while (!(window.OneSignal && typeof window.OneSignal.on === 'function') && tentativi < 30) {
+                await new Promise(r => setTimeout(r, 100));
+                tentativi++;
+              }
+              if (window.OneSignal && typeof window.OneSignal.on === 'function') {
+                window.OneSignal.on('subscriptionChange', handler);
+              } else {
+                console.error('OneSignal.on non disponibile dopo 3 secondi!');
+                resolve();
+              }
+            };
+            waitForOn();
           });
         }
         // Ora puoi avviare i processi che richiedono notifiche accettate
-        // Esempio: registra il dispositivo o carica dati protetti
         import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
           if (user && user.username) {
             registraDispositivoNotifiche(user.username);
