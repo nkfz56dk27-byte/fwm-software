@@ -100,6 +100,28 @@ function App() {
     }
   }, [user])
 
+    // Mostra il popup OneSignal dopo login se necessario
+    useEffect(() => {
+      async function checkAndShowOneSignalPrompt() {
+        if (user && user.username) {
+          // Controlla permesso notifiche
+          if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+            // Controlla se l'utente è già registrato su OneSignal
+            let isRegistered = false;
+            if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+              const playerId = await window.OneSignal.User.PushSubscription.id;
+              isRegistered = !!playerId;
+            }
+            // Se non è registrato, mostra il popup
+            if (!isRegistered && window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
+              window.OneSignal.showSlidedownPrompt();
+            }
+          }
+        }
+      }
+      checkAndShowOneSignalPrompt();
+    }, [user])
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -132,6 +154,17 @@ function App() {
       localStorage.removeItem('notifichePrompted');
       setShowNotificationPrompt(true);
       setLoading(false);
+
+      // Inizializza OneSignal e mostra il popup dopo login
+      try {
+        const { initializeOneSignal } = await import('./src/onesignal.js');
+        await initializeOneSignal();
+        if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
+          window.OneSignal.showSlidedownPrompt();
+        }
+      } catch (err) {
+        console.error('Errore inizializzazione OneSignal dopo login:', err);
+      }
     } catch (err) {
       setLoginError('Errore di connessione');
       setLoading(false);

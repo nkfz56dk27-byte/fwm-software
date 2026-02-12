@@ -59,12 +59,7 @@ export async function initializeOneSignal() {
       }
     });
 
-    // Forza la visualizzazione del popup anche dopo l'init
-    setTimeout(() => {
-      if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
-        window.OneSignal.showSlidedownPrompt();
-      }
-    }, 1000);
+    // RIMOSSO: la visualizzazione automatica del popup OneSignal viene ora gestita solo dopo il login
     oneSignalInitialized = true
     return true
   } catch (error) {
