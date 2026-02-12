@@ -14,6 +14,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { initializeOneSignal } from './src/onesignal.js'
 
 // Inizializza Firebase
 import './firebase'
@@ -22,6 +23,7 @@ import './firebase'
 import * as notificationTester from './notificationTester'
 Object.assign(window, notificationTester)
 
+initializeOneSignal();
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <App />
