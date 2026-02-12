@@ -2309,6 +2309,81 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, 
       </div>
 
       <div className="home-footer">
+              {/* Bottone debug per ottenere il Player ID OneSignal */}
+              <button
+                style={{ position: 'relative', left: '50%', transform: 'translateX(-50%)', marginBottom: 16, zIndex: 99999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
+                onClick={async () => {
+                  try {
+                    let playerId = null;
+                    if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+                      playerId = await window.OneSignal.User.PushSubscription.id;
+                      alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
+                    }
+                    if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+                      playerId = await window.OneSignal.User.onesignalId;
+                      alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
+                    }
+                    if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+                      playerId = await window.OneSignal.getSubscriptionId();
+                      alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
+                    }
+                    if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+                      playerId = await window.OneSignal.getUserId();
+                      alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
+                    }
+                    if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+                      const subscription = await window.OneSignal.getSubscription();
+                      playerId = subscription?.id || null;
+                      alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
+                    }
+                    if (playerId) {
+                      alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
+                    } else {
+                      alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
+                    }
+                  } catch (error) {
+                    alert('❌ Errore recupero Player ID: ' + error);
+                  }
+                }}
+              >DEBUG Player ID OneSignal</button>
+        {/* Bottone per forzare il popup OneSignal, solo mobile e solo se permesso non concesso */}
+        {typeof window !== 'undefined' && (process.env.NODE_ENV !== 'production' || window.location.hostname.includes('localhost')) &&
+          (typeof Notification === 'undefined' || Notification.permission === 'default') && (
+            <button
+              style={{
+                position: 'relative',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                marginBottom: 16,
+                zIndex: 99999,
+                padding: '8px 18px',
+                background: '#fff',
+                color: '#111',
+                border: '4px solid #e53935',
+                borderRadius: '12px',
+                fontWeight: 'bold',
+                fontSize: '1.25rem',
+                boxShadow: '0 3px 12px rgba(0,0,0,0.10)',
+                cursor: 'pointer',
+                transition: 'transform 0.1s',
+                fontFamily: 'inherit',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+              }}
+              onClick={async () => {
+                if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
+                  window.OneSignal.showSlidedownPrompt();
+                  alert('Richiesta popup OneSignal forzata!');
+                } else {
+                  alert('OneSignal non è pronto o il metodo non è disponibile.');
+                }
+              }}
+            >
+              <img src="/icona_notifiche.png" alt="notifiche" style={{height:'54px',width:'54px',objectFit:'contain',marginRight:'12px'}} />
+              <span style={{whiteSpace: 'nowrap', fontWeight: 'bold'}}>Attiva notifiche push</span>
+            </button>
+        )}
         <p className="version-text">Versione 2.0</p>
       </div>
     </div>

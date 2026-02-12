@@ -1,7 +1,12 @@
 // OneSignal SDK Integration - Web Push Notifications
 // Supporta: Desktop e Mobile push notifications
 
-const ONESIGNAL_APP_ID = '32bc9e36-a2ac-449c-a07c-70168b9b3e37'; // App ID OneSignal
+const ONESIGNAL_APP_ID =
+  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_ONESIGNAL_APP_ID)
+    ? import.meta.env.VITE_ONESIGNAL_APP_ID
+    : (typeof process !== 'undefined' && process.env && process.env.ONESIGNAL_APP_ID)
+      ? process.env.ONESIGNAL_APP_ID
+      : '32bc9e36-a2ac-449c-a07c-70168b9b3e37'; // App ID OneSignal
 
 let oneSignalInitialized = false
 

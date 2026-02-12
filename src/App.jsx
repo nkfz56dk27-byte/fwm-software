@@ -118,6 +118,7 @@ function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRima
 }
 import PannelloFonti from './PannelloFonti.jsx'
 import GestioneRSSModal from './GestioneRSSModal.jsx'
+import { supabase } from './supabaseClient'
 // ...existing code...
 import React, { useState, useEffect } from 'react'
 import CoppaSVG from "./assets/coppa.svg"
