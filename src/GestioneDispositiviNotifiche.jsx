@@ -105,6 +105,24 @@ export default function GestioneDispositiviNotifiche({ username, onClose }) {
               if (playerId) {
                 alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
                 console.log('✅ [OneSignal] Player ID ottenuto:', playerId);
+
+                 // Salva Player ID su Supabase
+                 try {
+                   const { error } = await supabase
+                     .from('push_devices')
+                     .update({ onesignal_id: playerId, attivo: true })
+                     .eq('username', username);
+                   if (error) {
+                     alert('❌ Errore salvataggio Player ID su Supabase: ' + error.message);
+                     console.error('❌ Errore salvataggio Player ID su Supabase:', error);
+                   } else {
+                     alert('✅ Player ID OneSignal salvato su Supabase!');
+                     console.log('✅ Player ID OneSignal salvato su Supabase!');
+                   }
+                 } catch (err) {
+                   alert('❌ Errore JS salvataggio Player ID su Supabase: ' + err.message);
+                   console.error('❌ Errore JS salvataggio Player ID su Supabase:', err);
+                 }
               } else {
                 alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
                 console.log('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
