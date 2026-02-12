@@ -120,7 +120,6 @@ import PannelloFonti from './PannelloFonti.jsx'
 import GestioneRSSModal from './GestioneRSSModal.jsx'
 // ...existing code...
 import React, { useState, useEffect } from 'react'
-import { supabase } from './supabaseClient'
 import CoppaSVG from "./assets/coppa.svg"
 import StatistichePNG from "./assets/Statistiche.png"
 import PenaltypointSVG from "./assets/Penalitypoint.svg"
@@ -3029,46 +3028,108 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
 
       <div className="home-footer">
         {/* Bottone debug per ottenere il Player ID OneSignal, visibile solo se non già cliccato */}
-        {showDebugPlayerIdBtn && (
-          <button
-            style={{ position: 'relative', left: '50%', transform: 'translateX(-50%)', marginBottom: 16, zIndex: 99999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
-            onClick={async () => {
-              try {
-                let playerId = null;
-                if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
-                  playerId = await window.OneSignal.User.PushSubscription.id;
-                  alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
-                }
-                if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
-                  playerId = await window.OneSignal.User.onesignalId;
-                  alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
-                }
-                if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
-                  playerId = await window.OneSignal.getSubscriptionId();
-                  alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
-                }
-                if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
-                  playerId = await window.OneSignal.getUserId();
-                  alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
-                }
-                if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
-                  const subscription = await window.OneSignal.getSubscription();
-                  playerId = subscription?.id || null;
-                  alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
-                }
-                if (playerId) {
-                  alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
-                } else {
-                  alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
-                }
-              } catch (error) {
-                alert('❌ Errore recupero Player ID: ' + error);
-              }
-              localStorage.setItem('debugPlayerIdClicked', '1');
-              setShowDebugPlayerIdBtn(false);
-            }}
-          >DEBUG Player ID OneSignal</button>
-        )}
+        {/* Bottone debug Player ID OneSignal spostato in GestioneUtentiView */}
+
+          return (
+            <div>
+              {showDebugPlayerIdBtn && (
+                <button
+                  style={{ position: 'relative', left: '50%', transform: 'translateX(-50%)', marginBottom: 16, zIndex: 99999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
+                  onClick={async () => {
+                    alert('DEBUG: Bottone cliccato! Forzo OneSignal, salvo su Supabase e invio notifica feed articoli.');
+                    try {
+                      // 1. Inizializza OneSignal se non pronto
+                      if (window.initializeOneSignal) {
+                        await window.initializeOneSignal();
+                      } else if (window.OneSignal && window.OneSignal.init) {
+                        await window.OneSignal.init();
+                      }
+                      // 2. Richiedi permesso notifiche
+                      if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+                        await window.OneSignal.User.PushSubscription.optIn();
+                      } else if (window.OneSignal && window.OneSignal.showSlidedownPrompt) {
+                        await window.OneSignal.showSlidedownPrompt();
+                      }
+                      // 3. Ottieni Player ID
+                      let playerId = null;
+                      if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+                        playerId = await window.OneSignal.User.PushSubscription.id;
+                        alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
+                      }
+                      if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+                        playerId = await window.OneSignal.User.onesignalId;
+                        alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
+                      }
+                      if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+                        playerId = await window.OneSignal.getSubscriptionId();
+                        alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
+                      }
+                      if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+                        playerId = await window.OneSignal.getUserId();
+                        alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
+                      }
+                      if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+                        const subscription = await window.OneSignal.getSubscription();
+                        playerId = subscription?.id || null;
+                        alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
+                      }
+                      if (playerId) {
+                        alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
+                        // 4. Salva su Supabase (onesignal_subscriptions)
+                        if (supabase && playerId) {
+                          try {
+                            const username = (window.user && window.user.username) ? window.user.username : null;
+                            const upsertData = {
+                              player_id: playerId,
+                              device_info: navigator.userAgent,
+                              updated_at: new Date().toISOString()
+                            };
+                            if (username) upsertData.username = username;
+                            const { error } = await supabase.from('onesignal_subscriptions').upsert(upsertData, { onConflict: 'player_id' });
+                            if (error) {
+                              alert('❌ Errore salvataggio su Supabase: ' + error.message);
+                            } else {
+                              alert('✅ Player ID salvato su Supabase!');
+                            }
+                          } catch (err) {
+                            alert('❌ Errore salvataggio su Supabase: ' + err);
+                          }
+                        }
+                        // 5. Invia notifica di test feed articoli a questo playerId
+                        try {
+                          const titolo = '📰 Notifica Feed Articoli';
+                          const messaggio = 'Test: Notifica push feed articoli attiva!';
+                          // Chiamata API locale per invio notifica (adatta se serve)
+                          await fetch('/api/send-push-notifications', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              playerIds: [playerId],
+                              notifica: {
+                                title: titolo,
+                                body: messaggio,
+                                data: { tipo: 'feed_articoli', test: true }
+                              }
+                            })
+                          });
+                          alert('✅ Notifica feed articoli inviata!');
+                        } catch (err) {
+                          alert('❌ Errore invio notifica feed articoli: ' + err);
+                        }
+                      } else {
+                        alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
+                      }
+                    } catch (error) {
+                      alert('❌ Errore forzatura notifiche: ' + error);
+                    }
+                    localStorage.setItem('debugPlayerIdClicked', '1');
+                    setShowDebugPlayerIdBtn(false);
+                  }}
+                >DEBUG Player ID OneSignal</button>
+              )}
+              {/* ...resto della gestione utenti... */}
+            </div>
+          );
         <p className="version-text">Versione 2.0</p>
       </div>
     </div>
