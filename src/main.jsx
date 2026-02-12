@@ -17,7 +17,7 @@ import App from './App.jsx'
 import { initializeOneSignal } from './src/onesignal.js'
 
 // Inizializza Firebase
-import './firebase'
+// import './firebase'
 
 // Importa le funzioni di test delle notifiche e esponile globalmente
 import * as notificationTester from './notificationTester'
