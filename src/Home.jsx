@@ -66,22 +66,26 @@ function App() {
 
   async function caricaNotificheCalendario(username) {
     try {
-      const { data: notifiche } = await supabase.from('notifiche_calendario').select('id')
-      const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', username)
-      const idsLette = new Set((lette || []).map(l => l.notifica_id))
-      const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id))
-      setNotificheNonLetteCalendario(nonLette.length)
-    } catch (e) {}
+      const { data: notifiche } = await supabase.from('notifiche_calendario').select('id');
+      const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', username);
+      const idsLette = new Set((lette || []).map(l => l.notifica_id));
+      const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id));
+      setNotificheNonLetteCalendario(nonLette.length);
+    } catch (e) {
+      // errore silenzioso
+    }
   }
 
   async function caricaNotificheDisponibilita(username) {
     try {
-      const { data: notifiche } = await supabase.from('notifiche_disponibilita').select('id')
-      const { data: lette } = await supabase.from('notifiche_disponibilita_lette').select('notifica_id').eq('username', username)
-      const idsLette = new Set((lette || []).map(l => l.notifica_id))
-      const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id))
-      setNotificheNonLetteDisponibilita(nonLette.length)
-    } catch (e) {}
+      const { data: notifiche } = await supabase.from('notifiche_disponibilita').select('id');
+      const { data: lette } = await supabase.from('notifiche_disponibilita_lette').select('notifica_id').eq('username', username);
+      const idsLette = new Set((lette || []).map(l => l.notifica_id));
+      const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id));
+      setNotificheNonLetteDisponibilita(nonLette.length);
+    } catch (e) {
+      // errore silenzioso
+    }
   }
 
   useEffect(() => {
@@ -2309,12 +2313,7 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, 
       </div>
 
       <div className="home-footer">
-                {/* Bottone debug per ottenere il Player ID OneSignal */}
-                {/* (RIMOSSO DEBUG BUTTON - UI CLEANUP) */}
-        {/* Bottone per forzare il popup OneSignal, solo mobile e solo se permesso non concesso */}
-        {/* (RIMOSSO BUTTON FORZA POPUP NOTIFICHE - UI CLEANUP) */}
         <p className="version-text">Versione 2.0</p>
-        {/* UI CLEANUP: Removed stray return ( ) or placeholder elements */}
       </div>
     </div>
   )

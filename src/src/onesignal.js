@@ -19,9 +19,7 @@ export async function initializeOneSignal() {
     if (window.OneSignal && window.OneSignal.log && typeof window.OneSignal.log.setLevel === 'function') {
       window.OneSignal.log.setLevel('trace');
     }
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return false
-  }
+  // Permetti l'inizializzazione anche su localhost per test
   if (oneSignalInitialized) {
     return true
   }
