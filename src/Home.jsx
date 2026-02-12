@@ -155,13 +155,32 @@ function App() {
       setShowNotificationPrompt(true);
       setLoading(false);
 
-      // Inizializza OneSignal e mostra il popup dopo login
+      // Inizializza OneSignal e mostra il popup dopo login, poi attendi accettazione
       try {
         const { initializeOneSignal } = await import('./src/onesignal.js');
         await initializeOneSignal();
         if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
           window.OneSignal.showSlidedownPrompt();
+          // Attendi che l'utente accetti le notifiche
+          await new Promise((resolve) => {
+            const handler = async (isSubscribed) => {
+              if (isSubscribed) {
+                window.OneSignal.off && window.OneSignal.off('subscriptionChange', handler);
+                resolve();
+              }
+            };
+            if (window.OneSignal.on) {
+              window.OneSignal.on('subscriptionChange', handler);
+            }
+          });
         }
+        // Ora puoi avviare i processi che richiedono notifiche accettate
+        // Esempio: registra il dispositivo o carica dati protetti
+        import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
+          if (user && user.username) {
+            registraDispositivoNotifiche(user.username);
+          }
+        });
       } catch (err) {
         console.error('Errore inizializzazione OneSignal dopo login:', err);
       }
