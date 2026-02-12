@@ -74,34 +74,44 @@ export default function GestioneDispositiviNotifiche({ username, onClose }) {
           onClick={async () => {
             try {
               let playerId = null;
+              console.log('[DEBUG OneSignal] window.OneSignal:', window.OneSignal);
+              console.log('[DEBUG OneSignal] window.OneSignal.User:', window.OneSignal && window.OneSignal.User);
               if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
                 playerId = await window.OneSignal.User.PushSubscription.id;
                 alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
+                console.log('[OneSignal] METODO 1 - User.PushSubscription.id:', playerId);
               }
               if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
                 playerId = await window.OneSignal.User.onesignalId;
                 alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
+                console.log('[OneSignal] METODO 2 - User.onesignalId:', playerId);
               }
               if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
                 playerId = await window.OneSignal.getSubscriptionId();
                 alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
+                console.log('[OneSignal] METODO 3 - getSubscriptionId:', playerId);
               }
               if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
                 playerId = await window.OneSignal.getUserId();
                 alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
+                console.log('[OneSignal] METODO 4 - getUserId:', playerId);
               }
               if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
                 const subscription = await window.OneSignal.getSubscription();
                 playerId = subscription?.id || null;
                 alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
+                console.log('[OneSignal] METODO 5 - getSubscription:', subscription);
               }
               if (playerId) {
                 alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
+                console.log('✅ [OneSignal] Player ID ottenuto:', playerId);
               } else {
                 alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
+                console.log('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
               }
             } catch (error) {
               alert('❌ Errore recupero Player ID: ' + error);
+              console.error('❌ Errore recupero Player ID:', error);
             }
           }}
         >DEBUG Player ID OneSignal</button>
