@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import versus from './assets/versus.svg';
 // ===== CALCOLA PUNTI POSIZIONE =====
 function calcolaPuntiPosizione(pos, tipoGara, classifica = null) {
   // Se è attivo il modificatore libero, usa l'array personalizzato
@@ -2027,8 +2028,49 @@ function CambiaPilotaView({ classifica, onClose, onSave }) {
 
 // ===== GRAFICO PRONOSTICO =====
 function GraficoPronostico({ classifica, isMobile, onClose }) {
+    // Stato per posizione drag del tasto Indietro
+    const [backBtnPos, setBackBtnPos] = useState({ x: 0, y: isMobile ? 28 : 34 });
+    const [dragging, setDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const [btnStart, setBtnStart] = useState({ x: 0, y: 0 });
+
+    // Gestori drag mouse
+    function handleMouseDown(e) {
+      setDragging(true);
+      setDragStart({ x: e.clientX, y: e.clientY });
+      setBtnStart({ ...backBtnPos });
+      e.preventDefault();
+    }
+    function handleMouseMove(e) {
+      if (!dragging) return;
+      const dx = e.clientX - dragStart.x;
+      const dy = e.clientY - dragStart.y;
+      setBackBtnPos({ x: btnStart.x + dx, y: btnStart.y + dy });
+    }
+    function handleMouseUp() {
+      setDragging(false);
+    }
+
+    // Gestori drag touch
+    function handleTouchStart(e) {
+      const touch = e.touches[0];
+      setDragging(true);
+      setDragStart({ x: touch.clientX, y: touch.clientY });
+      setBtnStart({ ...backBtnPos });
+    }
+    function handleTouchMove(e) {
+      if (!dragging) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - dragStart.x;
+      const dy = touch.clientY - dragStart.y;
+      setBackBtnPos({ x: btnStart.x + dx, y: btnStart.y + dy });
+    }
+    function handleTouchEnd() {
+      setDragging(false);
+    }
   const [tab, setTab] = useState(0)
   const [pilotaFissato, setPilotaFissato] = useState(null)
+  const [showVersus, setShowVersus] = useState(false)
   
   const pilotiOrdinati = classifica.piloti ? classifica.piloti.filter(p => p.attivo).sort((a, b) => (b.punti || 0) - (a.punti || 0)) : []
   const costruttoriOrdinati = classifica.costruttori ? classifica.costruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)) : []
@@ -2037,6 +2079,7 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
   const sprintRimanenti = classifica.gp ? classifica.gp.filter(g => !g.completato && g.tipo_weekend === 'sprintF1').length : 0
   
   const puntiMassimiRimanenti = gpRimanenti * 25 + sprintRimanenti * 8
+
 
   return (
     <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
@@ -2049,7 +2092,8 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
           <h1 style={{ fontSize: isMobile ? '20px' : '34px', fontWeight: 'bold', margin: 0, flex: 1, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0 }}>Grafico Pronostico Campionato</h1>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        {/* TAB */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
           <button onClick={() => { setTab(0); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 0 ? '#007AFF' : 'white', color: tab === 0 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Piloti</button>
           <button onClick={() => { setTab(1); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 1 ? '#007AFF' : 'white', color: tab === 1 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Costruttori</button>
         </div>
@@ -2068,7 +2112,65 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
         </div>
 
         <div style={{ background: 'white', borderRadius: '15px', padding: '20px', marginBottom: '20px' }}>
-          <h2 style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '20px' }}>Andamento Punti Stagione</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '10px', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}>Andamento Punti Stagione</h2>
+            <button onClick={() => setShowVersus(true)} style={{ width: 56, height: 56, background: '#007AFF', color: 'white', border: 'none', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }}>
+              <img src={versus} alt="versus" style={{ height: 48, width: 48, display: 'block', filter: 'invert(1) brightness(2)' }} />
+            </button>
+          </div>
+          {showVersus && (
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                background: 'white',
+                zIndex: 9999,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                justifyContent: 'flex-start',
+                overflow: 'hidden',
+              }}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              <button
+                onClick={() => setShowVersus(false)}
+                style={{
+                  position: 'absolute',
+                  left: backBtnPos.x,
+                  top: (typeof backBtnPos.y === 'number' ? backBtnPos.y - 5 : backBtnPos.y),
+                  background: 'none',
+                  border: 'none',
+                  color: '#007AFF',
+                  fontSize: isMobile ? '16px' : '18px',
+                  fontWeight: 'bold',
+                  cursor: dragging ? 'grabbing' : 'grab',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  minHeight: isMobile ? '44px' : 'auto',
+                  padding: isMobile ? '18px 0 18px 18px' : '24px 0 24px 32px',
+                  zIndex: 10000,
+                  userSelect: 'none',
+                  touchAction: 'none',
+                }}
+                onMouseDown={handleMouseDown}
+                onTouchStart={handleTouchStart}
+              >
+                ← Indietro
+              </button>
+              <div style={{ position: 'absolute', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '10px' }}>
+                {/* Qui puoi aggiungere il contenuto della modal */}
+              </div>
+            </div>
+          )}
           {classifica.gp && classifica.gp.length > 0 ? (
             <div style={{ width: '100%', overflowX: 'auto' }}>
               <svg width={Math.max(800, classifica.gp.filter(g => g.completato).length * 100)} height="400" style={{ display: 'block' }}>
@@ -3278,6 +3380,10 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
                     boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                     cursor: 'pointer',
                     marginBottom: 0,
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: 18,
+                    letterSpacing: 0.5,
                   }
                 : {
                     width: 44,
@@ -3295,26 +3401,28 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
             onClick={() => setShowImpostazioni(true)}
             title="Impostazioni"
           >
-            <svg viewBox="0 0 24 24" fill="white" width="28" height="28">
-              <path d="M19.14,12.94a7.07,7.07,0,0,0,0-1.88l2.11-1.65a.5.5,0,0,0,.12-.63l-2-3.46a.5.5,0,0,0-.61-.22l-2.49,1a6.93,6.93,0,0,0-1.62-.94l-.38-2.65A.5.5,0,0,0,13,2h-4a.5.5,0,0,0-.5.42l-.38,2.65a6.93,6.93,0,0,0-1.62.94l-2.49-1a.5.5,0,0,0-.61.22l-2,3.46a.5.5,0,0,0,.12.63l2.11,1.65a7.07,7.07,0,0,0,0,1.88L2.37,14.59a.5.5,0,0,0-.12.63l2,3.46a.5.5,0,0,0,.61.22l2.49-1a6.93,6.93,0,0,0,1.62.94l.38,2.65A.5.5,0,0,0,9,22h4a.5.5,0,0,0,.5-.42l.38-2.65a6.93,6.93,0,0,0,1.62-.94l2.49,1a.5.5,0,0,0,.61-.22l2-3.46a.5.5,0,0,0-.12-.63ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/>
-            </svg>
+            {isMobile ? 'Impostazioni' : (
+              <svg viewBox="0 0 24 24" fill="white" width="28" height="28">
+                <path d="M19.14,12.94a7.07,7.07,0,0,0,0-1.88l2.11-1.65a.5.5,0,0,0,.12-.63l-2-3.46a.5.5,0,0,0-.61-.22l-2.49,1a6.93,6.93,0,0,0-1.62-.94l-.38-2.65A.5.5,0,0,0,13,2h-4a.5.5,0,0,0-.5.42l-.38,2.65a6.93,6.93,0,0,0-1.62.94l-2.49-1a.5.5,0,0,0-.61.22l-2,3.46a.5.5,0,0,0,.12.63l2.11,1.65a7.07,7.07,0,0,0,0,1.88L2.37,14.59a.5.5,0,0,0-.12.63l2,3.46a.5.5,0,0,0,.61.22l2.49-1a6.93,6.93,0,0,0,1.62.94l.38,2.65A.5.5,0,0,0,9,22h4a.5.5,0,0,0,.5-.42l.38-2.65a6.93,6.93,0,0,0,1.62-.94l2.49,1a.5.5,0,0,0,.61-.22l2-3.46a.5.5,0,0,0-.12-.63ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/>
+              </svg>
+            )}
           </button>
           {isAdmin && (
-            <button className="btn-nuovo" style={{ background: '#8e44ad' }} onClick={() => setShowGestioneRSS(true)}>
+            <button className="btn-nuovo" style={isMobile ? { background: '#8e44ad', fontSize: 18, fontWeight: 700, height: 44, color: 'white' } : { background: '#8e44ad' }} onClick={() => setShowGestioneRSS(true)}>
               <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3A2 2 0 0 1 21 5v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14zm0 2H5v14h14V5zm-7 2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4zm0 6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h4z"/></svg>
               Gestisci RSS
             </button>
           )}
           {showGestioneRSS && <GestioneRSSModal onClose={() => setShowGestioneRSS(false)} />}
-          <button className="btn-nuovo" style={{ background: '#007AFF' }} onClick={() => setShowCategorie(true)}>
+          <button className="btn-nuovo" style={isMobile ? { background: '#007AFF', fontSize: 18, fontWeight: 700, height: 44, color: 'white' } : { background: '#007AFF' }} onClick={() => setShowCategorie(true)}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
             Categorie
           </button>
-          <button className="btn-nuovo" style={{ background: '#FF9500' }} onClick={() => setShowTemplateArticoli(true)}>
+          <button className="btn-nuovo" style={isMobile ? { background: '#FF9500', fontSize: 18, fontWeight: 700, height: 44, color: 'white' } : { background: '#FF9500' }} onClick={() => setShowTemplateArticoli(true)}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
             Template
           </button>
-          <button className="btn-nuovo" onClick={() => setShowNuovo(true)}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>Nuovo</button>
+          <button className="btn-nuovo" style={isMobile ? { fontSize: 18, fontWeight: 700, height: 44, color: 'white' } : {}} onClick={() => setShowNuovo(true)}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>Nuovo</button>
         </div>
       </div>
             {showImpostazioni && (
