@@ -158,36 +158,32 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
         // Converti l'oggetto JSON in array di sessioni
         sessioniSalvate = [];
         Object.entries(programmazionePerGiorno).forEach(([giorno, sessioniGiorno]) => {
-          // Ordina le sessioni per orario prima di caricarle
+          // Ordina le sessioni per orario prima di caricarle, con controlli robusti
           sessioniGiorno.sort((a, b) => {
             // Estrai i nomi delle sessioni
-            const nomeA = a.split(':')[0].trim();
-            const nomeB = b.split(':')[0].trim();
-            
+            const nomeA = typeof a === 'string' ? a.split(':')[0].trim() : '';
+            const nomeB = typeof b === 'string' ? b.split(':')[0].trim() : '';
             // Trova le sessioni corrispondenti per ottenere il campionato
             const sessioneA = sessioni.find(s => s.nome_sessione === nomeA);
             const sessioneB = sessioni.find(s => s.nome_sessione === nomeB);
-            
             // Definisci le priorità dei campionati in base all'ID
             const getCampionatoPriorita = (sessioneCorr) => {
               if (!sessioneCorr || !sessioneCorr.campionato_id) return 99;
               if (sessioneCorr.campionato_id === 'f1') return 1;
               if (sessioneCorr.campionato_id === 'f2') return 2;
               if (sessioneCorr.campionato_id === 'f3') return 3;
-              return 99; // Altri campionati hanno priorità più bassa
+              return 99;
             };
-            
             const prioritaA = getCampionatoPriorita(sessioneA);
             const prioritaB = getCampionatoPriorita(sessioneB);
-            
-            // Se hanno priorità diverse, ordina per priorità
             if (prioritaA !== prioritaB) {
               return prioritaA - prioritaB;
             }
-            
-            // Se stessa priorità, ordina per orario
-            const orarioA = a.match(/(\d{2}:\d{2})$/)[1];
-            const orarioB = b.match(/(\d{2}:\d{2})$/)[1];
+            // Se stessa priorità, ordina per orario (solo se matcha il formato)
+            const matchA = typeof a === 'string' ? a.match(/(\d{2}:\d{2})$/) : null;
+            const matchB = typeof b === 'string' ? b.match(/(\d{2}:\d{2})$/) : null;
+            const orarioA = matchA ? matchA[1] : '';
+            const orarioB = matchB ? matchB[1] : '';
             return orarioA.localeCompare(orarioB);
           });
           
