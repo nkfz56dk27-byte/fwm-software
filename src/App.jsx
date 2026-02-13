@@ -120,22 +120,31 @@ import PannelloFonti from './PannelloFonti.jsx'
 import GestioneRSSModal from './GestioneRSSModal.jsx'
 // ...existing code...
 import { useState, useEffect } from 'react'
-// Forza la cancellazione del database IndexedDB di OneSignal all'avvio
-try {
-  if (window.indexedDB) {
-    const req = window.indexedDB.deleteDatabase('OneSignalSDKDB');
-    req.onsuccess = function() {
-      console.log('[OneSignal] IndexedDB cancellato con successo');
-    };
-    req.onerror = function(e) {
-      console.warn('[OneSignal] Errore cancellazione IndexedDB:', e);
-    };
-    req.onblocked = function() {
-      console.warn('[OneSignal] Cancellazione IndexedDB bloccata');
-    };
-  }
-} catch (e) {
-  console.warn('[OneSignal] Errore generale cancellazione IndexedDB:', e);
+// Forza la cancellazione del database IndexedDB di OneSignal all'avvio e inizializza OneSignal solo dopo
+let oneSignalReadyPromise = null;
+if (typeof window !== 'undefined' && window.indexedDB) {
+  oneSignalReadyPromise = new Promise((resolve) => {
+    try {
+      const req = window.indexedDB.deleteDatabase('OneSignalSDKDB');
+      req.onsuccess = function() {
+        console.log('[OneSignal] IndexedDB cancellato con successo');
+        resolve();
+      };
+      req.onerror = function(e) {
+        console.warn('[OneSignal] Errore cancellazione IndexedDB:', e);
+        resolve(); // Prosegui comunque
+      };
+      req.onblocked = function() {
+        console.warn('[OneSignal] Cancellazione IndexedDB bloccata');
+        resolve(); // Prosegui comunque
+      };
+    } catch (e) {
+      console.warn('[OneSignal] Errore generale cancellazione IndexedDB:', e);
+      resolve();
+    }
+  });
+} else {
+  oneSignalReadyPromise = Promise.resolve();
 }
 import { supabase } from './supabaseClient'
 import CoppaSVG from "./assets/coppa.svg"
@@ -168,10 +177,17 @@ import { ToastNotification } from './ToastNotification.jsx'
 import './App.css'
 
 function App() {
-      // DEBUG: Bottone per forzare il popup OneSignal se non appare
-      const showDebugOneSignalButton = process.env.NODE_ENV !== 'production' || window.location.hostname.includes('localhost');
+    // DEBUG: Bottone per forzare il popup OneSignal se non appare
+    const showDebugOneSignalButton = process.env.NODE_ENV !== 'production' || window.location.hostname.includes('localhost');
 
-    // Inizializza OneSignal all'avvio dell'app (mostra popup permesso)
+    // Inizializza OneSignal solo dopo la cancellazione di IndexedDB
+    useEffect(() => {
+      oneSignalReadyPromise.then(() => {
+        if (typeof initializeOneSignal === 'function') {
+          initializeOneSignal();
+        }
+      });
+    }, []);
 
     // Bottone per abilitare notifiche dopo login
     async function abilitaNotifichePush() {
