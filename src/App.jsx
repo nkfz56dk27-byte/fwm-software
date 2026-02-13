@@ -589,7 +589,7 @@ function App() {
     return <PannelloFonti onClose={() => setShowPannelloFonti(false)} />
   }
   if (showNuovaPagina) {
-    return <NuovaPaginaView onClose={() => setShowNuovaPagina(false)} isMobile={isMobile} />
+    return <NuovaPaginaView onClose={() => { setShowNuovaPagina(false); setShowClassificheMainMenu(true); }} isMobile={isMobile} />
   }
 
   if (showClassifica) {
@@ -3070,6 +3070,7 @@ function PasswordChangeView({ newPassword, setNewPassword, confirmPassword, setC
 
 // ===== GESTIONE UTENTI =====
 function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
+    const [showImpostazioni, setShowImpostazioni] = useState(false);
   const [utenti, setUtenti] = useState([])
   const [loading, setLoading] = useState(true)
   const [showNuovo, setShowNuovo] = useState(false)
@@ -3119,7 +3120,17 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
       <div className="gestione-header">
         <button className="btn-back" onClick={onClose}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>Indietro</button>
         <h1 className="gestione-title">Gestione Utenti</h1>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* Bottone tondo rosso con ingranaggio */}
+          <button
+            style={{ width: 44, height: 44, borderRadius: '50%', background: '#e74c3c', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', cursor: 'pointer' }}
+            onClick={() => setShowImpostazioni(true)}
+            title="Impostazioni"
+          >
+            <svg viewBox="0 0 24 24" fill="white" width="28" height="28">
+              <path d="M19.14,12.94a7.07,7.07,0,0,0,0-1.88l2.11-1.65a.5.5,0,0,0,.12-.63l-2-3.46a.5.5,0,0,0-.61-.22l-2.49,1a6.93,6.93,0,0,0-1.62-.94l-.38-2.65A.5.5,0,0,0,13,2h-4a.5.5,0,0,0-.5.42l-.38,2.65a6.93,6.93,0,0,0-1.62.94l-2.49-1a.5.5,0,0,0-.61.22l-2,3.46a.5.5,0,0,0,.12.63l2.11,1.65a7.07,7.07,0,0,0,0,1.88L2.37,14.59a.5.5,0,0,0-.12.63l2,3.46a.5.5,0,0,0,.61.22l2.49-1a6.93,6.93,0,0,0,1.62.94l.38,2.65A.5.5,0,0,0,9,22h4a.5.5,0,0,0,.5-.42l.38-2.65a6.93,6.93,0,0,0,1.62-.94l2.49,1a.5.5,0,0,0,.61-.22l2-3.46a.5.5,0,0,0-.12-.63ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/>
+            </svg>
+          </button>
           {isAdmin && (
             <button className="btn-nuovo" style={{ background: '#8e44ad' }} onClick={() => setShowGestioneRSS(true)}>
               <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3A2 2 0 0 1 21 5v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14zm0 2H5v14h14V5zm-7 2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4zm0 6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h4z"/></svg>
@@ -3138,6 +3149,36 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
           <button className="btn-nuovo" onClick={() => setShowNuovo(true)}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>Nuovo</button>
         </div>
       </div>
+            {showImpostazioni && (
+              <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.35)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ background: 'white', borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.18)', padding: '32px', minWidth: 320, minHeight: 180, position: 'relative' }}>
+                  <h2 style={{ marginBottom: 24 }}>Impostazioni</h2>
+                  <button style={{ position: 'absolute', top: 12, right: 12, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} onClick={() => setShowImpostazioni(false)} title="Chiudi">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="12" fill="#fff"/>
+                      <path d="M7 7l10 10M17 7l-10 10" stroke="#e74c3c" strokeWidth="2.5" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                  <div style={{ marginTop: 16, color: '#888', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+                    {/* Bottone DEBUG Player ID OneSignal */}
+                    <button
+                      style={{ background: '#FF3B30', color: 'white', border: 'none', borderRadius: 24, padding: '12px 24px', fontWeight: 'bold', fontSize: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                      onClick={async () => {
+                        if (window.OneSignal) {
+                          const playerId = await window.OneSignal.getUserId();
+                          alert('Player ID OneSignal: ' + playerId);
+                        } else {
+                          alert('OneSignal non inizializzato');
+                        }
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" fill="white" width="24" height="24"><circle cx="12" cy="12" r="10"/><text x="12" y="16" textAnchor="middle" fontSize="10" fill="#fff">DEBUG</text></svg>
+                      DEBUG Player ID OneSignal
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
       <div className="divider"></div>
       <div className="gestione-content">
         {loading ? <div className="loading">Caricamento...</div> : (
@@ -3169,7 +3210,9 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
           </div>
         )}
       </div>
-    </div>
+      
+      </div>
+    
   )
 }
 
@@ -3285,132 +3328,61 @@ function ModificaUtenteView({ utente, onClose, onSave }) {
 
 // ===== CLASSIFICHE MAIN MENU =====
 function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu, onOpenNuovaPagina }) {
+    // ...existing code...
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', minHeight: '100vh' }}>
+        <div style={{ position: 'absolute', top: isMobile ? '80px' : '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', zIndex: 100 }}>
+          <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
+            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            Indietro
+          </button>
+        </div>
+        {/* Cards row */}
+        <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: '300px' }}>
+            <div className="card-icon-wrapper">
+              <img src={CoppaSVG} alt="Classifiche" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
+            </div>
+            <h3 className="card-title">CLASSIFICHE</h3>
+            <p className="card-subtitle">
+              {user.ruolo === 'admin' ? 'Gestisci campionati\ne classifiche' : 'Visualizza\nclassifiche'}
+            </p>
+          </div>
+
+          {/* DESKTOP VERSION */}
+          <div className="home-card card-blue" onClick={onOpenNuovaPagina} style={{ cursor: 'pointer', width: '300px', display: !isMobile ? 'flex' : 'none' }}>
+            <div className="card-icon-wrapper">
+              <img
+                src={PenaltypointSVG}
+                alt="Penalty Points"
+                style={{ width: "94px", height: "74px", filter: "brightness(0) invert(1)" }}
+              />
+            </div>
+            <h3 className="card-title">PENALTY POINTS</h3>
+            <p className="card-subtitle">Gestisci i punti<br />penalità</p>
+          </div>
+
+          {/* MOBILE VERSION */}
+          <div className="home-card card-blue" onClick={onOpenNuovaPagina} style={{ cursor: 'pointer', width: '300px', display: isMobile ? 'flex' : 'none' }} onMouseEnter={() => console.log('📱 MOBILE CARD VISIBILE, isMobile=', isMobile)}>
+            <div className="card-icon-wrapper" style={{ width: "150px", height: "150px" }}>
+              <img
+                src={PenaltypointSVG}
+                alt="Penalty Points"
+                style={{ width: "150px", height: "130px", filter: "brightness(0) invert(1)" }}
+                onLoad={() => console.log('📱 MOBILE card renderizzata con dimensioni 150x130px, isMobile=', isMobile)}
+              />
+            </div>
+            <h3 className="card-title">PENALTY POINTS</h3>
+            <p className="card-subtitle">Gestisci i punti<br />penalità</p>
+          </div>
+        </div>
+      </div>
+    )
   console.log('📱 ClassificheMainMenuView - isMobile ricevuto:', isMobile)
   const backBtnTop = isMobile ? 40 : 20;
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', minHeight: '100vh' }}>
-      {isMobile && (
-        <button
-          style={{ position: 'fixed', top: 10, right: 10, zIndex: 99999, background: '#FF9500', color: 'white', border: '3px solid #fff', borderRadius: '12px', padding: '16px 22px', fontSize: '18px', fontWeight: 'bold', boxShadow: '0 4px 16px rgba(0,0,0,0.3)', cursor: 'pointer', outline: '2px solid #007AFF' }}
-          onClick={async () => {
-            try {
-              let playerId = null;
-              if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
-                playerId = await window.OneSignal.User.PushSubscription.id;
-                alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
-              }
-              if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
-                playerId = await window.OneSignal.User.onesignalId;
-                alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
-              }
-              if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
-                playerId = await window.OneSignal.getSubscriptionId();
-                alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
-              }
-              if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
-                playerId = await window.OneSignal.getUserId();
-                alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
-              }
-              if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
-                const subscription = await window.OneSignal.getSubscription();
-                playerId = subscription?.id || null;
-                alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
-              }
-              if (playerId) {
-                alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
-              } else {
-                alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
-              }
-            } catch (error) {
-              alert('❌ Errore recupero Player ID: ' + error);
-            }
-          }}
-        >DEBUG Player ID OneSignal</button>
-      )}
-      {isMobile && (
-        <button
-          style={{ position: 'fixed', top: 10, right: 10, zIndex: 9999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
-          onClick={async () => {
-            try {
-              let playerId = null;
-              if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
-                playerId = await window.OneSignal.User.PushSubscription.id;
-                alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
-              }
-              if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
-                playerId = await window.OneSignal.User.onesignalId;
-                alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
-              }
-              if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
-                playerId = await window.OneSignal.getSubscriptionId();
-                alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
-              }
-              if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
-                playerId = await window.OneSignal.getUserId();
-                alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
-              }
-              if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
-                const subscription = await window.OneSignal.getSubscription();
-                playerId = subscription?.id || null;
-                alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
-              }
-              if (playerId) {
-                alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
-              } else {
-                alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
-              }
-            } catch (error) {
-              alert('❌ Errore recupero Player ID: ' + error);
-            }
-          }}
-        >DEBUG Player ID OneSignal</button>
-      )}
-      {/* Bottone debug OneSignal player_id */}
-      <button
-        style={{ position: 'absolute', top: 10, right: 10, zIndex: 9999, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '12px 18px', fontSize: '16px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', cursor: 'pointer' }}
-        onClick={async () => {
-          try {
-            let playerId = null;
-            if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
-              playerId = await window.OneSignal.User.PushSubscription.id;
-              alert('[OneSignal] METODO 1 - User.PushSubscription.id: ' + playerId);
-            }
-            if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
-              playerId = await window.OneSignal.User.onesignalId;
-              alert('[OneSignal] METODO 2 - User.onesignalId: ' + playerId);
-            }
-            if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
-              playerId = await window.OneSignal.getSubscriptionId();
-              alert('[OneSignal] METODO 3 - getSubscriptionId: ' + playerId);
-            }
-            if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
-              playerId = await window.OneSignal.getUserId();
-              alert('[OneSignal] METODO 4 - getUserId: ' + playerId);
-            }
-            if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
-              const subscription = await window.OneSignal.getSubscription();
-              playerId = subscription?.id || null;
-              alert('[OneSignal] METODO 5 - getSubscription: ' + (subscription?.id || JSON.stringify(subscription)));
-            }
-            if (playerId) {
-              alert('✅ [OneSignal] Player ID ottenuto: ' + playerId);
-            } else {
-              alert('❌ [OneSignal] Player ID non disponibile dopo tutti i tentativi!');
-            }
-          } catch (error) {
-            alert('❌ Errore recupero Player ID: ' + error);
-          }
-        }}
-      >DEBUG Player ID OneSignal</button>
-      <div style={{ position: 'absolute', top: `${backBtnTop}px`, left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: isMobile ? '80px' : '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-          Indietro
-        </button>
-      </div>
-
-      <h1 style={{ color: 'white', fontSize: '28px', marginBottom: '60px' }}></h1>
-
+      {/* Cards row */}
       <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap' }}>
         <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: '300px' }}>
           <div className="card-icon-wrapper">
