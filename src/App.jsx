@@ -129,22 +129,30 @@ if (typeof window !== 'undefined' && window.indexedDB) {
       try {
         const req = window.indexedDB.deleteDatabase('OneSignalSDKDB');
         req.onsuccess = function() {
-          console.log('[OneSignal] IndexedDB cancellato con successo');
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('[OneSignal] IndexedDB cancellato con successo');
+          }
           localStorage.setItem('onesignal_db_cleaned', 'true');
           resolve();
         };
         req.onerror = function(e) {
-          console.warn('[OneSignal] Errore cancellazione IndexedDB:', e);
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('[OneSignal] Errore cancellazione IndexedDB:', e);
+          }
           localStorage.setItem('onesignal_db_cleaned', 'true');
           resolve(); // Prosegui comunque
         };
         req.onblocked = function() {
-          console.warn('[OneSignal] Cancellazione IndexedDB bloccata');
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('[OneSignal] Cancellazione IndexedDB bloccata');
+          }
           localStorage.setItem('onesignal_db_cleaned', 'true');
           resolve(); // Prosegui comunque
         };
       } catch (e) {
-        console.warn('[OneSignal] Errore generale cancellazione IndexedDB:', e);
+        if (process.env.NODE_ENV !== 'production') {
+          console.warn('[OneSignal] Errore generale cancellazione IndexedDB:', e);
+        }
         localStorage.setItem('onesignal_db_cleaned', 'true');
         resolve();
       }
