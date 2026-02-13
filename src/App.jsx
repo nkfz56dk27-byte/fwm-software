@@ -2166,7 +2166,7 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
               >
                 ← Indietro
               </button>
-              <div style={{ position: 'absolute', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '10px' }}>
+              <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {/* Qui puoi aggiungere il contenuto della modal */}
               </div>
             </div>
