@@ -416,7 +416,7 @@ function App() {
       // --- REGISTRAZIONE PLAYER_ID ONESIGNAL CON POLLING ---
       let playerIdPollingInterval = null;
       let playerIdRegistrato = false;
-      import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
+      import('./pushNotificationService').then(async ({ registraDispositivoNotifiche, getDeviceId }) => {
         const tryRegister = async () => {
           // Attendi che OneSignal sia pronto (max 10s)
           let ready = false;
@@ -428,16 +428,56 @@ function App() {
             await new Promise(res => setTimeout(res, 500));
           }
           if (!ready) {
-            alert('❌ OneSignal non inizializzato dopo il login!');
+            //alert('❌ OneSignal non inizializzato dopo il login!');
             return;
           }
+          // Recupera playerId OneSignal
+          let playerId = null;
+          try {
+            if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+              playerId = await window.OneSignal.User.PushSubscription.id;
+            }
+            if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+              playerId = await window.OneSignal.User.onesignalId;
+            }
+            if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+              playerId = await window.OneSignal.getSubscriptionId();
+            }
+            if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+              playerId = await window.OneSignal.getUserId();
+            }
+            if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+              const subscription = await window.OneSignal.getSubscription();
+              playerId = subscription?.id || null;
+            }
+          } catch (e) {
+            // Silenzia errori qui
+          }
+          const deviceId = getDeviceId();
+          // Controlla su Supabase se esiste già la riga
+          if (playerId) {
+            const { data: existing, error: checkError } = await supabase
+              .from('push_devices')
+              .select('id')
+              .eq('username', user.username)
+              .eq('device_id', deviceId)
+              .eq('player_id', playerId)
+              .limit(1);
+            if (!checkError && existing && existing.length > 0) {
+              // Già registrato, non fare nulla
+              playerIdRegistrato = true;
+              clearInterval(playerIdPollingInterval);
+              return;
+            }
+          }
+          // Se non esiste, procedi con la registrazione
           const esito = await registraDispositivoNotifiche(user.username);
           if (esito) {
             playerIdRegistrato = true;
             clearInterval(playerIdPollingInterval);
-            console.log('✅ [POLLING] player_id OneSignal registrato con successo!');
+            //console.log('✅ [POLLING] player_id OneSignal registrato con successo!');
           } else {
-            console.log('⏳ [POLLING] player_id OneSignal non ancora disponibile, riprovo...');
+            //console.log('⏳ [POLLING] player_id OneSignal non ancora disponibile, riprovo...');
           }
         };
         // Primo tentativo subito
