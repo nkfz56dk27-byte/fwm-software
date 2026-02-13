@@ -120,29 +120,38 @@ import PannelloFonti from './PannelloFonti.jsx'
 import GestioneRSSModal from './GestioneRSSModal.jsx'
 // ...existing code...
 import { useState, useEffect } from 'react'
-// Forza la cancellazione del database IndexedDB di OneSignal all'avvio e inizializza OneSignal solo dopo
+// Cancella IndexedDB OneSignal solo al primo avvio (controllo con localStorage)
 let oneSignalReadyPromise = null;
 if (typeof window !== 'undefined' && window.indexedDB) {
-  oneSignalReadyPromise = new Promise((resolve) => {
-    try {
-      const req = window.indexedDB.deleteDatabase('OneSignalSDKDB');
-      req.onsuccess = function() {
-        console.log('[OneSignal] IndexedDB cancellato con successo');
+  const alreadyCleaned = localStorage.getItem('onesignal_db_cleaned');
+  if (!alreadyCleaned) {
+    oneSignalReadyPromise = new Promise((resolve) => {
+      try {
+        const req = window.indexedDB.deleteDatabase('OneSignalSDKDB');
+        req.onsuccess = function() {
+          console.log('[OneSignal] IndexedDB cancellato con successo');
+          localStorage.setItem('onesignal_db_cleaned', 'true');
+          resolve();
+        };
+        req.onerror = function(e) {
+          console.warn('[OneSignal] Errore cancellazione IndexedDB:', e);
+          localStorage.setItem('onesignal_db_cleaned', 'true');
+          resolve(); // Prosegui comunque
+        };
+        req.onblocked = function() {
+          console.warn('[OneSignal] Cancellazione IndexedDB bloccata');
+          localStorage.setItem('onesignal_db_cleaned', 'true');
+          resolve(); // Prosegui comunque
+        };
+      } catch (e) {
+        console.warn('[OneSignal] Errore generale cancellazione IndexedDB:', e);
+        localStorage.setItem('onesignal_db_cleaned', 'true');
         resolve();
-      };
-      req.onerror = function(e) {
-        console.warn('[OneSignal] Errore cancellazione IndexedDB:', e);
-        resolve(); // Prosegui comunque
-      };
-      req.onblocked = function() {
-        console.warn('[OneSignal] Cancellazione IndexedDB bloccata');
-        resolve(); // Prosegui comunque
-      };
-    } catch (e) {
-      console.warn('[OneSignal] Errore generale cancellazione IndexedDB:', e);
-      resolve();
-    }
-  });
+      }
+    });
+  } else {
+    oneSignalReadyPromise = Promise.resolve();
+  }
 } else {
   oneSignalReadyPromise = Promise.resolve();
 }
