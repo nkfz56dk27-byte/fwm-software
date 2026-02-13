@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import versus from './assets/versus.svg';
+
 // ===== CALCOLA PUNTI POSIZIONE =====
 function calcolaPuntiPosizione(pos, tipoGara, classifica = null) {
   // Se è attivo il modificatore libero, usa l'array personalizzato
@@ -2115,7 +2115,7 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '10px', flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}>Andamento Punti Stagione</h2>
             <button onClick={() => setShowVersus(true)} style={{ width: 56, height: 56, background: '#007AFF', color: 'white', border: 'none', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }}>
-              <img src={versus} alt="versus" style={{ height: 48, width: 48, display: 'block', filter: 'invert(1) brightness(2)' }} />
+              <img src="/assets/versus.svg" alt="versus" style={{ height: 48, width: 48, display: 'block', filter: 'invert(1) brightness(2)' }} />
             </button>
           </div>
           {showVersus && (
