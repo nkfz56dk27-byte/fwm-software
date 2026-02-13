@@ -316,13 +316,16 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   async function segnaComeLetta(notificaId) {
     try {
-      await supabase.from('notifiche_disponibilita_lette').insert({ 
+      const { error } = await supabase.from('notifiche_disponibilita_lette').upsert({ 
         username: utenteCorrente.username, 
         notifica_id: notificaId 
-      })
+      }, { onConflict: ['username', 'notifica_id'] })
+      if (error && error.code !== '23505') {
+        console.error('Errore segna come letta:', error)
+      }
       await caricaNotifiche()
     } catch (err) {
-      console.error('Errore segna come letta:', err)
+      console.error('Errore segna come letta (catch JS):', err)
     }
   }
 
@@ -337,21 +340,13 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       
       for (const n of nonLette) {
         console.log('🔍 DEBUG: Inserisco notifica ID:', n.id, 'per utente:', utenteCorrente.username)
-        
-        const { data, error } = await supabase.from('notifiche_disponibilita_lette').insert({ 
+        const { error } = await supabase.from('notifiche_disponibilita_lette').upsert({ 
           username: utenteCorrente.username, 
           notifica_id: n.id 
-        })
-        
-        if (error) {
+        }, { onConflict: ['username', 'notifica_id'] })
+        if (error && error.code !== '23505') {
           console.error('❌ Errore inserimento notifica letta:', error)
-          // Controlla se è un errore di duplicato (ignora)
-          if (error.code !== '23505' && error.status !== 409) { // 23505 = unique violation, 409 = conflict
-            throw error
-          } else {
-            console.log('ℹ️ Notifica già marcata come letta, ignoro:', n.id)
-          }
-        } else {
+        } else if (!error) {
           console.log('✅ Notifica marcata come letta:', n.id)
         }
       }

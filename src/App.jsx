@@ -2770,8 +2770,8 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
         </button>
         {showAltreClassifiche && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '540px' }}>
-            {classifiche.filter(c => c.nome !== "Formula 1" && c.nome !== "Formula E").map(c => (
-              <div key={c.id} style={{ display: 'flex', gap: '10px' }}>
+            {classifiche.filter(c => c.nome !== "Formula 1" && c.nome !== "Formula E").map((c, idx) => (
+              <div key={typeof c.id === 'object' ? JSON.stringify(c.id) : c.id || idx} style={{ display: 'flex', gap: '10px' }}>
                 {modalitaElimina && <button onClick={() => eliminaClassifica(c.id)} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: '#FF3B30', color: 'white', fontSize: '24px', cursor: 'pointer' }}>−</button>}
                 <button onClick={() => !modalitaElimina && onOpenClassifica(c.id)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
               </div>

@@ -792,7 +792,12 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
       console.log('DEBUG: segnaComeLettaCalendario chiamato con notificaId:', notificaId, 'utente:', utenteCorrente?.username);
       const { data, error } = await supabase.from('notifiche_lette').insert({ username: utenteCorrente.username, notifica_id: String(notificaId) });
       if (error) {
-        console.error('ERRORE inserimento in notifiche_lette:', error);
+        // Ignora errore di duplicato (già letta)
+        if (error.code !== '23505' && error.status !== 409) {
+          console.error('ERRORE inserimento in notifiche_lette:', error);
+        } else {
+          console.log('ℹ️ Notifica già marcata come letta (CALENDARIO), ignoro:', notificaId)
+        }
       } else {
         console.log('SUCCESS inserimento in notifiche_lette:', data);
       }
@@ -1605,15 +1610,15 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
                           </span>
                         ));
                       } else {
-                        // Se per errore sessioniGiorno è un oggetto puro, non restituire nulla
+                        // Se per errore sessioniGiorno è un oggetto puro, mostra come stringa leggibile (evita errore React #31)
                         if (typeof sessioniGiorno === 'object' && sessioniGiorno !== null && !Array.isArray(sessioniGiorno)) {
-                          return null;
+                          return <span style={{ color: 'red', fontSize: '10px' }}>[Oggetto non visualizzabile: {JSON.stringify(sessioniGiorno)}]</span>;
                         }
                         // Fallback: se non è stringa o array, restituisci null
                         if (typeof sessioniGiorno !== 'string' && !Array.isArray(sessioniGiorno)) {
                           return null;
                         }
-                        // Se è stringa, mostra come testo, MA se è oggetto, mai!
+                        // Se è stringa, mostra come testo
                         if (typeof sessioniGiorno === 'string') {
                           return <span>{sessioniGiorno}</span>;
                         }
