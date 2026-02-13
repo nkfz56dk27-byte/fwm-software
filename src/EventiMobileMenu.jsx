@@ -282,16 +282,16 @@ export default function EventiMobileMenu({ onClose }) {
                 </span>
                 <div>
                   <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#FFF' }}>
-                    {evento.titolo}
+                    {typeof evento.titolo === 'object' ? '[Oggetto non visualizzabile: ' + JSON.stringify(evento.titolo) + ']' : evento.titolo}
                   </div>
                   <div style={{ fontSize: '12px', color: '#00D9FF', fontWeight: 'bold', marginTop: '2px' }}>
-                     {evento.dataBreve} {evento.orario && `- ${formatOrario(evento.orario)}`}
+                    {typeof evento.dataBreve === 'object' ? '[Oggetto non visualizzabile: ' + JSON.stringify(evento.dataBreve) + ']' : evento.dataBreve} {typeof evento.orario === 'object' ? '[Oggetto non visualizzabile: ' + JSON.stringify(evento.orario) + ']' : evento.orario && `- ${formatOrario(evento.orario)}`}
                   </div>
                 </div>
               </div>
               
               <div style={{ fontSize: '14px', color: '#FFF', marginBottom: '4px' }}>
-                {CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.nome || 'Evento'}
+                {typeof CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.nome === 'object' ? '[Oggetto non visualizzabile: ' + JSON.stringify(CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.nome) + ']' : CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.nome || 'Evento'}
               </div>
               
               {/* FASCIA STATO ACCREDITO */}
