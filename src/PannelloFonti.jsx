@@ -493,14 +493,26 @@ function PannelloFonti({ onClose }) {
     // Deduplica notifiche: una sola notifica per utente/articolo anche se matcha più filtri
     const notificheInviate = new Set();
 
+    function decodeHtmlEntities(str) {
+      if (!str) return '';
+      return str.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&apos;/g, "'");
+    }
+
     for (const articolo of nuoviArticoli) {
       if (!articoloMatchaFiltri(articolo, feed)) continue;
-      // Chiave deduplica: guid + username
-      const guid = articolo.guid || articolo.id || articolo.link || '';
+      // Chiave deduplica: guid + username (solo guid, normalizzato)
+      const guid = (articolo.guid || '').trim().toLowerCase();
+      if (!guid) continue; // ignora articoli senza guid
       const dedupKey = `${guid}::${username}`;
       if (notificheInviate.has(dedupKey)) continue;
       notificheInviate.add(dedupKey);
-      const titolo = (articolo.title || '').trim() || 'Nuovo articolo RSS';
+      const titoloRaw = (articolo.title || '').trim() || 'Nuovo articolo RSS';
+      const titolo = decodeHtmlEntities(titoloRaw);
       await inserisciNotificaPush({
         title: titolo,
         body: `Fonte: ${host}`,
@@ -513,7 +525,7 @@ function PannelloFonti({ onClose }) {
           guid: guid
         }
       });
-  }
+    }
 
   useEffect(() => {
     if (showFiltriModal && username) {
