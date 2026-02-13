@@ -3164,11 +3164,25 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
                     <button
                       style={{ background: '#FF3B30', color: 'white', border: 'none', borderRadius: 24, padding: '12px 24px', fontWeight: 'bold', fontSize: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
                       onClick={async () => {
-                        if (window.OneSignal) {
-                          const playerId = await window.OneSignal.getUserId();
-                          alert('Player ID OneSignal: ' + playerId);
-                        } else {
-                          alert('OneSignal non inizializzato');
+                        try {
+                          if (window.OneSignal) {
+                            console.log('[DEBUG ONESIGNAL] OneSignal:', window.OneSignal);
+                            if (typeof window.OneSignal.getUserId === 'function') {
+                              const playerId = await window.OneSignal.getUserId();
+                              if (playerId) {
+                                alert('Player ID OneSignal: ' + playerId);
+                              } else {
+                                alert('Player ID non disponibile. Probabile che l\'utente non sia ancora registrato alle notifiche.');
+                              }
+                            } else {
+                              alert('window.OneSignal.getUserId non è una funzione. SDK non caricato correttamente.');
+                            }
+                          } else {
+                            alert('OneSignal non inizializzato (window.OneSignal mancante)');
+                          }
+                        } catch (err) {
+                          alert('Errore OneSignal: ' + err);
+                          console.error('[DEBUG ONESIGNAL] Errore:', err);
                         }
                       }}
                     >
