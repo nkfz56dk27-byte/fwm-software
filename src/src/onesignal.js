@@ -15,6 +15,10 @@ let oneSignalInitialized = false
  * Resetta le impostazioni precedenti per evitare conflitti
  */
 export async function initializeOneSignal() {
+  if (window.location.hostname === 'localhost') {
+    console.warn('[OneSignal] Inizializzazione bloccata su localhost');
+    return false;
+  }
     // Abilita log dettagliati OneSignal per debug mobile
     if (window.OneSignal && window.OneSignal.log && typeof window.OneSignal.log.setLevel === 'function') {
       window.OneSignal.log.setLevel('trace');
@@ -101,6 +105,10 @@ function loadOneSignalSDK() {
  * @returns {Promise<boolean>}
  */
 export async function richiediPermessoNotifiche() {
+  if (window.location.hostname === 'localhost') {
+    console.warn('[OneSignal] Permesso notifiche bloccato su localhost');
+    return false;
+  }
   try {
     if (!oneSignalInitialized) {
       const success = await initializeOneSignal()

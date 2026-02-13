@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 // ===== CALCOLA PUNTI POSIZIONE =====
 function calcolaPuntiPosizione(pos, tipoGara, classifica = null) {
   // Se è attivo il modificatore libero, usa l'array personalizzato
@@ -119,7 +120,6 @@ function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRima
 import PannelloFonti from './PannelloFonti.jsx'
 import GestioneRSSModal from './GestioneRSSModal.jsx'
 // ...existing code...
-import { useState, useEffect } from 'react'
 // Cancella IndexedDB OneSignal solo al primo avvio (controllo con localStorage)
 // Cancellazione IndexedDB OneSignal solo se versione app cambia o mai fatta
 let oneSignalReadyPromise = null;
@@ -897,7 +897,25 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
           <h1 style={{ fontSize: isMobile ? '22px' : '34px', fontWeight: 'bold', margin: 0, flex: 1, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0 }}>{classifica.nome}</h1>
           <div style={{ display: 'flex', gap: '10px', alignSelf: isMobile ? 'flex-end' : 'auto', alignItems: 'center' }}>
             {isAdmin && (
-              <button onClick={() => setShowImpostazioni(true)} style={{ width: isMobile ? '44px' : '40px', height: isMobile ? '44px' : '40px', border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={() => setShowImpostazioni(true)}
+                style={{
+                  width: isMobile ? '44px' : '40px',
+                  height: isMobile ? '44px' : '40px',
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '50%',
+                  boxShadow: 'none',
+                  borderWidth: 0,
+                  borderColor: 'transparent',
+                  borderStyle: 'none',
+                  marginBottom: 0,
+                }}
+              >
                 <svg viewBox="0 0 24 24" fill="#000" style={{ width: isMobile ? '28px' : '30px', height: isMobile ? '28px' : '30px' }}>
                   <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
                 </svg>
@@ -3179,7 +3197,15 @@ function PasswordChangeView({ newPassword, setNewPassword, confirmPassword, setC
 
 // ===== GESTIONE UTENTI =====
 function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
-    const [showImpostazioni, setShowImpostazioni] = useState(false);
+  const [showImpostazioni, setShowImpostazioni] = useState(false);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+  React.useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= 768);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const [utenti, setUtenti] = useState([])
   const [loading, setLoading] = useState(true)
   const [showNuovo, setShowNuovo] = useState(false)
@@ -3229,10 +3255,43 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
       <div className="gestione-header">
         <button className="btn-back" onClick={onClose}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>Indietro</button>
         <h1 className="gestione-title">Gestione Utenti</h1>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div
+          style={
+            isMobile
+              ? { display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch', width: '100%', marginTop: 8, marginBottom: 4 }
+              : { display: 'flex', gap: '10px', alignItems: 'center' }
+          }
+        >
           {/* Bottone tondo rosso con ingranaggio */}
           <button
-            style={{ width: 44, height: 44, borderRadius: '50%', background: '#e74c3c', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', cursor: 'pointer' }}
+            style={
+              isMobile
+                ? {
+                    width: '100%',
+                    height: 44,
+                    borderRadius: 8,
+                    background: '#e74c3c',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    cursor: 'pointer',
+                    marginBottom: 0,
+                  }
+                : {
+                    width: 44,
+                    height: 44,
+                    borderRadius: '50%',
+                    background: '#e74c3c',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    cursor: 'pointer',
+                  }
+            }
             onClick={() => setShowImpostazioni(true)}
             title="Impostazioni"
           >

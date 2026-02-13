@@ -19,6 +19,7 @@ export async function notificaClassificaCreata(nomeClassifica) {
  * Usare da console: window.mostraNotificaLocale('Titolo', 'Messaggio')
  */
 export function mostraNotificaLocale(titolo = '🏁 Nuova classifica', messaggio = 'La classifica di test è stata creata.') {
+  if (window.location.hostname === 'localhost') return; // Blocca popup su localhost
   if (typeof Notification !== 'undefined') {
     if (Notification.permission === 'granted') {
       new Notification(titolo, {
@@ -79,6 +80,7 @@ export const NOTIFICATION_TYPES = {
  * @returns {Promise<Object>} Risposta dell'API OneSignal
  */
 export async function inviaNotificaPush(options) {
+  if (window.location.hostname === 'localhost') return { success: false, error: 'Notifiche disabilitate su localhost' };
   const {
     titolo,
     messaggio,
