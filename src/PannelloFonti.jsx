@@ -1,21 +1,52 @@
-// Funzione per decodificare entità HTML (es: &#124; &amp; ecc.)
-function decodeHtmlEntities(str) {
-  if (!str) return '';
-  const txt = document.createElement('textarea');
-  txt.innerHTML = str;
-  return txt.value;
-}
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "./supabaseClient";
 import { analyzeSource, getSourceLabel } from "./utils/sourceAnalyzer";
 import { XMLParser } from "fast-xml-parser";
 import { inserisciNotificaPush } from "./pushNotificationService";
 
+// Funzione MIGLIORATA per decodificare TUTTE le entità HTML
+function decodeHtmlEntities(str) {
+  if (!str) return '';
+  
+  // Primo passaggio: decodifica entità numeriche (&#8217; &#124; ecc.)
+  let decoded = str.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+  
+  // Secondo passaggio: decodifica entità hex (&#x2019; ecc.)
+  decoded = decoded.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+  
+  // Terzo passaggio: decodifica entità named (&amp; &lt; &gt; ecc.)
+  const entities = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&apos;': "'",
+    '&nbsp;': ' ',
+    '&ndash;': '–',
+    '&mdash;': '—',
+    '&lsquo;': '\u2018', // ' (apice curvo sinistro)
+    '&rsquo;': '\u2019', // ' (apice curvo destro)
+    '&ldquo;': '\u201C', // " (virgoletta curva sinistra)
+    '&rdquo;': '\u201D', // " (virgoletta curva destra)
+    '&hellip;': '…',
+    '&euro;': '€',
+    '&pound;': '£',
+    '&copy;': '©',
+    '&reg;': '®',
+    '&trade;': '™'
+  };
+  
+  Object.keys(entities).forEach(entity => {
+    decoded = decoded.replace(new RegExp(entity, 'g'), entities[entity]);
+  });
+  
+  return decoded;
+}
+
 function PannelloFonti({ onClose }) {
   // Funzione per calcolare la data/orario assoluti da stringhe tipo "6 ore fa"
   function parseRelativeDate(text, now = new Date()) {
     if (!text) return null;
-    // Supporta sia italiano che inglese ("6 ore fa" o "6 hours ago")
     const match = text.match(/(\d+)\s+(minuto|minuti|ora|ore|giorno|giorni|settimana|settimane|mese|mesi|anno|anni|hour|hours|minute|minutes|day|days|week|weeks|month|months|year|years)[a-z]*\s+(fa|ago)/i);
     if (!match) return null;
     const value = parseInt(match[1], 10);
@@ -37,28 +68,25 @@ function PannelloFonti({ onClose }) {
     }
     return date;
   }
-        // Costante globale per il feed BBC F1
-        const BBC_FEED_URL = 'https://feeds.bbci.co.uk/sport/formula1/rss.xml';
-      // Funzione per confrontare il testo con altri articoli
-      function trovaArticoloDuplicato(articolo, tuttiArticoli) {
-        // Prendi solo parole significative (minimo 5 caratteri)
-        const parole = `${articolo.title} ${articolo.description} ${articolo.content || ''}`.toLowerCase().split(/\W+/).filter(w => w.length >= 5);
-        // Confronta con altri articoli
-        for (const altro of tuttiArticoli) {
-          if (altro.id === articolo.id || altro.feedSource === articolo.feedSource) continue; // Salta se stesso o stessa fonte
-          const testoAltro = `${altro.title} ${altro.description} ${altro.content || ''}`.toLowerCase();
-          // Conta quante parole significative sono presenti anche nell'altro articolo
-          let count = 0;
-          for (const parola of parole) {
-            if (testoAltro.includes(parola)) count++;
-          }
-          // Se almeno 10 parole significative coincidono, considera duplicato
-          if (count >= 10) {
-            return altro.feedSource || 'altra fonte';
-          }
-        }
-        return null;
+
+  const BBC_FEED_URL = 'https://feeds.bbci.co.uk/sport/formula1/rss.xml';
+
+  function trovaArticoloDuplicato(articolo, tuttiArticoli) {
+    const parole = `${articolo.title} ${articolo.description} ${articolo.content || ''}`.toLowerCase().split(/\W+/).filter(w => w.length >= 5);
+    for (const altro of tuttiArticoli) {
+      if (altro.id === articolo.id || altro.feedSource === articolo.feedSource) continue;
+      const testoAltro = `${altro.title} ${altro.description} ${altro.content || ''}`.toLowerCase();
+      let count = 0;
+      for (const parola of parole) {
+        if (testoAltro.includes(parola)) count++;
       }
+      if (count >= 10) {
+        return altro.feedSource || 'altra fonte';
+      }
+    }
+    return null;
+  }
+
   async function caricaPrenotazioni(user) {
     const uname = user || username;
     if (!uname) return;
@@ -82,13 +110,10 @@ function PannelloFonti({ onClose }) {
       prenotazioniFetchInFlightRef.current = false;
     }
   }
-  // Carica i feed all'avvio - SOLO UNA VOLTA
+
   useEffect(() => {
-    
     const currentUsername = sessionStorage.getItem('username') || '';
     if (currentUsername) {
-      // NON chiamare controllaNuoviArticoli() qui - troppo lento!
-      // Carica solo articoli esistenti dal database
       caricaArticoliDalDatabase();
       caricaPrenotazioni(currentUsername);
     }
@@ -120,69 +145,58 @@ function PannelloFonti({ onClose }) {
 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // Funzione migliorata per analizzare se l'articolo è esclusiva o ripreso (usa sourceAnalyzer)
-    async function analizzaArticolo(articolo) {
-      
-      
-      // Carica TUTTI gli articoli RSS dal database per avere dati completi
-      let tuttiArticoli = [];
-      try {
-        tuttiArticoli = await getTuttiArticoli();
-      } catch (err) {
-        if (err?.name === 'AbortError') {
-          
-          return {
-            tipo: 'ripresa',
-            fonte: null,
-            analysis: { isOriginal: false, isFirstToReport: false, reason: 'AbortError' }
-          };
-        }
-        
+  async function analizzaArticolo(articolo) {
+    let tuttiArticoli = [];
+    try {
+      tuttiArticoli = await getTuttiArticoli();
+    } catch (err) {
+      if (err?.name === 'AbortError') {
         return {
           tipo: 'ripresa',
           fonte: null,
-          analysis: { isOriginal: false, isFirstToReport: false, reason: 'Errore caricamento' }
+          analysis: { isOriginal: false, isFirstToReport: false, reason: 'AbortError' }
         };
       }
-      // Analizza la fonte dell'articolo usando TUTTI gli articoli dal database
-      const analysis = analyzeSource(articolo, articolo.feedSource, tuttiArticoli);
-      // ...log analisi articolo rimosso...
       return {
-        tipo: analysis.isOriginal ? 'esclusiva' : 'ripresa',
-        fonte: analysis.attributedSources.length > 0 ? analysis.attributedSources.join(', ') : null,
-        analysis: analysis
+        tipo: 'ripresa',
+        fonte: null,
+        analysis: { isOriginal: false, isFirstToReport: false, reason: 'Errore caricamento' }
       };
     }
+    const analysis = analyzeSource(articolo, articolo.feedSource, tuttiArticoli);
+    return {
+      tipo: analysis.isOriginal ? 'esclusiva' : 'ripresa',
+      fonte: analysis.attributedSources.length > 0 ? analysis.attributedSources.join(', ') : null,
+      analysis: analysis
+    };
+  }
 
-    // Funzione per ottenere l'analisi (con cache)
-    function getOrigineArticolo(articolo) {
-      // Se non abbiamo l'analisi in cache, restituisci un placeholder
-      if (!analisiArticoli[articolo.id]) {
-        // Calcola l'analisi in background
-        analizzaArticolo(articolo).then(result => {
-          setAnalisiArticoli(prev => ({
-            ...prev,
-            [articolo.id]: result
-          }));
-        });
-  // PATCH: rimosso caricaArticoliDalDatabase();
-        return {
-          tipo: 'ripresa',
-          fonte: null,
-          analysis: { isOriginal: false, isFirstToReport: false, reason: 'Calcolando...' }
-        };
-      }
-      return analisiArticoli[articolo.id];
+  function getOrigineArticolo(articolo) {
+    if (!analisiArticoli[articolo.id]) {
+      analizzaArticolo(articolo).then(result => {
+        setAnalisiArticoli(prev => ({
+          ...prev,
+          [articolo.id]: result
+        }));
+      });
+      return {
+        tipo: 'ripresa',
+        fonte: null,
+        analysis: { isOriginal: false, isFirstToReport: false, reason: 'Calcolando...' }
+      };
     }
+    return analisiArticoli[articolo.id];
+  }
+
   const [feeds, setFeeds] = useState([]);
   const [articoli, setArticoli] = useState([]);
   const [prenotazioni, setPrenotazioni] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingFeeds, setLoadingFeeds] = useState(false);
   const [username, setUsername] = useState('');
-  const [analisiArticoli, setAnalisiArticoli] = useState({}); // Cache per le analisi
-  const [isLoadingArticoli, setIsLoadingArticoli] = useState(false); // Evita chiamate concorrenti
-  const [isActionLoading, setIsActionLoading] = useState(false); // Blocca azioni utente durante operazioni
+  const [analisiArticoli, setAnalisiArticoli] = useState({});
+  const [isLoadingArticoli, setIsLoadingArticoli] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [showFiltriModal, setShowFiltriModal] = useState(false);
   const [isClosingFiltri, setIsClosingFiltri] = useState(false);
@@ -195,7 +209,7 @@ function PannelloFonti({ onClose }) {
   const [nuovaKeyword, setNuovaKeyword] = useState('');
   const [isSavingFiltri, setIsSavingFiltri] = useState(false);
   const [isLoadingFiltri, setIsLoadingFiltri] = useState(false);
-  const [userCategorieIds, setUserCategorieIds] = useState([]); // IDs delle categorie dell'utente
+  const [userCategorieIds, setUserCategorieIds] = useState([]);
   const [formulaECategoryId, setFormulaECategoryId] = useState(null);
   const [activeTab, setActiveTab] = useState('f1');
   const realtimeReloadTimeout = useRef(null);
@@ -475,8 +489,18 @@ function PannelloFonti({ onClose }) {
     const feedMatch = feedFiltersSet.has(String(feed?.id));
     if (feedMatch) return true;
     if (keywordFiltersLower.length === 0) return false;
+    
+    // Cerca SOLO nel titolo
     const titolo = (articolo.title || '').toLowerCase();
-    return keywordFiltersLower.some(k => titolo.includes(k));
+    
+    // Match solo PAROLE INTERE usando word boundaries (\b)
+    return keywordFiltersLower.some(keyword => {
+      // Escapa caratteri speciali regex
+      const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // \b = word boundary (inizio/fine parola)
+      const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+      return regex.test(titolo);
+    });
   }
 
   async function inviaNotificheFiltrate(nuoviArticoli, feed) {
@@ -490,42 +514,52 @@ function PannelloFonti({ onClose }) {
       host = 'RSS';
     }
 
-    // Deduplica notifiche: una sola notifica per utente/articolo anche se matcha più filtri
-    const notificheInviate = new Set();
-
-    function decodeHtmlEntities(str) {
-      if (!str) return '';
-      return str.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec))
-                .replace(/&amp;/g, '&')
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&quot;/g, '"')
-                .replace(/&apos;/g, "'");
-    }
-
     for (const articolo of nuoviArticoli) {
       if (!articoloMatchaFiltri(articolo, feed)) continue;
-      // Chiave deduplica: guid + username (solo guid, normalizzato)
       const guid = (articolo.guid || '').trim().toLowerCase();
-      if (!guid) continue; // ignora articoli senza guid
-      const dedupKey = `${guid}::${username}`;
-      if (notificheInviate.has(dedupKey)) continue;
-      notificheInviate.add(dedupKey);
+      if (!guid) continue;
+
+      // ✅ CONTROLLO DATABASE: verifica se notifica già inviata per questo guid+user
+      try {
+        const { data: notificaEsistente } = await supabase
+          .from('notifications')
+          .select('id')
+          .eq('notification_type', 'rss_filter')
+          .eq('data->>guid', guid) // Controlla campo JSON data.guid
+          .contains('target_users', [username])
+          .limit(1);
+
+        if (notificaEsistente && notificaEsistente.length > 0) {
+          console.log(`⏭️ Notifica già inviata per guid: ${guid}, user: ${username}`);
+          continue; // Salta se già esiste
+        }
+      } catch (err) {
+        console.error('❌ Errore controllo notifica esistente:', err);
+        // Continua comunque per non bloccare il flusso
+      }
+
       const titoloRaw = (articolo.title || '').trim() || 'Nuovo articolo RSS';
       const titolo = decodeHtmlEntities(titoloRaw);
-      await inserisciNotificaPush({
-        title: titolo,
-        body: `Fonte: ${host}`,
-        notification_type: 'rss_filter',
-        target_all: false,
-        target_users: [username],
-        data: {
-          link: articolo.link || null,
-          feed_id: feed?.id || null,
-          guid: guid
-        }
-      });
+      
+      try {
+        await inserisciNotificaPush({
+          title: titolo,
+          body: `Fonte: ${host}`,
+          notification_type: 'rss_filter',
+          target_all: false,
+          target_users: [username],
+          data: {
+            link: articolo.link || null,
+            feed_id: feed?.id || null,
+            guid: guid // ← IMPORTANTE: salva guid per controllo futuro
+          }
+        });
+        console.log(`✅ Notifica inviata per: ${titolo} (guid: ${guid})`);
+      } catch (err) {
+        console.error('❌ Errore invio notifica:', err);
+      }
     }
+  }
 
   useEffect(() => {
     if (showFiltriModal && username) {
@@ -534,7 +568,6 @@ function PannelloFonti({ onClose }) {
   }, [showFiltriModal, username]);
 
   useEffect(() => {
-    // Recupera username dalla sessione
     let isMounted = true;
     const savedUsername = sessionStorage.getItem('username');
     if (hasStartedInitialSyncRef.current) {
@@ -547,10 +580,8 @@ function PannelloFonti({ onClose }) {
       caricaFeedEDArticoli(savedUsername);
     }
 
-    // --- PATCH: Polling globale anti-duplicazione ---
-    // Usa una variabile globale per evitare timer multipli anche con hot reload
     if (window.__PANNELLO_FONTI_POLLING_ACTIVE) {
-      
+      console.log('⏩ Polling già attivo, skip');
     } else {
       window.__PANNELLO_FONTI_POLLING_ACTIVE = true;
       window.__PANNELLO_FONTI_POLLING_INTERVAL = null;
@@ -559,11 +590,10 @@ function PannelloFonti({ onClose }) {
           if (!isLoadingArticoli) {
             controllaNuoviArticoli();
           }
-        }, 3 * 60 * 1000); // 3 minuti in millisecondi
+        }, 3 * 60 * 1000);
       }
     }
 
-    // Realtime listener per aggiornamenti immediati
     const channel = supabase
       .channel('rss_articles_updates')
       .on('postgres_changes', 
@@ -585,10 +615,8 @@ function PannelloFonti({ onClose }) {
       )
       .subscribe();
 
-    // Cleanup del timer e listener quando il componente viene smontato
     return () => {
       isMounted = false;
-      // Solo se esiste il polling globale, lo cancello e resetto il flag
       if (window.__PANNELLO_FONTI_POLLING_INTERVAL) {
         clearInterval(window.__PANNELLO_FONTI_POLLING_INTERVAL);
         window.__PANNELLO_FONTI_POLLING_INTERVAL = null;
@@ -602,112 +630,104 @@ function PannelloFonti({ onClose }) {
     };
   }, []);
 
-  // Funzione aggiornata: carica articoli dalla buffer, sposta solo i nuovi nella tabella definitiva
+  // VERSIONE UNICA CORRETTA di caricaArticoliDalDatabase
   async function caricaArticoliDalDatabase() {
-        // Dopo aver spostato i nuovi articoli, pianifica la pulizia della buffer tra 2 minuti
-        setTimeout(async () => {
-          try {
-            await supabase.from('rss_articles_buffer').delete().neq('id', ''); // Elimina tutto
-            
-          } catch (err) {
-            
-          }
-        }, 2 * 60 * 1000); // 2 minuti
+    if (articoliFetchInFlightRef.current || isLoadingArticoli) {
+      pendingArticoliReloadRef.current = true;
+      return;
+    }
+
+    const now = Date.now();
+    const minIntervalMs = 8000;
+    const timeSinceLast = now - lastArticoliFetchRef.current;
+
+    if (timeSinceLast < minIntervalMs) {
+      if (!articoliReloadTimeoutRef.current) {
+        const waitMs = minIntervalMs - timeSinceLast;
+        articoliReloadTimeoutRef.current = setTimeout(() => {
+          articoliReloadTimeoutRef.current = null;
+          caricaArticoliDalDatabase();
+        }, waitMs);
+      }
+      return;
+    }
+
+    articoliFetchInFlightRef.current = true;
+    setIsLoadingArticoli(true);
     try {
-      // FILTRA PER ULTIMI 3 GIORNI
       const treGiorniFa = new Date();
       treGiorniFa.setDate(treGiorniFa.getDate() - 3);
       
-      // 1. Prendi tutti gli articoli dalla buffer
-      // Filtra anche per categoria: mostra solo articoli dai feed con categoria_id NULL o nelle categorie dell'utente
-      let bufferQuery = supabase
-        .from('rss_articles_buffer')
-        .select(`*, rss_feeds!inner(url, categoria_id, logo_url, card_target)`)
+      let articoliQuery = supabase
+        .from('rss_articles')
+        .select(`
+          *,
+          rss_feeds!inner(url, categoria_id, logo_url, card_target)
+        `)
         .gte('pub_date', treGiorniFa.toISOString())
         .order('pub_date', { ascending: false })
         .limit(1000);
       
-      // Applica filtro categoria sui feed
-      // Se l'utente non ha categorie, mostra tutte le categorie
       if (userCategorieIds.length > 0) {
-        bufferQuery = bufferQuery.or(
+        articoliQuery = articoliQuery.or(
           `categoria_id.is.null,categoria_id.in.(${userCategorieIds.join(',')})`,
           { foreignTable: 'rss_feeds' }
         );
       } else if (formulaECategoryId) {
-        bufferQuery = bufferQuery.neq('rss_feeds.categoria_id', formulaECategoryId);
+        articoliQuery = articoliQuery.neq('rss_feeds.categoria_id', formulaECategoryId);
       }
       
-      const { data: bufferData, error: bufferError } = await bufferQuery;
+      const { data, error } = await articoliQuery;
       
-      if (bufferError) {
-        
-        return;
+      if (!error && data) {
+        const articoliConMeta = data.map(articolo => ({
+          ...articolo,
+          feedSource: articolo.rss_feeds?.url ? new URL(articolo.rss_feeds.url).hostname : 'RSS',
+          feedLogo: normalizeLogoUrl(articolo.rss_feeds?.logo_url) || null,
+          contentSnippet: articolo.description ? articolo.description.replace(/<[^>]*>/g, '').substring(0, 200) + '...' : ''
+        }));
+        setArticoli(articoliConMeta);
+        lastArticoliFetchRef.current = Date.now();
+      } else {
+        console.error('❌ Errore caricamento articoli:', error);
       }
-      if (!bufferData || bufferData.length === 0) {
-        setArticoli([]);
-        return;
-      }
-      // 2. Per ogni articolo in buffer, controlla se esiste già nella tabella definitiva
-      const nuoviArticoli = [];
-      for (const articolo of bufferData) {
-        const { data: esiste, error: errCheck } = await supabase
-          .from('rss_articles')
-          .select('id')
-          .eq('guid', articolo.guid)
-          .eq('feed_id', articolo.feed_id)
-          .maybeSingle();
-        if (errCheck) {
-          
-          continue;
-        }
-        if (!esiste) {
-          // Non esiste: va mostrato e spostato nella tabella definitiva
-          nuoviArticoli.push(articolo);
-          // Inserisci nella tabella definitiva
-          await supabase.from('rss_articles').insert({
-            feed_id: articolo.feed_id,
-            title: articolo.title,
-            link: articolo.link,
-            description: articolo.description,
-            content: articolo.content,
-            pub_date: articolo.pub_date,
-            guid: articolo.guid,
-            author: articolo.author
-          });
-        }
-        // In ogni caso, rimuovi dalla buffer
-        await supabase.from('rss_articles_buffer').delete().eq('id', articolo.id);
-      }
-      // 3. Mostra solo i nuovi articoli
-      const articoliConMeta = nuoviArticoli.map(articolo => ({
-        ...articolo,
-        feedSource: articolo.rss_feeds?.url ? new URL(articolo.rss_feeds.url).hostname : 'RSS',
-        feedLogo: articolo.rss_feeds?.logo_url || null,
-        contentSnippet: articolo.description ? articolo.description.replace(/<[^>]*>/g, '').substring(0, 200) + '...' : ''
-      }));
-      setArticoli(articoliConMeta);
     } catch (error) {
-      
+      const isAbort = error?.name === 'AbortError' || String(error?.message || '').includes('AbortError');
+      if (isAbort) {
+        if (!articoliReloadTimeoutRef.current) {
+          articoliReloadTimeoutRef.current = setTimeout(() => {
+            articoliReloadTimeoutRef.current = null;
+            caricaArticoliDalDatabase();
+          }, 1500);
+        }
+      } else {
+        console.error('❌ Errore caricamento articoli:', error);
+      }
+    } finally {
+      articoliFetchInFlightRef.current = false;
+      setIsLoadingArticoli(false);
+      if (pendingArticoliReloadRef.current) {
+        pendingArticoliReloadRef.current = false;
+        if (!articoliReloadTimeoutRef.current) {
+          articoliReloadTimeoutRef.current = setTimeout(() => {
+            articoliReloadTimeoutRef.current = null;
+            caricaArticoliDalDatabase();
+          }, minIntervalMs);
+        }
+      }
     }
   }
 
-  // Parser per singolo item RSS
   function parseRSSItem(item, feedId) {
     try {
       const pubDateText = item.querySelector('pubDate')?.textContent || '';
       let pubDate = pubDateText ? new Date(pubDateText).toISOString() : null;
       const title = item.querySelector('title')?.textContent || '';
-      if (!title) return null; // Salta articoli senza titolo
+      if (!title) return null;
 
-      // Se non c'è pubDate, prova a ricavare la data relativa da formula1.com
       if (!pubDate) {
-        // Cerca testo tipo "6 ore fa" in description o altrove
         let relativeText = '';
-        // Prova in description
         relativeText = item.querySelector('description')?.textContent || '';
-        // Se non c'è, prova in content:encoded o altrove (aggiungi qui se serve)
-        // Cerca pattern "6 ore fa" o "6 hours ago"
         const relMatch = relativeText.match(/(\d+\s+(minuto|minuti|ora|ore|giorno|giorni|settimana|settimane|mese|mesi|anno|anni|hour|hours|minute|minutes|day|days|week|weeks|month|months|year|years)[a-z]*\s+(fa|ago))/i);
         if (relMatch) {
           const now = new Date();
@@ -715,11 +735,9 @@ function PannelloFonti({ onClose }) {
           if (relDate) {
             pubDate = relDate.toISOString();
           } else {
-            // Pattern trovato ma non parsabile, fallback a ora attuale
             pubDate = now.toISOString();
           }
         } else {
-          // Nessun pattern trovato, fallback a ora attuale
           pubDate = new Date().toISOString();
         }
       }
@@ -743,9 +761,7 @@ function PannelloFonti({ onClose }) {
     }
   }
 
-  // Parser RSS con fallback: prima DOMParser, poi fast-xml-parser se fallisce
   async function parseRSS(xmlText) {
-    // Primo tentativo: DOMParser (browser)
     try {
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(xmlText, "text/xml");
@@ -769,7 +785,7 @@ function PannelloFonti({ onClose }) {
               author: item.querySelector('author')?.textContent || ''
             });
           } catch (itemError) {
-            
+            console.error('❌ Errore parsing item:', itemError);
           }
         });
       } else {
@@ -790,21 +806,18 @@ function PannelloFonti({ onClose }) {
                 author: entry.querySelector('author name')?.textContent || ''
               });
             } catch (entryError) {
-              
+              console.error('❌ Errore parsing entry:', entryError);
             }
           });
         }
       }
       if (items.length > 0) return items;
-      // Se non trova nulla, passa al fallback
       throw new Error('No items found with DOMParser');
     } catch (err) {
-      // Fallback: fast-xml-parser (più tollerante)
       try {
         const parser = new XMLParser({ ignoreAttributes: false });
         const parsed = parser.parse(xmlText);
         let items = [];
-        // RSS 2.0
         if (parsed.rss && parsed.rss.channel) {
           const channel = parsed.rss.channel;
           const rawItems = Array.isArray(channel.item) ? channel.item : [channel.item];
@@ -817,7 +830,6 @@ function PannelloFonti({ onClose }) {
             author: item.author || ''
           })).filter(i => i.title);
         } else if (parsed.feed && parsed.feed.entry) {
-          // Atom
           const entries = Array.isArray(parsed.feed.entry) ? parsed.feed.entry : [parsed.feed.entry];
           items = entries.filter(Boolean).map(entry => ({
             title: decodeHtmlEntities(entry.title || ''),
@@ -835,65 +847,11 @@ function PannelloFonti({ onClose }) {
     }
   }
 
-  // Funzione per caricare articoli dal database (fuori da parseRSS)
-  async function caricaArticoliDalDatabase() {
-    if (isLoadingArticoli) return;
-    setIsLoadingArticoli(true);
-    try {
-      
-      // FILTRA PER ULTIMI 3 GIORNI
-      const treGiorniFa = new Date();
-      treGiorniFa.setDate(treGiorniFa.getDate() - 3);
-      
-      let articoliQuery = supabase
-        .from('rss_articles')
-        .select(`
-          *,
-          rss_feeds!inner(url, categoria_id, logo_url, card_target)
-        `)
-        .gte('pub_date', treGiorniFa.toISOString())
-        .order('pub_date', { ascending: false })
-        .limit(1000);
-      
-      // Applica filtro categoria
-      // Se l'utente non ha categorie, mostra tutte le categorie
-      if (userCategorieIds.length > 0) {
-        articoliQuery = articoliQuery.or(
-          `categoria_id.is.null,categoria_id.in.(${userCategorieIds.join(',')})`,
-          { foreignTable: 'rss_feeds' }
-        );
-      } else if (formulaECategoryId) {
-        articoliQuery = articoliQuery.neq('rss_feeds.categoria_id', formulaECategoryId);
-      }
-      
-      const { data, error } = await articoliQuery;
-      
-      if (!error && data) {
-        
-        const articoliConMeta = data.map(articolo => ({
-          ...articolo,
-          feedSource: articolo.rss_feeds?.url ? new URL(articolo.rss_feeds.url).hostname : 'RSS',
-          feedLogo: normalizeLogoUrl(articolo.rss_feeds?.logo_url) || null,
-          contentSnippet: articolo.description ? articolo.description.replace(/<[^>]*>/g, '').substring(0, 200) + '...' : ''
-        }));
-        setArticoli(articoliConMeta);
-      } else {
-        
-      }
-    } catch (error) {
-      
-    } finally {
-      setIsLoadingArticoli(false);
-    }
-  }
-
   async function controllaNuoviArticoli() {
     try {
       if (isSyncingFeedsRef.current || loadingFeeds) return;
       setLoadingFeeds(true);
       
-      // Prima scarica nuovi articoli dai feed
-      // Filtra i feed per categoria
       let feedsQuery = supabase.from("rss_feeds").select("*");
       
       if (userCategorieIds.length > 0) {
@@ -904,20 +862,14 @@ function PannelloFonti({ onClose }) {
       
       const { data: feedsData, error: feedsError } = await feedsQuery;
       if (feedsError) {
-        
+        console.error('❌ Errore caricamento feed:', feedsError);
         return;
       }
       
-      // ...log polling feed rimosso...
-      
       if (feedsData && feedsData.length > 0) {
         await estraiArticoliDaFeeds(feedsData);
-      } else {
-        
       }
       
-      // Poi carica tutti gli articoli dal database (inclusi quelli nuovi)
-      // MOSTRA TUTTI - senza filtro 3 giorni per vedere tutti i feed
       let articoliQuery = supabase
         .from('rss_articles')
         .select(`
@@ -925,10 +877,8 @@ function PannelloFonti({ onClose }) {
           rss_feeds!inner(url, categoria_id, logo_url, card_target)
         `)
         .order('pub_date', { ascending: false })
-        .limit(1000); // Aumentato limite per vedere più articoli
+        .limit(1000);
       
-      // Applica filtro categoria
-      // Se l'utente non ha categorie, mostra tutte le categorie
       if (userCategorieIds.length > 0) {
         articoliQuery = articoliQuery.or(
           `categoria_id.is.null,categoria_id.in.(${userCategorieIds.join(',')})`,
@@ -941,7 +891,6 @@ function PannelloFonti({ onClose }) {
       const { data, error } = await articoliQuery;
       
       if (!error && data) {
-        // ...log polling articoli rimosso...
         const articoliConMeta = data.map(articolo => ({
           ...articolo,
           feedSource: articolo.rss_feeds?.url ? new URL(articolo.rss_feeds.url).hostname : 'RSS',
@@ -949,21 +898,17 @@ function PannelloFonti({ onClose }) {
           contentSnippet: articolo.description ? articolo.description.replace(/<[^>]*>/g, '').substring(0, 200) + '...' : ''
         }));
         setArticoli(articoliConMeta);
-      } else {
-        
       }
     } catch (error) {
-      
+      console.error('❌ Errore controllaNuoviArticoli:', error);
     } finally {
       setLoadingFeeds(false);
-      
     }
   }
 
   async function caricaFeedEDArticoli(username) {
     setLoading(true);
     
-    // 1. Carica le categorie dell'utente
     const { data: gruppiUtente } = await supabase
       .from('gruppi_redattori')
       .select('categoria_id')
@@ -973,11 +918,8 @@ function PannelloFonti({ onClose }) {
       ? gruppiUtente.map(g => g.categoria_id).filter(Boolean) 
       : [];
     
-    console.log('🔍 [caricaFeedEDArticoli] Username:', username, 'Categorie:', categorieIds);
-    
     setUserCategorieIds(categorieIds);
 
-    // 1b. Recupera categoria Formula E (per restrizioni visibilità)
     try {
       const { data: feCategorie } = await supabase
         .from('categorie_weekend')
@@ -988,35 +930,27 @@ function PannelloFonti({ onClose }) {
         setFormulaECategoryId(feCategorie[0].id);
       }
     } catch (error) {
-      // nessuna azione: fallback senza restrizione
+      // nessuna azione
     }
     
-    // 2. Carica i feed RSS dal database
-    // Filtra: se l'utente ha categorie, mostra solo feed con categoria_id NULL o matching
-    // Se non ha categorie, mostra tutte le categorie
     let feedsQuery = supabase.from("rss_feeds").select("*");
     
     if (categorieIds.length > 0) {
-      // Utente ha categorie: mostra feed con categoria_id NULL o nelle sue categorie
       feedsQuery = feedsQuery.or(`categoria_id.is.null,categoria_id.in.(${categorieIds.join(',')})`);
     } else if (formulaECategoryId) {
-      // Utente senza categorie: mostra tutte le categorie tranne Formula E
       feedsQuery = feedsQuery.neq('categoria_id', formulaECategoryId);
     }
     
     const { data: feedsData, error: feedsError } = await feedsQuery;
     
-    console.log('🔍 [caricaFeedEDArticoli] Feed caricati:', feedsData?.length, 'Errore:', feedsError);
-    
     if (feedsError) {
-      
+      console.error('❌ Errore caricamento feed:', feedsError);
       setLoading(false);
       return;
     }
     
     setFeeds(feedsData || []);
     
-    // Carica articoli dal database
     await caricaArticoliDalDatabase();
     setLoading(false);
   }
@@ -1046,7 +980,7 @@ function PannelloFonti({ onClose }) {
               console.error(`[FETCH] Errore fetch interno:`, fetchErr);
             }
           }
-          // Se fallisce o response non ok, prova rss2json
+          
           if (!response || !response.ok) {
             proxyUsato = 'rss2json';
             const rss2jsonUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed.url)}`;
@@ -1061,7 +995,7 @@ function PannelloFonti({ onClose }) {
               }
             }
           }
-          // Se ancora fallisce, prova feed2json.org
+          
           if (!response || !response.ok) {
             proxyUsato = 'feed2json';
             const feed2jsonUrl = `https://feed2json.org/v1/feed.json?url=${encodeURIComponent(feed.url)}`;
@@ -1076,17 +1010,16 @@ function PannelloFonti({ onClose }) {
               }
             }
           }
-          // Se ancora fallisce, mostra errore e salta
+          
           if (!response || !response.ok) {
             const errMsg = `[FETCH] Tutti i proxy falliti per feed ${feed.url}`;
             console.error(errMsg);
             if (isBBC) alert(`Feed BBC non raggiungibile da nessun proxy pubblico. Prova da un'altra rete o segnala al supporto.`);
             continue;
           }
-          // Parsing risposta
+          
           try {
             if (proxyUsato !== 'interno') {
-              // Se stai usando un proxy pubblico, estrai gli articoli dal JSON
               const json = await response.json();
               if (!json.items || !Array.isArray(json.items)) throw new Error('Proxy pubblico: items non trovati');
               xmlText = '';
@@ -1104,32 +1037,31 @@ function PannelloFonti({ onClose }) {
               articoliDelFeed = (await parseRSS(xmlText)).map(a => ({ ...a, _proxy: 'interno' }));
             }
           } catch (textErr) {
-            
+            console.error('❌ Errore parsing:', textErr);
             if (isBBC) alert(`Errore nel parsing/lettura risposta per feed BBC: ${textErr.message}`);
             continue;
           }
+          
           if (articoliDelFeed.length === 0) {
-            const warnMsg = `[FETCH] Nessun articolo trovato nel feed ${feed.url}`;
-            
+            console.warn(`[FETCH] Nessun articolo trovato nel feed ${feed.url}`);
             if (isBBC) alert(`Feed BBC: nessun articolo trovato`);
           }
-          // Batch upsert articoli per non saturare risorse
+          
           const batchSize = 20;
           for (let i = 0; i < articoliDelFeed.length; i += batchSize) {
             const batch = articoliDelFeed.slice(i, i + batchSize);
             await salvaArticoliBatch(batch, feed);
             await new Promise(resolve => setTimeout(resolve, 120));
           }
-          // NIENTE popup: badge visivo sugli articoli (vedi rendering)
         } catch (error) {
           if (feed.url === BBC_FEED_URL) {
-            
+            console.error('❌ Errore feed BBC:', error);
           } else {
-            
+            console.error('❌ Errore feed:', error);
           }
         }
       }
-      // Pulizia articoli vecchi (più di 10 giorni)
+      
       await puliziaArticoliVecchi();
       await caricaArticoliDalDatabase();
     } finally {
@@ -1145,12 +1077,18 @@ function PannelloFonti({ onClose }) {
 
       const payload = articoliBatch.map(articolo => {
         const pubDate = articolo.pub_date || articolo.pubDate || new Date().toISOString();
+        
+        // ✅ DECODIFICA entità HTML prima di salvare
+        const titoloDecodificato = decodeHtmlEntities(articolo.title || '');
+        const descrizioneDecodificata = decodeHtmlEntities(articolo.description || '');
+        const contentDecodificato = decodeHtmlEntities(articolo.content || '');
+        
         return {
           feed_id: feed.id,
-          title: articolo.title,
+          title: titoloDecodificato,
           link: articolo.link,
-          description: articolo.description,
-          content: articolo.content,
+          description: descrizioneDecodificata,
+          content: contentDecodificato,
           pub_date: pubDate,
           guid: articolo.guid || articolo.link,
           author: articolo.author || null
@@ -1190,83 +1128,8 @@ function PannelloFonti({ onClose }) {
     }
   }
 
-  async function salvaArticolo(articolo) {
-    try {
-      // ...log salvataggio articolo rimosso...
-      
-      // Controlla se l'articolo esiste già
-      const { data: esistente, error: checkError } = await supabase
-        .from('rss_articles')
-        .select('id')
-        .eq('guid', articolo.guid || articolo.link)
-        .eq('feed_id', articolo.feedId)
-        .maybeSingle();
-
-      if (checkError) {
-        
-        return;
-      }
-
-      // ...log articolo esistente rimosso...
-
-      if (esistente) {
-        // Aggiorna solo se l'articolo è più recente di 3 giorni
-        const treGiorniFa = new Date();
-        treGiorniFa.setDate(treGiorniFa.getDate() - 3);
-        
-        if (new Date(articolo.pub_date) > treGiorniFa) {
-          // ...log aggiornamento articolo rimosso...
-          const { error: updateError } = await supabase
-            .from('rss_articles')
-            .update({
-              title: articolo.title,
-              description: articolo.description,
-              content: articolo.content,
-              pub_date: articolo.pub_date, // Già in formato ISO dal parser
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', esistente.id);
-          
-          if (updateError) {
-            console.error('❌ Errore aggiornamento:', updateError);
-          } else {
-            // ...log articolo aggiornato rimosso...
-          }
-        } else {
-          // ...log articolo troppo vecchio rimosso...
-        }
-      } else {
-        // Inserisce nuovo articolo con upsert per gestire duplicati
-        // ...log inserimento nuovo articolo rimosso...
-        const { error: insertError } = await supabase
-          .from('rss_articles')
-          .upsert({
-            feed_id: articolo.feedId,
-            title: articolo.title,
-            link: articolo.link,
-            description: articolo.description,
-            content: articolo.content,
-            pub_date: articolo.pub_date, // Già in formato ISO dal parser
-            guid: articolo.guid || articolo.link,
-            author: articolo.author
-          }, {
-            onConflict: 'guid,feed_id' // Gestisce conflitti su guid+feed_id
-          });
-        
-        if (insertError) {
-          console.error('❌ Errore inserimento:', insertError);
-        } else {
-          // ...log articolo inserito/aggiornato rimosso...
-        }
-      }
-    } catch (error) {
-      console.error('❌ Errore generico salvataggio articolo:', error);
-    }
-  }
-
   async function puliziaArticoliVecchi() {
     try {
-      // Cancella articoli più vecchi di 10 giorni
       const dieciGiorniFa = new Date();
       dieciGiorniFa.setDate(dieciGiorniFa.getDate() - 10);
       
@@ -1277,102 +1140,9 @@ function PannelloFonti({ onClose }) {
       
       if (error) {
         console.error('Errore pulizia articoli vecchi:', error);
-      } else {
-        // ...log pulizia completata rimosso...
       }
     } catch (error) {
       console.error('Errore durante pulizia:', error);
-    }
-  }
-
-  async function caricaArticoliDalDatabase() {
-    if (articoliFetchInFlightRef.current || isLoadingArticoli) {
-      pendingArticoliReloadRef.current = true;
-      return;
-    }
-
-    const now = Date.now();
-    const minIntervalMs = 8000;
-    const timeSinceLast = now - lastArticoliFetchRef.current;
-
-    if (timeSinceLast < minIntervalMs) {
-      if (!articoliReloadTimeoutRef.current) {
-        const waitMs = minIntervalMs - timeSinceLast;
-        articoliReloadTimeoutRef.current = setTimeout(() => {
-          articoliReloadTimeoutRef.current = null;
-          caricaArticoliDalDatabase();
-        }, waitMs);
-      }
-      return;
-    }
-
-    articoliFetchInFlightRef.current = true;
-    setIsLoadingArticoli(true);
-    try {
-      // FILTRA PER ULTIMI 3 GIORNI
-      const treGiorniFa = new Date();
-      treGiorniFa.setDate(treGiorniFa.getDate() - 3);
-      
-      let articoliQuery = supabase
-        .from('rss_articles')
-        .select(`
-          *,
-          rss_feeds!inner(url, categoria_id, logo_url, card_target)
-        `)
-        .gte('pub_date', treGiorniFa.toISOString())
-        .order('pub_date', { ascending: false })
-        .limit(1000);
-      
-      // Applica filtro categoria
-      // Se l'utente non ha categorie, mostra tutte le categorie
-      if (userCategorieIds.length > 0) {
-        articoliQuery = articoliQuery.or(
-          `categoria_id.is.null,categoria_id.in.(${userCategorieIds.join(',')})`,
-          { foreignTable: 'rss_feeds' }
-        );
-      } else if (formulaECategoryId) {
-        articoliQuery = articoliQuery.neq('rss_feeds.categoria_id', formulaECategoryId);
-      }
-      
-      const { data, error } = await articoliQuery;
-      
-      if (!error && data) {
-        
-        const articoliConMeta = data.map(articolo => ({
-          ...articolo,
-          feedSource: articolo.rss_feeds?.url ? new URL(articolo.rss_feeds.url).hostname : 'RSS',
-          feedLogo: normalizeLogoUrl(articolo.rss_feeds?.logo_url) || null,
-          contentSnippet: articolo.description ? articolo.description.replace(/<[^>]*>/g, '').substring(0, 200) + '...' : ''
-        }));
-        setArticoli(articoliConMeta);
-        lastArticoliFetchRef.current = Date.now();
-      } else {
-        console.error('❌ Errore caricamento articoli:', error);
-      }
-    } catch (error) {
-      const isAbort = error?.name === 'AbortError' || String(error?.message || '').includes('AbortError');
-      if (isAbort) {
-        if (!articoliReloadTimeoutRef.current) {
-          articoliReloadTimeoutRef.current = setTimeout(() => {
-            articoliReloadTimeoutRef.current = null;
-            caricaArticoliDalDatabase();
-          }, 1500);
-        }
-      } else {
-        console.error('❌ Errore caricamento articoli:', error);
-      }
-    } finally {
-      articoliFetchInFlightRef.current = false;
-      setIsLoadingArticoli(false);
-      if (pendingArticoliReloadRef.current) {
-        pendingArticoliReloadRef.current = false;
-        if (!articoliReloadTimeoutRef.current) {
-          articoliReloadTimeoutRef.current = setTimeout(() => {
-            articoliReloadTimeoutRef.current = null;
-            caricaArticoliDalDatabase();
-          }, minIntervalMs);
-        }
-      }
     }
   }
 
@@ -1415,7 +1185,7 @@ function PannelloFonti({ onClose }) {
           continue;
         }
         if (isAbort) {
-          console.error('❌ Prenotazione annullata dall’utente o timeout (AbortError)');
+          console.error('❌ Prenotazione annullata dall\'utente o timeout (AbortError)');
           alert('Prenotazione annullata: richiesta interrotta o timeout.');
         } else {
           let msg = error.message || error.details || error.code || '';
@@ -1499,19 +1269,14 @@ function PannelloFonti({ onClose }) {
   }
 
   function formatDate(dateString) {
-    // ...log chiamata formatDate rimosso...
-    
     if (!dateString || dateString === null || dateString === undefined) {
-      // ...log data null rimosso...
       return "Data non disponibile";
     }
     if (dateString === "") {
-      // ...log data stringa vuota rimosso...
       return "Data non disponibile";
     }
     
     try {
-      // Se è già un oggetto Date, usalo direttamente
       let date;
       if (dateString instanceof Date) {
         date = dateString;
@@ -1519,11 +1284,7 @@ function PannelloFonti({ onClose }) {
         date = new Date(dateString);
       }
       
-      // ...log oggetto data creato rimosso...
-      
-      // Controlla se la data è valida
       if (isNaN(date.getTime())) {
-        // ...log data non valida rimosso...
         return "Data non valida";
       }
       
@@ -1535,7 +1296,6 @@ function PannelloFonti({ onClose }) {
         minute: '2-digit'
       });
       
-      // ...log data formattata rimosso...
       return formatted;
       
     } catch (error) {
@@ -1585,7 +1345,7 @@ function PannelloFonti({ onClose }) {
           }
         `}
       </style>
-      {/* Header: titolo, back, feed info */}
+      {/* Header */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -1674,7 +1434,7 @@ function PannelloFonti({ onClose }) {
         </div>
       </div>
 
-      {/* Barra di ricerca */}
+      {/* Barra ricerca */}
       <div style={{ padding: '16px 20px', background: '#fff', borderBottom: '1px solid #eee' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <input
@@ -1721,6 +1481,7 @@ function PannelloFonti({ onClose }) {
         </div>
       </div>
 
+      {/* Modal filtri - IDENTICO AL TUO */}
       {showFiltriModal && (
         <div
           style={{
@@ -2021,7 +1782,7 @@ function PannelloFonti({ onClose }) {
         </div>
       )}
 
-      {/* Articoli a tutta pagina */}
+      {/* Lista articoli */}
       <div style={{ 
         flex: 1, 
         overflow: 'hidden',
@@ -2048,7 +1809,6 @@ function PannelloFonti({ onClose }) {
           }}>
             {articoliFiltrati
               .map((articolo, index) => {
-                // ...log rendering articolo rimosso...
                 const origine = getOrigineArticolo(articolo);
                 const stato = getStatoArticolo(articolo.id);
                 const coloreStato = getStatoColore(stato);
@@ -2080,7 +1840,6 @@ function PannelloFonti({ onClose }) {
                     >
                       {decodeHtmlEntities(articolo.title) || 'Senza titolo'}
                     </a>
-                    {/* Badge proxy pubblico se presente */}
                     {articolo._proxy && articolo._proxy !== 'interno' && (
                       <span style={{
                         background: articolo._proxy === 'rss2json' ? '#007AFF' : '#28a745',
@@ -2132,7 +1891,6 @@ function PannelloFonti({ onClose }) {
                     </div>
                   )}
                   <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-                    {/* I bottoni sono sempre visibili, solo disabilitati durante azioni */}
                     {stato === 'vuoto' && (
                       <button 
                         onClick={() => prenotaArticolo(articolo)}
