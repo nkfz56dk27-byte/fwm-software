@@ -173,6 +173,24 @@ export async function registraDispositivoNotifiche(username) {
       console.warn('[OneSignal] Errore durante il recupero player_id:', errorMsg);
     }
 
+    // --- CHECK: esiste già una riga con username+device_id+player_id? ---
+    if (playerId) {
+      const { data: existing, error: checkError } = await supabase
+        .from('push_devices')
+        .select('id')
+        .eq('username', username)
+        .eq('device_id', deviceId)
+        .eq('player_id', playerId)
+        .limit(1);
+      if (checkError) {
+        console.warn('[OneSignal] Errore controllo esistenza device:', checkError);
+      }
+      if (existing && existing.length > 0) {
+        console.log('[OneSignal] Device già registrato su push_devices:', { username, deviceId, playerId });
+        return true;
+      }
+    }
+
     if (!playerId) {
       const msg = '❌ [OneSignal] player_id non ottenuto con nessun metodo.' + (errorMsg ? ' Errore: ' + errorMsg : '');
       lastError = msg;
