@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import versus from './assets/versus.svg';
+import versus from 'src/assets/versus.svg';
 // ===== CALCOLA PUNTI POSIZIONE =====
 function calcolaPuntiPosizione(pos, tipoGara, classifica = null) {
   // Se è attivo il modificatore libero, usa l'array personalizzato
