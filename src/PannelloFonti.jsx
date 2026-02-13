@@ -475,8 +475,8 @@ function PannelloFonti({ onClose }) {
     const feedMatch = feedFiltersSet.has(String(feed?.id));
     if (feedMatch) return true;
     if (keywordFiltersLower.length === 0) return false;
-    const testo = `${articolo.title || ''} ${articolo.description || ''} ${articolo.content || ''}`.toLowerCase();
-    return keywordFiltersLower.some(k => testo.includes(k));
+    const titolo = (articolo.title || '').toLowerCase();
+    return keywordFiltersLower.some(k => titolo.includes(k));
   }
 
   async function inviaNotificheFiltrate(nuoviArticoli, feed) {
@@ -490,8 +490,16 @@ function PannelloFonti({ onClose }) {
       host = 'RSS';
     }
 
+    // Deduplica notifiche: una sola notifica per utente/articolo anche se matcha più filtri
+    const notificheInviate = new Set();
+
     for (const articolo of nuoviArticoli) {
       if (!articoloMatchaFiltri(articolo, feed)) continue;
+      // Chiave deduplica: guid + username
+      const guid = articolo.guid || articolo.id || articolo.link || '';
+      const dedupKey = `${guid}::${username}`;
+      if (notificheInviate.has(dedupKey)) continue;
+      notificheInviate.add(dedupKey);
       const titolo = (articolo.title || '').trim() || 'Nuovo articolo RSS';
       await inserisciNotificaPush({
         title: titolo,
@@ -502,11 +510,9 @@ function PannelloFonti({ onClose }) {
         data: {
           link: articolo.link || null,
           feed_id: feed?.id || null,
-          feed_url: feed?.url || null,
-          guid: articolo.guid || null
+          guid: guid
         }
       });
-    }
   }
 
   useEffect(() => {
