@@ -146,7 +146,7 @@ import { ascolaNotificheRealtime } from './pushNotificationService'
 import { sendPushNotification } from './pushNotificationService'
 import GestioneDispositiviNotifiche from './GestioneDispositiviNotifiche.jsx'
 import { ToastNotification } from './ToastNotification.jsx'
-import { getFirebaseToken, setupForegroundMessaging } from './firebaseMessaging'
+// import { getFirebaseToken, setupForegroundMessaging } from './firebaseMessaging'
 
 import './App.css'
 
@@ -249,14 +249,7 @@ function App() {
     })
 
     setNotificheUnsubscribe(() => unsubscribe)
-
-    // Ascolta le notifiche push in foreground (FCM)
-    setupForegroundMessaging((notifica) => {
-      // Mostra il toast solo se la tab è attiva
-      if (document.visibilityState === 'visible') {
-        setToastNotification(notifica)
-      }
-    })
+    // RIMOSSO: Ascolto notifiche push in foreground (FCM) - ora gestite solo da OneSignal
 
     // Cleanup: stoppa l'ascolto quando il componente si smonta
     return () => {
@@ -500,24 +493,7 @@ function App() {
     console.log('[DEBUG LOGIN] Login riuscito, user:', user)
     sessionStorage.setItem('username', username)
     console.log('[DEBUG LOGIN] Username salvato in sessionStorage')
-    
-    // Inizializza Firebase Cloud Messaging
-    console.log('[DEBUG LOGIN] Inizializzando Firebase Messaging...')
-    try {
-      const fcmToken = await getFirebaseToken(username, user.id)
-      console.log('[DEBUG LOGIN] Token FCM ottenuto:', fcmToken)
-      if (fcmToken) {
-        console.log('[DEBUG LOGIN] Firebase token ottenuto - notifiche push attive')
-        setupForegroundMessaging((notifica) => {
-          console.log('[DEBUG LOGIN] FCM notifica ricevuta in foreground:', notifica.titolo)
-          setToastNotification(notifica)
-        })
-      } else {
-        console.warn('[DEBUG LOGIN] Nessun token FCM ottenuto, controlla permessi e Service Worker')
-      }
-    } catch (err) {
-      console.error('[DEBUG LOGIN] Errore forzato getFirebaseToken:', err)
-    }
+    // RIMOSSO: Inizializzazione Firebase Messaging per notifiche web
     
     // Inizializza OneSignal con polling intelligente
     // Rimosso: la registrazione OneSignal viene gestita solo all'avvio
