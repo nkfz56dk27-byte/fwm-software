@@ -120,6 +120,23 @@ import PannelloFonti from './PannelloFonti.jsx'
 import GestioneRSSModal from './GestioneRSSModal.jsx'
 // ...existing code...
 import { useState, useEffect } from 'react'
+// Forza la cancellazione del database IndexedDB di OneSignal all'avvio
+try {
+  if (window.indexedDB) {
+    const req = window.indexedDB.deleteDatabase('OneSignalSDKDB');
+    req.onsuccess = function() {
+      console.log('[OneSignal] IndexedDB cancellato con successo');
+    };
+    req.onerror = function(e) {
+      console.warn('[OneSignal] Errore cancellazione IndexedDB:', e);
+    };
+    req.onblocked = function() {
+      console.warn('[OneSignal] Cancellazione IndexedDB bloccata');
+    };
+  }
+} catch (e) {
+  console.warn('[OneSignal] Errore generale cancellazione IndexedDB:', e);
+}
 import { supabase } from './supabaseClient'
 import CoppaSVG from "./assets/coppa.svg"
 import StatistichePNG from "./assets/Statistiche.png"
