@@ -121,10 +121,12 @@ import GestioneRSSModal from './GestioneRSSModal.jsx'
 // ...existing code...
 import { useState, useEffect } from 'react'
 // Cancella IndexedDB OneSignal solo al primo avvio (controllo con localStorage)
+// Cancellazione IndexedDB OneSignal solo se versione app cambia o mai fatta
 let oneSignalReadyPromise = null;
+const APP_VERSION = window?.APP_VERSION || '1.0.0';
 if (typeof window !== 'undefined' && window.indexedDB) {
-  const alreadyCleaned = localStorage.getItem('onesignal_db_cleaned');
-  if (!alreadyCleaned) {
+  const cleanedVersion = localStorage.getItem('onesignal_db_cleaned_version');
+  if (cleanedVersion !== APP_VERSION) {
     oneSignalReadyPromise = new Promise((resolve) => {
       try {
         const req = window.indexedDB.deleteDatabase('OneSignalSDKDB');
@@ -132,28 +134,28 @@ if (typeof window !== 'undefined' && window.indexedDB) {
           if (process.env.NODE_ENV !== 'production') {
             console.log('[OneSignal] IndexedDB cancellato con successo');
           }
-          localStorage.setItem('onesignal_db_cleaned', 'true');
+          localStorage.setItem('onesignal_db_cleaned_version', APP_VERSION);
           resolve();
         };
         req.onerror = function(e) {
           if (process.env.NODE_ENV !== 'production') {
             console.warn('[OneSignal] Errore cancellazione IndexedDB:', e);
           }
-          localStorage.setItem('onesignal_db_cleaned', 'true');
+          localStorage.setItem('onesignal_db_cleaned_version', APP_VERSION);
           resolve(); // Prosegui comunque
         };
         req.onblocked = function() {
           if (process.env.NODE_ENV !== 'production') {
             console.warn('[OneSignal] Cancellazione IndexedDB bloccata');
           }
-          localStorage.setItem('onesignal_db_cleaned', 'true');
+          localStorage.setItem('onesignal_db_cleaned_version', APP_VERSION);
           resolve(); // Prosegui comunque
         };
       } catch (e) {
         if (process.env.NODE_ENV !== 'production') {
           console.warn('[OneSignal] Errore generale cancellazione IndexedDB:', e);
         }
-        localStorage.setItem('onesignal_db_cleaned', 'true');
+        localStorage.setItem('onesignal_db_cleaned_version', APP_VERSION);
         resolve();
       }
     });
@@ -456,14 +458,31 @@ function App() {
           const deviceId = getDeviceId();
           // Controlla su Supabase se esiste già la riga
           if (playerId) {
-            const { data: existing, error: checkError } = await supabase
-              .from('push_devices')
-              .select('id')
-              .eq('username', user.username)
-              .eq('device_id', deviceId)
-              .eq('player_id', playerId)
-              .limit(1);
-            if (!checkError && existing && existing.length > 0) {
+            let existing = null;
+            let checkError = null;
+            try {
+              const res = await supabase
+                .from('push_devices')
+                .select('id')
+                .eq('username', user.username)
+                .eq('device_id', deviceId)
+                .eq('player_id', playerId)
+                .limit(1);
+              existing = res.data;
+              checkError = res.error;
+            } catch (err) {
+              checkError = err;
+            }
+            if (checkError) {
+              console.warn('[DEBUG LOGIN] Errore query push_devices:', checkError, { username: user.username, deviceId, playerId });
+              // Se errore 400, non tentare la registrazione
+              if (checkError.status === 400) {
+                playerIdRegistrato = true;
+                clearInterval(playerIdPollingInterval);
+                return;
+              }
+            }
+            if (existing && existing.length > 0) {
               // Già registrato, non fare nulla
               playerIdRegistrato = true;
               clearInterval(playerIdPollingInterval);
