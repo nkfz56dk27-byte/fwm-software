@@ -24,10 +24,10 @@ function decodeHtmlEntities(str) {
     '&nbsp;': ' ',
     '&ndash;': '–',
     '&mdash;': '—',
-    '&lsquo;': '\u2018', // ' (apice curvo sinistro)
-    '&rsquo;': '\u2019', // ' (apice curvo destro)
-    '&ldquo;': '\u201C', // " (virgoletta curva sinistra)
-    '&rdquo;': '\u201D', // " (virgoletta curva destra)
+    '&lsquo;': '\u2018',
+    '&rsquo;': '\u2019',
+    '&ldquo;': '\u201C',
+    '&rdquo;': '\u201D',
     '&hellip;': '…',
     '&euro;': '€',
     '&pound;': '£',
@@ -44,7 +44,6 @@ function decodeHtmlEntities(str) {
 }
 
 function PannelloFonti({ onClose }) {
-  // Funzione per calcolare la data/orario assoluti da stringhe tipo "6 ore fa"
   function parseRelativeDate(text, now = new Date()) {
     if (!text) return null;
     const match = text.match(/(\d+)\s+(minuto|minuti|ora|ore|giorno|giorni|settimana|settimane|mese|mesi|anno|anni|hour|hours|minute|minutes|day|days|week|weeks|month|months|year|years)[a-z]*\s+(fa|ago)/i);
@@ -508,163 +507,176 @@ function PannelloFonti({ onClose }) {
     setShowDebugLogs(true);
   }
 
-  // ✅ FUNZIONE CORRETTA CON LOGICA GIUSEPPE + LOG NEL DATABASE
-  async function articoloMatchaFiltri(articolo, feed) {
-    const hasKeywords = keywordFiltersLower.length > 0;
-    const hasFeeds = feedFiltersSet.size > 0;
-    
-    // Nessun filtro → non mandare nulla
-    if (!hasKeywords && !hasFeeds) {
-      return false;
+  // ✅ FUNZIONE TEST - Testa filtri sugli articoli ATTUALI
+  async function testaFiltriSuArticoliAttuali() {
+    if (!username) {
+      alert('Nessun utente loggato');
+      return;
     }
-    
-    const feedIsSelected = feedFiltersSet.has(String(feed?.id));
-    const titoloRaw = articolo.title || '';
-    const titoloDecodificato = decodeHtmlEntities(titoloRaw).toLowerCase();
-    
-    // Prepara log per database
-    const logData = {
-      titolo_raw: titoloRaw,
-      titolo_decodificato: decodeHtmlEntities(titoloRaw),
-      feed_url: feed?.url || 'N/A',
-      feed_name: feed?.name || 'N/A',
-      keywords_attive: keywordFiltersLower,
-      feed_selezionati: Array.from(feedFiltersSet),
-      feed_is_selected: feedIsSelected,
-      username: username,
-      timestamp: new Date().toISOString()
-    };
-    
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // CASO 1: SOLO KEYWORD (nessun feed selezionato)
-    // → Ricevi SOLO articoli con keyword da TUTTI i feed
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    if (hasKeywords && !hasFeeds) {
-      logData.caso = 'SOLO_KEYWORD';
+
+    // Carica i filtri dell'utente corrente
+    try {
+      const { data: filtriData, error: filtriError } = await supabase
+        .from('rss_notification_filters')
+        .select('filter_type, value')
+        .eq('username', username);
+
+      if (filtriError) {
+        console.error('Errore caricamento filtri:', filtriError);
+        alert('Errore caricamento filtri');
+        return;
+      }
+
+      const filtriUtente = { keywords: [], feeds: [] };
       
-      for (const keyword of keywordFiltersLower) {
-        const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-        const match = regex.test(titoloDecodificato);
-        
-        if (match) {
-          logData.risultato = 'NOTIFICA_INVIATA';
-          logData.motivo = `Keyword "${keyword}" trovata nel titolo`;
-          logData.keyword_match = keyword;
+      for (const filtro of filtriData || []) {
+        if (filtro.filter_type === 'keyword' && filtro.value) {
+          const keywordPulita = filtro.value.trim().toLowerCase();
+          if (keywordPulita) {
+            filtriUtente.keywords.push(keywordPulita);
+          }
+        } else if (filtro.filter_type === 'feed' && filtro.value) {
+          filtriUtente.feeds.push(String(filtro.value));
+        }
+      }
+
+      if (filtriUtente.keywords.length === 0 && filtriUtente.feeds.length === 0) {
+        alert('Nessun filtro impostato! Aggiungi keyword o feed prima di testare.');
+        return;
+      }
+
+      // Prendi gli ultimi 20 articoli
+      const articoliDaTestare = articoliFiltrati.slice(0, 20);
+
+      if (articoliDaTestare.length === 0) {
+        alert('Nessun articolo da testare!');
+        return;
+      }
+
+      // Testa ogni articolo
+      for (const articolo of articoliDaTestare) {
+        const titoloRaw = (articolo.title || '').trim();
+        const titoloDecodificato = decodeHtmlEntities(titoloRaw);
+        const titoloLower = titoloDecodificato.toLowerCase();
+
+        const hasKeywords = filtriUtente.keywords.length > 0;
+        const hasFeeds = filtriUtente.feeds.length > 0;
+        const feedIsSelected = filtriUtente.feeds.includes(String(articolo.feed_id));
+
+        let shouldNotify = false;
+        let motivo = '';
+        let keywordMatch = null;
+        let debugInfo = {
+          titolo_raw: titoloRaw,
+          titolo_decodificato: titoloDecodificato,
+          titolo_lowercase: titoloLower,
+          feed_url: articolo.feedSource || 'N/A',
+          feed_name: articolo.feedSource || 'N/A',
+          feed_id: String(articolo.feed_id || 'N/A'),
+          feed_is_selected: feedIsSelected,
+          keywords_attive: filtriUtente.keywords,
+          feed_selezionati: filtriUtente.feeds,
+          username: username,
+          test_keyword_dettaglio: []
+        };
+
+        // CASO 1: SOLO KEYWORD
+        if (hasKeywords && !hasFeeds) {
+          debugInfo.caso = 'SOLO_KEYWORD';
           
-          // Salva log nel database
-          try {
-            await supabase.from('rss_notification_logs').insert([logData]);
-          } catch (err) {
-            console.error('Errore salvataggio log:', err);
+          for (const keyword of filtriUtente.keywords) {
+            const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regexTest = new RegExp(`\\b${escaped}\\b`, 'i');
+            const match = regexTest.test(titoloLower);
+            const includesTest = titoloLower.includes(keyword);
+            
+            debugInfo.test_keyword_dettaglio.push({
+              keyword: keyword,
+              regex_pattern: `\\b${escaped}\\b`,
+              regex_match: match,
+              includes_match: includesTest,
+              titolo_contiene: titoloLower.indexOf(keyword) !== -1 ? `Trovato a posizione ${titoloLower.indexOf(keyword)}` : 'Non trovato'
+            });
+            
+            if (match) {
+              shouldNotify = true;
+              motivo = `Keyword "${keyword}" trovata (regex match)`;
+              keywordMatch = keyword;
+              break;
+            }
           }
           
-          return true;
-        }
-      }
-      
-      logData.risultato = 'NESSUNA_NOTIFICA';
-      logData.motivo = `Nessuna keyword trovata. Keywords cercate: ${keywordFiltersLower.join(', ')}`;
-      
-      // Salva log nel database
-      try {
-        await supabase.from('rss_notification_logs').insert([logData]);
-      } catch (err) {
-        console.error('Errore salvataggio log:', err);
-      }
-      
-      return false;
-    }
-    
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // CASO 2: SOLO FEED (nessuna keyword)
-    // → Ricevi TUTTI gli articoli dai feed selezionati
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    if (!hasKeywords && hasFeeds) {
-      logData.caso = 'SOLO_FEED';
-      
-      if (feedIsSelected) {
-        logData.risultato = 'NOTIFICA_INVIATA';
-        logData.motivo = 'Feed selezionato dall\'utente';
-        
-        try {
-          await supabase.from('rss_notification_logs').insert([logData]);
-        } catch (err) {
-          console.error('Errore salvataggio log:', err);
-        }
-        
-        return true;
-      }
-      
-      logData.risultato = 'NESSUNA_NOTIFICA';
-      logData.motivo = 'Feed non selezionato';
-      
-      try {
-        await supabase.from('rss_notification_logs').insert([logData]);
-      } catch (err) {
-        console.error('Errore salvataggio log:', err);
-      }
-      
-      return false;
-    }
-    
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    // CASO 3: KEYWORD + FEED (entrambi attivi)
-    // → TUTTI gli articoli dai feed selezionati
-    // → SOLO keyword dagli altri feed
-    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    if (hasKeywords && hasFeeds) {
-      logData.caso = 'KEYWORD_E_FEED';
-      
-      if (feedIsSelected) {
-        logData.risultato = 'NOTIFICA_INVIATA';
-        logData.motivo = 'Feed selezionato (keyword ignorate)';
-        
-        try {
-          await supabase.from('rss_notification_logs').insert([logData]);
-        } catch (err) {
-          console.error('Errore salvataggio log:', err);
-        }
-        
-        return true;
-      }
-      
-      // Feed NON selezionato → controlla keyword
-      for (const keyword of keywordFiltersLower) {
-        const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-        const match = regex.test(titoloDecodificato);
-        
-        if (match) {
-          logData.risultato = 'NOTIFICA_INVIATA';
-          logData.motivo = `Keyword "${keyword}" trovata in feed non selezionato`;
-          logData.keyword_match = keyword;
-          
-          try {
-            await supabase.from('rss_notification_logs').insert([logData]);
-          } catch (err) {
-            console.error('Errore salvataggio log:', err);
+          if (!shouldNotify) {
+            motivo = `Nessuna keyword trovata. Keywords cercate: ${filtriUtente.keywords.join(', ')}`;
           }
-          
-          return true;
         }
+        
+        // CASO 2: SOLO FEED
+        else if (!hasKeywords && hasFeeds) {
+          debugInfo.caso = 'SOLO_FEED';
+          
+          if (feedIsSelected) {
+            shouldNotify = true;
+            motivo = 'Feed selezionato';
+          } else {
+            motivo = 'Feed non selezionato';
+          }
+        }
+        
+        // CASO 3: KEYWORD + FEED
+        else if (hasKeywords && hasFeeds) {
+          debugInfo.caso = 'KEYWORD_E_FEED';
+          
+          if (feedIsSelected) {
+            shouldNotify = true;
+            motivo = 'Feed selezionato (keyword ignorate)';
+          } else {
+            for (const keyword of filtriUtente.keywords) {
+              const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regexTest = new RegExp(`\\b${escaped}\\b`, 'i');
+              const match = regexTest.test(titoloLower);
+              const includesTest = titoloLower.includes(keyword);
+              
+              debugInfo.test_keyword_dettaglio.push({
+                keyword: keyword,
+                regex_pattern: `\\b${escaped}\\b`,
+                regex_match: match,
+                includes_match: includesTest,
+                titolo_contiene: titoloLower.indexOf(keyword) !== -1 ? `Trovato a posizione ${titoloLower.indexOf(keyword)}` : 'Non trovato'
+              });
+              
+              if (match) {
+                shouldNotify = true;
+                motivo = `Keyword "${keyword}" in feed non selezionato (regex match)`;
+                keywordMatch = keyword;
+                break;
+              }
+            }
+            
+            if (!shouldNotify) {
+              motivo = `Feed non selezionato e nessuna keyword trovata. Keywords: ${filtriUtente.keywords.join(', ')}`;
+            }
+          }
+        }
+
+        // Salva log in memoria
+        aggiungiDebugLog({
+          ...debugInfo,
+          risultato: shouldNotify ? 'NOTIFICA_INVIATA' : 'NESSUNA_NOTIFICA',
+          motivo: motivo,
+          keyword_match: keywordMatch
+        });
       }
+
+      alert(`✅ Test completato! Testati ${articoliDaTestare.length} articoli. Apri Debug Log per vedere i risultati.`);
       
-      logData.risultato = 'NESSUNA_NOTIFICA';
-      logData.motivo = `Feed non selezionato e nessuna keyword trovata. Keywords cercate: ${keywordFiltersLower.join(', ')}`;
-      
-      try {
-        await supabase.from('rss_notification_logs').insert([logData]);
-      } catch (err) {
-        console.error('Errore salvataggio log:', err);
-      }
-      
-      return false;
+    } catch (err) {
+      console.error('Errore test filtri:', err);
+      alert('Errore durante il test: ' + err.message);
     }
-    
-    return false;
   }
 
+  // ✅ FUNZIONE CORRETTA - CONTROLLA TUTTI GLI UTENTI
   async function inviaNotificheFiltrate(nuoviArticoli, feed) {
     if (nuoviArticoli.length === 0) return;
     
@@ -978,7 +990,6 @@ function PannelloFonti({ onClose }) {
     };
   }, []);
 
-  // VERSIONE UNICA CORRETTA di caricaArticoliDalDatabase
   async function caricaArticoliDalDatabase() {
     if (articoliFetchInFlightRef.current || isLoadingArticoli) {
       pendingArticoliReloadRef.current = true;
@@ -1426,7 +1437,6 @@ function PannelloFonti({ onClose }) {
       const payload = articoliBatch.map(articolo => {
         const pubDate = articolo.pub_date || articolo.pubDate || new Date().toISOString();
         
-        // ✅ DECODIFICA entità HTML prima di salvare
         const titoloDecodificato = decodeHtmlEntities(articolo.title || '');
         const descrizioneDecodificata = decodeHtmlEntities(articolo.description || '');
         const contentDecodificato = decodeHtmlEntities(articolo.content || '');
@@ -1827,6 +1837,22 @@ function PannelloFonti({ onClose }) {
             />
           </button>
           <button
+            onClick={testaFiltriSuArticoliAttuali}
+            style={{
+              padding: '10px 14px',
+              borderRadius: '6px',
+              border: '1px solid #28a745',
+              background: '#28a745',
+              color: '#fff',
+              fontSize: '13px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              fontWeight: 600
+            }}
+          >
+            🧪 Test Filtri
+          </button>
+          <button
             onClick={caricaDebugLogs}
             style={{
               padding: '10px 14px',
@@ -1845,7 +1871,7 @@ function PannelloFonti({ onClose }) {
         </div>
       </div>
 
-      {/* Modal filtri - IDENTICO AL TUO */}
+      {/* Modal filtri */}
       {showFiltriModal && (
         <div
           style={{
@@ -2182,7 +2208,7 @@ function PannelloFonti({ onClose }) {
               position: 'relative'
             }}>
               <div style={{ fontSize: '16px', fontWeight: 700, textAlign: 'center' }}>
-                🔍 Debug Log Notifiche RSS (ultimi 50)
+                🔍 Debug Log Notifiche RSS (ultimi 100)
               </div>
               <button
                 onClick={() => setShowDebugLogs(false)}
@@ -2216,7 +2242,7 @@ function PannelloFonti({ onClose }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {debugLogs.map((log, index) => (
                     <div
-                      key={index}
+                      key={log.id || index}
                       style={{
                         padding: '12px',
                         borderRadius: '8px',
