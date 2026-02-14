@@ -214,6 +214,7 @@ function PannelloFonti({ onClose }) {
   const [activeTab, setActiveTab] = useState('f1');
   const [showDebugLogs, setShowDebugLogs] = useState(false);
   const [debugLogs, setDebugLogs] = useState([]);
+  const debugLogsRef = useRef([]);
   const realtimeReloadTimeout = useRef(null);
   const isSyncingFeedsRef = useRef(false);
   const hasStartedInitialSyncRef = useRef(false);
@@ -486,27 +487,25 @@ function PannelloFonti({ onClose }) {
     ));
   }
 
+  // Funzione per aggiungere log in MEMORIA (non database)
+  function aggiungiDebugLog(logData) {
+    const logCompleto = {
+      ...logData,
+      timestamp: new Date().toISOString(),
+      id: Date.now()
+    };
+    
+    // Aggiungi al ref (max 100 log)
+    debugLogsRef.current = [logCompleto, ...debugLogsRef.current].slice(0, 100);
+    
+    // Log anche in console per debug desktop
+    console.log('📝 DEBUG LOG:', logCompleto);
+  }
+
   async function caricaDebugLogs() {
-    if (!username) return;
-    try {
-      const { data, error } = await supabase
-        .from('rss_notification_logs')
-        .select('*')
-        .eq('username', username)
-        .order('timestamp', { ascending: false })
-        .limit(50);
-      
-      if (!error && data) {
-        setDebugLogs(data);
-        setShowDebugLogs(true);
-      } else {
-        console.error('Errore caricamento log:', error);
-        alert('Errore caricamento log. Probabilmente la tabella non esiste ancora nel database.');
-      }
-    } catch (err) {
-      console.error('Errore caricamento log:', err);
-      alert('Errore caricamento log: ' + err.message);
-    }
+    // Carica log dalla MEMORIA (non dal database)
+    setDebugLogs([...debugLogsRef.current]);
+    setShowDebugLogs(true);
   }
 
   // ✅ FUNZIONE CORRETTA CON LOGICA GIUSEPPE + LOG NEL DATABASE
@@ -667,9 +666,8 @@ function PannelloFonti({ onClose }) {
   }
 
   async function inviaNotificheFiltrate(nuoviArticoli, feed) {
-    if (!username) return;
-    if (keywordFiltersLower.length === 0 && feedFiltersSet.size === 0) return;
-
+    if (nuoviArticoli.length === 0) return;
+    
     let host = 'RSS';
     try {
       host = feed?.url ? new URL(feed.url).hostname : 'RSS';
@@ -677,50 +675,237 @@ function PannelloFonti({ onClose }) {
       host = 'RSS';
     }
 
-    for (const articolo of nuoviArticoli) {
-      if (!articoloMatchaFiltri(articolo, feed)) continue;
-      const guid = (articolo.guid || '').trim().toLowerCase();
-      if (!guid) continue;
-
-      // ✅ CONTROLLO DATABASE: verifica se notifica già inviata per questo guid+user
-      try {
-        const { data: notificaEsistente } = await supabase
-          .from('notifications')
-          .select('id')
-          .eq('notification_type', 'rss_filter')
-          .eq('data->>guid', guid) // Controlla campo JSON data.guid
-          .contains('target_users', [username])
-          .limit(1);
-
-        if (notificaEsistente && notificaEsistente.length > 0) {
-          console.log(`⏭️ Notifica già inviata per guid: ${guid}, user: ${username}`);
-          continue; // Salta se già esiste
-        }
-      } catch (err) {
-        console.error('❌ Errore controllo notifica esistente:', err);
-        // Continua comunque per non bloccare il flusso
-      }
-
-      const titoloRaw = (articolo.title || '').trim() || 'Nuovo articolo RSS';
-      const titolo = decodeHtmlEntities(titoloRaw);
+    // 1️⃣ CARICA TUTTI I FILTRI DI TUTTI GLI UTENTI
+    try {
+      const { data: tuttiFiltri, error: filtriError } = await supabase
+        .from('rss_notification_filters')
+        .select('username, filter_type, value');
       
-      try {
-        await inserisciNotificaPush({
-          title: titolo,
-          body: `Fonte: ${host}`,
-          notification_type: 'rss_filter',
-          target_all: false,
-          target_users: [username],
-          data: {
-            link: articolo.link || null,
-            feed_id: feed?.id || null,
-            guid: guid // ← IMPORTANTE: salva guid per controllo futuro
-          }
-        });
-        console.log(`✅ Notifica inviata per: ${titolo} (guid: ${guid})`);
-      } catch (err) {
-        console.error('❌ Errore invio notifica:', err);
+      if (filtriError) {
+        console.error('❌ Errore caricamento filtri utenti:', filtriError);
+        return;
       }
+      
+      if (!tuttiFiltri || tuttiFiltri.length === 0) {
+        console.log('⏭️ Nessun filtro attivo da nessun utente');
+        return;
+      }
+      
+      // 2️⃣ RAGGRUPPA FILTRI PER UTENTE
+      const filtriPerUtente = {};
+      for (const filtro of tuttiFiltri) {
+        if (!filtriPerUtente[filtro.username]) {
+          filtriPerUtente[filtro.username] = { keywords: [], feeds: [] };
+        }
+        
+        if (filtro.filter_type === 'keyword' && filtro.value) {
+          // Pulisci keyword: trim + lowercase
+          const keywordPulita = filtro.value.trim().toLowerCase();
+          if (keywordPulita) {
+            filtriPerUtente[filtro.username].keywords.push(keywordPulita);
+          }
+        } else if (filtro.filter_type === 'feed' && filtro.value) {
+          filtriPerUtente[filtro.username].feeds.push(String(filtro.value));
+        }
+      }
+      
+      console.log('👥 Utenti con filtri attivi:', Object.keys(filtriPerUtente).length);
+      
+      // 3️⃣ PER OGNI ARTICOLO
+      for (const articolo of nuoviArticoli) {
+        const guid = (articolo.guid || '').trim().toLowerCase();
+        if (!guid) continue;
+        
+        const titoloRaw = (articolo.title || '').trim() || 'Nuovo articolo RSS';
+        const titoloDecodificato = decodeHtmlEntities(titoloRaw);
+        const titoloLower = titoloDecodificato.toLowerCase();
+        
+        // 4️⃣ PER OGNI UTENTE
+        for (const [utenteUsername, filtrUtente] of Object.entries(filtriPerUtente)) {
+          
+          const hasKeywords = filtrUtente.keywords.length > 0;
+          const hasFeeds = filtrUtente.feeds.length > 0;
+          
+          if (!hasKeywords && !hasFeeds) continue; // Utente senza filtri
+          
+          const feedIsSelected = filtrUtente.feeds.includes(String(feed?.id));
+          
+          let shouldNotify = false;
+          let motivo = '';
+          let keywordMatch = null;
+          let debugInfo = {
+            titolo_raw: titoloRaw,
+            titolo_decodificato: titoloDecodificato,
+            titolo_lowercase: titoloLower,
+            feed_url: feed?.url || 'N/A',
+            feed_name: feed?.name || 'N/A',
+            feed_id: String(feed?.id || 'N/A'),
+            feed_is_selected: feedIsSelected,
+            keywords_attive: filtrUtente.keywords,
+            feed_selezionati: filtrUtente.feeds,
+            username: utenteUsername,
+            test_keyword_dettaglio: []
+          };
+          
+          // 5️⃣ LOGICA FILTRI (identica a prima ma per QUESTO utente)
+          
+          // CASO 1: SOLO KEYWORD
+          if (hasKeywords && !hasFeeds) {
+            debugInfo.caso = 'SOLO_KEYWORD';
+            
+            for (const keyword of filtrUtente.keywords) {
+              const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              
+              // Test MOLTO dettagliato
+              const regexTest = new RegExp(`\\b${escaped}\\b`, 'i');
+              const match = regexTest.test(titoloLower);
+              
+              // Test alternativo senza word boundary
+              const includesTest = titoloLower.includes(keyword);
+              
+              debugInfo.test_keyword_dettaglio.push({
+                keyword: keyword,
+                regex_pattern: `\\b${escaped}\\b`,
+                regex_match: match,
+                includes_match: includesTest,
+                titolo_contiene: titoloLower.indexOf(keyword) !== -1 ? `Trovato a posizione ${titoloLower.indexOf(keyword)}` : 'Non trovato'
+              });
+              
+              if (match) {
+                shouldNotify = true;
+                motivo = `Keyword "${keyword}" trovata (regex match)`;
+                keywordMatch = keyword;
+                break;
+              }
+            }
+            
+            if (!shouldNotify) {
+              motivo = `Nessuna keyword trovata. Keywords cercate: ${filtrUtente.keywords.join(', ')}`;
+            }
+          }
+          
+          // CASO 2: SOLO FEED
+          else if (!hasKeywords && hasFeeds) {
+            debugInfo.caso = 'SOLO_FEED';
+            
+            if (feedIsSelected) {
+              shouldNotify = true;
+              motivo = 'Feed selezionato';
+            } else {
+              motivo = 'Feed non selezionato';
+            }
+          }
+          
+          // CASO 3: KEYWORD + FEED
+          else if (hasKeywords && hasFeeds) {
+            debugInfo.caso = 'KEYWORD_E_FEED';
+            
+            if (feedIsSelected) {
+              shouldNotify = true;
+              motivo = 'Feed selezionato (keyword ignorate)';
+            } else {
+              // Feed NON selezionato → controlla keyword
+              for (const keyword of filtrUtente.keywords) {
+                const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regexTest = new RegExp(`\\b${escaped}\\b`, 'i');
+                const match = regexTest.test(titoloLower);
+                
+                // Test alternativo
+                const includesTest = titoloLower.includes(keyword);
+                
+                debugInfo.test_keyword_dettaglio.push({
+                  keyword: keyword,
+                  regex_pattern: `\\b${escaped}\\b`,
+                  regex_match: match,
+                  includes_match: includesTest,
+                  titolo_contiene: titoloLower.indexOf(keyword) !== -1 ? `Trovato a posizione ${titoloLower.indexOf(keyword)}` : 'Non trovato'
+                });
+                
+                if (match) {
+                  shouldNotify = true;
+                  motivo = `Keyword "${keyword}" in feed non selezionato (regex match)`;
+                  keywordMatch = keyword;
+                  break;
+                }
+              }
+              
+              if (!shouldNotify) {
+                motivo = `Feed non selezionato e nessuna keyword trovata. Keywords: ${filtrUtente.keywords.join(', ')}`;
+              }
+            }
+          }
+          
+          // 📝 SALVA LOG IN MEMORIA (sempre, anche se non manda notifica)
+          aggiungiDebugLog({
+            ...debugInfo,
+            risultato: shouldNotify ? 'NOTIFICA_INVIATA' : 'NESSUNA_NOTIFICA',
+            motivo: motivo,
+            keyword_match: keywordMatch
+          });
+          
+          if (!shouldNotify) continue;
+          
+          // 6️⃣ CONTROLLA DUPLICATI PER QUESTO UTENTE
+          try {
+            const { data: notificaEsistente } = await supabase
+              .from('notifications')
+              .select('id')
+              .eq('notification_type', 'rss_filter')
+              .eq('data->>guid', guid)
+              .contains('target_users', [utenteUsername])
+              .limit(1);
+
+            if (notificaEsistente && notificaEsistente.length > 0) {
+              console.log(`⏭️ Notifica già inviata per guid: ${guid}, user: ${utenteUsername}`);
+              
+              // Log duplicato
+              aggiungiDebugLog({
+                ...debugInfo,
+                risultato: 'DUPLICATO',
+                motivo: 'Notifica già inviata in precedenza',
+                keyword_match: keywordMatch
+              });
+              
+              continue;
+            }
+          } catch (err) {
+            console.error('❌ Errore controllo duplicati:', err);
+            continue;
+          }
+          
+          // 7️⃣ MANDA NOTIFICA A QUESTO SPECIFICO UTENTE
+          try {
+            await inserisciNotificaPush({
+              title: titoloDecodificato,
+              body: `Fonte: ${host}`,
+              notification_type: 'rss_filter',
+              target_all: false,
+              target_users: [utenteUsername], // ← SOLO a questo utente!
+              data: {
+                link: articolo.link || null,
+                feed_id: feed?.id || null,
+                guid: guid
+              }
+            });
+            
+            console.log(`✅ Notifica inviata a ${utenteUsername}: ${titoloDecodificato} (${motivo})`);
+            
+          } catch (err) {
+            console.error(`❌ Errore invio notifica a ${utenteUsername}:`, err);
+            
+            // Log errore
+            aggiungiDebugLog({
+              ...debugInfo,
+              risultato: 'ERRORE',
+              motivo: `Errore invio: ${err.message}`,
+              keyword_match: keywordMatch
+            });
+          }
+        }
+      }
+      
+    } catch (err) {
+      console.error('❌ Errore generale inviaNotificheFiltrate:', err);
     }
   }
 
@@ -2024,6 +2209,8 @@ function PannelloFonti({ onClose }) {
               {debugLogs.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
                   Nessun log trovato. I log vengono creati quando arrivano nuovi articoli RSS.
+                  <br/><br/>
+                  <strong>Prova a cliccare "🔄 Aggiorna feed" e poi riapri il Debug Log!</strong>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -2033,30 +2220,42 @@ function PannelloFonti({ onClose }) {
                       style={{
                         padding: '12px',
                         borderRadius: '8px',
-                        border: log.risultato === 'NOTIFICA_INVIATA' ? '2px solid #28a745' : '1px solid #ddd',
-                        background: log.risultato === 'NOTIFICA_INVIATA' ? '#d4edda' : '#f9f9f9'
+                        border: log.risultato === 'NOTIFICA_INVIATA' ? '2px solid #28a745' : 
+                               log.risultato === 'DUPLICATO' ? '2px solid #ffc107' : '1px solid #ddd',
+                        background: log.risultato === 'NOTIFICA_INVIATA' ? '#d4edda' : 
+                                   log.risultato === 'DUPLICATO' ? '#fff3cd' : '#f9f9f9'
                       }}
                     >
                       <div style={{ 
                         display: 'flex', 
                         justifyContent: 'space-between', 
                         marginBottom: '8px',
-                        alignItems: 'center'
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '8px'
                       }}>
                         <div style={{ 
                           fontWeight: 'bold', 
-                          color: log.risultato === 'NOTIFICA_INVIATA' ? '#155724' : '#666',
+                          color: log.risultato === 'NOTIFICA_INVIATA' ? '#155724' : 
+                                log.risultato === 'DUPLICATO' ? '#856404' : '#666',
                           fontSize: '14px'
                         }}>
-                          {log.risultato === 'NOTIFICA_INVIATA' ? '✅ NOTIFICA INVIATA' : '❌ NESSUNA NOTIFICA'}
+                          {log.risultato === 'NOTIFICA_INVIATA' ? '✅ NOTIFICA INVIATA' : 
+                           log.risultato === 'DUPLICATO' ? '⚠️ DUPLICATO' : '❌ NESSUNA NOTIFICA'}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#888' }}>
-                          {new Date(log.timestamp).toLocaleString('it-IT')}
+                        <div style={{ fontSize: '11px', color: '#888' }}>
+                          {log.timestamp ? new Date(log.timestamp).toLocaleString('it-IT', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                          }) : 'N/A'}
                         </div>
                       </div>
                       
-                      <div style={{ fontSize: '13px', marginBottom: '8px' }}>
-                        <strong>Titolo:</strong> {log.titolo_decodificato}
+                      <div style={{ fontSize: '13px', marginBottom: '8px', wordBreak: 'break-word' }}>
+                        <strong>Titolo:</strong> {log.titolo_decodificato || log.titolo_raw}
                       </div>
                       
                       <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px' }}>
@@ -2064,10 +2263,10 @@ function PannelloFonti({ onClose }) {
                       </div>
                       
                       <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px' }}>
-                        <strong>Caso:</strong> {log.caso}
+                        <strong>Caso:</strong> {log.caso || 'N/A'}
                       </div>
                       
-                      <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px' }}>
+                      <div style={{ fontSize: '12px', color: '#555', marginBottom: '8px' }}>
                         <strong>Motivo:</strong> {log.motivo}
                       </div>
                       
@@ -2078,27 +2277,53 @@ function PannelloFonti({ onClose }) {
                           background: '#c3e6cb',
                           padding: '4px 8px',
                           borderRadius: '4px',
-                          marginTop: '8px',
+                          marginBottom: '8px',
                           display: 'inline-block'
                         }}>
                           🎯 Keyword match: <strong>{log.keyword_match}</strong>
                         </div>
                       )}
                       
+                      {log.test_keyword_dettaglio && log.test_keyword_dettaglio.length > 0 && (
+                        <details style={{ marginTop: '8px', fontSize: '11px', background: '#fff', padding: '8px', borderRadius: '4px' }}>
+                          <summary style={{ cursor: 'pointer', color: '#007AFF', fontWeight: 'bold' }}>
+                            🔬 Test Keyword Dettagliato ({log.test_keyword_dettaglio.length} keyword testate)
+                          </summary>
+                          <div style={{ marginTop: '8px' }}>
+                            {log.test_keyword_dettaglio.map((test, idx) => (
+                              <div key={idx} style={{
+                                padding: '6px',
+                                background: test.regex_match ? '#d4edda' : '#f8d7da',
+                                border: test.regex_match ? '1px solid #28a745' : '1px solid #dc3545',
+                                borderRadius: '4px',
+                                marginBottom: '6px'
+                              }}>
+                                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                                  Keyword: "{test.keyword}"
+                                </div>
+                                <div>Regex: {test.regex_pattern}</div>
+                                <div>Regex Match: {test.regex_match ? '✅ SÌ' : '❌ NO'}</div>
+                                <div>Includes Match: {test.includes_match ? '✅ SÌ' : '❌ NO'}</div>
+                                <div>{test.titolo_contiene}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                      
                       <details style={{ marginTop: '8px', fontSize: '11px' }}>
                         <summary style={{ cursor: 'pointer', color: '#007AFF' }}>
-                          Mostra dettagli completi
+                          📋 Mostra dettagli completi
                         </summary>
-                        <pre style={{ 
-                          background: '#f5f5f5', 
-                          padding: '8px', 
-                          borderRadius: '4px',
-                          overflow: 'auto',
-                          marginTop: '8px',
-                          fontSize: '10px'
-                        }}>
-                          {JSON.stringify(log, null, 2)}
-                        </pre>
+                        <div style={{ marginTop: '8px', background: '#fff', padding: '8px', borderRadius: '4px' }}>
+                          <div><strong>Titolo RAW:</strong> {log.titolo_raw}</div>
+                          <div><strong>Titolo Decodificato:</strong> {log.titolo_decodificato}</div>
+                          <div><strong>Titolo Lowercase:</strong> {log.titolo_lowercase}</div>
+                          <div><strong>Keywords attive:</strong> {JSON.stringify(log.keywords_attive)}</div>
+                          <div><strong>Feed selezionati:</strong> {JSON.stringify(log.feed_selezionati)}</div>
+                          <div><strong>Feed is selected:</strong> {String(log.feed_is_selected)}</div>
+                          <div><strong>Username:</strong> {log.username}</div>
+                        </div>
                       </details>
                     </div>
                   ))}
