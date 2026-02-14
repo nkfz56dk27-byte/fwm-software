@@ -212,6 +212,8 @@ function PannelloFonti({ onClose }) {
   const [userCategorieIds, setUserCategorieIds] = useState([]);
   const [formulaECategoryId, setFormulaECategoryId] = useState(null);
   const [activeTab, setActiveTab] = useState('f1');
+  const [showDebugLogs, setShowDebugLogs] = useState(false);
+  const [debugLogs, setDebugLogs] = useState([]);
   const realtimeReloadTimeout = useRef(null);
   const isSyncingFeedsRef = useRef(false);
   const hasStartedInitialSyncRef = useRef(false);
@@ -484,23 +486,184 @@ function PannelloFonti({ onClose }) {
     ));
   }
 
-  function articoloMatchaFiltri(articolo, feed) {
-    if (keywordFiltersLower.length === 0 && feedFiltersSet.size === 0) return false;
-    const feedMatch = feedFiltersSet.has(String(feed?.id));
-    if (feedMatch) return true;
-    if (keywordFiltersLower.length === 0) return false;
+  async function caricaDebugLogs() {
+    if (!username) return;
+    try {
+      const { data, error } = await supabase
+        .from('rss_notification_logs')
+        .select('*')
+        .eq('username', username)
+        .order('timestamp', { ascending: false })
+        .limit(50);
+      
+      if (!error && data) {
+        setDebugLogs(data);
+        setShowDebugLogs(true);
+      } else {
+        console.error('Errore caricamento log:', error);
+        alert('Errore caricamento log. Probabilmente la tabella non esiste ancora nel database.');
+      }
+    } catch (err) {
+      console.error('Errore caricamento log:', err);
+      alert('Errore caricamento log: ' + err.message);
+    }
+  }
+
+  // ✅ FUNZIONE CORRETTA CON LOGICA GIUSEPPE + LOG NEL DATABASE
+  async function articoloMatchaFiltri(articolo, feed) {
+    const hasKeywords = keywordFiltersLower.length > 0;
+    const hasFeeds = feedFiltersSet.size > 0;
     
-    // Cerca SOLO nel titolo
-    const titolo = (articolo.title || '').toLowerCase();
+    // Nessun filtro → non mandare nulla
+    if (!hasKeywords && !hasFeeds) {
+      return false;
+    }
     
-    // Match solo PAROLE INTERE usando word boundaries (\b)
-    return keywordFiltersLower.some(keyword => {
-      // Escapa caratteri speciali regex
-      const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // \b = word boundary (inizio/fine parola)
-      const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-      return regex.test(titolo);
-    });
+    const feedIsSelected = feedFiltersSet.has(String(feed?.id));
+    const titoloRaw = articolo.title || '';
+    const titoloDecodificato = decodeHtmlEntities(titoloRaw).toLowerCase();
+    
+    // Prepara log per database
+    const logData = {
+      titolo_raw: titoloRaw,
+      titolo_decodificato: decodeHtmlEntities(titoloRaw),
+      feed_url: feed?.url || 'N/A',
+      feed_name: feed?.name || 'N/A',
+      keywords_attive: keywordFiltersLower,
+      feed_selezionati: Array.from(feedFiltersSet),
+      feed_is_selected: feedIsSelected,
+      username: username,
+      timestamp: new Date().toISOString()
+    };
+    
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // CASO 1: SOLO KEYWORD (nessun feed selezionato)
+    // → Ricevi SOLO articoli con keyword da TUTTI i feed
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if (hasKeywords && !hasFeeds) {
+      logData.caso = 'SOLO_KEYWORD';
+      
+      for (const keyword of keywordFiltersLower) {
+        const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+        const match = regex.test(titoloDecodificato);
+        
+        if (match) {
+          logData.risultato = 'NOTIFICA_INVIATA';
+          logData.motivo = `Keyword "${keyword}" trovata nel titolo`;
+          logData.keyword_match = keyword;
+          
+          // Salva log nel database
+          try {
+            await supabase.from('rss_notification_logs').insert([logData]);
+          } catch (err) {
+            console.error('Errore salvataggio log:', err);
+          }
+          
+          return true;
+        }
+      }
+      
+      logData.risultato = 'NESSUNA_NOTIFICA';
+      logData.motivo = `Nessuna keyword trovata. Keywords cercate: ${keywordFiltersLower.join(', ')}`;
+      
+      // Salva log nel database
+      try {
+        await supabase.from('rss_notification_logs').insert([logData]);
+      } catch (err) {
+        console.error('Errore salvataggio log:', err);
+      }
+      
+      return false;
+    }
+    
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // CASO 2: SOLO FEED (nessuna keyword)
+    // → Ricevi TUTTI gli articoli dai feed selezionati
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if (!hasKeywords && hasFeeds) {
+      logData.caso = 'SOLO_FEED';
+      
+      if (feedIsSelected) {
+        logData.risultato = 'NOTIFICA_INVIATA';
+        logData.motivo = 'Feed selezionato dall\'utente';
+        
+        try {
+          await supabase.from('rss_notification_logs').insert([logData]);
+        } catch (err) {
+          console.error('Errore salvataggio log:', err);
+        }
+        
+        return true;
+      }
+      
+      logData.risultato = 'NESSUNA_NOTIFICA';
+      logData.motivo = 'Feed non selezionato';
+      
+      try {
+        await supabase.from('rss_notification_logs').insert([logData]);
+      } catch (err) {
+        console.error('Errore salvataggio log:', err);
+      }
+      
+      return false;
+    }
+    
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // CASO 3: KEYWORD + FEED (entrambi attivi)
+    // → TUTTI gli articoli dai feed selezionati
+    // → SOLO keyword dagli altri feed
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    if (hasKeywords && hasFeeds) {
+      logData.caso = 'KEYWORD_E_FEED';
+      
+      if (feedIsSelected) {
+        logData.risultato = 'NOTIFICA_INVIATA';
+        logData.motivo = 'Feed selezionato (keyword ignorate)';
+        
+        try {
+          await supabase.from('rss_notification_logs').insert([logData]);
+        } catch (err) {
+          console.error('Errore salvataggio log:', err);
+        }
+        
+        return true;
+      }
+      
+      // Feed NON selezionato → controlla keyword
+      for (const keyword of keywordFiltersLower) {
+        const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+        const match = regex.test(titoloDecodificato);
+        
+        if (match) {
+          logData.risultato = 'NOTIFICA_INVIATA';
+          logData.motivo = `Keyword "${keyword}" trovata in feed non selezionato`;
+          logData.keyword_match = keyword;
+          
+          try {
+            await supabase.from('rss_notification_logs').insert([logData]);
+          } catch (err) {
+            console.error('Errore salvataggio log:', err);
+          }
+          
+          return true;
+        }
+      }
+      
+      logData.risultato = 'NESSUNA_NOTIFICA';
+      logData.motivo = `Feed non selezionato e nessuna keyword trovata. Keywords cercate: ${keywordFiltersLower.join(', ')}`;
+      
+      try {
+        await supabase.from('rss_notification_logs').insert([logData]);
+      } catch (err) {
+        console.error('Errore salvataggio log:', err);
+      }
+      
+      return false;
+    }
+    
+    return false;
   }
 
   async function inviaNotificheFiltrate(nuoviArticoli, feed) {
@@ -1478,6 +1641,22 @@ function PannelloFonti({ onClose }) {
               }}
             />
           </button>
+          <button
+            onClick={caricaDebugLogs}
+            style={{
+              padding: '10px 14px',
+              borderRadius: '6px',
+              border: '1px solid #007AFF',
+              background: '#007AFF',
+              color: '#fff',
+              fontSize: '13px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              fontWeight: 600
+            }}
+          >
+            🔍 Debug Log
+          </button>
         </div>
       </div>
 
@@ -1776,6 +1955,176 @@ function PannelloFonti({ onClose }) {
                 }}
               >
                 {isSavingFiltri ? 'Salvataggio...' : 'Salva'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Debug Log */}
+      {showDebugLogs && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.4)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '800px',
+              maxHeight: '90vh',
+              background: '#fff',
+              borderRadius: '10px',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '14px 16px',
+              borderBottom: '1px solid #eee',
+              position: 'relative'
+            }}>
+              <div style={{ fontSize: '16px', fontWeight: 700, textAlign: 'center' }}>
+                🔍 Debug Log Notifiche RSS (ultimi 50)
+              </div>
+              <button
+                onClick={() => setShowDebugLogs(false)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '18px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '16px'
+            }}>
+              {debugLogs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                  Nessun log trovato. I log vengono creati quando arrivano nuovi articoli RSS.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {debugLogs.map((log, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: log.risultato === 'NOTIFICA_INVIATA' ? '2px solid #28a745' : '1px solid #ddd',
+                        background: log.risultato === 'NOTIFICA_INVIATA' ? '#d4edda' : '#f9f9f9'
+                      }}
+                    >
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        marginBottom: '8px',
+                        alignItems: 'center'
+                      }}>
+                        <div style={{ 
+                          fontWeight: 'bold', 
+                          color: log.risultato === 'NOTIFICA_INVIATA' ? '#155724' : '#666',
+                          fontSize: '14px'
+                        }}>
+                          {log.risultato === 'NOTIFICA_INVIATA' ? '✅ NOTIFICA INVIATA' : '❌ NESSUNA NOTIFICA'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#888' }}>
+                          {new Date(log.timestamp).toLocaleString('it-IT')}
+                        </div>
+                      </div>
+                      
+                      <div style={{ fontSize: '13px', marginBottom: '8px' }}>
+                        <strong>Titolo:</strong> {log.titolo_decodificato}
+                      </div>
+                      
+                      <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px' }}>
+                        <strong>Feed:</strong> {log.feed_name || log.feed_url}
+                      </div>
+                      
+                      <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px' }}>
+                        <strong>Caso:</strong> {log.caso}
+                      </div>
+                      
+                      <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px' }}>
+                        <strong>Motivo:</strong> {log.motivo}
+                      </div>
+                      
+                      {log.keyword_match && (
+                        <div style={{ 
+                          fontSize: '12px', 
+                          color: '#155724',
+                          background: '#c3e6cb',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          marginTop: '8px',
+                          display: 'inline-block'
+                        }}>
+                          🎯 Keyword match: <strong>{log.keyword_match}</strong>
+                        </div>
+                      )}
+                      
+                      <details style={{ marginTop: '8px', fontSize: '11px' }}>
+                        <summary style={{ cursor: 'pointer', color: '#007AFF' }}>
+                          Mostra dettagli completi
+                        </summary>
+                        <pre style={{ 
+                          background: '#f5f5f5', 
+                          padding: '8px', 
+                          borderRadius: '4px',
+                          overflow: 'auto',
+                          marginTop: '8px',
+                          fontSize: '10px'
+                        }}>
+                          {JSON.stringify(log, null, 2)}
+                        </pre>
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div style={{
+              padding: '12px 16px',
+              borderTop: '1px solid #eee',
+              display: 'flex',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={() => setShowDebugLogs(false)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '6px',
+                  border: '1px solid #007AFF',
+                  background: '#007AFF',
+                  color: '#fff',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                Chiudi
               </button>
             </div>
           </div>
