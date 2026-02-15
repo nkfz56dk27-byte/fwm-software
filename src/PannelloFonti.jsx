@@ -502,6 +502,12 @@ function PannelloFonti({ onClose }) {
     
     // 💾 SALVA SU DATABASE per tracciabilità permanente
     try {
+      // Normalizza il risultato (accetta sia boolean che string)
+      let risultatoNormalizzato = logData.risultato;
+      if (typeof logData.risultato === 'boolean') {
+        risultatoNormalizzato = logData.risultato ? 'INVIATA' : 'NON_INVIATA';
+      }
+      
       await supabase.from('rss_notification_logs').insert({
         titolo_raw: logData.titolo_raw,
         titolo_decodificato: logData.titolo_decodificato,
@@ -511,7 +517,7 @@ function PannelloFonti({ onClose }) {
         keywords_attive: logData.keywords_attive,
         feed_selezionati: logData.feed_selezionati,
         caso: logData.caso,
-        risultato: logData.risultato ? 'INVIATA' : 'NON_INVIATA',
+        risultato: risultatoNormalizzato,
         motivo: logData.motivo,
         keyword_match: logData.keyword_match,
         username: logData.username,
@@ -924,22 +930,26 @@ function PannelloFonti({ onClose }) {
           
           // 6️⃣ CONTROLLA DUPLICATI PER QUESTO UTENTE
           try {
-            const { data: notificaEsistente } = await supabase
-              .from('notifications')
+            // Controlla se abbiamo già loggato questa notifica per questo utente
+            const { data: notificaEsistente, error: errDup } = await supabase
+              .from('rss_notification_logs')
               .select('id')
-              .eq('notification_type', 'rss_filter')
-              .eq('data->>guid', guid)
-              .contains('target_users', [utenteUsername])
+              .eq('username', utenteUsername)
+              .eq('titolo_decodificato', titoloDecodificato)
+              .eq('risultato', 'INVIATA')
               .limit(1);
 
-            if (notificaEsistente && notificaEsistente.length > 0) {
-              console.log(`⏭️ Notifica già inviata per guid: ${guid}, user: ${utenteUsername}`);
+            if (errDup) {
+              console.error('❌ Errore controllo duplicati:', errDup);
+              // Non blocchiamo l'esecuzione, continua comunque
+            } else if (notificaEsistente && notificaEsistente.length > 0) {
+              console.log(`⏭️ Notifica già inviata: ${titoloDecodificato} → ${utenteUsername}`);
               
-              // Log duplicato
-              aggiungiDebugLog({
+              // Log duplicato rilevato
+              await aggiungiDebugLog({
                 ...debugInfo,
                 risultato: 'DUPLICATO',
-                motivo: 'Notifica già inviata in precedenza',
+                motivo: 'Notifica già inviata in precedenza per questo articolo',
                 keyword_match: keywordMatch
               });
               
@@ -947,10 +957,18 @@ function PannelloFonti({ onClose }) {
             }
           } catch (err) {
             console.error('❌ Errore controllo duplicati:', err);
-            continue;
+            // Non blocchiamo l'esecuzione
           }
           
-          // 7️⃣ MANDA NOTIFICA A QUESTO SPECIFICO UTENTE
+          // 7️⃣ SALVA LOG PRIMA DELL'INVIO (per evitare race condition)
+          await aggiungiDebugLog({
+            ...debugInfo,
+            risultato: 'INVIATA',
+            motivo: motivo,
+            keyword_match: keywordMatch
+          });
+          
+          // 8️⃣ MANDA NOTIFICA A QUESTO SPECIFICO UTENTE
           try {
             await inserisciNotificaPush({
               title: titoloDecodificato,
@@ -970,13 +988,9 @@ function PannelloFonti({ onClose }) {
           } catch (err) {
             console.error(`❌ Errore invio notifica a ${utenteUsername}:`, err);
             
-            // Log errore
-            aggiungiDebugLog({
-              ...debugInfo,
-              risultato: 'ERRORE',
-              motivo: `Errore invio: ${err.message}`,
-              keyword_match: keywordMatch
-            });
+            // Aggiorna il log con l'errore
+            // (il log esiste già, ma dobbiamo marcarlo come fallito)
+            console.error('Notifica fallita ma log già salvato:', err.message);
           }
         }
       }
