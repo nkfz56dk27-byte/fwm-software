@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import VersusModal from './VersusModal';
 
 // ===== CALCOLA PUNTI POSIZIONE =====
 function calcolaPuntiPosizione(pos, tipoGara, classifica = null) {
@@ -1163,9 +1164,21 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
 
   const salvaRisultatiGara = () => {
     const gare = [...gp.gare]
+    // Prepara risultati con flag DNS/DNF/DSQ
+    const risultatiConFlag = {};
+    Object.keys(risultati).forEach(key => {
+      if (key.endsWith('_flag')) return;
+      const pilotaId = key;
+      const flag = risultati[`${pilotaId}_flag`] || '';
+      if (flag) {
+        risultatiConFlag[pilotaId] = { flag };
+      } else if (risultati[pilotaId]) {
+        risultatiConFlag[pilotaId] = { posizione: risultati[pilotaId] };
+      }
+    });
     gare[garaCorrente] = {
       ...gare[garaCorrente],
-      risultati,
+      risultati: risultatiConFlag,
       pole_id: poleId,
       giro_veloce_id: giroVeloceId,
       completata: true
@@ -1223,12 +1236,17 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       
       // Calcola e assegna punti NUOVI per ogni gara del GP
       gpFinale.gare.forEach(gara => {
-        Object.entries(gara.risultati).forEach(([pilotaId, pos]) => {
+        Object.entries(gara.risultati).forEach(([pilotaId, info]) => {
           const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
           if (!pilota) {
             console.warn('Pilota non trovato:', pilotaId)
             return
           }
+          // Se DNS o DSQ, nessun punto. Se DNF, nessun punto (ma puoi cambiare qui la logica se vuoi dare punti a DNF)
+          if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') {
+            return;
+          }
+          const pos = info.posizione;
           let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
           if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
             punti += classifica.punti_pole_valore || 3
@@ -1505,6 +1523,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
             .filter(p => p.nome.toLowerCase().includes(searchTerm.toLowerCase()))
             .map((pilota) => {
               const isSelezionato = pilotaSelezionato === pilota.id;
+              // Stato per DNS/DNF/DSQ
+              const flag = risultati[`${pilota.id}_flag`] || '';
               return (
                 <div 
                   key={pilota.id} 
@@ -1514,7 +1534,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                     alignItems: 'center', 
                     gap: '15px', 
                     padding: '12px', 
-                    background: isSelezionato ? 'rgba(0, 0, 0, 0.15)' : '#f8f8f8', // EVIDENZIAZIONE SCURA
+                    background: isSelezionato ? 'rgba(0, 0, 0, 0.15)' : '#f8f8f8',
                     borderRadius: '12px',
                     border: isSelezionato ? '1px solid #333' : '1px solid transparent',
                     transition: 'all 0.2s ease',
@@ -1542,6 +1562,16 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                       background: 'white'
                     }} 
                   />
+                  <select
+                    value={flag}
+                    onChange={e => setRisultati({ ...risultati, [`${pilota.id}_flag`]: e.target.value })}
+                    style={{ width: '90px', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontWeight: 'bold', background: 'white', marginLeft: 8 }}
+                  >
+                    <option value="">-</option>
+                    <option value="DNS">DNS</option>
+                    <option value="DNF">DNF</option>
+                    <option value="DSQ">DSQ</option>
+                  </select>
                 </div>
               );
             })}
@@ -2118,59 +2148,15 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
               <img src="/assets/versus.svg" alt="versus" style={{ height: 48, width: 48, display: 'block', filter: 'invert(1) brightness(2)' }} />
             </button>
           </div>
-          {showVersus && (
-            <div
-              style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                width: '100vw',
-                height: '100vh',
-                background: 'white',
-                zIndex: 9999,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                justifyContent: 'flex-start',
-                overflow: 'hidden',
-              }}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-            >
-              <button
-                onClick={() => setShowVersus(false)}
-                style={{
-                  position: 'absolute',
-                  left: backBtnPos.x,
-                  top: (typeof backBtnPos.y === 'number' ? backBtnPos.y - 5 : backBtnPos.y),
-                  background: 'none',
-                  border: 'none',
-                  color: '#007AFF',
-                  fontSize: isMobile ? '16px' : '18px',
-                  fontWeight: 'bold',
-                  cursor: dragging ? 'grabbing' : 'grab',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  minHeight: isMobile ? '44px' : 'auto',
-                  padding: isMobile ? '18px 0 18px 18px' : '24px 0 24px 32px',
-                  zIndex: 10000,
-                  userSelect: 'none',
-                  touchAction: 'none',
-                }}
-                onMouseDown={handleMouseDown}
-                onTouchStart={handleTouchStart}
-              >
-                ← Indietro
-              </button>
-              <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {/* Qui puoi aggiungere il contenuto della modal */}
-              </div>
-            </div>
-          )}
+          <VersusModal
+            open={showVersus ? { piloti: Array.isArray(classifica?.piloti) ? classifica.piloti.filter(p => p.attivo) : [], gp: Array.isArray(classifica?.gp) ? classifica.gp : [] } : null}
+            onClose={() => setShowVersus(false)}
+            handleMouseMove={handleMouseMove}
+            handleMouseUp={handleMouseUp}
+            handleTouchMove={handleTouchMove}
+            handleTouchEnd={handleTouchEnd}
+            backBtnPos={backBtnPos}
+          />
           {classifica.gp && classifica.gp.length > 0 ? (
             <div style={{ width: '100%', overflowX: 'auto' }}>
               <svg width={Math.max(800, classifica.gp.filter(g => g.completato).length * 100)} height="400" style={{ display: 'block' }}>
@@ -3365,53 +3351,73 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
           }
         >
           {/* Bottone tondo rosso con ingranaggio */}
-          <button
-            style={
-              isMobile
-                ? {
-                    width: '100%',
-                    height: 44,
-                    borderRadius: 8,
-                    background: '#e74c3c',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                    cursor: 'pointer',
-                    marginBottom: 0,
-                    color: 'white',
-                    fontWeight: 700,
-                    fontSize: 18,
-                    letterSpacing: 0.5,
-                  }
-                : {
-                    width: 44,
-                    height: 44,
-                    borderRadius: '50%',
-                    background: '#e74c3c',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                    cursor: 'pointer',
-                  }
-            }
-            onClick={() => setShowImpostazioni(true)}
-            title="Impostazioni"
-          >
-            {isMobile ? 'Impostazioni' : (
-              <svg viewBox="0 0 24 24" fill="white" width="28" height="28">
-                <path d="M19.14,12.94a7.07,7.07,0,0,0,0-1.88l2.11-1.65a.5.5,0,0,0,.12-.63l-2-3.46a.5.5,0,0,0-.61-.22l-2.49,1a6.93,6.93,0,0,0-1.62-.94l-.38-2.65A.5.5,0,0,0,13,2h-4a.5.5,0,0,0-.5.42l-.38,2.65a6.93,6.93,0,0,0-1.62.94l-2.49-1a.5.5,0,0,0-.61.22l-2,3.46a.5.5,0,0,0,.12.63l2.11,1.65a7.07,7.07,0,0,0,0,1.88L2.37,14.59a.5.5,0,0,0-.12.63l2,3.46a.5.5,0,0,0,.61.22l2.49-1a6.93,6.93,0,0,0,1.62.94l.38,2.65A.5.5,0,0,0,9,22h4a.5.5,0,0,0,.5-.42l.38-2.65a6.93,6.93,0,0,0,1.62-.94l2.49,1a.5.5,0,0,0,.61-.22l2-3.46a.5.5,0,0,0-.12-.63ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/>
-              </svg>
-            )}
-          </button>
-          {isAdmin && (
-            <button className="btn-nuovo" style={isMobile ? { background: '#8e44ad', fontSize: 18, fontWeight: 700, height: 44, color: 'white' } : { background: '#8e44ad' }} onClick={() => setShowGestioneRSS(true)}>
-              <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3A2 2 0 0 1 21 5v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14zm0 2H5v14h14V5zm-7 2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4zm0 6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h4z"/></svg>
-              Gestisci RSS
-            </button>
+          {isMobile ? (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', margin: '16px 0' }}>
+                <div style={{ width: '80%', maxWidth: 320, marginBottom: 10 }}>
+                  <label style={{ fontWeight: 'bold' }}>Pilota pole position:</label>
+                  <select value={poleId || ''} onChange={e => setPoleId(e.target.value)} style={{ marginLeft: 10, width: '60%' }}>
+                    <option value=''>Nessuno</option>
+                    {classifica.piloti.map(p => (
+                      <option key={p.id} value={p.id}>{p.nome}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ width: '80%', maxWidth: 320 }}>
+                  <label style={{ fontWeight: 'bold' }}>Pilota giro veloce:</label>
+                  <select value={giroVeloceId || ''} onChange={e => setGiroVeloceId(e.target.value)} style={{ marginLeft: 10, width: '60%' }}>
+                    <option value=''>Nessuno</option>
+                    {classifica.piloti.map(p => (
+                      <option key={p.id} value={p.id}>{p.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <button
+                style={{
+                  width: '100%',
+                  height: 44,
+                  borderRadius: 8,
+                  background: '#e74c3c',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                  cursor: 'pointer',
+                  marginBottom: 0,
+                  color: 'white',
+                  fontWeight: 700,
+                  fontSize: 18,
+                  letterSpacing: 0.5,
+                }}
+                onClick={() => setShowImpostazioni(true)}
+              >
+                <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                Impostazioni
+              </button>
+            </>
+          ) : (
+            <>
+              <div style={{ marginTop: 20 }}>
+                <label style={{ fontWeight: 'bold' }}>Pilota pole position:</label>
+                <select value={poleId || ''} onChange={e => setPoleId(e.target.value)} style={{ marginLeft: 10 }}>
+                  <option value=''>Nessuno</option>
+                  {classifica.piloti.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontWeight: 'bold' }}>Pilota giro veloce:</label>
+                <select value={giroVeloceId || ''} onChange={e => setGiroVeloceId(e.target.value)} style={{ marginLeft: 10 }}>
+                  <option value=''>Nessuno</option>
+                  {classifica.piloti.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
           {showGestioneRSS && <GestioneRSSModal onClose={() => setShowGestioneRSS(false)} />}
           <button className="btn-nuovo" style={isMobile ? { background: '#007AFF', fontSize: 18, fontWeight: 700, height: 44, color: 'white' } : { background: '#007AFF' }} onClick={() => setShowCategorie(true)}>
