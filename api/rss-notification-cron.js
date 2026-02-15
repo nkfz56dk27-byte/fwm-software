@@ -16,6 +16,59 @@ const parser = new XMLParser({
   trimValues: true
 });
 
+// Funzione per decodificare entità HTML
+function decodeHtmlEntities(str) {
+  if (!str) return '';
+  
+  // Decodifica entità numeriche
+  let decoded = str.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+  decoded = decoded.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+  
+  // Decodifica entità named
+  const entities = {
+    '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'",
+    '&nbsp;': ' ', '&ndash;': '–', '&mdash;': '—',
+    '&lsquo;': '\u2018', '&rsquo;': '\u2019',
+    '&ldquo;': '\u201C', '&rdquo;': '\u201D',
+    '&hellip;': '…', '&euro;': '€', '&pound;': '£',
+    '&copy;': '©', '&reg;': '®', '&trade;': '™'
+  };
+  
+  Object.keys(entities).forEach(entity => {
+    decoded = decoded.replace(new RegExp(entity, 'g'), entities[entity]);
+  });
+  
+  return decoded;
+}
+
+// Funzione per salvare log su database
+async function aggiungiDebugLog(logData) {
+  try {
+    let risultatoNormalizzato = logData.risultato;
+    if (typeof logData.risultato === 'boolean') {
+      risultatoNormalizzato = logData.risultato ? 'INVIATA' : 'NON_INVIATA';
+    }
+    
+    await supabase.from('rss_notification_logs').insert({
+      titolo_raw: logData.titolo_raw,
+      titolo_decodificato: logData.titolo_decodificato,
+      feed_url: logData.feed_url,
+      feed_name: logData.feed_name,
+      feed_is_selected: logData.feed_is_selected,
+      keywords_attive: logData.keywords_attive,
+      feed_selezionati: logData.feed_selezionati,
+      caso: logData.caso,
+      risultato: risultatoNormalizzato,
+      motivo: logData.motivo,
+      keyword_match: logData.keyword_match,
+      username: logData.username,
+      created_at: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('❌ Errore salvataggio log su database:', err);
+  }
+}
+
 function normalizeText(value) {
   return (value || '').toLowerCase();
 }
@@ -184,35 +237,138 @@ export default async function handler(req, res) {
 
     let sent = 0;
     let skipped = 0;
+    
     for (const [username, userFilters] of filtersByUser.entries()) {
-
       if (userFilters.keywords.length === 0 && userFilters.feedIds.size === 0) continue;
 
       for (const article of articles) {
         const guid = article.guid || article.link || String(article.id);
         if (!guid) continue;
 
-        const feedMatch = userFilters.feedIds.has(String(article.feed_id));
-        let keywordMatch = false;
-        if (userFilters.keywords.length > 0) {
-          const text = normalizeText(`${article.title || ''} ${article.description || ''} ${article.content || ''}`);
-          keywordMatch = userFilters.keywords.some(k => text.includes(k));
+        // Decodifica titolo
+        const titoloRaw = (article.title || '').trim() || 'Nuovo articolo RSS';
+        const titoloDecodificato = decodeHtmlEntities(titoloRaw);
+        const titoloLower = titoloDecodificato.toLowerCase();
+
+        const hasKeywords = userFilters.keywords.length > 0;
+        const hasFeeds = userFilters.feedIds.size > 0;
+        const feedIsSelected = userFilters.feedIds.has(String(article.feed_id));
+
+        let shouldNotify = false;
+        let motivo = '';
+        let keywordMatch = null;
+        let debugInfo = {
+          titolo_raw: titoloRaw,
+          titolo_decodificato: titoloDecodificato,
+          feed_url: article.link || 'N/A',
+          feed_name: String(article.feed_id),
+          feed_is_selected: feedIsSelected,
+          keywords_attive: userFilters.keywords,
+          feed_selezionati: Array.from(userFilters.feedIds),
+          username: username
+        };
+
+        // CASO 1: SOLO KEYWORD
+        if (hasKeywords && !hasFeeds) {
+          debugInfo.caso = 'SOLO_KEYWORD';
+          
+          for (const keyword of userFilters.keywords) {
+            const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regexTest = new RegExp(`\\b${escaped}\\b`, 'i');
+            const match = regexTest.test(titoloLower);
+            
+            if (match) {
+              shouldNotify = true;
+              motivo = `Keyword "${keyword}" trovata (regex match)`;
+              keywordMatch = keyword;
+              break;
+            }
+          }
+          
+          if (!shouldNotify) {
+            motivo = `Nessuna keyword trovata. Keywords cercate: ${userFilters.keywords.join(', ')}`;
+          }
         }
-        if (!feedMatch && !keywordMatch) continue;
-
-        // 🔧 FIX: Aggiungo controllo duplicati PRIMA dell'insert usando .maybeSingle()
-        const { data: existing } = await supabase
-          .from('rss_notifications_sent')
-          .select('id')
-          .eq('username', username)
-          .eq('article_guid', guid)
-          .maybeSingle();
-
-        if (existing) {
-          skipped++;
-          continue;
+        
+        // CASO 2: SOLO FEED
+        else if (!hasKeywords && hasFeeds) {
+          debugInfo.caso = 'SOLO_FEED';
+          
+          if (feedIsSelected) {
+            shouldNotify = true;
+            motivo = 'Feed selezionato';
+          } else {
+            motivo = 'Feed non selezionato';
+          }
+        }
+        
+        // CASO 3: KEYWORD + FEED
+        else if (hasKeywords && hasFeeds) {
+          debugInfo.caso = 'KEYWORD_E_FEED';
+          
+          if (feedIsSelected) {
+            shouldNotify = true;
+            motivo = 'Feed selezionato (keyword ignorate)';
+          } else {
+            for (const keyword of userFilters.keywords) {
+              const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regexTest = new RegExp(`\\b${escaped}\\b`, 'i');
+              const match = regexTest.test(titoloLower);
+              
+              if (match) {
+                shouldNotify = true;
+                motivo = `Keyword "${keyword}" in feed non selezionato (regex match)`;
+                keywordMatch = keyword;
+                break;
+              }
+            }
+            
+            if (!shouldNotify) {
+              motivo = `Feed non selezionato e nessuna keyword trovata. Keywords: ${userFilters.keywords.join(', ')}`;
+            }
+          }
         }
 
+        if (!shouldNotify) continue;
+
+        // FAIL-SAFE: Re-verifica keyword
+        if (hasKeywords && !hasFeeds) {
+          if (!keywordMatch) {
+            console.error('⚠️ FAIL-SAFE TRIGGERED: shouldNotify=true ma nessuna keyword match!');
+            continue;
+          }
+        }
+
+        // CONTROLLO DUPLICATI in rss_notification_logs
+        try {
+          const { data: notificaEsistente, error: errDup } = await supabase
+            .from('rss_notification_logs')
+            .select('id')
+            .eq('username', username)
+            .eq('titolo_decodificato', titoloDecodificato)
+            .eq('risultato', 'INVIATA')
+            .limit(1);
+
+          if (errDup) {
+            console.error('❌ Errore controllo duplicati:', errDup);
+          } else if (notificaEsistente && notificaEsistente.length > 0) {
+            console.log(`⏭️ Notifica già inviata: ${titoloDecodificato} → ${username}`);
+            skipped++;
+            continue;
+          }
+        } catch (err) {
+          console.error('❌ Errore controllo duplicati:', err);
+        }
+
+        // SALVA LOG PRIMA DELL'INVIO (meccanismo anti-race condition)
+        await aggiungiDebugLog({
+          ...debugInfo,
+          risultato: 'INVIATA',
+          motivo: motivo,
+          keyword_match: keywordMatch
+        });
+
+        // INSERT in rss_notifications_sent
         const { error: sentError } = await supabase
           .from('rss_notifications_sent')
           .insert({ username, article_guid: guid, status: 'pending' });
