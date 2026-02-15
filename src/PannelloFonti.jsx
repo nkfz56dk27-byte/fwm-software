@@ -897,14 +897,6 @@ function PannelloFonti({ onClose }) {
             }
           }
           
-          // 📝 SALVA LOG IN MEMORIA (sempre, anche se non manda notifica)
-          aggiungiDebugLog({
-            ...debugInfo,
-            risultato: shouldNotify ? 'NOTIFICA_INVIATA' : 'NESSUNA_NOTIFICA',
-            motivo: motivo,
-            keyword_match: keywordMatch
-          });
-          
           if (!shouldNotify) continue;
           
           // 🛡️ FAIL-SAFE: Ri-verifica che dovremmo davvero notificare
@@ -917,13 +909,6 @@ function PannelloFonti({ onClose }) {
                 keywords: filtrUtente.keywords,
                 caso: debugInfo.caso
               });
-              
-              aggiungiDebugLog({
-                ...debugInfo,
-                risultato: 'BLOCCATO_FAIL_SAFE',
-                motivo: 'Fail-safe: shouldNotify=true ma nessuna keyword trovata'
-              });
-              
               continue; // ← BLOCCA l'invio!
             }
           }
@@ -944,15 +929,6 @@ function PannelloFonti({ onClose }) {
               // Non blocchiamo l'esecuzione, continua comunque
             } else if (notificaEsistente && notificaEsistente.length > 0) {
               console.log(`⏭️ Notifica già inviata: ${titoloDecodificato} → ${utenteUsername}`);
-              
-              // Log duplicato rilevato
-              await aggiungiDebugLog({
-                ...debugInfo,
-                risultato: 'DUPLICATO',
-                motivo: 'Notifica già inviata in precedenza per questo articolo',
-                keyword_match: keywordMatch
-              });
-              
               continue;
             }
           } catch (err) {
@@ -975,7 +951,7 @@ function PannelloFonti({ onClose }) {
               body: `Fonte: ${host}`,
               notification_type: 'rss_filter',
               target_all: false,
-              target_users: [utenteUsername], // ← SOLO a questo utente!
+              target_users: [utenteUsername],
               data: {
                 link: articolo.link || null,
                 feed_id: feed?.id || null,
@@ -987,10 +963,6 @@ function PannelloFonti({ onClose }) {
             
           } catch (err) {
             console.error(`❌ Errore invio notifica a ${utenteUsername}:`, err);
-            
-            // Aggiorna il log con l'errore
-            // (il log esiste già, ma dobbiamo marcarlo come fallito)
-            console.error('Notifica fallita ma log già salvato:', err.message);
           }
         }
       }
