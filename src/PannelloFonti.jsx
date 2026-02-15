@@ -487,7 +487,7 @@ function PannelloFonti({ onClose }) {
   }
 
   // Funzione per aggiungere log in MEMORIA (non database)
-  function aggiungiDebugLog(logData) {
+  async function aggiungiDebugLog(logData) {
     const logCompleto = {
       ...logData,
       timestamp: new Date().toISOString(),
@@ -499,6 +499,28 @@ function PannelloFonti({ onClose }) {
     
     // Log anche in console per debug desktop
     console.log('📝 DEBUG LOG:', logCompleto);
+    
+    // 💾 SALVA SU DATABASE per tracciabilità permanente
+    try {
+      await supabase.from('rss_notification_logs').insert({
+        titolo_raw: logData.titolo_raw,
+        titolo_decodificato: logData.titolo_decodificato,
+        feed_url: logData.feed_url,
+        feed_name: logData.feed_name,
+        feed_is_selected: logData.feed_is_selected,
+        keywords_attive: logData.keywords_attive,
+        feed_selezionati: logData.feed_selezionati,
+        caso: logData.caso,
+        risultato: logData.risultato ? 'INVIATA' : 'NON_INVIATA',
+        motivo: logData.motivo,
+        keyword_match: logData.keyword_match,
+        username: logData.username,
+        created_at: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('❌ Errore salvataggio log su database:', err);
+      // Non blocchiamo l'esecuzione se il salvataggio fallisce
+    }
   }
 
   async function caricaDebugLogs() {
@@ -742,6 +764,18 @@ function PannelloFonti({ onClose }) {
           
           const feedIsSelected = filtrUtente.feeds.includes(String(feed?.id));
           
+          // 🔍 DEBUG: Log dettagliato del matching del feed
+          console.log('🔍 FEED MATCHING DEBUG:', {
+            articolo_guid: guid,
+            feed_id_articolo: feed?.id,
+            feed_id_articolo_string: String(feed?.id),
+            feed_id_articolo_type: typeof feed?.id,
+            feed_selezionati_utente: filtrUtente.feeds,
+            feed_selezionati_types: filtrUtente.feeds.map(f => typeof f),
+            includes_result: feedIsSelected,
+            username: utenteUsername
+          });
+          
           let shouldNotify = false;
           let motivo = '';
           let keywordMatch = null;
@@ -752,11 +786,21 @@ function PannelloFonti({ onClose }) {
             feed_url: feed?.url || 'N/A',
             feed_name: feed?.name || 'N/A',
             feed_id: String(feed?.id || 'N/A'),
+            feed_id_type: typeof feed?.id,
             feed_is_selected: feedIsSelected,
             keywords_attive: filtrUtente.keywords,
             feed_selezionati: filtrUtente.feeds,
             username: utenteUsername,
-            test_keyword_dettaglio: []
+            test_keyword_dettaglio: [],
+            debug_feed_comparison: {
+              feed_articolo: String(feed?.id),
+              feeds_utente: filtrUtente.feeds,
+              match_esatto: filtrUtente.feeds.map(f => ({
+                saved: f,
+                current: String(feed?.id),
+                equal: f === String(feed?.id)
+              }))
+            }
           };
           
           // 5️⃣ LOGICA FILTRI (identica a prima ma per QUESTO utente)
@@ -856,6 +900,27 @@ function PannelloFonti({ onClose }) {
           });
           
           if (!shouldNotify) continue;
+          
+          // 🛡️ FAIL-SAFE: Ri-verifica che dovremmo davvero notificare
+          if (hasKeywords && !hasFeeds) {
+            // Caso SOLO_KEYWORD: DEVE avere keyword match
+            if (!keywordMatch) {
+              console.error('⚠️ FAIL-SAFE TRIGGERED: shouldNotify=true ma nessuna keyword match!', {
+                username: utenteUsername,
+                titolo: titoloDecodificato,
+                keywords: filtrUtente.keywords,
+                caso: debugInfo.caso
+              });
+              
+              aggiungiDebugLog({
+                ...debugInfo,
+                risultato: 'BLOCCATO_FAIL_SAFE',
+                motivo: 'Fail-safe: shouldNotify=true ma nessuna keyword trovata'
+              });
+              
+              continue; // ← BLOCCA l'invio!
+            }
+          }
           
           // 6️⃣ CONTROLLA DUPLICATI PER QUESTO UTENTE
           try {
