@@ -12,7 +12,46 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 export default async function handler(req, res) {
   const start = Date.now();
+  const lockId = `rss-push-${Date.now()}-${Math.random()}`;
+  
   try {
+    console.log(`🔒 [RSS PUSH] Tentativo lock: ${lockId}`);
+    
+    // DISTRIBUTED LOCK: verifica se c'è già un'esecuzione in corso
+    const { data: existingLock, error: lockCheckError } = await supabase
+      .from('rss_push_locks')
+      .select('*')
+      .eq('lock_name', 'send_rss_push')
+      .gte('locked_at', new Date(Date.now() - 30000).toISOString()) // Lock attivi ultimi 30 secondi
+      .maybeSingle();
+    
+    if (existingLock && !lockCheckError) {
+      console.log(`⏭️ [RSS PUSH] Lock già attivo (locked_at: ${existingLock.locked_at}), skip`);
+      return res.status(200).json({ 
+        success: true, 
+        sent: 0,
+        skipped: true,
+        reason: 'Lock already active',
+        durationMs: Date.now() - start
+      });
+    }
+    
+    // Crea il lock
+    const { error: lockError } = await supabase
+      .from('rss_push_locks')
+      .upsert({ 
+        lock_name: 'send_rss_push',
+        locked_at: new Date().toISOString(),
+        lock_id: lockId
+      }, { onConflict: 'lock_name' });
+    
+    if (lockError) {
+      console.error('❌ [RSS PUSH] Errore creazione lock:', lockError);
+      // Continua comunque
+    } else {
+      console.log(`✅ [RSS PUSH] Lock acquisito: ${lockId}`);
+    }
+    
     console.log('📢 [RSS PUSH] Inizio elaborazione notifiche RSS pending (da rss_notifications_sent)...');
 
     // 1. Leggi tutte le notifiche pending da rss_notifications_sent
@@ -191,6 +230,19 @@ export default async function handler(req, res) {
     }
 
     console.log(`✅ [RSS PUSH] Completato! Sent: ${sentCount}, Failed: ${failedCount}`);
+    
+    // Rilascia il lock
+    try {
+      await supabase
+        .from('rss_push_locks')
+        .delete()
+        .eq('lock_name', 'send_rss_push')
+        .eq('lock_id', lockId);
+      console.log(`🔓 [RSS PUSH] Lock rilasciato: ${lockId}`);
+    } catch (lockReleaseError) {
+      console.error('❌ [RSS PUSH] Errore rilascio lock:', lockReleaseError);
+    }
+    
     return res.status(200).json({ 
       success: true, 
       sent: sentCount, 
@@ -201,6 +253,18 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('❌ [RSS PUSH] Errore generale:', error);
+    
+    // Rilascia il lock anche in caso di errore
+    try {
+      await supabase
+        .from('rss_push_locks')
+        .delete()
+        .eq('lock_name', 'send_rss_push');
+      console.log(`🔓 [RSS PUSH] Lock rilasciato (errore)`);
+    } catch (lockReleaseError) {
+      console.error('❌ [RSS PUSH] Errore rilascio lock:', lockReleaseError);
+    }
+    
     return res.status(500).json({ 
       success: false, 
       error: error.message,
