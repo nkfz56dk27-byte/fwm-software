@@ -829,12 +829,25 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
 
   const caricaClassifica = async () => {
     try {
-      const { data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single()
+      // Prima cerca nella tabella standard
+      let { data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single()
       if (!error && data) {
         setClassifica(data)
         if (!data.piloti || data.piloti.length === 0) {
           setShowSetup(true)
         }
+        setLoading(false)
+        return
+      }
+      // Se non trovata, cerca nella tabella custom
+      let customRes = await supabase.from('classifiche_custom').select('*').eq('id', classificaId).single()
+      if (!customRes.error && customRes.data) {
+        setClassifica(customRes.data)
+        if (!customRes.data.piloti || customRes.data.piloti.length === 0) {
+          setShowSetup(true)
+        }
+        setLoading(false)
+        return
       }
       setLoading(false)
     } catch (err) {
@@ -1075,6 +1088,11 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                 <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 0', borderBottom: i < pilotiOrdinati.length - 1 ? '1px solid #eee' : 'none' }}>
                   <div style={{ fontSize: '20px', fontWeight: 'bold', minWidth: '30px' }}>{i + 1}</div>
                   <div style={{ width: '8px', height: '40px', background: p.colore || '#007AFF', borderRadius: '4px' }}></div>
+                  {p.foto ? (
+                    <img src={p.foto} alt="Foto" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: '1px solid #ccc', marginRight: 8 }} />
+                  ) : (
+                    <span style={{ width: 40, height: 40, display: 'inline-block', background: '#eee', borderRadius: 8, border: '1px solid #ccc', textAlign: 'center', lineHeight: '40px', color: '#bbb', marginRight: 8 }}>?</span>
+                  )}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: '600', fontSize: '16px' }}>{p.nome}</div>
                     <div style={{ fontSize: '14px', color: '#666' }}>{p.team}</div>
@@ -2501,19 +2519,32 @@ function SetupIniziale({ classifica, onSave, onBack }) {
   const [nomePilota, setNomePilota] = useState('')
   const [teamPilota, setTeamPilota] = useState('')
   const [colorePilota, setColorePilota] = useState('#0066FF')
+  const [fotoPilota, setFotoPilota] = useState(null)
   const [nomeGP, setNomeGP] = useState('')
   const [tipoWeekend, setTipoWeekend] = useState('standard')
+  const fileInputRef = React.useRef();
 
-  const aggiungiPilota = () => {
+  const aggiungiPilota = async () => {
     if (!nomePilota || !teamPilota) return
-    const nuovoPilota = { id: Date.now(), nome: nomePilota, team: teamPilota, colore: colorePilota, punti: 0, distacco: 0, attivo: true }
-    setPiloti([...piloti, nuovoPilota])
-    if (!costruttori.find(c => c.nome === teamPilota)) {
-      setCostruttori([...costruttori, { id: Date.now() + 1, nome: teamPilota, colore: colorePilota, punti: 0, distacco: 0 }])
+    let fotoUrl = null;
+    if (fotoPilota) {
+      // Upload su Supabase Storage (bucket: loghi-piloti)
+      const fileName = `piloti/${Date.now()}_${nomePilota.replace(/\s+/g, '_')}`;
+      const { data, error } = await supabase.storage.from('loghi-piloti').upload(fileName, fotoPilota, { upsert: true });
+      if (!error) {
+        const { publicUrl } = supabase.storage.from('loghi-piloti').getPublicUrl(fileName);
+        fotoUrl = publicUrl;
+      }
     }
-    setNomePilota('')
-    setTeamPilota('')
-    setColorePilota('#0066FF')
+    const nuovoPilota = { id: Date.now(), nome: nomePilota, team: teamPilota, colore: colorePilota, punti: 0, distacco: 0, attivo: true, foto: fotoUrl };
+    setPiloti([...piloti, nuovoPilota]);
+    if (!costruttori.find(c => c.nome === teamPilota)) {
+      setCostruttori([...costruttori, { id: Date.now() + 1, nome: teamPilota, colore: colorePilota, punti: 0, distacco: 0 }]);
+    }
+    setNomePilota('');
+    setTeamPilota('');
+    setColorePilota('#0066FF');
+    setFotoPilota(null);
   }
 
   const aggiungiGP = () => {
@@ -2523,8 +2554,17 @@ function SetupIniziale({ classifica, onSave, onBack }) {
     setNomeGP('')
   }
 
-  const confermaESalva = () => {
-    onSave({ ...classifica, piloti, costruttori, gp, numero_gp_stagione: numeroGP, numero_sprint_stagione: numeroSprint })
+  const confermaESalva = async () => {
+    // Salva la classifica aggiornata su Supabase (standard o custom)
+    const nuovaClassifica = { ...classifica, piloti, costruttori, gp, numero_gp_stagione: numeroGP, numero_sprint_stagione: numeroSprint };
+    if (classifica.isCustom) {
+      // Aggiorna classifiche_custom
+      await supabase.from('classifiche_custom').update(nuovaClassifica).eq('id', classifica.id);
+    } else {
+      // Aggiorna classifiche standard
+      await supabase.from('classifiche').update(nuovaClassifica).eq('id', classifica.id);
+    }
+    onSave(nuovaClassifica);
   }
 
   return (
@@ -2539,108 +2579,161 @@ function SetupIniziale({ classifica, onSave, onBack }) {
       </div>
 
     {step === 0 && (
+      <>
         <div>
           <h1 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>Inserisci i piloti e i team in {classifica.nome}</h1>
-          
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome Pilota</label>
-            <input type="text" value={nomePilota} onChange={(e) => setNomePilota(e.target.value)} placeholder="es. Max Verstappen" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
+            <input type="text" value={nomePilota} onChange={e => setNomePilota(e.target.value)} placeholder="es. Max Verstappen" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
           </div>
-
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Team</label>
-            <input type="text" value={teamPilota} onChange={(e) => setTeamPilota(e.target.value)} placeholder="es. Red Bull Racing" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
+            <input type="text" value={teamPilota} onChange={e => setTeamPilota(e.target.value)} placeholder="es. Red Bull Racing" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
           </div>
-
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Colore Team</label>
-            <input type="color" value={colorePilota} onChange={(e) => setColorePilota(e.target.value)} style={{ width: '100%', height: '50px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer' }} />
+            <input type="color" value={colorePilota} onChange={e => setColorePilota(e.target.value)} style={{ width: '100%', height: '50px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer' }} />
           </div>
-
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Foto Pilota (opzionale)</label>
+            <div
+              style={{
+                width: '100%',
+                height: '50px',
+                border: '2px dashed #007AFF',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: fotoPilota ? 'none' : '#f8f9fa',
+                cursor: 'pointer',
+                position: 'relative',
+                marginBottom: '10px',
+                transition: 'border-color 0.2s',
+                overflow: 'hidden'
+              }}
+              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+              onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
+              onDrop={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  setFotoPilota(e.dataTransfer.files[0]);
+                }
+              }}
+            >
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={e => {
+                  if (e.target.files && e.target.files[0]) setFotoPilota(e.target.files[0]);
+                }}
+              />
+              {fotoPilota ? (
+                <img src={URL.createObjectURL(fotoPilota)} alt="Anteprima" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px', display: 'block' }} />
+              ) : (
+                <span style={{ color: '#007AFF', fontWeight: 600, fontSize: '18px', textAlign: 'center', width: '100%' }}>
+                  Clicca o trascina qui la foto
+                </span>
+              )}
+            </div>
+          </div>
           <button onClick={aggiungiPilota} style={{ width: '100%', padding: '15px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '30px' }}>
             Aggiungi Pilota
           </button>
-
-          {piloti.length > 0 && (
-            <div style={{ marginBottom: '25px' }}>
-              <h3 style={{ marginBottom: '15px', fontSize: '18px', borderBottom: '2px solid #f0f0f0', paddingBottom: '8px' }}>
-                Piloti inseriti: {piloti.length}
-              </h3>
-              <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
-                {piloti.map((p) => (
-                  <div key={p.id} style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    alignItems: 'center', 
-                    padding: '12px', 
-                    background: '#f8f9fa', 
-                    borderRadius: '12px', 
-                    marginBottom: '10px',
-                    border: '1px solid #eee'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <div style={{ 
-                        width: '28px', 
-                        height: '28px', 
-                        borderRadius: '50%', 
-                        background: p.colore, 
-                        border: '2px solid white', 
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)' 
-                      }}></div>
-                      <div style={{ fontSize: '15px', color: '#333' }}>
-                        <strong>{p.nome}</strong> <span style={{ opacity: 0.7, marginLeft: '5px' }}>({p.team})</span>
-                      </div>
-                    </div>
-
-                    <button 
-                      onClick={() => setPiloti(piloti.filter(item => item.id !== p.id))}
-                      title="Rimuovi pilota"
-                      style={{ 
-                        background: 'none', 
-                        color: 'red', 
-                        border: 'none', 
-                        borderRadius: '10%', 
-                        width: '26px', 
-                        height: '26px', 
-                        cursor: 'pointer', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        fontSize: '30px', 
-                        fontWeight: 'bold',
-                        transition: 'transform 0.1s active'
-                      }}
-                      onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.9)'}
-                      onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <button 
-            onClick={() => setStep(1)} 
-            disabled={piloti.length === 0} 
-            style={{ 
-              width: '100%', 
-              padding: '15px', 
-              background: piloti.length > 0 ? '#34C759' : '#ccc', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '15px', 
-              fontSize: '18px', 
-              fontWeight: 'bold', 
-              cursor: piloti.length > 0 ? 'pointer' : 'not-allowed',
-              marginTop: '10px'
-            }}
-          >
-            Avanti
-          </button>
+          <ul style={{ listStyle: 'none', padding: 0, marginTop: '10px' }}>
+            {piloti.map((p, idx) => (
+              <li key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                {p.foto ? <img src={p.foto} alt="Foto" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', border: '1px solid #ccc' }} /> : <span style={{ width: 32, height: 32, display: 'inline-block', background: '#eee', borderRadius: 6, border: '1px solid #ccc', textAlign: 'center', lineHeight: '32px', color: '#bbb' }}>?</span>}
+                <span style={{ fontWeight: 500 }}>{p.nome}</span> <span style={{ color: '#888' }}>({p.team})</span>
+              </li>
+            ))}
+          </ul>
         </div>
-      )}
+
+
+        {piloti.length > 0 && (
+          <div style={{ marginBottom: '25px' }}>
+            <h3 style={{ marginBottom: '15px', fontSize: '18px', borderBottom: '2px solid #f0f0f0', paddingBottom: '8px' }}>
+              Piloti inseriti: {piloti.length}
+            </h3>
+            <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
+              {piloti.map((p) => (
+                <div key={p.id} style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  padding: '12px', 
+                  background: '#f8f9fa', 
+                  borderRadius: '12px', 
+                  marginBottom: '10px',
+                  border: '1px solid #eee'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div style={{ 
+                      width: '28px', 
+                      height: '28px', 
+                      borderRadius: '50%', 
+                      background: p.colore, 
+                      border: '2px solid white', 
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)' 
+                    }}></div>
+                    <div style={{ fontSize: '15px', color: '#333' }}>
+                      <strong>{p.nome}</strong> <span style={{ opacity: 0.7, marginLeft: '5px' }}>({p.team})</span>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={() => setPiloti(piloti.filter(item => item.id !== p.id))}
+                    title="Rimuovi pilota"
+                    style={{ 
+                      background: 'none', 
+                      color: 'red', 
+                      border: 'none', 
+                      borderRadius: '10%', 
+                      width: '26px', 
+                      height: '26px', 
+                      cursor: 'pointer', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      fontSize: '30px', 
+                      fontWeight: 'bold',
+                      transition: 'transform 0.1s active'
+                    }}
+                    onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.9)'}
+                    onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button 
+          onClick={() => setStep(1)} 
+          disabled={piloti.length === 0} 
+          style={{ 
+            width: '100%', 
+            padding: '15px', 
+            background: piloti.length > 0 ? '#34C759' : '#ccc', 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '15px', 
+            fontSize: '18px', 
+            fontWeight: 'bold', 
+            cursor: piloti.length > 0 ? 'pointer' : 'not-allowed',
+            marginTop: '10px'
+          }}
+        >
+          Avanti
+        </button>
+      </>
+    )}
       {step === 1 && (
         <div>
           <h1 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>Configurazione Stagione</h1>
@@ -2799,17 +2892,49 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
   }
 
   const eliminaClassifica = async (id) => {
-  if (!confirm('Eliminare questa classifica? Questa azione non può essere annullata.')) return
-  const { error } = await supabase.from('classifiche').delete().eq('id', id)
-  if (!error) {
-    // Rimuovi la classifica dalla lista locale
-    setClassifiche(classifiche.filter(c => c.id !== id))
-    setModalitaElimina(false)
-    alert('✅ Classifica eliminata con successo!')
-  } else {
-    alert('❌ Errore durante l\'eliminazione')
+    if (!confirm('Eliminare questa classifica? Questa azione non può essere annullata.')) return;
+    // Recupera la classifica (standard o custom) per trovare le foto dei piloti
+    let classifica = classifiche.find(c => c.id === id);
+    if (!classifica) {
+      // Prova a caricare da Supabase se non trovata localmente
+      let { data } = await supabase.from('classifiche').select('*').eq('id', id).single();
+      if (!data) {
+        let res = await supabase.from('classifiche_custom').select('*').eq('id', id).single();
+        data = res.data;
+      }
+      classifica = data;
+    }
+    // Cancella tutte le foto dei piloti dal bucket se presenti
+    if (classifica && Array.isArray(classifica.piloti)) {
+      for (const pilota of classifica.piloti) {
+        if (pilota.foto && typeof pilota.foto === 'string') {
+          // Estrai il path relativo dal publicUrl
+          const match = pilota.foto.match(/loghi-piloti\/(.+)$/);
+          if (match && match[1]) {
+            await supabase.storage.from('loghi-piloti').remove([`piloti/${match[1]}`]);
+          }
+        }
+      }
+    }
+    // Prova a eliminare sia da classifiche che da classifiche_custom
+    const { error: errorStandard } = await supabase.from('classifiche').delete().eq('id', id);
+    const { error: errorCustom } = await supabase.from('classifiche_custom').delete().eq('id', id);
+    if (!errorStandard && !errorCustom) {
+      setClassifiche(classifiche.filter(c => c.id !== id));
+      setModalitaElimina(false);
+      alert('✅ Classifica eliminata con successo!');
+    } else if (!errorStandard && errorCustom) {
+      setClassifiche(classifiche.filter(c => c.id !== id));
+      setModalitaElimina(false);
+      alert('✅ Classifica standard eliminata! (custom non trovata)');
+    } else if (errorStandard && !errorCustom) {
+      setClassifiche(classifiche.filter(c => c.id !== id));
+      setModalitaElimina(false);
+      alert('✅ Classifica custom eliminata! (standard non trovata)');
+    } else {
+      alert('❌ Errore durante l\'eliminazione');
+    }
   }
-}
 
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Caricamento...</div>
 
