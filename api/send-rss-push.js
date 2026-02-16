@@ -10,6 +10,31 @@ const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// Funzione per decodificare entità HTML
+function decodeHtmlEntities(str) {
+  if (!str) return '';
+  
+  // Decodifica entità numeriche
+  let decoded = str.replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+  decoded = decoded.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+  
+  // Decodifica entità named
+  const entities = {
+    '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'",
+    '&nbsp;': ' ', '&ndash;': '–', '&mdash;': '—',
+    '&lsquo;': '\u2018', '&rsquo;': '\u2019',
+    '&ldquo;': '\u201C', '&rdquo;': '\u201D',
+    '&hellip;': '…', '&euro;': '€', '&pound;': '£',
+    '&copy;': '©', '&reg;': '®', '&trade;': '™'
+  };
+  
+  Object.keys(entities).forEach(entity => {
+    decoded = decoded.replace(new RegExp(entity, 'g'), entities[entity]);
+  });
+  
+  return decoded;
+}
+
 export default async function handler(req, res) {
   const start = Date.now();
   const lockId = `rss-push-${Date.now()}-${Math.random()}`;
@@ -162,12 +187,16 @@ export default async function handler(req, res) {
           console.warn(`[RSS PUSH] Nessun device trovato per utente ${notifica.username}`);
         }
 
+        // Decodifica titolo e descrizione
+        const titoloDecodificato = decodeHtmlEntities(article.title || 'Nuovo articolo RSS');
+        const descrizioneDecodificata = decodeHtmlEntities(article.description || article.title || 'Nuovo articolo RSS');
+        
         // Prepara payload notifica
         const oneSignalPayload = {
           app_id: ONESIGNAL_APP_ID,
           include_player_ids: playerIds,
-          headings: { en: article.title || 'Nuovo articolo RSS' },
-          contents: { en: article.description || article.title || 'Nuovo articolo RSS' },
+          headings: { en: titoloDecodificato },
+          contents: { en: descrizioneDecodificata },
           data: {
             link: article.link || null,
             feed_id: article.feed_id,
