@@ -158,7 +158,7 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
               <select
                 value={pilotaA}
                 onChange={e => setPilotaA(e.target.value)}
-                style={{ width: '100%', padding: 14, fontSize: 19, borderRadius: 8, border: '1px solid #007AFF', marginTop: 4, textAlign: 'center', background: '#f8f8f8', fontWeight: 600 }}
+                style={{ width: '100%', padding: 14, fontSize: 19, borderRadius: 8, border: '2.5px solid #007AFF', marginTop: 4, textAlign: 'center', background: '#f8f8f8', fontWeight: 600, boxShadow: '0 0 0 2px #007AFF22' }}
               >
                 <option value="" style={{ fontSize: 17, textAlign: 'center', fontWeight: 500 }}>Seleziona pilota</option>
                 {Array.isArray(open.piloti) && open.piloti.map(p => (
@@ -171,7 +171,7 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
               <select
                 value={pilotaB}
                 onChange={e => setPilotaB(e.target.value)}
-                style={{ width: '100%', padding: 14, fontSize: 19, borderRadius: 8, border: '1px solid #007AFF', marginTop: 4, textAlign: 'center', background: '#f8f8f8', fontWeight: 600 }}
+                style={{ width: '100%', padding: 14, fontSize: 19, borderRadius: 8, border: '2.5px solid #FF9500', marginTop: 4, textAlign: 'center', background: '#f8f8f8', fontWeight: 600, boxShadow: '0 0 0 2px #FF950022' }}
               >
                 <option value="" style={{ fontSize: 17, textAlign: 'center', fontWeight: 500 }}>Seleziona pilota</option>
                 {Array.isArray(open.piloti) && open.piloti.map(p => (
@@ -187,7 +187,7 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
               <select
                 value={pilotaA}
                 onChange={e => setPilotaA(e.target.value)}
-                style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #007AFF', marginTop: 8, textAlign: 'center' }}
+                style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '2.5px solid #007AFF', marginTop: 8, textAlign: 'center', boxShadow: '0 0 0 2px #007AFF22' }}
               >
                 <option value="">Seleziona pilota</option>
                 {Array.isArray(open.piloti) && open.piloti.map(p => (
@@ -200,7 +200,7 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
               <select
                 value={pilotaB}
                 onChange={e => setPilotaB(e.target.value)}
-                style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #007AFF', marginTop: 8, textAlign: 'center' }}
+                style={{ width: '100%', padding: 12, fontSize: 16, borderRadius: 8, border: '2.5px solid #FF9500', marginTop: 8, textAlign: 'center', boxShadow: '0 0 0 2px #FF950022' }}
               >
                 <option value="">Seleziona pilota</option>
                 {Array.isArray(open.piloti) && open.piloti.map(p => (
@@ -215,35 +215,57 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
         {/* DATI PILOTI (sopra il grafico) */}
         <div style={{ display: 'flex', gap: 32, marginTop: 32, justifyContent: 'center', width: '100%', maxWidth: 700 }}>
           {/* Dati Pilota A */}
-          <div style={{ flex: 1, maxWidth: 300, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ flex: 1, maxWidth: 300, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 0, minHeight: 180 }}>
             {pilotaAData && (
-              <div style={{ marginTop: 16, fontSize: 18, fontWeight: 'bold', color: '#007AFF' }}>
-                <div>{pilotaAData.nome}</div>
-                <div>Vittorie: {calcolaVittorie(pilotaAData.id)}</div>
-                <div>Podi: {calcolaPodi(pilotaAData.id)}</div>
-                <div>Pole: {calcolaPole(pilotaAData.id)}</div>
-                <div>Giri veloci: {calcolaGiriVeloci(pilotaAData.id)}</div>
-                <div>Punti: {pilotaAData.punti ?? '-'}</div>
-                <div>DNS: {calcolaFlag(pilotaAData.id, 'DNS')}</div>
-                <div>DNF: {calcolaFlag(pilotaAData.id, 'DNF')}</div>
-                <div>DSQ: {calcolaFlag(pilotaAData.id, 'DSQ')}</div>
-              </div>
+              <>
+                {!isMobile && (
+                  pilotaAData.foto && (
+                    <img
+                      src={pilotaAData.foto}
+                      alt={pilotaAData.nome}
+                      style={{ maxHeight: 170, maxWidth: 140, width: 'auto', height: 'auto', objectFit: 'cover', borderRadius: 18, border: '2px solid #eee', background: '#fafafa', marginRight: 36, marginLeft: 0, alignSelf: 'center' }}
+                    />
+                  )
+                )}
+                <div style={{ fontSize: 18, fontWeight: 'bold', color: '#007AFF', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%' }}>
+                  <div>{pilotaAData.nome}</div>
+                  <div>Vittorie: {calcolaVittorie(pilotaAData.id)}</div>
+                  <div>Podi: {calcolaPodi(pilotaAData.id)}</div>
+                  <div>Pole: {calcolaPole(pilotaAData.id)}</div>
+                  <div>Giri veloci: {calcolaGiriVeloci(pilotaAData.id)}</div>
+                  <div>Punti: {pilotaAData.punti ?? '-'}</div>
+                  <div>DNS: {calcolaFlag(pilotaAData.id, 'DNS')}</div>
+                  <div>DNF: {calcolaFlag(pilotaAData.id, 'DNF')}</div>
+                  <div>DSQ: {calcolaFlag(pilotaAData.id, 'DSQ')}</div>
+                </div>
+              </>
             )}
           </div>
           {/* Dati Pilota B */}
-          <div style={{ flex: 1, maxWidth: 300, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ flex: 1, maxWidth: 300, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 0 }}>
             {pilotaBData && (
-              <div style={{ marginTop: 16, fontSize: 18, fontWeight: 'bold', color: '#007AFF' }}>
-                <div>{pilotaBData.nome}</div>
-                <div>Vittorie: {calcolaVittorie(pilotaBData.id)}</div>
-                <div>Podi: {calcolaPodi(pilotaBData.id)}</div>
-                <div>Pole: {calcolaPole(pilotaBData.id)}</div>
-                <div>Giri veloci: {calcolaGiriVeloci(pilotaBData.id)}</div>
-                <div>Punti: {pilotaBData.punti ?? '-'}</div>
-                <div>DNS: {calcolaFlag(pilotaBData.id, 'DNS')}</div>
-                <div>DNF: {calcolaFlag(pilotaBData.id, 'DNF')}</div>
-                <div>DSQ: {calcolaFlag(pilotaBData.id, 'DSQ')}</div>
-              </div>
+              <>
+                <div style={{ fontSize: 18, fontWeight: 'bold', color: '#FF9500', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', width: '100%', minHeight: 170, justifyContent: 'center', marginRight: 0, marginLeft: 36 }}>
+                  <div>{pilotaBData.nome}</div>
+                  <div>Vittorie: {calcolaVittorie(pilotaBData.id)}</div>
+                  <div>Podi: {calcolaPodi(pilotaBData.id)}</div>
+                  <div>Pole: {calcolaPole(pilotaBData.id)}</div>
+                  <div>Giri veloci: {calcolaGiriVeloci(pilotaBData.id)}</div>
+                  <div>Punti: {pilotaBData.punti ?? '-'}</div>
+                  <div>DNS: {calcolaFlag(pilotaBData.id, 'DNS')}</div>
+                  <div>DNF: {calcolaFlag(pilotaBData.id, 'DNF')}</div>
+                  <div>DSQ: {calcolaFlag(pilotaBData.id, 'DSQ')}</div>
+                </div>
+                {!isMobile && (
+                  pilotaBData.foto && (
+                    <img
+                      src={pilotaBData.foto}
+                      alt={pilotaBData.nome}
+                      style={{ maxHeight: 170, maxWidth: 140, width: 'auto', height: 'auto', objectFit: 'cover', borderRadius: 18, border: '2px solid #eee', background: '#fafafa', marginLeft: 36, marginRight: 0, alignSelf: 'center' }}
+                    />
+                  )
+                )}
+              </>
             )}
           </div>
         </div>
@@ -261,9 +283,9 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
                   </g>
                 ))}
 
-                {/* Linee piloti */}
+                {/* Linee piloti: Pilota A sempre blu, Pilota B sempre arancione */}
                 {[pilotaAData, pilotaBData].map((item, idx) => {
-                  const colore = item.colore || (idx === 0 ? '#007AFF' : '#FF9500');
+                  const colore = idx === 0 ? '#007AFF' : '#FF9500';
                   let puntiAccumulati = 0;
                   const punti = [{ x: 50, y: 270, punti: 0 }];
                   const gpCompletati = open.gp.filter(g => g.completato);
@@ -327,14 +349,16 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
                   </text>
                 ))}
               </svg>
-              {/* Legenda */}
+              {/* Legenda: Pilota A blu, Pilota B arancione */}
               <div style={{ display: 'flex', justifyContent: 'center', gap: '30px', marginTop: '18px' }}>
-                {[pilotaAData, pilotaBData].map((item, idx) => (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ width: 22, height: 6, background: item.colore || (idx === 0 ? '#007AFF' : '#FF9500'), borderRadius: 3 }}></div>
-                    <span style={{ fontWeight: 600, fontSize: 15 }}>{item.nome}</span>
-                  </div>
-                ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 22, height: 6, background: '#007AFF', borderRadius: 3 }}></div>
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>{pilotaAData.nome}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 22, height: 6, background: '#FF9500', borderRadius: 3 }}></div>
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>{pilotaBData.nome}</span>
+                </div>
               </div>
             </div>
           ) : (
