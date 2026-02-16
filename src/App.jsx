@@ -893,12 +893,23 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
   if (!classifica) return <div style={{ padding: '40px', textAlign: 'center' }}>Classifica non trovata</div>
   if (showSetup) return <SetupIniziale classifica={classifica} onSave={salvaClassifica} onBack={onBack} />
   if (showImpostazioni) return <ImpostazioniClassifica classifica={classifica} onClose={() => { setShowImpostazioni(false); caricaClassifica() }} onSave={salvaClassifica} />
-  if (showInserimentoGP) return <InserimentoRisultatiGP classifica={classifica} gpPreselezionato={gpSelezionato} onClose={() => { setShowInserimentoGP(false); setGpSelezionato(null) }} onSave={salvaClassifica} />
+  if (showInserimentoGP) return <InserimentoRisultatiGP 
+    classifica={classifica} 
+    gpPreselezionato={gpSelezionato} 
+    onClose={() => { setShowInserimentoGP(false); setGpSelezionato(null) }} 
+    onSave={(nuovaClassifica) => {
+      setShowInserimentoGP(false);
+      setGpSelezionato(null);
+      setClassifica(nuovaClassifica);
+    }} 
+  />
   if (showGrafico) return <GraficoPronostico classifica={classifica} isMobile={isMobile} onClose={() => setShowGrafico(false)} />
 
   const pilotiOrdinati = classifica.piloti ? [...classifica.piloti].filter(p => p.attivo).sort((a, b) => b.punti - a.punti) : []
   const costruttoriOrdinati = classifica.costruttori ? [...classifica.costruttori].sort((a, b) => b.punti - a.punti) : []
-  const gpCompletati = classifica.gp ? classifica.gp.filter(g => g.completato) : []
+  const gpCompletati = classifica.gp
+    ? classifica.gp.filter(g => g.completato).sort((a, b) => a.id - b.id)
+    : []
   const gpDaCompletare = classifica.gp ? classifica.gp.filter(g => !g.completato) : []
 
   return (
@@ -1042,31 +1053,93 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
               >
                 {/* Risultati piloti ordinati */}
                 {Object.entries(gara.risultati || {})
-                  .sort((a, b) => Number(a[1]) - Number(b[1]))
-                  .filter(([pilotaId, posizione]) => {
-                    const puntiBase = calcolaPuntiPosizione(Number(posizione), gara.tipo_gara, classifica);
-                    return puntiBase > 0; // Mostra solo piloti con punti > 0
+                  .map(([pilotaId, info]) => {
+                    let posizione = null;
+                    let flag = null;
+                    if (typeof info === 'object' && info !== null) {
+                      posizione = 'posizione' in info ? Number(info.posizione) : null;
+                      flag = 'flag' in info ? info.flag : null;
+                    } else {
+                      posizione = Number(info);
+                    }
+                    return { pilotaId, posizione, flag };
                   })
-                  .map(([pilotaId, posizione]) => {
+                  .filter(({ posizione, flag }) => posizione !== null || flag)
+                  .sort((a, b) => {
+                    if (a.posizione !== null && b.posizione !== null) return a.posizione - b.posizione;
+                    if (a.posizione !== null) return -1;
+                    if (b.posizione !== null) return 1;
+                    return String(a.flag).localeCompare(String(b.flag));
+                  })
+                  .map(({ pilotaId, posizione, flag }) => {
                     const pilota = classifica.piloti.find(p => String(p.id) === String(pilotaId));
                     if (!pilota) return null;
-
-                    const puntiBase = calcolaPuntiPosizione(Number(posizione), gara.tipo_gara, classifica);
-                    let desc = `${puntiBase} pts`;
-                    if (classifica.punti_pole_attivo && gara.pole_id === pilotaId)
-                      desc += ` +P${classifica.punti_pole_valore}`;
-                    if (classifica.giro_veloce_attivo && gara.giro_veloce_id === pilotaId)
-                      desc += ` +FL${classifica.giro_veloce_valore}`;
-
+                    let desc = '';
+                    if (flag) {
+                      desc = String(flag).toUpperCase();
+                    } else if (posizione !== null) {
+                      desc = `${posizione}°`;
+                    }
+                    // Calcola punti gara
+                    let puntiPos = 0;
+                    let puntiPole = 0;
+                    let puntiGiroVeloce = 0;
+                    if (!flag && posizione !== null) {
+                      puntiPos = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica);
+                    }
+                    const isPole = classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId);
+                    const isGiroVeloce = classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId);
+                    if (isPole) puntiPole = classifica.punti_pole_valore || 3;
+                    if (isGiroVeloce) puntiGiroVeloce = classifica.giro_veloce_valore || 1;
+                    const puntiTot = puntiPos + puntiPole + puntiGiroVeloce;
+                    // Dettaglio punti
+                    let dettaglio = '';
+                    if (puntiTot > 0) {
+                      dettaglio = `+${puntiTot} (`;
+                      if (puntiPos > 0) dettaglio += puntiPos;
+                      if (puntiPole > 0) dettaglio += (puntiPos > 0 ? '+' : '') + puntiPole + 'P';
+                      if (puntiGiroVeloce > 0) dettaglio += ((puntiPos > 0 || puntiPole > 0) ? '+' : '') + puntiGiroVeloce + 'FL';
+                      dettaglio += ')';
+                    }
                     return (
                       <div
                         key={pilotaId}
-                        style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0' }}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 0' }}
                       >
                         <span>
-                          {posizione}° {pilota.nome}
+                          {desc} {pilota.nome}
+                          {isPole && (
+                            <span title="Pole Position" style={{
+                              display: 'inline-block',
+                              background: 'linear-gradient(90deg, #34c759 0%, #28a745 100%)',
+                              color: 'white',
+                              borderRadius: '8px',
+                              fontWeight: 'bold',
+                              fontSize: '11px',
+                              padding: '2px 7px',
+                              marginLeft: 6,
+                              verticalAlign: 'middle',
+                              letterSpacing: '1px',
+                              boxShadow: '0 1px 3px rgba(52,199,89,0.15)'
+                            }}>POLE</span>
+                          )}
+                          {isGiroVeloce && (
+                            <span title="Giro Veloce" style={{
+                              display: 'inline-block',
+                              background: 'linear-gradient(90deg, #a259ff 0%, #6e27c5 100%)',
+                              color: 'white',
+                              borderRadius: '8px',
+                              fontWeight: 'bold',
+                              fontSize: '11px',
+                              padding: '2px 7px',
+                              marginLeft: 6,
+                              verticalAlign: 'middle',
+                              letterSpacing: '1px',
+                              boxShadow: '0 1px 3px rgba(162,89,255,0.15)'
+                            }}>FL</span>
+                          )}
                         </span>
-                        <span>{desc}</span>
+                        <span style={{ fontWeight: 'bold', color: '#333', minWidth: 32, textAlign: 'right' }}>{dettaglio}</span>
                       </div>
                     );
                   })}
@@ -1130,11 +1203,20 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
 
 // ===== INSERIMENTO RISULTATI GP =====
 function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave }) {
+            const [showGaraAccorciata, setShowGaraAccorciata] = useState(false);
+          const [giroVeloceId, setGiroVeloceId] = useState(null);
+        const [poleId, setPoleId] = useState(null);
+      const [risultati, setRisultati] = useState({});
+    // Trova posizioni duplicate
+    const posizioniValide = Object.values(risultati).filter(v => v && !isNaN(Number(v)));
+    const posizioniDuplicate = posizioniValide.filter((val, idx, arr) => arr.indexOf(val) !== idx);
+  const isDoppione = (val) => val && !isNaN(Number(val)) && posizioniValide.filter(v => v === val).length > 1;
+
   const [searchTerm, setSearchTerm] = useState('');
   const [pilotaSelezionato, setPilotaSelezionato] = useState(null);
   const [step, setStep] = useState(gpPreselezionato ? 1 : 0)
-  const [nomeGP, setNomeGP] = useState('')
-  const [tipoWeekend, setTipoWeekend] = useState('standard')
+  const [nomeGP, setNomeGP] = useState(gpPreselezionato ? gpPreselezionato.nome : '')
+  const [tipoWeekend, setTipoWeekend] = useState(gpPreselezionato ? gpPreselezionato.tipo_weekend : 'standard')
   const [gp, setGp] = useState(gpPreselezionato ? {
     ...gpPreselezionato,
     gare: gpPreselezionato.gare && gpPreselezionato.gare.length > 0 ? gpPreselezionato.gare : 
@@ -1143,22 +1225,30 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           [{ id: Date.now(), tipo_gara: 'f2sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'featureRace', risultati: {}, completata: false }]
   } : null)
   const [garaCorrente, setGaraCorrente] = useState(0)
-  const [risultati, setRisultati] = useState({})
-  const [poleId, setPoleId] = useState(null)
-  const [giroVeloceId, setGiroVeloceId] = useState(null)
-  const [showGaraAccorciata, setShowGaraAccorciata] = useState(false)
-  const [percentualeAccorciata, setPercentualeAccorciata] = useState(75)
+  // Funzione per mappare i risultati salvati nel formato adatto agli input
+  function mapRisultatiInput(ris) {
+    if (!ris) return {};
+    const out = {};
+    Object.entries(ris).forEach(([pilotaId, val]) => {
+      if (val && typeof val === 'object') {
+        if ('posizione' in val) out[pilotaId] = val.posizione;
+        if ('flag' in val) out[`${pilotaId}_flag`] = val.flag;
+      } else {
+        out[pilotaId] = val;
+      }
+    });
+    return out;
+  }
+// RIMOSSI BLOCCHI JSX ERRATI FUORI DAL RETURN
 
-  // Se è una modifica, carica i risultati precedenti
   useEffect(() => {
-    if (gpPreselezionato && gpPreselezionato.completato && gp && gp.gare[garaCorrente]) {
-      const garaAttuale = gp.gare[garaCorrente]
-      setRisultati(garaAttuale.risultati || {})
-      setPoleId(garaAttuale.pole_id || null)
-      setGiroVeloceId(garaAttuale.giro_veloce_id || null)
-      console.log('Caricati risultati precedenti:', garaAttuale.risultati)
+    if (gpPreselezionato && gp && gp.gare && gp.gare[garaCorrente]) {
+      const garaAttuale = gp.gare[garaCorrente];
+      setRisultati(mapRisultatiInput(garaAttuale.risultati));
+      setPoleId(garaAttuale.pole_id || null);
+      setGiroVeloceId(garaAttuale.giro_veloce_id || null);
     }
-  }, [gpPreselezionato, garaCorrente, gp])
+  }, [gpPreselezionato, garaCorrente, gp]);
 
   const aggiungiGP = () => {
     if (!nomeGP) return
@@ -1206,87 +1296,51 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       setPoleId(null)
       setGiroVeloceId(null)
     } else {
-      const gpFinale = { ...gpAggiornato, completato: true }
-      const nuoviGP = classifica.gp ? [...classifica.gp.filter(g => g.id !== gpFinale.id), gpFinale] : [gpFinale]
-      
-      const nuoviPiloti = [...classifica.piloti]
-      const nuoviCostruttori = [...classifica.costruttori]
-      
-      // Se è una MODIFICA, sottrai i punti vecchi
-      if (gpPreselezionato && gpPreselezionato.completato) {
-        console.log('MODIFICA: Sottraggo punti vecchi...')
-        gpPreselezionato.gare.forEach(garaVecchia => {
-          if (!garaVecchia.completata || garaVecchia.non_disputata) return
-          
-          Object.entries(garaVecchia.risultati || {}).forEach(([pilotaId, pos]) => {
-            const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
-            if (!pilota) return
-            
-            let punti
-            if (garaVecchia.accorciata) {
-              punti = calcolaPuntiAccorciati(pos, garaVecchia.percentuale_accorciata)
-            } else {
-              punti = calcolaPuntiPosizione(pos, garaVecchia.tipo_gara, classifica)
-            }
-            
-            if (classifica.punti_pole_attivo && String(garaVecchia.pole_id) === String(pilotaId)) {
-              punti += classifica.punti_pole_valore || 3
-            }
-            if (classifica.giro_veloce_attivo && String(garaVecchia.giro_veloce_id) === String(pilotaId)) {
-              punti += classifica.giro_veloce_valore || 1
-            }
-            
-            console.log(`${pilota.nome}: -${punti} pts (rimozione risultato vecchio)`)
-            pilota.punti = Math.max(0, (pilota.punti || 0) - punti)
-            
-            const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
-            if (costruttore) {
-              costruttore.punti = Math.max(0, (costruttore.punti || 0) - punti)
-            }
-          })
-        })
+      const gpFinale = { ...gpAggiornato, completato: true };
+      // Sostituisci il GP modificato nella lista (nessun duplicato)
+      let nuoviGP = Array.isArray(classifica.gp) ? [...classifica.gp] : [];
+      const idx = nuoviGP.findIndex(g => g.id === gpFinale.id);
+      if (idx >= 0) {
+        nuoviGP[idx] = gpFinale;
+      } else {
+        nuoviGP.push(gpFinale);
       }
-      
-      // Calcola e assegna punti NUOVI per ogni gara del GP
-      gpFinale.gare.forEach(gara => {
-        Object.entries(gara.risultati).forEach(([pilotaId, info]) => {
-          const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
-          if (!pilota) {
-            console.warn('Pilota non trovato:', pilotaId)
-            return
-          }
-          // Se DNS o DSQ, nessun punto. Se DNF, nessun punto (ma puoi cambiare qui la logica se vuoi dare punti a DNF)
-          if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') {
-            return;
-          }
-          const pos = info.posizione;
-          let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
-          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
-            punti += classifica.punti_pole_valore || 3
-          }
-          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
-            punti += classifica.giro_veloce_valore || 1
-          }
-          console.log(`${pilota.nome}: +${punti} pts (pos ${pos}, tipo ${gara.tipo_gara})`)
-          pilota.punti = (pilota.punti || 0) + punti
-          const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
-          if (costruttore) {
-            costruttore.punti = (costruttore.punti || 0) + punti
-          } else {
-            console.warn('Costruttore non trovato:', pilota.team)
-          }
-        })
-      })
-      
+
+      // Azzera i punti prima del ricalcolo
+      const nuoviPiloti = classifica.piloti.map(p => ({ ...p, punti: 0 }));
+      const nuoviCostruttori = classifica.costruttori.map(c => ({ ...c, punti: 0 }));
+
+      nuoviGP.forEach(gpItem => {
+        gpItem.gare.forEach(gara => {
+          Object.entries(gara.risultati || {}).forEach(([pilotaId, info]) => {
+            const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId));
+            if (!pilota) return;
+            if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') return;
+            const pos = info.posizione;
+            let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica);
+            if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
+              punti += classifica.punti_pole_valore || 3;
+            }
+            if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
+              punti += classifica.giro_veloce_valore || 1;
+            }
+            pilota.punti = (pilota.punti || 0) + punti;
+            const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team);
+            if (costruttore) {
+              costruttore.punti = (costruttore.punti || 0) + punti;
+            }
+          });
+        });
+      });
+
       nuoviPiloti.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((p, i) => {
-        p.distacco = i === 0 ? 0 : (nuoviPiloti[0].punti || 0) - (p.punti || 0)
-      })
+        p.distacco = i === 0 ? 0 : (nuoviPiloti[0].punti || 0) - (p.punti || 0);
+      });
       nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
-        c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0)
-      })
-      console.log('Salvando classifica aggiornata:', { piloti: nuoviPiloti, costruttori: nuoviCostruttori })
-      onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori })
-      onClose()
+        c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0);
+      });
+      onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori });
+      onClose();
     }
   }
 
@@ -1497,10 +1551,14 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
   const garaAttuale = gp.gare[garaCorrente]
   const pilotiAttivi = classifica.piloti.filter(p => p.attivo)
 
+  // Calcola le posizioni già assegnate (escludendo il pilota corrente)
+  const posizioniAssegnate = Object.entries(risultati)
+    .filter(([key, val]) => !key.endsWith('_flag') && val)
+    .map(([key, val]) => val);
+
   return (
     <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
       <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Annulla</button>
-      
       <h1 style={{ fontSize: '28px', marginBottom: '10px', textAlign: 'center' }}>GP: {gp.nome}</h1>
       <h2 style={{ fontSize: '20px', marginBottom: '30px', textAlign: 'center', color: '#666' }}>
         {garaAttuale.tipo_gara === 'principale' ? '🏁 Gara Principale' :
@@ -1508,10 +1566,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
          garaAttuale.tipo_gara === 'featureRace' ? '🏆 Feature Race' :
          '🏎️ Sprint Race'}
       </h2>
-
       <div style={{ marginBottom: '30px' }}>
         <h3 style={{ marginBottom: '15px', fontWeight: '600' }}>Inserisci posizioni:</h3>
-        
         {/* BARRA DI RICERCA PILOTA */}
         <div style={{ position: 'sticky', top: '-40px', background: 'white', zIndex: 10, paddingBottom: '15px', marginTop: '-10px' }}>
           <input 
@@ -1530,14 +1586,27 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
             }}
           />
         </div>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {pilotiAttivi
-            .filter(p => p.nome.toLowerCase().includes(searchTerm.toLowerCase()))
-            .map((pilota) => {
+          {(() => {
+            // Ordina piloti: prima quelli con posizione (ordine crescente), poi solo flag o vuoti
+            const pilotiOrdinati = pilotiAttivi
+              .filter(p => p.nome.toLowerCase().includes(searchTerm.toLowerCase()))
+              .slice(); // copia
+            pilotiOrdinati.sort((a, b) => {
+              const posA = risultati[a.id] ? parseInt(risultati[a.id]) : null;
+              const posB = risultati[b.id] ? parseInt(risultati[b.id]) : null;
+              if (posA && posB) return posA - posB;
+              if (posA) return -1;
+              if (posB) return 1;
+              return 0;
+            });
+            return pilotiOrdinati.map((pilota) => {
               const isSelezionato = pilotaSelezionato === pilota.id;
-              // Stato per DNS/DNF/DSQ
               const flag = risultati[`${pilota.id}_flag`] || '';
+              const posizione = risultati[pilota.id] || '';
+              const altrePosizioni = Object.entries(risultati)
+                .filter(([key, val]) => !key.endsWith('_flag') && key !== String(pilota.id) && val)
+                .map(([key, val]) => val);
               return (
                 <div 
                   key={pilota.id} 
@@ -1561,9 +1630,27 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                     type="number" 
                     min="1" 
                     max="20" 
-                    value={risultati[pilota.id] || ''} 
+                    value={posizione}
+                    disabled={!!flag}
                     onFocus={() => setPilotaSelezionato(pilota.id)}
-                    onChange={(e) => setRisultati({ ...risultati, [pilota.id]: parseInt(e.target.value) || 0 })} 
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      // Permetti sempre di svuotare
+                      if (raw === '' || raw === null) {
+                        setRisultati({ ...risultati, [pilota.id]: '' });
+                        return;
+                      }
+                      // Permetti la cancellazione e la scrittura progressiva (es: da 1 a 10)
+                      const prev = risultati[pilota.id] ? String(risultati[pilota.id]) : '';
+                      if (raw.length < prev.length || raw.length > prev.length) {
+                        setRisultati({ ...risultati, [pilota.id]: raw });
+                        return;
+                      }
+                      // Blocca solo se il valore è un numero valido, completo e già usato da altri (stessa lunghezza)
+                      const val = Number(raw);
+                      if (!isNaN(val) && raw !== '' && altrePosizioni.map(p => Number(p)).filter(n => !isNaN(n)).includes(val)) return;
+                      setRisultati({ ...risultati, [pilota.id]: raw });
+                    }}
                     placeholder="Pos" 
                     style={{ 
                       width: '80px', 
@@ -1572,13 +1659,15 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                       border: '1px solid #ddd', 
                       textAlign: 'center',
                       fontWeight: 'bold',
-                      background: 'white'
+                      background: flag ? '#eee' : 'white',
+                      color: flag ? '#aaa' : '#000'
                     }} 
                   />
                   <select
                     value={flag}
-                    onChange={e => setRisultati({ ...risultati, [`${pilota.id}_flag`]: e.target.value })}
-                    style={{ width: '90px', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontWeight: 'bold', background: 'white', marginLeft: 8 }}
+                    disabled={!!posizione}
+                    onChange={e => setRisultati({ ...risultati, [`${pilota.id}_flag`]: e.target.value, [pilota.id]: '' })}
+                    style={{ width: '90px', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontWeight: 'bold', background: posizione ? '#eee' : 'white', color: posizione ? '#aaa' : '#000', marginLeft: 8 }}
                   >
                     <option value="">-</option>
                     <option value="DNS">DNS</option>
@@ -1587,7 +1676,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                   </select>
                 </div>
               );
-            })}
+            });
+          })()}
         </div>
       </div>
 
@@ -1710,7 +1800,22 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
         </div>
       )}
 
-      <button onClick={salvaRisultatiGara} style={{ width: '100%', padding: '15px', background: '#34C759', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
+      <button 
+        onClick={salvaRisultatiGara} 
+        disabled={posizioniDuplicate.length > 0}
+        style={{ 
+          width: '100%', 
+          padding: '15px', 
+          background: posizioniDuplicate.length > 0 ? '#ccc' : '#34C759',
+          color: 'white', 
+          border: 'none', 
+          borderRadius: '15px', 
+          fontSize: '18px', 
+          fontWeight: 'bold', 
+          cursor: posizioniDuplicate.length > 0 ? 'not-allowed' : 'pointer',
+          opacity: posizioniDuplicate.length > 0 ? 0.7 : 1
+        }}
+      >
         {garaCorrente < gp.gare.length - 1 ? 'Prossima Gara' : 'Salva GP'}
       </button>
     </div>
