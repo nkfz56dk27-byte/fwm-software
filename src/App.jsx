@@ -1088,11 +1088,6 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                 <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 0', borderBottom: i < pilotiOrdinati.length - 1 ? '1px solid #eee' : 'none' }}>
                   <div style={{ fontSize: '20px', fontWeight: 'bold', minWidth: '30px' }}>{i + 1}</div>
                   <div style={{ width: '8px', height: '40px', background: p.colore || '#007AFF', borderRadius: '4px' }}></div>
-                  {p.foto ? (
-                    <img src={p.foto} alt="Foto" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', border: '1px solid #ccc', marginRight: 8 }} />
-                  ) : (
-                    <span style={{ width: 40, height: 40, display: 'inline-block', background: '#eee', borderRadius: 8, border: '1px solid #ccc', textAlign: 'center', lineHeight: '40px', color: '#bbb', marginRight: 8 }}>?</span>
-                  )}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: '600', fontSize: '16px' }}>{p.nome}</div>
                     <div style={{ fontSize: '14px', color: '#666' }}>{p.team}</div>
@@ -1724,6 +1719,27 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
 
 // ===== IMPOSTAZIONI CLASSIFICA =====
 function ImpostazioniClassifica({ classifica, onClose, onSave }) {
+    // Stato per feedback visivo drag attivo per ogni pilota
+    const [dragActive, setDragActive] = useState({});
+  // Stato per la modale modifica foto piloti
+  const [showModificaFotoPiloti, setShowModificaFotoPiloti] = useState(false);
+  const [fotoPilotaFiles, setFotoPilotaFiles] = useState({}); // { [pilotaId]: File|null }
+  const fileInputRefs = React.useRef({});
+  const handleFotoPilotaChange = (pilotaId, file) => {
+    setFotoPilotaFiles(prev => ({ ...prev, [pilotaId]: file }));
+  };
+  const handleFotoPilotaClick = (pilotaId) => {
+    if (fileInputRefs.current[pilotaId]) fileInputRefs.current[pilotaId].click();
+  };
+  const handleFotoPilotaDrop = (pilotaId, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFotoPilotaChange(pilotaId, e.dataTransfer.files[0]);
+    }
+  };
+  // ...existing code...
+  // ...existing code...
   const [dati, setDati] = useState(classifica)
   const [showCambiaPilota, setShowCambiaPilota] = useState(false)
   const [salvando, setSalvando] = useState(false)
@@ -1914,9 +1930,100 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         <button onClick={() => setShowCambiaPilota(true)} style={{ width: '100%', padding: '15px', background: 'linear-gradient(135deg, #FF9500 0%, #FF6B00 100%)', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '15px' }}>
           Cambia Pilota
         </button>
+        <button onClick={() => setShowModificaFotoPiloti(true)} style={{ width: '100%', padding: '15px', background: 'linear-gradient(135deg, #34C759 0%, #28A745 100%)', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '15px' }}>
+          Modifica foto piloti
+        </button>
         <button onClick={cancellaDati} style={{ width: '100%', padding: '15px', background: 'linear-gradient(135deg, #FF3B30 0%, #D70015 100%)', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
           Cancella Dati
         </button>
+        {/* Modale Modifica Foto Piloti */}
+        {showModificaFotoPiloti && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.25)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: 'white', borderRadius: '20px', padding: '30px', minWidth: '350px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto' }}>
+              <button onClick={() => setShowModificaFotoPiloti(false)} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Indietro</button>
+              <h2 style={{ fontSize: '24px', marginBottom: '25px' }}>Modifica foto piloti</h2>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {dati.piloti.map(p => (
+                  <li key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '18px', marginBottom: '18px' }}>
+                    {p.foto ? <img src={p.foto} alt="Foto" style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'cover', border: '1px solid #ccc' }} /> : <span style={{ width: 38, height: 38, display: 'inline-block', background: '#eee', borderRadius: 8, border: '1px solid #ccc', textAlign: 'center', lineHeight: '38px', color: '#bbb' }}>?</span>}
+                    <span style={{ fontWeight: 500 }}>{p.nome}</span>
+                    <div
+                      style={{
+                        width: 90,
+                        height: 38,
+                        border: dragActive[p.id] ? '2.5px solid #34C759' : '2px dashed #007AFF',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: fotoPilotaFiles && fotoPilotaFiles[p.id] ? 'none' : dragActive[p.id] ? '#e6ffe6' : '#f8f9fa',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        marginLeft: 'auto',
+                        marginRight: 10,
+                        transition: 'border-color 0.2s, background 0.2s',
+                        overflow: 'hidden',
+                        userSelect: 'none',
+                      }}
+                      onClick={() => handleFotoPilotaClick(p.id)}
+                      onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
+                      onDragEnter={e => { e.preventDefault(); e.stopPropagation(); setDragActive(prev => ({ ...prev, [p.id]: true })); }}
+                      onDragLeave={e => { e.preventDefault(); e.stopPropagation(); setDragActive(prev => ({ ...prev, [p.id]: false })); }}
+                      onDrop={e => { setDragActive(prev => ({ ...prev, [p.id]: false })); handleFotoPilotaDrop(p.id, e); }}
+                      draggable={false}
+                      title="Clicca o trascina qui la foto"
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={el => fileInputRefs.current[p.id] = el}
+                        style={{ display: 'none' }}
+                        onChange={e => {
+                          if (e.target.files && e.target.files[0]) handleFotoPilotaChange(p.id, e.target.files[0]);
+                        }}
+                      />
+                      {fotoPilotaFiles && fotoPilotaFiles[p.id] ? (
+                        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                          <img src={URL.createObjectURL(fotoPilotaFiles[p.id])} alt="Anteprima" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', display: 'block' }} />
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); setFotoPilotaFiles(prev => ({ ...prev, [p.id]: undefined })); }}
+                            style={{
+                              position: 'absolute',
+                              top: 2,
+                              right: 2,
+                              width: 20,
+                              height: 20,
+                              background: 'rgba(255,255,255,0.85)',
+                              border: 'none',
+                              borderRadius: '50%',
+                              color: '#FF3B30',
+                              fontWeight: 'bold',
+                              fontSize: 15,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              boxShadow: '0 1px 4px rgba(0,0,0,0.10)'
+                            }}
+                            title="Rimuovi foto"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ color: '#007AFF', fontWeight: 600, fontSize: '14px', textAlign: 'center', width: '100%' }}>
+                          DAD/Clicca foto
+                        </span>
+                      )}
+                    </div>
+                    {/* Qui andrà il bottone di salvataggio per ogni pilota, da implementare nella logica upload */}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
       </div>
 
       <button onClick={salva} disabled={salvando} style={{ width: '100%', padding: '15px', background: salvando ? '#98c0ff' : '#007AFF', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: salvando ? 'not-allowed' : 'pointer' }}>
@@ -2862,6 +2969,7 @@ function SetupIniziale({ classifica, onSave, onBack }) {
 
 // ===== MENU CLASSIFICHE =====
 function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
+    // ...existing code...
   const [classifiche, setClassifiche] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAltreClassifiche, setShowAltreClassifiche] = useState(false)
