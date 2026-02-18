@@ -3679,8 +3679,8 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
   return (
     <div className="gestione-container" style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' } : {}}>
       <div className="gestione-header">
-        <button className="btn-back" onClick={onClose} style={typeof window !== 'undefined' && window.innerWidth <= 768 ? { marginTop: 25 } : { marginTop: 0 }}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>Indietro</button>
-        <h1 className="gestione-title" style={typeof window !== 'undefined' && window.innerWidth <= 768 ? { marginTop: 25 } : { marginTop: 0 }}>Gestione Utenti</h1>
+        <button className="btn-back" onClick={onClose} style={typeof window !== 'undefined' && window.innerWidth <= 768 ? { marginTop: 40 } : { marginTop: 0 }}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>Indietro</button>
+        <h1 className="gestione-title" style={typeof window !== 'undefined' && window.innerWidth <= 768 ? { marginTop: 40 } : { marginTop: 0 }}>Gestione Utenti</h1>
         <div
           style={
             isMobile
@@ -3860,7 +3860,7 @@ function NuovoUtenteView({ onClose, onSave }) {
               Indietro
             </button>
           ) : null}
-          <h2 style={{ flex: 1, textAlign: isMobile ? 'center' : 'left', margin: 0, marginTop: isMobile ? 25 : 0 }}>Nuovo Utente</h2>
+          <h2 style={{ flex: 1, textAlign: isMobile ? 'center' : 'left', margin: 0, marginTop: isMobile ? 40 : 0 }}>Nuovo Utente</h2>
           {!isMobile && (
             <button className="btn-close" onClick={onClose} style={{ position: 'absolute', right: '10px', top: 0, height: '100%', background: 'none', border: 'none', color: '#e53935', fontSize: '28px', fontWeight: 'bold', cursor: 'pointer', boxShadow: 'none', borderRadius: 0, padding: '0 16px' }}>✕</button>
           )}
