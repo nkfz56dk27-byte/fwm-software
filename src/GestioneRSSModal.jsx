@@ -375,7 +375,7 @@ function GestioneRSSModal({ onClose }) {
               fontSize: "24px", 
               cursor: "pointer",
               padding: 0,
-              color: "#666"
+              color: "#ff1744"
             }}
           >
             ✕

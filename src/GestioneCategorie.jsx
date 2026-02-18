@@ -56,13 +56,13 @@ export default function GestioneCategorie({ onClose }) {
   return (
     <div style={{ height: '100vh', background: '#f5f5f7' }}>
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', paddingTop: '45px' }}>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '24px', fontWeight: 'bold' }}>Categorie e Gruppi</div>
-            <div style={{ fontSize: '12px', color: '#666' }}>Gestione categorie weekend e assegnazione redattori</div>
+            <div style={{ fontSize: '12px', color: '#666' }}></div>
           </div>
-          <button onClick={() => setShowNuovaCategoria(true)} style={{ padding: '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>+ Nuova Categoria</button>
+          <button onClick={() => setShowNuovaCategoria(true)} style={{ padding: '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>Nuova Categoria</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto' }}>

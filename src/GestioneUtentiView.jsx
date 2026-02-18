@@ -4,11 +4,20 @@ export default function GestioneUtentiView({ onClose }) {
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   return (
-    <div style={{ position: 'relative', minHeight: '100vh', background: '#fff', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-      <h1 style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '24px' }}>Gestione Utenti</h1>
+    <div style={{ minHeight: '100vh', background: '#fff', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          marginBottom: '24px',
+          gap: '16px'
+        }}
+      >
+        <button onClick={onClose} style={{ background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 18px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Indietro</button>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: 0 }}>Gestione Utenti</h1>
+      </div>
       {/* Qui vanno i bottoni: Gestisci RSS, Categorie, Template, ecc. */}
       {/* ...resto della UI... */}
-      <button onClick={onClose} style={{ position: 'absolute', top: 10, left: 10, background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 18px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Indietro</button>
 
       {/* Bottone debug OneSignal a fondo pagina, sempre visibile */}
       <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', padding: '32px 0 0 0' }}>

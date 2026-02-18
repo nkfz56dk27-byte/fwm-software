@@ -99,18 +99,53 @@ export default function GestioneTemplateArticoli({ onClose }) {
     if (!error) caricaDati()
   }
 
+  // Rileva mobile
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+  useEffect(() => {
+    function handleResize() {
+      setIsMobile(window.innerWidth <= 768);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#f5f5f7', zIndex: 1000 }}>
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: isMobile ? '57px 30px 20px 30px' : '20px 30px',
+          background: 'white',
+          borderBottom: '1px solid #e0e0e0',
+          paddingTop: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 57px)' : '20px',
+          transition: 'padding 0.2s'
+        }}>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>Template Articoli</div>
+          <div style={{
+            fontSize: isMobile ? '26px' : '24px',
+            fontWeight: 'bold',
+            flex: isMobile ? '1 1 0%' : undefined,
+            marginLeft: 0,
+            marginRight: 0,
+            textAlign: 'center',
+            width: isMobile ? '100%' : undefined,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>Template Articoli</div>
           <button onClick={() => setShowNuovo(true)} style={{ padding: '10px 20px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>Nuovo Template</button>
         </div>
 
         {/* Contenuto */}
-        <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
+        <div style={{
+          flex: 1,
+          overflow: 'auto',
+          padding: isMobile ? '30px 30px 30px 30px' : '30px',
+          paddingTop: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 30px)' : '30px'
+        }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: '100px', color: '#666' }}>Caricamento...</div>
           ) : templates.length === 0 ? (

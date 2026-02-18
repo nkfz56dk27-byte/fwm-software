@@ -3157,7 +3157,7 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '20px' : '40px' }}>
-      <div style={{ position: 'absolute', top: isMobile ? '35px' : '20px', left: isMobile ? '10px' : '20px', right: isMobile ? '10px' : '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
+      <div style={{ position: 'absolute', top: isMobile ? '85px' : '20px', left: isMobile ? '10px' : '20px', right: isMobile ? '10px' : '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
         <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', cursor: 'pointer', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>
           <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
           Indietro
@@ -3677,7 +3677,7 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
   if (showTemplateArticoli) return <GestioneTemplateArticoli onClose={() => setShowTemplateArticoli(false)} />
 
   return (
-    <div className="gestione-container">
+    <div className="gestione-container" style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' } : {}}>
       <div className="gestione-header">
         <button className="btn-back" onClick={onClose}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>Indietro</button>
         <h1 className="gestione-title">Gestione Utenti</h1>
@@ -3849,12 +3849,21 @@ function NuovoUtenteView({ onClose, onSave }) {
     }
   }
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
   return (
     <div className="modal-container">
       <div className="modal-card">
-        <div className="modal-header">
-          <h2>➕ Nuovo Utente</h2>
-          <button className="btn-close" onClick={onClose}>✕</button>
+        <div className="modal-header" style={isMobile ? { marginTop: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' } : { display: 'flex', alignItems: 'center', position: 'relative' }}>
+          {isMobile ? (
+            <button onClick={onClose} style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: 'none', border: 'none', color: '#007AFF', fontSize: '22px', fontWeight: 'bold', cursor: 'pointer', boxShadow: 'none', borderRadius: 0, padding: '0 16px', display: 'flex', alignItems: 'center' }}>
+              <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px', marginRight: 4 }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+              Indietro
+            </button>
+          ) : null}
+          <h2 style={{ flex: 1, textAlign: isMobile ? 'center' : 'left', margin: 0 }}>Nuovo Utente</h2>
+          {!isMobile && (
+            <button className="btn-close" onClick={onClose} style={{ position: 'absolute', right: '10px', top: 0, height: '100%', background: 'none', border: 'none', color: '#e53935', fontSize: '28px', fontWeight: 'bold', cursor: 'pointer', boxShadow: 'none', borderRadius: 0, padding: '0 16px' }}>✕</button>
+          )}
         </div>
         <form onSubmit={handleSave} className="modal-form">
           <div className="form-group">
