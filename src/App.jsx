@@ -3689,7 +3689,6 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
           }
         >
           {/* Bottone tondo rosso con ingranaggio */}
-<<<<<<< HEAD
           <button
             style={
               isMobile
@@ -3718,6 +3717,14 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
                     boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                     cursor: 'pointer',
                   }
+            }
+            onClick={onOpenImpostazioni}
+            title="Impostazioni"
+          >
+            <svg viewBox="0 0 24 24" fill="white" style={{ width: 24, height: 24 }}>
+              <path d="M12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5zm7.43-2.5c.07-.5.07-1 .07-1.5s0-1-.07-1.5l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65A.486.486 0 0 0 14 2h-4a.486.486 0 0 0-.48.41l-.38 2.65c-.61.25-1.17.58-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.12.22-.07.49.12.64l2.11 1.65c-.07.5-.07 1-.07 1.5s0 1 .07 1.5l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.05.24.24.41.48.41h4c.24 0 .43-.17.48-.41l.38-2.65c.61-.25 1.17-.58 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65z"/>
+            </svg>
+          </button>
             }
             onClick={() => setShowImpostazioni(true)}
             title="Impostazioni"
