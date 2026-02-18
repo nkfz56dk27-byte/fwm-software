@@ -1,0 +1,196 @@
+name: RSS Feed Checker
+
+on:
+  schedule:
+    # Ogni 15 minuti
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Permette esecuzione manuale
+
+concurrency:
+  group: rss-feed-checker
+  cancel-in-progress: true
+
+jobs:
+  check-rss-feeds:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Create RSS checker script
+      run: |
+        cat > rss-checker.mjs << 'EOF'
+        import { createClient } from '@supabase/supabase-js';
+        import fetch from 'node-fetch';
+        
+        // Configurazione Supabase
+        const supabaseUrl = process.env.SUPABASE_URL;
+        const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        // Parser RSS semplificato
+        function parseRSS(xmlText) {
+          const items = [];
+          
+          // Estrae item usando regex (più semplice per Node.js)
+          const itemMatches = xmlText.match(/<item>([\s\S]*?)<\/item>/gi) || [];
+          
+          itemMatches.forEach(itemXML => {
+            const titleMatch = itemXML.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/i) || itemXML.match(/<title>(.*?)<\/title>/i);
+            const linkMatch = itemXML.match(/<link>(.*?)<\/link>/i);
+            const descMatch = itemXML.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/i) || itemXML.match(/<description>(.*?)<\/description>/i);
+            const pubDateMatch = itemXML.match(/<pubDate>(.*?)<\/pubDate>/i) || itemXML.match(/<pubdate>(.*?)<\/pubdate>/i);
+            const guidMatch = itemXML.match(/<guid>(.*?)<\/guid>/i);
+            const authorMatch = itemXML.match(/<author>(.*?)<\/author>/i);
+            
+            if (titleMatch && titleMatch[1]) {
+              items.push({
+                title: titleMatch[1].replace(/<[^>]*>/g, '').trim(),
+                link: linkMatch ? linkMatch[1].trim() : '',
+                description: descMatch ? descMatch[1].replace(/<[^>]*>/g, '').substring(0, 500) : '',
+                pubDate: pubDateMatch ? new Date(pubDateMatch[1]).toISOString() : new Date().toISOString(),
+                guid: guidMatch ? guidMatch[1].trim() : (linkMatch ? linkMatch[1].trim() : ''),
+                author: authorMatch ? authorMatch[1].trim() : ''
+              });
+            }
+          });
+          
+          return items;
+        }
+        
+        async function checkAllFeeds() {
+          try {
+            console.log('🔄 Inizio controllo automatico feed RSS...');
+            
+            // Carica tutti i feed dal database
+            const { data: feeds, error: feedsError } = await supabase
+              .from('rss_feeds')
+              .select('*');
+            
+            if (feedsError) {
+              console.error('❌ Errore caricamento feed:', feedsError);
+              return;
+            }
+            
+            console.log(`📋 Trovati ${feeds.length} feed da controllare`);
+            
+            for (const feed of feeds) {
+              try {
+                console.log(`🔄 Controllo feed: ${feed.url}`);
+                
+                // Fetch del feed RSS
+                const response = await fetch(feed.url, {
+                  timeout: 10000,
+                  headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; RSS-Bot/1.0)'
+                  }
+                });
+                
+                if (!response.ok) {
+                  console.warn(`⚠️ Errore HTTP ${response.status} per ${feed.url}`);
+                  continue;
+                }
+                
+                const xmlText = await response.text();
+                const articoli = parseRSS(xmlText);
+                
+                console.log(`📰 Trovati ${articoli.length} articoli da ${feed.url}`);
+                
+                // Salva ogni articolo nel database
+                for (const articolo of articoli) {
+                  try {
+                    // Controlla se l'articolo esiste già
+                    const { data: esistente } = await supabase
+                      .from('rss_articles')
+                      .select('id')
+                      .eq('guid', articolo.guid || articolo.link)
+                      .eq('feed_id', feed.id)
+                      .maybeSingle();
+                    
+                    if (!esistente) {
+                      // Inserisci nuovo articolo
+                      await supabase
+                        .from('rss_articles')
+                        .insert({
+                          feed_id: feed.id,
+                          title: articolo.title,
+                          link: articolo.link,
+                          description: articolo.description,
+                          content: articolo.content || articolo.description,
+                          pub_date: articolo.pubDate,
+                          guid: articolo.guid || articolo.link,
+                          author: articolo.author
+                        });
+                      
+                      console.log(`✅ Nuovo articolo salvato: ${articolo.title.substring(0, 50)}...`);
+                    }
+                  } catch (saveError) {
+                    console.error(`❌ Errore salvataggio articolo:`, saveError);
+                  }
+                }
+                
+                // Attesa tra un feed e l'altro per non sovraccaricare
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+              } catch (feedError) {
+                console.error(`❌ Errore processing feed ${feed.url}:`, feedError.message);
+              }
+            }
+            
+            // Pulizia articoli vecchi (più di 10 giorni)
+            const dieciGiorniFa = new Date();
+            dieciGiorniFa.setDate(dieciGiorniFa.getDate() - 10);
+            
+            const { error: cleanupError } = await supabase
+              .from('rss_articles')
+              .delete()
+              .lt('pub_date', dieciGiorniFa.toISOString());
+            
+            if (cleanupError) {
+              console.error('❌ Errore pulizia articoli vecchi:', cleanupError);
+            } else {
+              console.log('🧹 Pulizia articoli vecchi completata');
+            }
+            
+            console.log('✅ Controllo feed completato con successo');
+            
+          } catch (error) {
+            console.error('❌ Errore generale controllo feed:', error);
+          }
+        }
+        
+        // Esegui il controllo
+        checkAllFeeds().then(() => {
+          console.log('🏁 Script completato');
+          process.exit(0);
+        }).catch(error => {
+          console.error('💥 Script fallito:', error);
+          process.exit(1);
+        });
+        EOF
+        
+    - name: Run RSS checker
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      run: |
+        echo "🚀 Inizio controllo RSS feed..."
+        node rss-checker.mjs
+        echo "✅ Controllo completato!"
+        
+    - name: Summary
+      run: |
+        echo "## RSS Feed Check Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Timestamp**: $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: Completed successfully" >> $GITHUB_STEP_SUMMARY
+        echo "- **Next check**: In 5 minutes" >> $GITHUB_STEP_SUMMARY
