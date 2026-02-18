@@ -3621,7 +3621,7 @@ function PasswordChangeView({ newPassword, setNewPassword, confirmPassword, setC
   )
 }
 
-// ===== GESTIONE UTENTI =====
+// ==// ===== GESTIONE UTENTI =====
 function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
   const [showImpostazioni, setShowImpostazioni] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
@@ -3718,14 +3718,6 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
                     cursor: 'pointer',
                   }
             }
-            onClick={onOpenImpostazioni}
-            title="Impostazioni"
-          >
-            <svg viewBox="0 0 24 24" fill="white" style={{ width: 24, height: 24 }}>
-              <path d="M12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5zm7.43-2.5c.07-.5.07-1 .07-1.5s0-1-.07-1.5l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65A.486.486 0 0 0 14 2h-4a.486.486 0 0 0-.48.41l-.38 2.65c-.61.25-1.17.58-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.12.22-.07.49.12.64l2.11 1.65c-.07.5-.07 1-.07 1.5s0 1 .07 1.5l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.05.24.24.41.48.41h4c.24 0 .43-.17.48-.41l.38-2.65c.61-.25 1.17-.58 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65z"/>
-            </svg>
-          </button>
-            }
             onClick={() => setShowImpostazioni(true)}
             title="Impostazioni"
           >
@@ -3749,86 +3741,6 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
             Template
           </button>
           <button className="btn-nuovo" onClick={() => setShowNuovo(true)}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>Nuovo</button>
-=======
-          {isMobile ? (
-            <>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', margin: '16px 0' }}>
-                <div style={{ width: '80%', maxWidth: 320, marginBottom: 10 }}>
-                  <label style={{ fontWeight: 'bold' }}>Pilota pole position:</label>
-                  <select value={poleId || ''} onChange={e => setPoleId(e.target.value)} style={{ marginLeft: 10, width: '60%' }}>
-                    <option value=''>Nessuno</option>
-                    {classifica.piloti.map(p => (
-                      <option key={p.id} value={p.id}>{p.nome}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ width: '80%', maxWidth: 320 }}>
-                  <label style={{ fontWeight: 'bold' }}>Pilota giro veloce:</label>
-                  <select value={giroVeloceId || ''} onChange={e => setGiroVeloceId(e.target.value)} style={{ marginLeft: 10, width: '60%' }}>
-                    <option value=''>Nessuno</option>
-                    {classifica.piloti.map(p => (
-                      <option key={p.id} value={p.id}>{p.nome}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <button
-                style={{
-                  width: '100%',
-                  height: 44,
-                  borderRadius: 8,
-                  background: '#e74c3c',
-                  border: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                  cursor: 'pointer',
-                  marginBottom: 0,
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: 18,
-                  letterSpacing: 0.5,
-                }}
-                onClick={() => setShowImpostazioni(true)}
-              >
-                <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-                Impostazioni
-              </button>
-            </>
-          ) : (
-            <>
-              <div style={{ marginTop: 20 }}>
-                <label style={{ fontWeight: 'bold' }}>Pilota pole position:</label>
-                <select value={poleId || ''} onChange={e => setPoleId(e.target.value)} style={{ marginLeft: 10 }}>
-                  <option value=''>Nessuno</option>
-                  {classifica.piloti.map(p => (
-                    <option key={p.id} value={p.id}>{p.nome}</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <label style={{ fontWeight: 'bold' }}>Pilota giro veloce:</label>
-                <select value={giroVeloceId || ''} onChange={e => setGiroVeloceId(e.target.value)} style={{ marginLeft: 10 }}>
-                  <option value=''>Nessuno</option>
-                  {classifica.piloti.map(p => (
-                    <option key={p.id} value={p.id}>{p.nome}</option>
-                  ))}
-                </select>
-              </div>
-            </>
-          )}
-          {showGestioneRSS && <GestioneRSSModal onClose={() => setShowGestioneRSS(false)} />}
-          <button className="btn-nuovo" style={isMobile ? { background: '#007AFF', fontSize: 18, fontWeight: 700, height: 44, color: 'white' } : { background: '#007AFF' }} onClick={() => setShowCategorie(true)}>
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
-            Categorie
-          </button>
-          <button className="btn-nuovo" style={isMobile ? { background: '#FF9500', fontSize: 18, fontWeight: 700, height: 44, color: 'white' } : { background: '#FF9500' }} onClick={() => setShowTemplateArticoli(true)}>
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-            Template
-          </button>
-          <button className="btn-nuovo" style={isMobile ? { fontSize: 18, fontWeight: 700, height: 44, color: 'white' } : {}} onClick={() => setShowNuovo(true)}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>Nuovo</button>
->>>>>>> 22c6794db4ed12a831f6687a727dd4cd1b17663c
         </div>
       </div>
             {showImpostazioni && (
@@ -4022,10 +3934,6 @@ function ModificaUtenteView({ utente, onClose, onSave }) {
   )
 }
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 22c6794db4ed12a831f6687a727dd4cd1b17663c
 // ===== CLASSIFICHE MAIN MENU =====
 function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu, onOpenNuovaPagina }) {
     // ...existing code...
@@ -4078,8 +3986,6 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
         </div>
       </div>
     )
-<<<<<<< HEAD
-=======
   console.log('📱 ClassificheMainMenuView - isMobile ricevuto:', isMobile)
   const backBtnTop = isMobile ? 40 : 20;
   return (
@@ -4125,7 +4031,6 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
       </div>
     </div>
   )
->>>>>>> 22c6794db4ed12a831f6687a727dd4cd1b17663c
 }
 
 // ===== PENALTY POINTS VIEW =====
