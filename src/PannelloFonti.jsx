@@ -1887,30 +1887,7 @@ function PannelloFonti({ onClose }) {
               }}
             />
           </button>
-          {/* Tasti sempre visibili, layout mobile responsive */}
-          {/* Bottoni Test Filtri e Debug Log rimossi */}
-              {/* CSS responsive: su mobile i tasti sono uno sotto l'altro, su desktop inline */}
-              <style>{`
-                .test-debug-btns-responsive {
-                  display: flex;
-                  gap: 0;
-                  margin-top: 10px;
-                }
-                @media (max-width: 700px) {
-                  .test-debug-btns-responsive {
-                    flex-direction: column;
-                    align-items: stretch;
-                  }
-                  .test-debug-btns-responsive .test-filtri-btn {
-                    margin-right: 0;
-                    margin-bottom: 8px;
-                    width: 100%;
-                  }
-                  .test-debug-btns-responsive .debug-log-btn {
-                    width: 100%;
-                  }
-                }
-              `}</style>
+          {/* (Bottoni Test Filtri e Debug Log rimossi) */}
         </div>
       </div>
 
