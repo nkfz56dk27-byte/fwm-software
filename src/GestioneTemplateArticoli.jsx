@@ -113,16 +113,27 @@ export default function GestioneTemplateArticoli({ onClose }) {
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#f5f5f7', zIndex: 1000 }}>
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: isMobile ? '57px 30px 20px 30px' : '20px 30px',
-          background: 'white',
-          borderBottom: '1px solid #e0e0e0',
-          paddingTop: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 57px)' : '20px',
-          transition: 'padding 0.2s'
-        }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: 'white',
+            borderBottom: '1px solid #e0e0e0',
+            transition: 'padding 0.2s',
+            ...(isMobile
+              ? {
+                  padding: `calc(env(safe-area-inset-top, 0px) + 57px) 30px 20px 30px`,
+                  paddingTop: `calc(env(safe-area-inset-top, 0px) + 57px)`
+                }
+              : { padding: '20px 30px', paddingTop: '20px' }),
+            // iPhone 17/17 Max specific: usa media query JS per device
+            ...(typeof window !== 'undefined' && window.navigator.userAgent.match(/iPhone\s*17/) ? {
+              paddingTop: `calc(env(safe-area-inset-top, 0px) + 77px)`,
+              padding: `calc(env(safe-area-inset-top, 0px) + 77px) 30px 20px 30px`
+            } : {})
+          }}
+        >
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
           <div style={{
             fontSize: isMobile ? '26px' : '24px',
