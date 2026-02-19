@@ -603,7 +603,8 @@ function App() {
     setMustChangePassword(user.deve_cambiare_password)
     console.log('[DEBUG LOGIN] Login riuscito, user:', user)
     sessionStorage.setItem('username', username)
-    console.log('[DEBUG LOGIN] Username salvato in sessionStorage')
+    sessionStorage.setItem('user', JSON.stringify(user))
+    console.log('[DEBUG LOGIN] Username e user salvati in sessionStorage')
     // RIMOSSO: Inizializzazione Firebase Messaging per notifiche web
     
     // Inizializza OneSignal con polling intelligente
@@ -755,25 +756,17 @@ function App() {
       {showDebugOneSignalButton && isMobile && (typeof Notification === 'undefined' || Notification.permission === 'default') && (
         <button
           style={{
-            position: 'fixed',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            bottom: 32,
-            zIndex: 99999,
-            padding: '8px 18px',
-            background: '#fff',
-            color: '#111',
-            border: '4px solid #e53935',
+            background: '#FFD600',
+            color: '#FF3B30',
+            border: '2px solid #FF3B30',
             borderRadius: '12px',
+            padding: '12px 24px',
             fontWeight: 'bold',
-            fontSize: '1.25rem',
-            boxShadow: '0 3px 12px rgba(0,0,0,0.10)',
-            cursor: 'pointer',
-            transition: 'transform 0.1s',
-            fontFamily: 'inherit',
+            fontSize: '18px',
             display: 'flex',
             alignItems: 'center',
-            gap: '10px',
+            margin: '20px auto',
+            boxShadow: '0 2px 8px rgba(255, 59, 48, 0.2)',
           }}
           onClick={async () => {
             if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
@@ -4052,6 +4045,33 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
 
 // ===== PENALTY POINTS VIEW =====
 function NuovaPaginaView({ onClose, user, isMobile }) {
+      // Recupera user da sessionStorage se non passato come prop
+      let userLocal = user;
+      if (!userLocal) {
+        try {
+          const userStr = sessionStorage.getItem('user');
+          if (userStr) userLocal = JSON.parse(userStr);
+        } catch (e) { userLocal = null; }
+      }
+      console.log('[DEBUG PENALTY MAIN VIEW]', { user, userLocal });
+    // Funzione per eliminare un'infrazione
+    const eliminaInfrazione = async (infrazioneId, pilotaId, campionatoId) => {
+      if (!window.confirm('Sei sicuro di voler eliminare questa infrazione?')) return;
+      try {
+        await supabase.from('infrazioni').delete().eq('id', infrazioneId);
+        // Aggiorna lo stato locale
+        const key = `${campionatoId}_${pilotaId}`;
+        setPenaltyDetails(prev => {
+          const updated = { ...prev };
+          if (updated[key]) {
+            updated[key] = updated[key].filter(i => i.id !== infrazioneId);
+          }
+          return updated;
+        });
+      } catch (e) {
+        alert('Errore durante la cancellazione!');
+      }
+    };
   const [campionati, setCampionati] = useState([])
   const [loading, setLoading] = useState(true)
   const [campionatoSelezionato, setCampionatoSelezionato] = useState(null)
@@ -4430,7 +4450,7 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   // MODALE CREA DA ZERO
@@ -4982,6 +5002,9 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
             {infrazioni.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(100vh - 500px)', overflowY: 'auto', paddingRight: '10px', position: 'relative', top: `${upOffset}px` }}>
                 {infrazioni.map(infrazione => {
+                                    console.log('[DEBUG PENALTY CARD]', { userLocal, ruolo: userLocal?.ruolo, infrazione });
+                                    const isAdmin = userLocal && userLocal.ruolo === 'admin';
+                                    const isOwner = infrazione.inseritoDa === userLocal?.id;
                   const handleMouseOver = (e) => e.target.style.opacity = '0.9'
                   const handleMouseOut = (e) => e.target.style.opacity = '1'
                   const puntiLabel = infrazione.points === 1 ? 'punto' : 'punti'
@@ -4992,7 +5015,7 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
                     expiryDateFormatted = `${dd}-${mm}-${yyyy}`
                   }
                   return (
-                    <div key={infrazione.id} style={{ background: 'rgba(0, 0, 0, 0.9)', border: '2px solid rgba(255, 255, 255, 0.2)', padding: '15px 20px', borderRadius: '10px', display: 'grid', gridTemplateColumns: '0.6fr 1fr 2fr', gap: '30px', alignItems: 'center', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.5)', transition: 'opacity 0.2s', cursor: 'pointer', opacity: '1' }} onMouseOver={handleMouseOver} onMouseOut={handleMouseOut}>
+                    <div key={infrazione.id} style={{ background: 'rgba(0, 0, 0, 0.9)', border: '2px solid rgba(255, 255, 255, 0.2)', padding: '15px 20px', borderRadius: '10px', display: 'grid', gridTemplateColumns: '0.6fr 1fr 2fr 0.3fr', gap: '30px', alignItems: 'center', boxShadow: '0 4px 10px rgba(0, 0, 0, 0.5)', transition: 'opacity 0.2s', cursor: 'pointer', opacity: '1', position: 'relative' }} onMouseOver={handleMouseOver} onMouseOut={handleMouseOut}>
                       <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
                         {infrazione.points} {puntiLabel}
                       </div>
@@ -5003,6 +5026,33 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
                         {infrazione.reason}
                         {infrazione.gpBan && <div style={{ fontSize: '12px', color: '#FF3B30', marginTop: '4px', fontWeight: '600' }}>Ban: {infrazione.gpBan}</div>}
                       </div>
+                      {(isAdmin || isOwner) && (
+                        <button
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '50%',
+                            background: '#FF3B30',
+                            border: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(255, 59, 48, 0.4)',
+                            marginLeft: 'auto',
+                            transition: 'all 0.2s',
+                            position: 'absolute',
+                            top: '50%',
+                            right: '18px',
+                            zIndex: 9999,
+                            transform: 'translateY(-50%)',
+                          }}
+                          title="Elimina infrazione (DEBUG)"
+                          onClick={() => eliminaInfrazione(infrazione.id, pilotaSelezionato.id, campionatoSelezionato.id)}
+                        >
+                          <img src={CestinoSVG} alt="Cestino" style={{ width: '22px', height: '22px', filter: 'brightness(0) invert(1) drop-shadow(0 1px 2px rgba(0,0,0,0.3))' }} />
+                        </button>
+                      )}
                     </div>
                   )
                 })}
