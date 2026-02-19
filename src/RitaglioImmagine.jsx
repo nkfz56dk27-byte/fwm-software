@@ -126,6 +126,24 @@ export default function RitaglioImmagine({ user, onClose }) {
     loadCategories()
   }, [user?.username])
 
+  // Carica preferiti da Supabase all'avvio
+  const loadFavorites = async () => {
+    if (!user || !user.username) return;
+    try {
+      const { data } = await supabase
+        .from('progetti_preferiti')
+        .select('project_id')
+        .eq('username', user.username);
+      if (data) setFavoriteProjects(data.map(p => p.project_id));
+    } catch (err) {
+      console.error('Errore caricamento preferiti:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadFavorites();
+  }, [user?.username]);
+
   const fetchCloudProgetti = async () => {
     const { data } = await supabase
       .from('progetti_dimensioni')
@@ -207,13 +225,46 @@ export default function RitaglioImmagine({ user, onClose }) {
     setImageOffset({ x: 0, y: 0 })
   }
 
-  // Gestisce i preferiti
-  const toggleFavorite = (projectId) => {
-    setFavoriteProjects(prev => 
-      prev.includes(projectId) 
-        ? prev.filter(id => id !== projectId)
-        : [...prev, projectId]
-    )
+  // Gestisce i preferiti su Supabase con controllo tipi e feedback
+  const toggleFavorite = async (projectId) => {
+    let errorMsg = '';
+    const usernameSafe = typeof user?.username === 'string' ? user.username : '';
+    const projectIdSafe = String(projectId); // sempre stringa
+    console.log('[DEBUG] toggleFavorite chiamato', { projectId, projectIdSafe, favoriteProjects, usernameSafe });
+    if (!usernameSafe || !projectIdSafe) {
+      errorMsg = 'Dati preferito non validi: username o projectId';
+      setFeedback(errorMsg);
+      setTimeout(() => setFeedback(''), 4000);
+      console.error(errorMsg);
+      return;
+    }
+    if (favoriteProjects.includes(projectIdSafe)) {
+      // Rimuovi da Supabase
+      const { data, error } = await supabase.from('progetti_preferiti').delete().eq('username', usernameSafe).eq('project_id', projectIdSafe);
+      console.log('[DEBUG] Supabase DELETE', { data, error });
+      if (error) errorMsg = 'Errore rimozione preferito: ' + error.message;
+    } else {
+      // Aggiungi su Supabase
+      const { data, error } = await supabase.from('progetti_preferiti').insert([{ username: usernameSafe, project_id: projectIdSafe }]);
+      console.log('[DEBUG] Supabase INSERT', { data, error });
+      if (error) errorMsg = 'Errore aggiunta preferito: ' + error.message;
+    }
+    // Aggiorna subito la UI per reattività
+    if (favoriteProjects.includes(projectIdSafe)) {
+      setFavoriteProjects(favoriteProjects.filter(id => id !== projectIdSafe));
+    } else {
+      setFavoriteProjects([...favoriteProjects, projectIdSafe]);
+    }
+    // Ricarica preferiti da Supabase per sincronizzare
+    if (typeof loadFavorites === 'function') {
+      await loadFavorites();
+    }
+    if (errorMsg) {
+      setFeedback(errorMsg);
+      setTimeout(() => setFeedback(''), 4000);
+      console.error(errorMsg);
+    }
+    console.log('[DEBUG] toggleFavorite FINE', { favoriteProjects });
   }
 
   // Applica bounds per NORMALE (drag X/Y)
@@ -422,16 +473,15 @@ export default function RitaglioImmagine({ user, onClose }) {
     <div 
       onDragOver={(e) => e.preventDefault()} 
       onDrop={handleDrop}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif' }}
+      style={{ position: 'fixed', inset: 0, background: '#fff', minHeight: '100vh', paddingTop: 'env(safe-area-inset-top)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif' }}
     >
       <div style={{ background: '#F2F2F7', width: isMobile ? '100%' : '900px', borderRadius: isMobile ? 0 : '28px', overflow: 'hidden', maxHeight: '95vh', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
         
-        <div style={{ padding: '18px 25px', background: '#fff', borderBottom: '1px solid #e5e5ea', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <StyledButton variant="outline" onClick={view === 'menu' ? onClose : () => setView('menu')}>
-            {view === 'menu' ? '✕ Chiudi' : '← Indietro'}
-          </StyledButton>
-          <span style={{ fontWeight: '900', fontSize: '18px', color: '#1c1c1e' }}>EDITOR FOTO FWM</span>
-          <div style={{ width: '80px' }}></div>
+        <div style={{ padding: isMobile ? '38px 25px 18px 25px' : '18px 25px', background: '#fff', borderBottom: '1px solid #e5e5ea', display: 'flex', alignItems: 'center', position: 'relative' }}>
+          <button onClick={view === 'menu' ? onClose : () => setView('menu')} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', position: 'absolute', left: 18, top: isMobile ? '55px' : '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            ← Indietro
+          </button>
+          <span style={{ fontWeight: '900', fontSize: isMobile ? '15px' : '18px', color: '#1c1c1e', marginTop: isMobile ? '20px' : 0, whiteSpace: 'nowrap', overflow: 'visible', maxWidth: isMobile ? '100vw' : 'none', textAlign: 'center', width: '100%' }}>EDITOR FOTO FWM</span>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
@@ -917,4 +967,5 @@ export default function RitaglioImmagine({ user, onClose }) {
       </div>
     </div>
   )
+
 }

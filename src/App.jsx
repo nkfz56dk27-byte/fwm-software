@@ -679,9 +679,17 @@ function App() {
     return <PasswordChangeView newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} showNewPassword={showNewPassword} setShowNewPassword={setShowNewPassword} showConfirmPassword={showConfirmPassword} setShowConfirmPassword={setShowConfirmPassword} passwordError={passwordError} handlePasswordChange={handlePasswordChange} />
   }
 
-  if (showGestione) {
-    return <GestioneUtentiView onClose={() => setShowGestione(false)} onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} />
-  }
+  // ...existing code...
+    if (showGestione) {
+      // Porta il titolo molto più in alto su mobile (350px)
+      return <GestioneUtentiView 
+        onClose={() => setShowGestione(false)} 
+        onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} 
+        isMobile={isMobile} 
+        titoloMarginTop={isMobile ? 350 : 0} 
+      />
+    }
+    // ...existing code...
 
   if (showDispositiviNotifiche) {
     return <GestioneDispositiviNotifiche username={user.username} onClose={() => setShowDispositiviNotifiche(false)} />

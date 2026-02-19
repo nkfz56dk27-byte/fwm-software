@@ -1,20 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 
-export default function GestioneUtentiView({ onClose }) {
-  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+export default function GestioneUtentiView({ onClose, isMobile, titoloMarginTop }) {
+  // Dynamic offset for header/button area
+  const [offset, setOffset] = useState(0);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fff', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: '#fff', padding: '24px', display: 'flex', flexDirection: 'column', paddingTop: isMobile ? '130px' : '24px', marginTop: isMobile ? '90px' : 0 }}>
+      {/* Spacer rimosso, riduzione spazio bianco sopra il titolo */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           marginBottom: '24px',
-          gap: '16px'
+          gap: '16px',
+          paddingTop: isMobile ? '0px' : 0
         }}
       >
-        <button onClick={onClose} style={{ background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 18px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Indietro</button>
-        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: 0 }}>Gestione Utenti</h1>
+        <button onClick={onClose} style={{ background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: isMobile ? '4px 18px' : '10px 18px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Indietro</button>
+        <button onClick={onClose} style={{ background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 18px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginTop: isMobile ? '0px' : 0 }}>Indietro</button>
+        <h1 style={{ fontSize: '28px', fontWeight: 'bold', margin: 0, marginTop: titoloMarginTop }}>Gestione Utenti</h1>
       </div>
       {/* Qui vanno i bottoni: Gestisci RSS, Categorie, Template, ecc. */}
       {/* ...resto della UI... */}
