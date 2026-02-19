@@ -1298,7 +1298,7 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, 
                             } else {
                               // Messaggio di errore chiaro
                               if (evento.programmazione_weekend && typeof evento.programmazione_weekend === 'object') {
-                                return <span style={{ color: 'red', fontSize: '10px' }}>Nessuna sessione trovata per giorno: {safeRender(giornoKey)}. Chiavi disponibili: {Object.keys(evento.programmazione_weekend).join(', ')}</span>;
+                                return <span style={{ color: 'red', fontSize: '10px' }}>Nessuna sessione trovata per giorno: {safeRender(typeof giornoKey !== 'undefined' ? giornoKey : '?')}. Chiavi disponibili: {Object.keys(evento.programmazione_weekend).join(', ')}</span>;
                               }
                             }
                             // Mostra solo le sessioni reali (con orario) per il giorno corretto
