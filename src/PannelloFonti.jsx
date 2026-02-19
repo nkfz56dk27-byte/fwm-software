@@ -1888,43 +1888,7 @@ function PannelloFonti({ onClose }) {
             />
           </button>
           {/* Tasti sempre visibili, layout mobile responsive */}
-          <div className="test-debug-btns-responsive">
-            <button
-              onClick={testaFiltriSuArticoliAttuali}
-              className="test-filtri-btn"
-              style={{
-                padding: '10px 14px',
-                borderRadius: '6px',
-                border: '1px solid #28a745',
-                background: '#28a745',
-                color: '#fff',
-                fontSize: '13px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                fontWeight: 600,
-                marginRight: 8
-              }}
-            >
-              🧪 Test Filtri
-            </button>
-            <button
-              onClick={caricaDebugLogs}
-              className="debug-log-btn"
-              style={{
-                padding: '10px 14px',
-                borderRadius: '6px',
-                border: '1px solid #007AFF',
-                background: '#007AFF',
-                color: '#fff',
-                fontSize: '13px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                fontWeight: 600
-              }}
-            >
-              🔍 Debug Log
-            </button>
-          </div>
+          {/* Bottoni Test Filtri e Debug Log rimossi */}
               {/* CSS responsive: su mobile i tasti sono uno sotto l'altro, su desktop inline */}
               <style>{`
                 .test-debug-btns-responsive {
