@@ -754,20 +754,8 @@ function App() {
       {/* Bottone visibile solo dopo login e se non già granted */}
       {/* Bottone abilitazione notifiche push rimosso su richiesta */}
       {showDebugOneSignalButton && isMobile && (typeof Notification === 'undefined' || Notification.permission === 'default') && (
-        <button
-          style={{
-            background: '#FFD600',
-            color: '#FF3B30',
-            border: '2px solid #FF3B30',
-            borderRadius: '12px',
-            padding: '12px 24px',
-            fontWeight: 'bold',
-            fontSize: '18px',
-            display: 'flex',
-            alignItems: 'center',
-            margin: '20px auto',
-            boxShadow: '0 2px 8px rgba(255, 59, 48, 0.2)',
-          }}
+          <button
+            className="btn-login btn-green"
           onClick={async () => {
             if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
               window.OneSignal.showSlidedownPrompt();
@@ -4085,6 +4073,7 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
   const [nuovoPilota, setNuovoPilota] = useState({ nome: '', numero: '' })
   const [showAggiungiInfrazione, setShowAggiungiInfrazione] = useState(false)
   const [nuovaInfrazione, setNuovaInfrazione] = useState({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null })
+  const [pilotaInInserimento, setPilotaInInserimento] = useState(null)
 
   useEffect(() => {
     caricaCampionati()
@@ -4587,6 +4576,7 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
 
   // MODALE AGGIUNGI INFRAZIONE
   if (showAggiungiInfrazione && campionatoSelezionato) {
+    // PATCH: usa pilotaSelezionato, nessuna select pilota
     const calculateExpiryDate = (dataInfrazione) => {
       if (!dataInfrazione) return ''
       const date = new Date(dataInfrazione)
@@ -4596,7 +4586,7 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
 
     const handleSalvaInfrazione = async () => {
       try {
-        if (!nuovaInfrazione.pilotaId || !nuovaInfrazione.motivo || !nuovaInfrazione.dataInfrazione) {
+        if (!nuovaInfrazione.motivo || !nuovaInfrazione.dataInfrazione) {
           alert('Compila tutti i campi');
           return;
         }
@@ -4605,7 +4595,7 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
         // Prepara oggetto per il DB
         const infrazioneDB = {
           campionato_id: campionatoSelezionato.id,
-          pilota_id: nuovaInfrazione.pilotaId,
+          pilota_id: pilotaSelezionato.id,
           punti: parseInt(nuovaInfrazione.punti),
           motivo: nuovaInfrazione.motivo,
           data_infrazione: nuovaInfrazione.dataInfrazione,
@@ -4622,17 +4612,15 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
         // Invio notifica push automatica penalty points
         import('./src/pushNotifications.js').then(async ({ inviaNotificaPush }) => {
           try {
-            // Usa la funzione centralizzata per generare il testo della notifica
             const categoriaNome = campionatoSelezionato?.nome || 'Categoria';
             const piloti = campionatoSelezionato?.piloti || [];
             const notifica = (await import('./notificationTemplates.js')).getPenaltyNotification({
               punti: infrazioneDB.punti,
-              pilotaId: nuovaInfrazione.pilotaId,
+              pilotaId: pilotaSelezionato.id,
               piloti,
               categoriaNome,
               motivo: infrazioneDB.motivo
             });
-            console.log('[PenaltyPoints] Invio notifica automatica penalty:', notifica);
             if (notifica) {
               const res = await inviaNotificaPush({
                 titolo: notifica.titolo,
@@ -4640,23 +4628,19 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
                 tipo: notifica.tipo,
                 url: window.location.origin,
                 data: {
-                  pilota_id: nuovaInfrazione.pilotaId,
+                  pilota_id: pilotaSelezionato.id,
                   campionato_id: campionatoSelezionato.id,
                   motivo: infrazioneDB.motivo,
                   punti: infrazioneDB.punti
                 }
               });
-              console.log('[PenaltyPoints] RISPOSTA inviaNotificaPush:', res);
               if (res.success) {
-                console.log('[PenaltyPoints] Notifica push inviata con successo:', res);
                 alert('✅ Notifica penalty points inviata!');
               } else {
-                console.error('[PenaltyPoints] Errore invio notifica push:', res.error);
                 alert('❌ Errore invio notifica push penalty points: ' + (res.error?.errors?.[0] || res.error));
               }
             }
           } catch (err) {
-            console.error('[PenaltyPoints] ERRORE invio notifica push (catch):', err);
             alert('❌ Errore invio notifica push penalty points: ' + err.message);
           }
         });
@@ -4671,22 +4655,22 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
           expiryDate: infrazioneDB.data_scadenza,
           gpBan: ''
         };
-        const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`] || [];
+        const infrazioniPilota = penaltyDetails[`${campionatoSelezionato.id}_${pilotaSelezionato.id}`] || [];
         const nuoviDettagli = {
           ...penaltyDetails,
-          [`${campionatoSelezionato.id}_${nuovaInfrazione.pilotaId}`]: [...infrazioniPilota, infrazione]
+          [`${campionatoSelezionato.id}_${pilotaSelezionato.id}`]: [...infrazioniPilota, infrazione]
         };
         setPenaltyDetails(nuoviDettagli);
 
         setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: null });
         setShowAggiungiInfrazione(false);
       } catch (err) {
-        console.error('Errore salvataggio su Supabase:', err);
         alert('Errore nel salvataggio');
       }
     };
 
     return (
+
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0, 0, 0, 0.7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 998, padding: '20px' }}>
         <div style={{ background: 'rgba(0, 0, 0, 0.9)', border: '2px solid rgba(255, 255, 255, 0.3)', borderRadius: '15px', padding: '40px', maxWidth: '500px', width: '100%', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)', position: 'relative' }}>
           <button
@@ -4716,23 +4700,7 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
           >
             ✕
           </button>
-          
-          <h2 style={{ color: 'white', marginBottom: '30px', fontSize: '24px', fontWeight: '700', textShadow: '0 2px 5px rgba(0,0,0,0.5)' }}>Aggiungi Infrazione</h2>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', color: '#00D4FF', fontSize: '14px', fontWeight: '600', marginBottom: '8px', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>Pilota</label>
-            <select
-              value={nuovaInfrazione.pilotaId || ''}
-              onChange={(e) => setNuovaInfrazione({ ...nuovaInfrazione, pilotaId: parseInt(e.target.value) || null })}
-              style={{ width: '100%', padding: '12px', background: 'rgba(255, 255, 255, 0.1)', color: 'white', border: '1px solid rgba(255, 255, 255, 0.3)', borderRadius: '8px', fontSize: '14px', fontWeight: '500' }}
-            >
-              <option value="">Seleziona pilota</option>
-              {(campionatoSelezionato.piloti || []).map(pilota => (
-                <option key={pilota.id} value={pilota.id}>{pilota.nome}</option>
-              ))}
-            </select>
-          </div>
-
+          <h2 style={{ color: 'white', marginBottom: '30px', fontSize: '24px', fontWeight: '700', textShadow: '0 2px 5px rgba(0,0,0,0.5)' }}>Aggiungi Infrazione a {pilotaSelezionato.nome}</h2>
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', color: '#00D4FF', fontSize: '14px', fontWeight: '600', marginBottom: '8px', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>Punti Penalità</label>
             <select
@@ -4745,7 +4713,6 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
               ))}
             </select>
           </div>
-
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', color: '#00D4FF', fontSize: '14px', fontWeight: '600', marginBottom: '8px', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>Data Infrazione</label>
             <input
@@ -4755,7 +4722,6 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
               style={{ width: '100%', padding: '12px', background: 'rgba(255, 255, 255, 0.1)', color: 'white', border: '1px solid rgba(255, 255, 255, 0.3)', borderRadius: '8px', fontSize: '14px', fontWeight: '500' }}
             />
           </div>
-
           <div style={{ marginBottom: '30px' }}>
             <label style={{ display: 'block', color: '#00D4FF', fontSize: '14px', fontWeight: '600', marginBottom: '8px', textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>Motivo</label>
             <textarea
@@ -4765,7 +4731,6 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
               placeholder="Descrivi il motivo della penalità"
             />
           </div>
-
           <div style={{ display: 'flex', gap: '12px' }}>
             <button
               onClick={handleSalvaInfrazione}
@@ -4778,13 +4743,30 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   // MODALE SELEZIONE PILOTA
   if (campionatoSelezionato && !pilotaSelezionato) {
+        // Pulsante aggiungi penalità in alto a destra
+        const topButtonStyle = {
+          position: 'absolute',
+          top: '30px',
+          right: '30px',
+          padding: '12px 24px',
+          borderRadius: '8px',
+          background: '#34C759',
+          color: 'white',
+          border: 'none',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          boxShadow: '0 2px 8px rgba(52,199,89,0.15)',
+          zIndex: 2001
+        };
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '40px 20px', overflow: 'hidden', zIndex: 996, paddingTop: window.innerWidth < 768 ? '100px' : '40px' }}>
+        {/* Nessun pulsante aggiungi penalità qui */}
         <div style={{ position: 'absolute', top: window.innerWidth < 768 ? '42px' : '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
           <button onClick={() => setCampionatoSelezionato(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
             <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
@@ -4795,48 +4777,51 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
         <h2 style={{ color: 'white', marginBottom: '40px', marginTop: '20px', fontSize: '28px', fontWeight: '700', textShadow: '0 2px 5px rgba(0,0,0,0.5)', position: 'relative', zIndex: 10 }}>{campionatoSelezionato.nome}</h2>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '25px', maxWidth: '900px', width: '100%', overflowY: 'auto', paddingRight: '15px', maxHeight: 'calc(100vh - 180px)' }}>
-          {(campionatoSelezionato.piloti || []).map(pilota => (
-            <button
-              key={pilota.id}
-              onClick={() => setPilotaSelezionato(pilota)}
-              style={{
-                background: 'rgba(0, 0, 0, 0.5)',
-                border: '2px solid rgba(255, 255, 255, 0.5)',
-                borderRadius: '15px',
-                padding: '25px',
-                cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                boxShadow: '0 8px 25px rgba(0, 0, 0, 0.4)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '12px'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = 'translateY(-4px)'
-                e.currentTarget.style.boxShadow = '0 12px 35px rgba(0, 0, 0, 0.6)'
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)'
-                e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.4)'
-              }}
-            >
-              <div style={{ color: 'white', fontSize: '18px', fontWeight: '700', textAlign: 'center', textShadow: '0 2px 3px rgba(0, 0, 0, 0.5)' }}>
-                {pilota.nome}
-              </div>
-              <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '100px' }}>
-                {[...Array(12)].map((_, i) => {
-                  const totalPuntiPilota = getTotalPenaltyPoints(pilota.id)
-                  return (
-                    <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: i < totalPuntiPilota ? '#FF3B30' : 'rgba(255,255,255,0.15)', border: '1px solid ' + (i < totalPuntiPilota ? '#CC0000' : 'rgba(255,255,255,0.25)'), boxShadow: '0 1px 2px rgba(0,0,0,0.3)' }} />
-                  )
-                })}
-              </div>
-              {getTotalPenaltyPoints(pilota.id) > 12 && (
-                <div style={{ background: '#FF3B30', color: 'white', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', textShadow: '0 1px 2px rgba(0,0,0,0.3)', letterSpacing: '0.5px', transform: 'rotate(-15deg)' }}>RACE BAN</div>
-              )}
-            </button>
-          ))}
+          {(campionatoSelezionato.piloti || []).map(pilota => {
+            const evidenziata = pilotaInInserimento && pilotaInInserimento.id === pilota.id;
+            return (
+              <button
+                key={pilota.id}
+                onClick={() => setPilotaSelezionato(pilota)}
+                style={{
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  border: evidenziata ? '3px solid orange' : '2px solid rgba(255, 255, 255, 0.5)',
+                  borderRadius: '15px',
+                  padding: '25px',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s, box-shadow 0.2s, border 0.2s',
+                  boxShadow: '0 8px 25px rgba(0, 0, 0, 0.4)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)'
+                  e.currentTarget.style.boxShadow = '0 12px 35px rgba(0, 0, 0, 0.6)'
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)'
+                  e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.4)'
+                }}
+              >
+                <div style={{ color: 'white', fontSize: '18px', fontWeight: '700', textAlign: 'center', textShadow: '0 2px 3px rgba(0, 0, 0, 0.5)' }}>
+                  {pilota.nome}
+                </div>
+                <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '100px' }}>
+                  {[...Array(12)].map((_, i) => {
+                    const totalPuntiPilota = getTotalPenaltyPoints(pilota.id)
+                    return (
+                      <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: i < totalPuntiPilota ? '#FF3B30' : 'rgba(255,255,255,0.15)', border: '1px solid ' + (i < totalPuntiPilota ? '#CC0000' : 'rgba(255,255,255,0.25)'), boxShadow: '0 1px 2px rgba(0,0,0,0.3)' }} />
+                    )
+                  })}
+                </div>
+                {getTotalPenaltyPoints(pilota.id) > 12 && (
+                  <div style={{ background: '#FF3B30', color: 'white', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', textShadow: '0 1px 2px rgba(0,0,0,0.3)', letterSpacing: '0.5px', transform: 'rotate(-15deg)' }}>RACE BAN</div>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {(campionatoSelezionato.piloti || []).length === 0 && (
@@ -4845,52 +4830,44 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
           </div>
         )}
 
-        <button
-          onClick={() => setShowAggiungiInfrazione(true)}
-          style={{
-            position: 'absolute',
-            top: '30px',
-            right: '30px',
-            padding: '15px 25px',
-            minWidth: '200px',
-            minHeight: '56px',
-            background: '#34C759',
-            color: 'white',
-            border: 'none',
-            borderRadius: '10px',
-            fontSize: '16px',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            boxShadow: '0 4px 10px rgba(52, 199, 89, 0.3)',
-            transition: 'opacity 0.2s',
-            zIndex: 50,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            userSelect: 'none',
-            touchAction: 'manipulation'
-          }}
-          onMouseOver={e => e.target.style.opacity = '0.9'}
-          onMouseOut={e => e.target.style.opacity = '1'}
-        >
-          Aggiungi Infrazione
-        </button>
+
       </div>
     )
   }
 
   // MODALE DETTAGLI PILOTA
   if (pilotaSelezionato) {
-
     const totalPunti = getTotalPenaltyPoints(pilotaSelezionato.id)
     const isBanned = totalPunti > 12
     const infrazioni = penaltyDetails[`${campionatoSelezionato.id}_${pilotaSelezionato.id}`] || []
-
-    // Offset top solo su mobile
     const topOffset = isMobile ? 30 : 0;
     const upOffset = isMobile ? -20 : 0;
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: `calc(40px + ${topOffset}px) 20px 40px 20px`, overflow: 'auto', zIndex: 997 }}>
+        {/* Pulsante testuale per aggiungere penalità in alto a destra sopra la tabella infrazioni */}
+        <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+          <button
+            onClick={() => {
+              setShowAggiungiInfrazione(true);
+              setNuovaInfrazione({ punti: 1, motivo: '', dataInfrazione: '', pilotaId: pilotaSelezionato.id });
+            }}
+            style={{
+              padding: '12px 24px',
+              borderRadius: '8px',
+              background: '#34C759',
+              color: 'white',
+              border: 'none',
+              fontSize: '16px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(52,199,89,0.15)',
+              zIndex: 2001,
+              marginRight: isMobile ? 0 : '25px'
+            }}
+          >
+            Aggiungi penalità
+          </button>
+        </div>
         {/* Tasto Ban Scontato in alto a destra della pagina */}
         {isBanned && (
           <button
@@ -4942,19 +4919,16 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
             Ban Scontato
           </button>
         )}
-
         <div style={{ position: 'absolute', top: (20 + topOffset + (isMobile ? -4 : 0)), left: '20px', right: '20px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', zIndex: 100 }}>
           <button onClick={() => setPilotaSelezionato(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
             <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
             Indietro
           </button>
         </div>
-
         <div style={{ marginTop: `${80 + topOffset + upOffset}px`, maxWidth: '600px', width: '100%' }}>
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <h2 style={{ color: 'white', margin: '0', fontSize: '28px', fontWeight: '700', textShadow: '0 2px 5px rgba(0,0,0,0.5)', position: 'relative', top: `${upOffset}px` }}>{pilotaSelezionato.nome}</h2>
           </div>
-
           <div style={{ background: 'rgba(0, 0, 0, 0.5)', border: '2px solid rgba(255, 255, 255, 0.5)', borderRadius: '15px', padding: '25px', marginBottom: '25px', textAlign: 'center', position: 'relative', boxShadow: '0 8px 25px rgba(0, 0, 0, 0.4)', top: `${upOffset}px` }}>
             <div style={{ position: 'relative', width: '100%', minHeight: '70px' }}>
               {totalPunti > 12 && (
@@ -5002,9 +4976,8 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
             {infrazioni.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: 'calc(100vh - 500px)', overflowY: 'auto', paddingRight: '10px', position: 'relative', top: `${upOffset}px` }}>
                 {infrazioni.map(infrazione => {
-                                    console.log('[DEBUG PENALTY CARD]', { userLocal, ruolo: userLocal?.ruolo, infrazione });
-                                    const isAdmin = userLocal && userLocal.ruolo === 'admin';
-                                    const isOwner = infrazione.inseritoDa === userLocal?.id;
+                  const isAdmin = userLocal && userLocal.ruolo === 'admin';
+                  const isOwner = infrazione.inseritoDa === userLocal?.id;
                   const handleMouseOver = (e) => e.target.style.opacity = '0.9'
                   const handleMouseOut = (e) => e.target.style.opacity = '1'
                   const puntiLabel = infrazione.points === 1 ? 'punto' : 'punti'
