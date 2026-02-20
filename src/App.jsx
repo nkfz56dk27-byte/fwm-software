@@ -4779,6 +4779,7 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '25px', maxWidth: '900px', width: '100%', overflowY: 'auto', paddingRight: '15px', maxHeight: 'calc(100vh - 180px)' }}>
           {(campionatoSelezionato.piloti || []).map(pilota => {
             const evidenziata = pilotaInInserimento && pilotaInInserimento.id === pilota.id;
+            const totalPuntiPilota = getTotalPenaltyPoints(pilota.id);
             return (
               <button
                 key={pilota.id}
@@ -4809,14 +4810,11 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
                   {pilota.nome}
                 </div>
                 <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '100px' }}>
-                  {[...Array(12)].map((_, i) => {
-                    const totalPuntiPilota = getTotalPenaltyPoints(pilota.id)
-                    return (
-                      <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: i < totalPuntiPilota ? '#FF3B30' : 'rgba(255,255,255,0.15)', border: '1px solid ' + (i < totalPuntiPilota ? '#CC0000' : 'rgba(255,255,255,0.25)'), boxShadow: '0 1px 2px rgba(0,0,0,0.3)' }} />
-                    )
-                  })}
+                  {[...Array(12)].map((_, i) => (
+                    <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: i < totalPuntiPilota ? '#FF3B30' : 'rgba(255,255,255,0.15)', border: '1px solid ' + (i < totalPuntiPilota ? '#CC0000' : 'rgba(255,255,255,0.25)'), boxShadow: '0 1px 2px rgba(0,0,0,0.3)' }} />
+                  ))}
                 </div>
-                {getTotalPenaltyPoints(pilota.id) > 12 && (
+                {totalPuntiPilota > 12 && (
                   <div style={{ background: '#FF3B30', color: 'white', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center', textShadow: '0 1px 2px rgba(0,0,0,0.3)', letterSpacing: '0.5px', transform: 'rotate(-15deg)' }}>RACE BAN</div>
                 )}
               </button>
