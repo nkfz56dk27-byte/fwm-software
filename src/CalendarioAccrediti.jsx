@@ -2014,9 +2014,29 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     // Verifica se accredito_status è cambiato (e non in creazione)
     const accreditoStatusCambiato = edit.accredito_status !== evento.accredito_status && evento.id;
     // Verifica se la nota è stata aggiunta o modificata
-    const notaPrecedente = evento.note || ''
-    const notaAttuale = edit.note || ''
-    const notaCambiata = notaPrecedente !== notaAttuale
+    // Gestione note come array di oggetti
+    let notePrecedenti = [];
+    try {
+      notePrecedenti = evento.note ? JSON.parse(evento.note) : [];
+      if (!Array.isArray(notePrecedenti)) notePrecedenti = [];
+    } catch (e) { notePrecedenti = []; }
+    let noteAttuali = [];
+    try {
+      noteAttuali = edit.note ? JSON.parse(edit.note) : [];
+      if (!Array.isArray(noteAttuali)) noteAttuali = [];
+    } catch (e) { noteAttuali = []; }
+    // Se l'utente ha inserito una nuova nota (campo temporaneo newNote)
+    if (edit.newNote && edit.newNote.trim()) {
+      noteAttuali = [
+        ...noteAttuali,
+        {
+          testo: edit.newNote.trim(),
+          autore: utenteCorrente?.username || 'utente',
+          data: new Date().toISOString()
+        }
+      ];
+    }
+    const notaCambiata = JSON.stringify(notePrecedenti) !== JSON.stringify(noteAttuali);
     await supabase.from('eventi_calendario').update({ 
       titolo: edit.titolo, 
       data_inizio: edit.data_inizio, 
@@ -2025,7 +2045,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
       programmazione_weekend: edit.programmazione_weekend || null,
       max_accrediti: Number(edit.max_accrediti) || 0, 
       accredito_status: edit.accredito_status || 'nessuno', 
-      note: edit.note 
+      note: JSON.stringify(noteAttuali) 
     }).eq('id', edit.id)
 
     // Aggiorna subito i dati evento a schermo senza reload
@@ -2038,7 +2058,8 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
       data_fine: edit.data_fine,
       orario: edit.orario,
       programmazione_weekend: edit.programmazione_weekend,
-      note: edit.note
+      note: JSON.stringify(noteAttuali),
+      newNote: '' // svuota campo nuova nota
     }));
     // Aggiorna anche l'oggetto evento principale se serve
     if (typeof onUpdate === 'function') {
@@ -2224,13 +2245,43 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                 <option value="accettato">✅ Accettato</option>
               </select>
             </div>
-            <div><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Note</div>
-              <textarea value={edit.note || ''} onChange={e => setEdit({...edit, note: e.target.value})} style={{ width: '100%', minHeight: '80px', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', fontFamily: 'inherit', resize: 'vertical' }} />
+            {/* Gestione note multiple: mostra note esistenti e campo per aggiungerne una nuova */}
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Note</div>
+              {/* Mostra note esistenti */}
+              {(() => {
+                let noteArr = [];
+                try {
+                  noteArr = edit.note ? JSON.parse(edit.note) : [];
+                  if (!Array.isArray(noteArr)) noteArr = [];
+                } catch (e) { noteArr = []; }
+                if (!noteArr.length) return null;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
+                    {noteArr.map((n, idx) => (
+                      <div key={idx} style={{ background: '#f0f0f0', padding: '8px 10px', borderRadius: '8px', borderLeft: '4px solid #007AFF', fontSize: '13px' }}>
+                        <div>{n.testo}</div>
+                        <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic', display: 'flex', justifyContent: 'space-between' }}>
+                          <span>👤 {n.autore || 'utente'}</span>
+                          <span>{n.data ? new Date(n.data).toLocaleString('it-IT') : ''}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+              {/* Campo per aggiungere una nuova nota */}
+              <textarea
+                value={edit.newNote || ''}
+                onChange={e => setEdit({ ...edit, newNote: e.target.value })}
+                placeholder="Aggiungi una nuova nota..."
+                style={{ width: '100%', minHeight: '60px', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', fontFamily: 'inherit', resize: 'vertical', marginTop: '4px' }}
+              />
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', justifyContent: 'flex-end', padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0' }}>
             <button onClick={() => setModalita('visualizza')} style={{ padding: isMobile ? '14px' : '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '8px', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>Annulla</button>
-            <button onClick={salva} disabled={salvando} style={{ padding: isMobile ? '14px' : '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>{salvando ? '...' : 'Salva'}</button>
+            <button onClick={salva} disabled={salvando} style={{ padding: isMobile ? '14px' : '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', minHeight: isMobile ? '48px' : 'auto', fontSize: isMobile ? '15px' : '14px' }}>{salvando ? 'SALVANDO...' : 'CONFERMA'}</button>
           </div>
         </div>
       </div>
@@ -2270,12 +2321,48 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
               {prenotatoCorrente ? 'Annulla prenotazione' : 'Prenota pass'}
             </button>
           </div>}
-          {evento.note && (
-            <div style={{ marginTop: '15px' }}>
-              <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#000', marginBottom: '8px' }}>Note:</div>
-              <div style={{ fontSize: '14px', color: '#000', background: '#f0f0f0', padding: '12px', borderRadius: '8px' }}>{evento.note}</div>
-            </div>
-          )}
+          {/* Visualizzazione note: mostra sempre la sezione Note, anche se non ci sono note, e gestisce sia array che stringa singola */}
+          <div style={{ marginTop: '15px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#000', marginBottom: '8px' }}>Note:</div>
+            {(() => {
+              let noteArr = [];
+              if (evento.note) {
+                try {
+                  const parsed = JSON.parse(evento.note);
+                  if (Array.isArray(parsed)) {
+                    noteArr = parsed;
+                  } else if (typeof parsed === 'object' && parsed !== null && parsed.testo) {
+                    noteArr = [parsed];
+                  } else if (typeof parsed === 'string') {
+                    noteArr = [{ testo: parsed }];
+                  }
+                } catch (e) {
+                  // Se non è JSON, fallback a stringa semplice
+                  noteArr = [{ testo: evento.note }];
+                }
+              }
+              if (!noteArr.length || !noteArr[0].testo) {
+                return <div style={{ color: '#888', fontSize: '13px', background: '#f8f8f8', padding: '10px', borderRadius: '8px' }}>Nessuna nota presente.</div>;
+              }
+              let mancaAutore = false;
+              noteArr.forEach(n => { if (!n.autore) mancaAutore = true; });
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {noteArr.map((n, idx) => (
+                    <div key={idx} style={{ background: '#f0f0f0', padding: '10px 12px', borderRadius: '8px', borderLeft: '4px solid #007AFF', position: 'relative' }}>
+                      <div style={{ fontSize: '13px', color: '#222', marginBottom: '4px' }}>{n.testo}</div>
+                      {(n.autore || n.data) && (
+                        <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic', display: 'flex', justifyContent: 'space-between' }}>
+                          {n.autore ? <span>👤 {n.autore}</span> : <span></span>}
+                          <span>{n.data ? new Date(n.data).toLocaleString('it-IT') : ''}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
           {evento.programmazione_weekend && (
             <div style={{ marginTop: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px', border: '1px solid #ddd' }}>
               <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>Programmazione Weekend</div>
@@ -2316,7 +2403,6 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     </div>
   )
 }
-
 function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette }) {
   return (
     <div style={{ 
