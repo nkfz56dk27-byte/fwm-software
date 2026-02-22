@@ -2303,10 +2303,14 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
           )}
         </div>
         <div style={{ padding: isMobile ? '15px' : '20px 30px', borderTop: '1px solid #e0e0e0' }}>
-          {isAdmin ? <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={elimina} style={{ flex: 1, padding: '12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px' }}>Elimina</button>
-            <button onClick={() => setModalita('modifica')} style={{ flex: 1, padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px' }}>Modifica</button>
-          </div> : <button onClick={onClose} style={{ width: '100%', padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px' }}>Chiudi</button>}
+          {isAdmin ? (
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={elimina} style={{ flex: 1, padding: '12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px' }}>Elimina</button>
+              <button onClick={() => setModalita('modifica')} style={{ flex: 1, padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px' }}>Modifica</button>
+            </div>
+          ) : (
+            <button onClick={() => setModalita('modifica')} style={{ width: '100%', padding: '12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px' }}>Modifica</button>
+          )}
         </div>
       </div>
     </div>
