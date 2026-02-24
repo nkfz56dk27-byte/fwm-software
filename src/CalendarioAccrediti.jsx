@@ -1039,13 +1039,20 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
       )}
       
       {showNotifiche && (
-        <NotificheModal 
-          notifiche={notifiche} 
-          onClose={() => setShowNotifiche(false)} 
-          onSegnaLetta={segnaComeLettaCalendario} 
-          onSegnaTutteLette={segnaTutteComeLette} 
-          onCancellaTutte={cancellaTutte} 
-          isMobile={isMobile} 
+        <NotificheModal
+          notifiche={notifiche}
+          onClose={() => setShowNotifiche(false)}
+          onSegnaLetta={segnaComeLettaCalendario}
+          onSegnaTutteLette={segnaTutteComeLette}
+          onCancellaTutte={cancellaTutte}
+          isMobile={isMobile}
+          onApriDettaglioEvento={(eventoId) => {
+            const evento = eventi.find(ev => ev.id === eventoId);
+            if (evento) {
+              setEventoSelezionato(evento);
+              setShowNotifiche(false);
+            }
+          }}
         />
       )}
       
@@ -1213,7 +1220,21 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, 
               const campionato = campionati.find(c => c.id === evento.campionato_id);
               const colore = evento.tipo === 'gara' && campionato ? campionato.colore : (evento.colore_personalizzato || '#666');
               // Mostra il badge se l'evento ha una nota
-              const hasNotifiche = evento.note && evento.note.trim() !== '';
+              let hasNotifiche = false;
+              if (evento.note) {
+                try {
+                  const parsed = JSON.parse(evento.note);
+                  if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(n => n.testo && n.testo.trim() !== '')) {
+                    hasNotifiche = true;
+                  } else if (typeof parsed === 'object' && parsed !== null && parsed.testo && parsed.testo.trim() !== '') {
+                    hasNotifiche = true;
+                  } else if (typeof parsed === 'string' && parsed.trim() !== '') {
+                    hasNotifiche = true;
+                  }
+                } catch (e) {
+                  if (evento.note.trim() !== '') hasNotifiche = true;
+                }
+              }
               return (
                 <div key={evento.id} onClick={() => onEventoClick(evento)} style={{ 
                   padding: '10px', 
@@ -1492,8 +1513,22 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
           else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' };
           else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' };
 
-          // Mostra il badge se l'evento ha una nota
-          const hasNotifiche = evento.note && evento.note.trim() !== '';
+          // Mostra il badge se l'evento ha una nota (logica robusta come su mobile)
+          let hasNotifiche = false;
+          if (evento.note) {
+            try {
+              const parsed = JSON.parse(evento.note);
+              if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(n => n.testo && n.testo.trim() !== '')) {
+                hasNotifiche = true;
+              } else if (typeof parsed === 'object' && parsed !== null && parsed.testo && parsed.testo.trim() !== '') {
+                hasNotifiche = true;
+              } else if (typeof parsed === 'string' && parsed.trim() !== '') {
+                hasNotifiche = true;
+              }
+            } catch (e) {
+              if (evento.note.trim() !== '') hasNotifiche = true;
+            }
+          }
 
           return (
             <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ 
@@ -2342,7 +2377,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                 }
               }
               if (!noteArr.length || !noteArr[0].testo) {
-                return <div style={{ color: '#888', fontSize: '13px', background: '#f8f8f8', padding: '10px', borderRadius: '8px' }}>Nessuna nota presente.</div>;
+                return null;
               }
               let mancaAutore = false;
               noteArr.forEach(n => { if (!n.autore) mancaAutore = true; });
@@ -2352,9 +2387,11 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                     <div key={idx} style={{ background: '#f0f0f0', padding: '10px 12px', borderRadius: '8px', borderLeft: '4px solid #007AFF', position: 'relative' }}>
                       <div style={{ fontSize: '13px', color: '#222', marginBottom: '4px' }}>{n.testo}</div>
                       {(n.autore || n.data) && (
-                        <div style={{ fontSize: '11px', color: '#555', fontStyle: 'italic', display: 'flex', justifyContent: 'space-between' }}>
-                          {n.autore ? <span>👤 {n.autore}</span> : <span></span>}
-                          <span>{n.data ? new Date(n.data).toLocaleString('it-IT') : ''}</span>
+                        <div style={{ fontSize: '12px', color: '#555', fontStyle: 'italic', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                          {n.autore ? <span style={{ fontWeight: 'bold' }}>👤 {n.autore}</span> : <span></span>}
+                          <span style={{ fontWeight: 'bold' }}>
+                            {n.data ? (() => { const d = new Date(n.data); return d.toLocaleDateString('it-IT') + ' - ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }); })() : ''}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -2403,7 +2440,12 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     </div>
   )
 }
-function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette }) {
+function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, onApriDettaglioEvento }) {
+  // Handler click notifica: segna come letta e, se evento_id presente, apre dettaglio evento
+  const handleClickNotifica = (n) => {
+    if (!n.letta) onSegnaLetta(n.id);
+    if (n.evento_id) onApriDettaglioEvento && onApriDettaglioEvento(n.evento_id);
+  };
   return (
     <div style={{ 
       position: 'fixed', 
@@ -2454,22 +2496,23 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
             </div>
           ) : (
             notifiche.map(n => (
-              <div 
-                key={n.id} 
-                onClick={() => !n.letta && onSegnaLetta(n.id)} 
-                style={{ 
-                  padding: '15px', 
-                  background: n.letta ? '#f5f5f7' : '#007AFF15', 
-                  borderRadius: '10px', 
-                  marginBottom: '10px', 
-                  cursor: n.letta ? 'default' : 'pointer', 
-                  borderLeft: `4px solid ${n.letta ? '#ccc' : '#007AFF'}` 
+              <div
+                key={n.id}
+                onClick={() => handleClickNotifica(n)}
+                style={{
+                  padding: '15px',
+                  background: n.letta ? '#f5f5f7' : '#007AFF15',
+                  borderRadius: '10px',
+                  marginBottom: '10px',
+                  cursor: n.letta ? (n.evento_id ? 'pointer' : 'default') : 'pointer',
+                  borderLeft: `4px solid ${n.letta ? '#ccc' : '#007AFF'}`
                 }}
+                title={n.evento_id ? 'Apri dettaglio evento' : ''}
               >
-                <div style={{ 
-                  fontSize: '14px', 
-                  fontWeight: n.letta ? 'normal' : 'bold', 
-                  marginBottom: '5px' 
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: n.letta ? 'normal' : 'bold',
+                  marginBottom: '5px'
                 }}>
                   {n.messaggio}
                 </div>
