@@ -627,6 +627,73 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
 }
 
 export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotificheChange }) {
+  const [showGestioneAccrediti, setShowGestioneAccrediti] = useState(false);
+  // Funzione per filtrare eventi con accrediti abilitati o richiesti/accettati
+  function getEventiConAccrediti() {
+    return eventi.filter(e => (e.max_accrediti && e.max_accrediti > 0) || (e.accredito_status && e.accredito_status !== 'nessuno'));
+  }
+  // --- MODALE GESTIONE ACCREDITI ---
+  function GestioneAccreditiModal({ open, onClose }) {
+    if (!open) return null;
+    // Filtra solo eventi futuri o in corso e ordina per data_inizio (cronologico)
+    const now = new Date();
+    const eventiAccrediti = getEventiConAccrediti()
+      .filter(ev => {
+        if (!ev.data_inizio) return true;
+        const dataInizio = new Date(ev.data_inizio);
+        // Mostra solo eventi che iniziano oggi o dopo
+        return dataInizio >= new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      })
+      .sort((a, b) => {
+        const dataA = a.data_inizio ? new Date(a.data_inizio) : new Date(0);
+        const dataB = b.data_inizio ? new Date(b.data_inizio) : new Date(0);
+        return dataA - dataB;
+      });
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: 'white', borderRadius: 14, minWidth: 420, maxWidth: 600, maxHeight: '80vh', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', padding: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', padding: '18px 28px', borderBottom: '1px solid #eee' }}>
+            <div style={{ fontWeight: 700, fontSize: 20, margin: '0 auto' }}>Gestione Accrediti</div>
+            <button onClick={onClose} style={{ position: 'absolute', right: 28, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', fontSize: 26, color: '#FF3B30', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+          </div>
+          <div style={{ padding: '18px 28px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+            {eventiAccrediti.length === 0 && <div style={{ color: '#888', fontSize: 15 }}>Nessun evento con accrediti abilitati.</div>}
+            {eventiAccrediti.map(ev => {
+              const prenotazioniEvento = prenotazioni.filter(p => p.evento_id === ev.id);
+              const prenotati = prenotazioniEvento.length;
+              const liberi = (ev.max_accrediti || 0) - prenotati;
+              let statoBadge = null;
+              if (ev.accredito_status === 'da_richiedere') statoBadge = { text: 'Da richiedere', color: '#FFD60A', textColor: '#000' };
+              else if (ev.accredito_status === 'richiesto') statoBadge = { text: 'Richiesto', color: '#FF9500', textColor: '#fff' };
+              else if (ev.accredito_status === 'accettato') statoBadge = { text: 'Accettato', color: '#34C759', textColor: '#fff' };
+              // Trova utenti accreditati
+              // Mostra il nome reale se disponibile, altrimenti username
+              const utentiAccreditati = prenotazioniEvento.map(p => p.nome_completo || p.username || p.utente_id);
+              return (
+                <div key={ev.id} style={{ borderBottom: '1px solid #eee', padding: '14px 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
+                    <div style={{ fontWeight: 600, fontSize: 16 }}>{ev.titolo}</div>
+                    {statoBadge && <span style={{ background: statoBadge.color, color: statoBadge.textColor, borderRadius: 6, padding: '2px 10px', fontWeight: 700, fontSize: 12 }}>{statoBadge.text}</span>}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#555', display: 'flex', alignItems: 'center', gap: 16, marginTop: 2 }}>
+                    <span>Posti: <b>{ev.max_accrediti || 0}</b></span>
+                    <span>Prenotati: <b>{prenotati}</b></span>
+                    <span>Liberi: <b>{liberi >= 0 ? liberi : 0}</b></span>
+                  </div>
+                  {utentiAccreditati.length > 0 && (
+                    <div style={{ fontSize: 12, color: '#333', marginTop: 6 }}>
+                      <span style={{ fontWeight: 600 }}>Accreditati:</span> {utentiAccreditati.join(', ')}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // ...existing code...
   const [campionati, setCampionati] = useState([])
   const [eventi, setEventi] = useState([])
   const [sessioni, setSessioni] = useState([]) // NUOVO: sessioni del weekend
@@ -916,10 +983,16 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
             🔔 Notifiche
             {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
           </button>
+          {/* Bottone Gestione Accrediti visibile su tutti i dispositivi */}
+          <button onClick={() => setShowGestioneAccrediti(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
+            Gestione Accrediti
+          </button>
           {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Categorie</button>}
           <button onClick={() => setShowNuovoEvento(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Nuovo</button>
         </div>
       </div>
+      {/* Modale Gestione Accrediti */}
+      <GestioneAccreditiModal open={showGestioneAccrediti} onClose={() => setShowGestioneAccrediti(false)} />
       
       {/* NAVIGAZIONE MESE */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '10px' : '12px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
