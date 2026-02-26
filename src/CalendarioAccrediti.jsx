@@ -633,7 +633,28 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     return eventi.filter(e => (e.max_accrediti && e.max_accrediti > 0) || (e.accredito_status && e.accredito_status !== 'nessuno'));
   }
   // --- MODALE GESTIONE ACCREDITI ---
-  function GestioneAccreditiModal({ open, onClose }) {
+  function GestioneAccreditiModal({ open, onClose, caricaDati }) {
+        // Prenotazione accredito per evento
+        async function handlePrenota(evento) {
+          if (!utenteCorrente || !evento?.id) return;
+          try {
+            // Chiamata API o inserimento diretto su supabase
+            const { data, error } = await supabase.from('prenotazioni_accrediti').insert({
+              evento_id: evento.id,
+              utente_id: utenteCorrente.id,
+              username: utenteCorrente.username
+            });
+            if (error) {
+              alert('Errore nella prenotazione: ' + error.message);
+            } else {
+              alert('Prenotazione effettuata!');
+              // Aggiorna lo stato globale delle prenotazioni (richiama caricaDati se disponibile)
+              if (typeof caricaDati === 'function') caricaDati();
+            }
+          } catch (e) {
+            alert('Errore nella prenotazione.');
+          }
+        }
     if (!open) return null;
     // Filtra solo eventi futuri o in corso e ordina per data_inizio (cronologico)
     const now = new Date();
@@ -672,19 +693,68 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
               return (
                 <div key={ev.id} style={{ borderBottom: '1px solid #eee', padding: '14px 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between' }}>
-                    <div style={{ fontWeight: 600, fontSize: 16 }}>{ev.titolo}</div>
-                    {statoBadge && <span style={{ background: statoBadge.color, color: statoBadge.textColor, borderRadius: 6, padding: '2px 10px', fontWeight: 700, fontSize: 12 }}>{statoBadge.text}</span>}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', width: '100%' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                        <span style={{ fontWeight: 600, fontSize: 16, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.titolo}</span>
+                        {ev.data_inizio && (
+                          <span style={{ fontSize: 13, color: '#222', fontWeight: 500, marginTop: 0, marginBottom: 0, lineHeight: 1 }}>
+                            {(() => {
+                              const inizio = new Date(ev.data_inizio);
+                              const fine = ev.data_fine ? new Date(ev.data_fine) : null;
+                              const opzioni = { day: '2-digit', month: 'short', year: 'numeric' };
+                              if (fine && fine.getTime() !== inizio.getTime()) {
+                                return `${inizio.toLocaleDateString('it-IT', opzioni)} - ${fine.toLocaleDateString('it-IT', opzioni)}`;
+                              } else {
+                                return inizio.toLocaleDateString('it-IT', opzioni);
+                              }
+                            })()}
+                          </span>
+                        )}
+                      </div>
+                      {statoBadge && (
+                        <span style={{ background: statoBadge.color, color: statoBadge.textColor, borderRadius: 6, padding: '2px 10px', fontWeight: 700, fontSize: 12, marginLeft: 12, whiteSpace: 'nowrap' }}>{statoBadge.text}</span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 13, color: '#555', display: 'flex', alignItems: 'center', gap: 16, marginTop: 2 }}>
-                    <span>Posti: <b>{ev.max_accrediti || 0}</b></span>
-                    <span>Prenotati: <b>{prenotati}</b></span>
-                    <span>Liberi: <b>{liberi >= 0 ? liberi : 0}</b></span>
+                  {/* Riga unica: badge stato a sinistra, omini e nomi accreditati a destra */}
+                  <div style={{ display: 'flex', alignItems: 'center', margin: '6px 0 0 0' }}>
                   </div>
-                  {utentiAccreditati.length > 0 && (
-                    <div style={{ fontSize: 12, color: '#333', marginTop: 6 }}>
-                      <span style={{ fontWeight: 600 }}>Accreditati:</span> {utentiAccreditati.join(', ')}
+                  {/* Info posti/prenotati/liberi (se vuoi puoi rimetterla altrove) */}
+                  {/* Omini accreditati e nomi in linea, sotto il badge stato */}
+                  {(ev.max_accrediti > 0 && (prenotati > 0 || liberi > 0)) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0' }}>
+                      <div style={{ display: 'flex', gap: '2px' }}>
+                        {Array.from({ length: ev.max_accrediti }, (_, i) => (
+                          <span key={i} style={{ fontSize: '13px', filter: i < prenotati ? 'none' : 'grayscale(1)', opacity: i < prenotati ? 1 : 0.2 }}>
+                            👤
+                          </span>
+                        ))}
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: 'bold', color: prenotati >= ev.max_accrediti ? '#FF3B30' : '#444', minWidth: 38, display: 'inline-block' }}>
+                        {prenotati}/{ev.max_accrediti}
+                      </span>
                     </div>
                   )}
+                  {utentiAccreditati.length > 0 && (
+                    <div style={{ fontSize: 12, color: '#333', marginTop: 6 }}>
+                      <span style={{ fontWeight: 600 }}>Accreditati:</span> {utentiAccreditati.map((nome, i) => (
+                        <span key={i} style={{ fontWeight: 700 }}>
+                          {nome}{i < utentiAccreditati.length - 1 ? ', ' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {/* Pulsante Prenota solo se ci sono posti liberi e l'utente non è già accreditato */}
+                  {liberi > 0 && !prenotazioniEvento.some(p => p.utente_id === utenteCorrente?.id) && (
+                    <button onClick={() => handlePrenota(ev)} style={{ marginTop: 10, alignSelf: 'flex-start', padding: '8px 18px', background: '#007AFF', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', marginRight: 10 }}>
+                      Prenota
+                    </button>
+                  )}
+                  {/* Tasto sempre visibile per aprire dettaglio evento */}
+                  <button
+                    onClick={() => { onClose(); setTimeout(() => setEventoSelezionato(ev), 200); }}
+                    style={{ marginTop: 10, alignSelf: 'flex-start', padding: '5px 12px', background: '#eee', color: '#222', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 12, cursor: 'pointer' }}
+                  >VAI ALL'EVENTO</button>
                 </div>
               );
             })}
@@ -992,7 +1062,7 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
         </div>
       </div>
       {/* Modale Gestione Accrediti */}
-      <GestioneAccreditiModal open={showGestioneAccrediti} onClose={() => setShowGestioneAccrediti(false)} />
+      <GestioneAccreditiModal open={showGestioneAccrediti} onClose={() => setShowGestioneAccrediti(false)} caricaDati={caricaDati} />
       
       {/* NAVIGAZIONE MESE */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '10px' : '12px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
