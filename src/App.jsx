@@ -3629,9 +3629,13 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
   const [showCategorie, setShowCategorie] = useState(false)
   const [showTemplateArticoli, setShowTemplateArticoli] = useState(false)
   const [showGestioneRSS, setShowGestioneRSS] = useState(false);
+  const [showMonitorUrl, setShowMonitorUrl] = useState(false);
   
   // Determina se l'utente corrente è admin
   const isAdmin = utenti.some(u => u.ruolo === 'admin');
+
+  // Handler per aprire il modal MonitorUrl
+  const onOpenMonitorUrl = () => setShowMonitorUrl(true);
 
   useEffect(() => {
     document.title = "FWM - Gestione Utenti"
@@ -3727,7 +3731,6 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
             </button>
           )}
           {showGestioneRSS && <GestioneRSSModal onClose={() => setShowGestioneRSS(false)} />}
-          {showMonitorUrl && <MonitorUrlModal onClose={() => setShowMonitorUrl(false)} />}
           <button className="btn-nuovo" style={{ background: '#007AFF' }} onClick={() => setShowCategorie(true)}>
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
             Categorie
@@ -3813,7 +3816,8 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
             ))}
           </div>
         )}
-        {showMonitorUrl && <MonitorUrlModal onClose={() => setShowMonitorUrl(false)} />}
+        {/* Modal MonitorUrl SOLO qui, non duplicato altrove */}
+        {showMonitorUrl && <MonitorUrlModal userId={utenti.find(u => u.ruolo === 'admin')?.id} onClose={() => setShowMonitorUrl(false)} />}
       </div>
       
       </div>
