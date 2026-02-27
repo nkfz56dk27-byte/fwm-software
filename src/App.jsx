@@ -3715,6 +3715,11 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
             </svg>
           </button>
           {isAdmin && (
+            <button className="btn-nuovo" style={{ background: '#8e44ad', marginRight: 8 }} onClick={onOpenMonitorUrl}>
+              LINK WEB
+            </button>
+          )}
+          {isAdmin && (
             <button className="btn-nuovo" style={{ background: '#8e44ad' }} onClick={() => setShowGestioneRSS(true)}>
               <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3A2 2 0 0 1 21 5v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14zm0 2H5v14h14V5zm-7 2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4zm0 6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h4z"/></svg>
               Gestisci RSS
