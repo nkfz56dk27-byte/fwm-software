@@ -121,6 +121,7 @@ function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRima
 }
 import PannelloFonti from './PannelloFonti.jsx'
 import GestioneRSSModal from './GestioneRSSModal.jsx'
+import MonitorUrlModal from './MonitorUrlModal';
 // ...existing code...
 // Cancella IndexedDB OneSignal solo al primo avvio (controllo con localStorage)
 // Cancellazione IndexedDB OneSignal solo se versione app cambia o mai fatta
@@ -3811,6 +3812,7 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
             ))}
           </div>
         )}
+        {showMonitorUrl && <MonitorUrlModal onClose={() => setShowMonitorUrl(false)} />}
       </div>
       
       </div>
