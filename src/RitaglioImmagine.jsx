@@ -106,13 +106,12 @@ export default function RitaglioImmagine({ user, onClose }) {
           const categorieIds = gruppiUtente.map(g => g.categoria_id).filter(Boolean)
           
           if (categorieIds.length > 0) {
-            const { data: categorieData } = await supabase
+            const { data: categorieArr, error: catError } = await supabase
               .from('categorie_weekend')
               .select('nome')
               .in('id', categorieIds)
-            
-            if (categorieData) {
-              categorie = categorieData.map(c => c.nome)
+            if (!catError && Array.isArray(categorieArr) && categorieArr.length > 0) {
+              categorie = categorieArr.map(c => c.nome)
             }
           }
         }

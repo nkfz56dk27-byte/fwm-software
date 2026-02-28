@@ -3720,8 +3720,8 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
             </svg>
           </button>
           {isAdmin && (
-            <button className="btn-nuovo" style={{ background: '#8e44ad', marginRight: 8 }} onClick={onOpenMonitorUrl}>
-              LINK WEB
+            <button className="btn-nuovo" style={{ background: '#8e44ad', marginRight: 0 }} onClick={onOpenMonitorUrl}>
+              Link Web
             </button>
           )}
           {isAdmin && (

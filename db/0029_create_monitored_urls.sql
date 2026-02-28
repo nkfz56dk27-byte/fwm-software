@@ -7,6 +7,10 @@ CREATE TABLE IF NOT EXISTS monitored_urls (
     last_checked timestamptz,
     last_result jsonb,
     last_hash text,
+
+    logo_url TEXT,
+    categoria_id UUID REFERENCES categorie_weekend(id),
+    card_target TEXT,
     UNIQUE (user_id, url)
 );
 

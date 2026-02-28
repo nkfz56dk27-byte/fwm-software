@@ -72,19 +72,17 @@ export default function GestioneTemplateArticoli({ onClose }) {
     setLoading(true)
     
     // Carica template
-    const { data: templatesData } = await supabase
+    const { data: templatesArr, error: templatesError } = await supabase
       .from('template_articoli')
       .select('*, categoria:categorie_weekend(id, nome, colore)')
       .order('created_at', { ascending: false })
-    
     // Carica categorie
-    const { data: categorieData } = await supabase
+    const { data: categorieArr, error: categorieError } = await supabase
       .from('categorie_weekend')
       .select('*')
       .order('created_at', { ascending: true })
-    
-    setTemplates(templatesData || [])
-    setCategorie(categorieData || [])
+    setTemplates(Array.isArray(templatesArr) && !templatesError ? templatesArr : [])
+    setCategorie(Array.isArray(categorieArr) && !categorieError ? categorieArr : [])
     setLoading(false)
   }
 

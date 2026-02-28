@@ -33,11 +33,11 @@ function GestioneRSSModal({ onClose }) {
   }, []);
 
   async function caricaCategorie() {
-    const { data, error } = await supabase
+    const { data: categorieArr, error: catError } = await supabase
       .from("categorie_weekend")
       .select("*")
       .order("nome", { ascending: true });
-    if (!error && data) setCategorie(data);
+    if (!catError && Array.isArray(categorieArr)) setCategorie(categorieArr);
   }
 
   async function caricaFeeds() {
@@ -51,11 +51,12 @@ function GestioneRSSModal({ onClose }) {
       const feedsConCategorie = await Promise.all(
         data.map(async (feed) => {
           if (feed.categoria_id) {
-            const { data: cat } = await supabase
+                        console.log('DEBUG categoria_id:', feed.categoria_id);
+            const { data: catArr, error: catError } = await supabase
               .from("categorie_weekend")
-              .select("id, nome, emoji")
-              .eq("id", feed.categoria_id)
-              .single();
+              .select("id, nome, colore")
+              .eq("id", feed.categoria_id);
+            const cat = !catError && Array.isArray(catArr) && catArr.length > 0 ? catArr[0] : null;
             return { ...feed, categoria_info: cat };
           }
           return { ...feed, categoria_info: null };

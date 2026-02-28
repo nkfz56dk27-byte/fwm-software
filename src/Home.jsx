@@ -2247,12 +2247,11 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, 
   
   async function caricaCategorie() {
     // Carica tutte le categorie
-    const { data: tutteCategorie } = await supabase
+    const { data: tutteCategorieArr, error: tutteCatError } = await supabase
       .from('categorie_weekend')
       .select('*')
       .order('created_at', { ascending: true })
-    
-    setCategorie(tutteCategorie || [])
+    setCategorie(Array.isArray(tutteCategorieArr) && !tutteCatError ? tutteCategorieArr : [])
     
     // Se non admin, filtra per categorie assegnate
     if (user.ruolo !== 'admin') {

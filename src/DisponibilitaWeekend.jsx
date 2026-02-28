@@ -210,7 +210,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       .from('categorie_weekend')
       .select('*')
       .order('created_at', { ascending: true })
-    setCategorie(data || [])
+    setCategorie(Array.isArray(data) ? data : [])
   }
 
   async function caricaWeekends() {
@@ -218,21 +218,17 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       .from('weekend')
       .select(`*, articoli:articoli(*)`)
       .order('data_creazione', { ascending: false })
-    
     // Filtra per categoria se specificata
     if (categoria?.id) {
       query = query.eq('categoria_id', categoria.id)
     }
-    
     const { data, error } = await query
-    
     if (error) {
       console.error('Errore caricamento:', error)
       setLoading(false)
       return
     }
-    
-    setWeekends(data || [])
+    setWeekends(Array.isArray(data) ? data : [])
     setLoading(false)
   }
 
