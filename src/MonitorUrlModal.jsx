@@ -126,6 +126,23 @@ export default function MonitorUrlModal({ userId, onClose }) {
         <h2 style={{ marginTop: 0, marginBottom: 28, fontSize: 28, textAlign: 'center', letterSpacing: 0.2 }}>Monitoraggio Link Web</h2>
 
         <form onSubmit={addUrl} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+          <style>{`
+            @media (max-width: 600px) {
+              .monitor-url-controls {
+                flex-direction: column !important;
+                gap: 10px !important;
+                align-items: stretch !important;
+              }
+              .monitor-url-controls select,
+              .monitor-url-controls button {
+                min-width: 0 !important;
+                width: 100% !important;
+                box-sizing: border-box !important;
+                font-size: 16px !important;
+                padding: 12px !important;
+              }
+            }
+          `}</style>
           <label style={{ fontWeight: 'bold', marginBottom: 2 }}>Link da monitorare</label>
           <input
             type="url"
@@ -184,7 +201,7 @@ export default function MonitorUrlModal({ userId, onClose }) {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <div className="monitor-url-controls" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
             <select
               value={categoriaId}
               onChange={e => setCategoriaId(e.target.value)}
