@@ -486,6 +486,11 @@ function PannelloFonti({ onClose }) {
     ));
   }
 
+  function isFeedSelected(feedId) {
+    // feedId può essere stringa monitored_xxx o id numerico RSS
+    return feedFilters.includes(String(feedId));
+  }
+
   // Funzione per aggiungere log in MEMORIA (non database)
   async function aggiungiDebugLog(logData) {
     const logCompleto = {
@@ -972,74 +977,66 @@ function PannelloFonti({ onClose }) {
     }
   }
 
-  useEffect(() => {
-    if (showFiltriModal && username) {
-      caricaFiltriNotifiche(username);
-    }
-  }, [showFiltriModal, username]);
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  useEffect(() => {
-    let isMounted = true;
-    const savedUsername = sessionStorage.getItem('username');
-    if (hasStartedInitialSyncRef.current) {
-      return;
-    }
-    hasStartedInitialSyncRef.current = true;
-
-    if (savedUsername) {
-      setUsername(savedUsername);
-      caricaFeedEDArticoli(savedUsername);
-    }
-
-    if (window.__PANNELLO_FONTI_POLLING_ACTIVE) {
-      console.log('⏩ Polling già attivo, skip');
-    } else {
-      window.__PANNELLO_FONTI_POLLING_ACTIVE = true;
-      window.__PANNELLO_FONTI_POLLING_INTERVAL = null;
-      if (savedUsername) {
-        window.__PANNELLO_FONTI_POLLING_INTERVAL = setInterval(() => {
-          if (!isLoadingArticoli) {
-            controllaNuoviArticoli();
-          }
-        }, 3 * 60 * 1000);
+  async function controllaNuoviArticoli() {
+    try {
+      if (isSyncingFeedsRef.current || loadingFeeds) return;
+      setLoadingFeeds(true);
+      
+      let feedsQuery = supabase.from("rss_feeds").select("*");
+      
+      if (userCategorieIds.length > 0) {
+        feedsQuery = feedsQuery.or(`categoria_id.is.null,categoria_id.in.(${userCategorieIds.join(',')})`);
+      } else if (formulaECategoryId) {
+        feedsQuery = feedsQuery.neq('categoria_id', formulaECategoryId);
       }
+      
+      const { data: feedsData, error: feedsError } = await feedsQuery;
+      if (feedsError) {
+        console.error('❌ Errore caricamento feed:', feedsError);
+        return;
+      }
+      
+      if (feedsData && feedsData.length > 0) {
+        await estraiArticoliDaFeeds(feedsData);
+      }
+      
+      let articoliQuery = supabase
+        .from('rss_articles')
+        .select(`
+          *,
+          rss_feeds!inner(url, categoria_id, logo_url, card_target)
+        `)
+        .order('pub_date', { ascending: false })
+        .limit(1000);
+      
+      if (userCategorieIds.length > 0) {
+        articoliQuery = articoliQuery.or(
+          `categoria_id.is.null,categoria_id.in.(${userCategorieIds.join(',')})`,
+          { foreignTable: 'rss_feeds' }
+        );
+      } else if (formulaECategoryId) {
+        articoliQuery = articoliQuery.neq('rss_feeds.categoria_id', formulaECategoryId);
+      }
+      
+      const { data, error } = await articoliQuery;
+      
+      if (!error && data) {
+        const articoliConMeta = data.map(articolo => ({
+          ...articolo,
+          feedSource: articolo.rss_feeds?.url ? new URL(articolo.rss_feeds.url).hostname : 'RSS',
+          feedLogo: normalizeLogoUrl(articolo.rss_feeds?.logo_url) || null,
+          contentSnippet: articolo.description ? articolo.description.replace(/<[^>]*>/g, '').substring(0, 200) + '...' : ''
+        }));
+        setArticoli(articoliConMeta);
+      }
+    } catch (error) {
+      console.error('❌ Errore controllaNuoviArticoli:', error);
+    } finally {
+      setLoadingFeeds(false);
     }
-
-    const channel = supabase
-      .channel('rss_articles_updates')
-      .on('postgres_changes', 
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'rss_articles' 
-        }, 
-        (payload) => {
-          if (isSyncingFeedsRef.current) return;
-          if (realtimeReloadTimeout.current) return;
-          realtimeReloadTimeout.current = setTimeout(() => {
-            realtimeReloadTimeout.current = null;
-            if (!isLoadingArticoli) {
-              caricaArticoliDalDatabase();
-            }
-          }, 2000);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      isMounted = false;
-      if (window.__PANNELLO_FONTI_POLLING_INTERVAL) {
-        clearInterval(window.__PANNELLO_FONTI_POLLING_INTERVAL);
-        window.__PANNELLO_FONTI_POLLING_INTERVAL = null;
-        window.__PANNELLO_FONTI_POLLING_ACTIVE = false;
-      }
-      if (realtimeReloadTimeout.current) {
-        clearTimeout(realtimeReloadTimeout.current);
-        realtimeReloadTimeout.current = null;
-      }
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  }
 
   async function caricaArticoliDalDatabase() {
     if (articoliFetchInFlightRef.current || isLoadingArticoli) {
@@ -1255,114 +1252,6 @@ function PannelloFonti({ onClose }) {
         throw new Error('XML parsing error (DOMParser e fast-xml-parser falliti): ' + fallbackErr.message);
       }
     }
-  }
-
-  async function controllaNuoviArticoli() {
-    try {
-      if (isSyncingFeedsRef.current || loadingFeeds) return;
-      setLoadingFeeds(true);
-      
-      let feedsQuery = supabase.from("rss_feeds").select("*");
-      
-      if (userCategorieIds.length > 0) {
-        feedsQuery = feedsQuery.or(`categoria_id.is.null,categoria_id.in.(${userCategorieIds.join(',')})`);
-      } else if (formulaECategoryId) {
-        feedsQuery = feedsQuery.neq('categoria_id', formulaECategoryId);
-      }
-      
-      const { data: feedsData, error: feedsError } = await feedsQuery;
-      if (feedsError) {
-        console.error('❌ Errore caricamento feed:', feedsError);
-        return;
-      }
-      
-      if (feedsData && feedsData.length > 0) {
-        await estraiArticoliDaFeeds(feedsData);
-      }
-      
-      let articoliQuery = supabase
-        .from('rss_articles')
-        .select(`
-          *,
-          rss_feeds!inner(url, categoria_id, logo_url, card_target)
-        `)
-        .order('pub_date', { ascending: false })
-        .limit(1000);
-      
-      if (userCategorieIds.length > 0) {
-        articoliQuery = articoliQuery.or(
-          `categoria_id.is.null,categoria_id.in.(${userCategorieIds.join(',')})`,
-          { foreignTable: 'rss_feeds' }
-        );
-      } else if (formulaECategoryId) {
-        articoliQuery = articoliQuery.neq('rss_feeds.categoria_id', formulaECategoryId);
-      }
-      
-      const { data, error } = await articoliQuery;
-      
-      if (!error && data) {
-        const articoliConMeta = data.map(articolo => ({
-          ...articolo,
-          feedSource: articolo.rss_feeds?.url ? new URL(articolo.rss_feeds.url).hostname : 'RSS',
-          feedLogo: normalizeLogoUrl(articolo.rss_feeds?.logo_url) || null,
-          contentSnippet: articolo.description ? articolo.description.replace(/<[^>]*>/g, '').substring(0, 200) + '...' : ''
-        }));
-        setArticoli(articoliConMeta);
-      }
-    } catch (error) {
-      console.error('❌ Errore controllaNuoviArticoli:', error);
-    } finally {
-      setLoadingFeeds(false);
-    }
-  }
-
-  async function caricaFeedEDArticoli(username) {
-    setLoading(true);
-    
-    const { data: gruppiUtente } = await supabase
-      .from('gruppi_redattori')
-      .select('categoria_id')
-      .eq('username', username);
-    
-    const categorieIds = gruppiUtente && gruppiUtente.length > 0 
-      ? gruppiUtente.map(g => g.categoria_id).filter(Boolean) 
-      : [];
-    
-    setUserCategorieIds(categorieIds);
-
-    try {
-      const { data: feCategorie } = await supabase
-        .from('categorie_weekend')
-        .select('id,nome')
-        .ilike('nome', '%formula e%')
-        .limit(1);
-      if (feCategorie && feCategorie.length > 0) {
-        setFormulaECategoryId(feCategorie[0].id);
-      }
-    } catch (error) {
-      // nessuna azione
-    }
-    
-    let feedsQuery = supabase.from("rss_feeds").select("*");
-    
-    if (categorieIds.length > 0) {
-      feedsQuery = feedsQuery.or(`categoria_id.is.null,categoria_id.in.(${categorieIds.join(',')})`);
-    } else if (formulaECategoryId) {
-      feedsQuery = feedsQuery.neq('categoria_id', formulaECategoryId);
-    }
-    
-    const { data: feedsData, error: feedsError } = await feedsQuery;
-    
-    if (feedsError) {
-      console.error('❌ Errore caricamento feed:', feedsError);
-      setLoading(false);
-      return;
-    }
-    
-    setFeeds(feedsData || []);
-    
-    await caricaArticoliDalDatabase();
-    setLoading(false);
   }
 
   async function estraiArticoliDaFeeds(feeds) {
@@ -1966,7 +1855,7 @@ function PannelloFonti({ onClose }) {
                 style={{
                   flex: 1,
                   padding: '6px 10px',
-                  borderRadius: '6px',
+                                   borderRadius: '6px',
                   border: filtriTab === 'feed' ? '1px solid #007AFF' : '1px solid #ccc',
                   background: filtriTab === 'feed' ? '#E6F0FF' : '#fff',
                   color: '#333',

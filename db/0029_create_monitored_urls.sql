@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS monitored_urls (
     created_at timestamptz DEFAULT now(),
     last_checked timestamptz,
     last_result jsonb,
+    last_hash text,
     UNIQUE (user_id, url)
 );
 
