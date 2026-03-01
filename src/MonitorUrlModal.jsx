@@ -9,6 +9,8 @@ export default function MonitorUrlModal({ userId, onClose }) {
     { id: 'other', label: 'Altre Formule' }
   ];
 
+  console.log('[MonitorUrlModal] MOUNT - userId ricevuto:', userId);
+
   const [cardTarget, setCardTarget] = useState('');
   const [url, setUrl] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -28,29 +30,64 @@ export default function MonitorUrlModal({ userId, onClose }) {
     // eslint-disable-next-line
   }, [userId]);
 
+  useEffect(() => {
+    // Quando resolvedUserId cambia, ricarica gli URL
+    if (resolvedUserId) {
+      fetchUrls(resolvedUserId);
+    }
+  }, [resolvedUserId]);
+
   function isUuid(value) {
     return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
 
   async function initializeUserAndData() {
-    let effectiveUserId = userId;
+    console.log('[MonitorUrlModal] initializeUserAndData START - userId prop:', userId);
+    let effectiveUserId = null;
 
-    if (!isUuid(effectiveUserId)) {
-      const { data: authData } = await supabase.auth.getUser();
-      if (authData?.user?.id && isUuid(authData.user.id)) {
-        effectiveUserId = authData.user.id;
+    // PRIORITY 1: Try supabase.auth.getUser() first (same as PannelloFonti)
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.id && isUuid(user.id)) {
+        effectiveUserId = user.id;
+        console.log('[MonitorUrlModal] userId da auth.getUser():', effectiveUserId);
+      }
+    } catch (err) {
+      console.log('[MonitorUrlModal] Errore auth.getUser():', err.message);
+    }
+
+    // PRIORITY 2: Use passed prop if valid UUID
+    if (!effectiveUserId && userId && isUuid(userId)) {
+      effectiveUserId = userId;
+      console.log('[MonitorUrlModal] userId dal prop:', effectiveUserId);
+    }
+
+    // PRIORITY 3: Try sessionStorage
+    if (!effectiveUserId) {
+      try {
+        const userStr = sessionStorage.getItem('user');
+        if (userStr) {
+          const userObj = JSON.parse(userStr);
+          if (userObj?.id && isUuid(userObj.id)) {
+            effectiveUserId = userObj.id;
+            console.log('[MonitorUrlModal] userId da sessionStorage:', effectiveUserId);
+          }
+        }
+      } catch (err) {
+        console.log('[MonitorUrlModal] Errore lettura sessionStorage:', err.message);
       }
     }
 
-    if (!isUuid(effectiveUserId)) {
+    if (!effectiveUserId) {
+      console.error('[MonitorUrlModal] Impossibile risolvere userId - nessuna fonte valida disponibile');
       setResolvedUserId('');
       setUrls([]);
       setError('Utente non valido per monitoraggio link');
       return;
     }
 
+    console.log('[MonitorUrlModal] userId risolto con successo:', effectiveUserId);
     setResolvedUserId(effectiveUserId);
-    fetchUrls(effectiveUserId);
   }
 
   async function fetchCategorie() {
@@ -67,12 +104,15 @@ export default function MonitorUrlModal({ userId, onClose }) {
   }
 
   async function fetchUrls(targetUserId = resolvedUserId) {
+    console.log('[MonitorUrlModal] fetchUrls called with targetUserId:', targetUserId, 'resolvedUserId:', resolvedUserId);
     if (!targetUserId || !isUuid(targetUserId)) {
+      console.log('[MonitorUrlModal] fetchUrls - ID non valido, setting urls to []');
       setUrls([]);
       return;
     }
     setLoading(true);
     setError('');
+    console.log('[MonitorUrlModal] Eseguendo query con user_id:', targetUserId);
     const { data, error } = await supabase
       .from('monitored_urls')
       .select('*')
@@ -82,6 +122,7 @@ export default function MonitorUrlModal({ userId, onClose }) {
       console.error('[MonitorUrlModal] Errore caricamento link:', error);
       setError('Errore caricamento link');
     } else {
+      console.log('[MonitorUrlModal] Risultato query - error:', error, 'data length:', data?.length, 'data:', data);
       const urlsWithNormalizedLogos = (data || []).map(item => ({
         ...item,
         logo_url: normalizeLogoUrl(item.logo_url)
@@ -105,7 +146,25 @@ export default function MonitorUrlModal({ userId, onClose }) {
       try {
         const response = await fetch(`/api/fetch-html?url=${encodeURIComponent(urlItem.url)}`);
         if (response.ok) {
-          const data = await response.json();
+          let data;
+          try {
+            data = await response.json();
+          } catch (jsonErr) {
+            console.warn(`[MonitorUrlModal] Errore parsing JSON per ${urlItem.url}:`, jsonErr.message);
+            // Se il JSON non è valido, salva un errore e continua
+            const { error } = await supabase
+              .from('monitored_urls')
+              .update({ 
+                last_result: { error: 'Invalid JSON response', details: jsonErr.message }, 
+                last_checked: new Date().toISOString() 
+              })
+              .eq('id', urlItem.id);
+            if (!error) {
+              console.log(`[MonitorUrlModal] Errore registrato per ${urlItem.url}`);
+            }
+            continue;
+          }
+          
           const { error } = await supabase
             .from('monitored_urls')
             .update({ last_result: data, last_checked: new Date().toISOString() })
@@ -123,9 +182,6 @@ export default function MonitorUrlModal({ userId, onClose }) {
         console.warn(`[MonitorUrlModal] Errore fetch per ${urlItem.url}:`, err);
       }
     }
-    
-    // Ricarica dopo aggiornamenti
-    fetchUrls();
   }
 
   async function uploadLogoFile(file) {
