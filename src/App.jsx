@@ -687,6 +687,7 @@ function App() {
       return <GestioneUtentiView 
         onClose={() => setShowGestione(false)} 
         onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} 
+        currentUser={user}
         isMobile={isMobile} 
         titoloMarginTop={isMobile ? 350 : 0} 
       />
@@ -3612,7 +3613,7 @@ function PasswordChangeView({ newPassword, setNewPassword, confirmPassword, setC
 }
 
 // ==// ===== GESTIONE UTENTI =====
-function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
+function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }) {
   const [showImpostazioni, setShowImpostazioni] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
   React.useEffect(() => {
@@ -3817,7 +3818,7 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche }) {
           </div>
         )}
         {/* Modal MonitorUrl SOLO qui, non duplicato altrove */}
-        {showMonitorUrl && <MonitorUrlModal userId={utenti.find(u => u.ruolo === 'admin')?.id} onClose={() => setShowMonitorUrl(false)} />}
+        {showMonitorUrl && <MonitorUrlModal userId={currentUser?.id} onClose={() => setShowMonitorUrl(false)} />}
       </div>
       
       </div>

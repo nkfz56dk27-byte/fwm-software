@@ -397,70 +397,131 @@ export default async function handler(req, res) {
     // --- INIZIO LOGICA MONITORAGGIO LINK WEB ---
     let sentMonitored = 0;
     let skippedMonitored = 0;
+
     try {
       const { data: monitoredLinks, error: monitoredError } = await supabase
         .from('monitored_urls')
-        .select('id, url, last_hash');
+        .select('id, user_id, url, last_hash');
+
       if (monitoredError) throw monitoredError;
+
       if (monitoredLinks && monitoredLinks.length > 0) {
         for (const link of monitoredLinks) {
           try {
-            const response = await fetch(link.url, { headers: { 'User-Agent': 'Mozilla/5.0 (Monitoraggio Link Web)' } });
+            if (!link.url) continue;
+
+            const response = await fetch(link.url, {
+              headers: { 'User-Agent': 'Mozilla/5.0 (Monitoraggio Link Web)' }
+            });
+
             if (!response.ok) continue;
+
             const html = await response.text();
-            const hash = require('crypto').createHash('sha256').update(html).digest('hex');
-            if (hash !== link.last_hash) {
-              // Aggiorna hash
+            const hash = createHash('sha256').update(html).digest('hex');
+
+            // Prima inizializzazione hash: nessuna notifica
+            if (!link.last_hash) {
               await supabase.from('monitored_urls').update({ last_hash: hash }).eq('id', link.id);
-              // Trova utenti iscritti
-              const { data: subscriptions, error: subError } = await supabase
+              continue;
+            }
+
+            // Nessuna modifica
+            if (hash === link.last_hash) {
+              continue;
+            }
+
+            // Salva nuovo hash
+            await supabase.from('monitored_urls').update({ last_hash: hash }).eq('id', link.id);
+
+            // Destinatari da subscriptions (schema nuovo/legacy)
+            let recipientUserIds = [];
+
+            const subsActive = await supabase
+              .from('monitored_urls_subscriptions')
+              .select('user_id')
+              .eq('url_id', link.id)
+              .eq('active', true);
+
+            if (!subsActive.error && Array.isArray(subsActive.data)) {
+              recipientUserIds = subsActive.data.map(s => s.user_id).filter(Boolean);
+            } else {
+              const subsAny = await supabase
                 .from('monitored_urls_subscriptions')
                 .select('user_id')
                 .eq('url_id', link.id);
-              if (subError) continue;
-              for (const sub of subscriptions) {
-                // Controllo duplicati
-                const { data: alreadySent, error: dupError } = await supabase
-                  .from('push_notifications_monitored_urls')
-                  .select('id')
-                  .eq('user_id', sub.user_id)
-                  .eq('url_id', link.id)
-                  .eq('status', 'pending')
-                  .limit(1);
-                if (dupError) continue;
-                if (alreadySent && alreadySent.length > 0) {
-                  skippedMonitored++;
-                  continue;
-                }
-                // Inserisci notifica
-                await supabase.from('push_notifications_monitored_urls').insert({ user_id: sub.user_id, url_id: link.id, status: 'pending' });
-                sentMonitored++;
+
+              if (!subsAny.error && Array.isArray(subsAny.data)) {
+                recipientUserIds = subsAny.data.map(s => s.user_id).filter(Boolean);
               }
             }
+
+            // Fallback: notifica al proprietario del link
+            if (recipientUserIds.length === 0 && link.user_id) {
+              recipientUserIds = [link.user_id];
+            }
+
+            recipientUserIds = [...new Set(recipientUserIds)];
+
+            for (const recipientUserId of recipientUserIds) {
+              const { data: pendingExisting, error: pendingError } = await supabase
+                .from('push_notifications_monitored_urls')
+                .select('id')
+                .eq('user_id', recipientUserId)
+                .eq('url_id', link.id)
+                .eq('status', 'pending')
+                .limit(1);
+
+              if (pendingError) continue;
+              if (pendingExisting && pendingExisting.length > 0) {
+                skippedMonitored++;
+                continue;
+              }
+
+              const { error: insertError } = await supabase
+                .from('push_notifications_monitored_urls')
+                .insert({
+                  user_id: recipientUserId,
+                  url_id: link.id,
+                  status: 'pending',
+                  title: 'Novità sul link monitorato',
+                  body: `Il link ${link.url} ha subito modifiche.`
+                });
+
+              if (!insertError) sentMonitored++;
+            }
           } catch (err) {
-            continue;
+            console.error('❌ Errore controllo singolo link monitorato:', link?.url, err);
           }
         }
       }
     } catch (err) {
       console.error('❌ Errore monitoraggio link web:', err);
     }
-    // Chiamata invio push se ci sono notifiche
+
     if (sentMonitored > 0) {
       try {
-        const pushUrl = `${req.headers.host?.startsWith('localhost') ? 'http' : 'https'}://${req.headers.host}/api/send-push-monitored-urls`;
-        console.log(`📤 Chiamo send-push-monitored-urls: ${pushUrl} (${sentMonitored} notifiche)`);
-        fetch(pushUrl, { method: 'POST' }).catch(err => {
-          console.error('❌ Errore chiamata send-push-monitored-urls:', err);
-        });
+        const host = req.headers.host || process.env.VERCEL_URL;
+        const proto = req.headers['x-forwarded-proto'] || (host && host.startsWith('localhost') ? 'http' : 'https');
+
+        if (host) {
+          const pushUrlMonitored = `${proto}://${host}/api/send-push-monitored-urls`;
+          console.log(`📤 Chiamo send-push-monitored-urls: ${pushUrlMonitored} (${sentMonitored} notifiche)`);
+
+          fetch(pushUrlMonitored, { method: 'POST' }).catch(err => {
+            console.error('❌ Errore chiamata send-push-monitored-urls:', err);
+          });
+        }
       } catch (err) {
         console.error('❌ Errore fetch send-push-monitored-urls:', err);
       }
     }
     // --- FINE LOGICA MONITORAGGIO LINK WEB ---
+
     res.status(200).json({ 
       success: true, 
-      sent_rss: sent, 
+      sent, 
+      skipped,
+      sent_rss: sent,
       skipped_rss: skipped,
       sent_monitored: sentMonitored,
       skipped_monitored: skippedMonitored,

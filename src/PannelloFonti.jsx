@@ -212,6 +212,7 @@ function PannelloFonti({ onClose }) {
   const [formulaECategoryId, setFormulaECategoryId] = useState(null);
   const [activeTab, setActiveTab] = useState('f1');
   const [showDebugLogs, setShowDebugLogs] = useState(false);
+  const [showMonitoredUrlsPanel, setShowMonitoredUrlsPanel] = useState(false);
   const [debugLogs, setDebugLogs] = useState([]);
   const debugLogsRef = useRef([]);
   const realtimeReloadTimeout = useRef(null);
@@ -296,9 +297,12 @@ function PannelloFonti({ onClose }) {
           ? articoliPerTab.other
           : articoliPerTab.all;
 
+    // Filtra fuori i link monitorati (che hanno is_monitored_url = true)
+    const listaSoloRss = listaBase.filter(a => !a.is_monitored_url);
+
     if (!searchLower) {
       const vistiTitoli = new Set();
-      return listaBase.filter(articolo => {
+      return listaSoloRss.filter(articolo => {
         const titoloNorm = (articolo.title || '')
           .toLowerCase()
           .replace(/\s+/g, ' ')
@@ -311,7 +315,7 @@ function PannelloFonti({ onClose }) {
       });
     }
     const vistiTitoli = new Set();
-    return listaBase.filter(articolo => articolo.__searchText.includes(searchLower)).filter(articolo => {
+    return listaSoloRss.filter(articolo => articolo.__searchText.includes(searchLower)).filter(articolo => {
       const titoloNorm = (articolo.title || '')
         .toLowerCase()
         .replace(/\s+/g, ' ')
@@ -351,7 +355,10 @@ function PannelloFonti({ onClose }) {
     const trimmed = url.trim();
     if (!trimmed) return null;
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      // Se è già un URL pubblico di Supabase, ritornalo così
       if (trimmed.includes('/storage/v1/object/public/')) return trimmed;
+      if (trimmed.includes('supabase.co/storage')) return trimmed;
+      // Se è un URL interno di Supabase, convertilo a pubblico
       if (trimmed.includes('/storage/v1/object/')) {
         return trimmed.replace('/storage/v1/object/', '/storage/v1/object/public/');
       }
@@ -1000,6 +1007,7 @@ function PannelloFonti({ onClose }) {
         window.__PANNELLO_FONTI_POLLING_INTERVAL = setInterval(() => {
           if (!isLoadingArticoli) {
             controllaNuoviArticoli();
+            monitoraLinkWeb();
           }
         }, 3 * 60 * 1000);
       }
@@ -1089,17 +1097,113 @@ function PannelloFonti({ onClose }) {
       
       const { data, error } = await articoliQuery;
       
+      let articoliRss = [];
       if (!error && data) {
-        const articoliConMeta = data.map(articolo => ({
+        articoliRss = data.map(articolo => ({
           ...articolo,
           feedSource: articolo.rss_feeds?.url ? new URL(articolo.rss_feeds.url).hostname : 'RSS',
           feedLogo: normalizeLogoUrl(articolo.rss_feeds?.logo_url) || null,
           contentSnippet: articolo.description ? articolo.description.replace(/<[^>]*>/g, '').substring(0, 200) + '...' : ''
         }));
+      } else if (error) {
+        console.error('❌ Errore caricamento articoli RSS:', error);
+      }
+
+      // Aggiungi articoli virtuali dai monitored_urls
+      let articoliMonitored = [];
+      try {
+        console.log('[PannelloFonti] Inizio caricamento monitored_urls');
+        
+        const userId = await (async () => {
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            console.log('[PannelloFonti] userId da auth:', user?.id);
+            return user?.id;
+          } catch {
+            const userStr = sessionStorage.getItem('user');
+            console.log('[PannelloFonti] user da sessionStorage:', userStr);
+            if (userStr) {
+              try {
+                return JSON.parse(userStr).id;
+              } catch {
+                return null;
+              }
+            }
+          }
+        })();
+
+        console.log('[PannelloFonti] userId risolto:', userId);
+
+        if (userId) {
+          const { data: monitoredUrls, error: monitoredError } = await supabase
+            .from('monitored_urls')
+            .select('*')
+            .eq('user_id', userId);
+
+          console.log('[PannelloFonti] Query monitored_urls - error:', monitoredError, 'data length:', monitoredUrls?.length);
+          
+          if (!monitoredError && monitoredUrls && monitoredUrls.length > 0) {
+            console.log(`[PannelloFonti] Aggiunto ${monitoredUrls.length} feed monitorati come articoli virtuali`);
+            console.log('[PannelloFonti] monitoredUrls:', monitoredUrls);
+            
+            // Funzione helper per estrarre titolo da HTML
+            const estraiTitoloDaHtml = (html) => {
+              if (!html || typeof html !== 'string') return null;
+              const match = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+              if (match?.[1]) return match[1].trim().substring(0, 100);
+              return null;
+            };
+            
+            articoliMonitored = monitoredUrls.map((monUrl, idx) => {
+              const htmlSalvato = monUrl?.last_result?.html || monUrl?.last_result;
+              const titoloHtml = estraiTitoloDaHtml(htmlSalvato);
+              
+              // Fallback: dominio come titolo
+              const titolo = titoloHtml || new URL(monUrl.url).hostname;
+              
+              const articolo = {
+                id: `mon-${monUrl.id}`,
+                title: titolo,
+                description: `Pagina monitorata: ${monUrl.url}`,
+                link: monUrl.url,
+                pub_date: new Date().toISOString(),
+                feedSource: new URL(monUrl.url).hostname,
+                feedLogo: normalizeLogoUrl(monUrl.logo_url) || null,
+                contentSnippet: `Accedi a: ${monUrl.url}`,
+                is_monitored_url: true,
+                guid: `mon-${monUrl.id}`
+              };
+              return articolo;
+            });
+          } else {
+            console.log('[PannelloFonti] Nessun monitored_urls trovato');
+          }
+        } else {
+          console.log('[PannelloFonti] userId non disponibile');
+        }
+      } catch (monitoredErr) {
+        console.error('[PannelloFonti] Errore caricamento monitored_urls:', monitoredErr);
+      }
+
+      // Combina RSS e monitored
+      const articoliConMeta = [...articoliRss, ...articoliMonitored];
+      console.log('[PannelloFonti] articoliRss length:', articoliRss.length);
+      console.log('[PannelloFonti] articoliMonitored length:', articoliMonitored.length);
+      console.log('[PannelloFonti] articoliConMeta length:', articoliConMeta.length);
+      console.log('[PannelloFonti] articoliConMeta:', articoliConMeta);
+      
+      if (articoliConMeta.length > 0) {
+        // Ordina per data discendente
+        articoliConMeta.sort((a, b) => {
+          const dataA = new Date(a.pub_date || 0).getTime();
+          const dataB = new Date(b.pub_date || 0).getTime();
+          return dataB - dataA;
+        });
+        console.log('[PannelloFonti] setArticoli chiamato con:', articoliConMeta.length, 'articoli');
         setArticoli(articoliConMeta);
         lastArticoliFetchRef.current = Date.now();
-      } else {
-        console.error('❌ Errore caricamento articoli:', error);
+      } else if (articoliRss.length === 0) {
+        console.warn('[PannelloFonti] Nessun articolo caricato da RSS o monitored_urls');
       }
     } catch (error) {
       const isAbort = error?.name === 'AbortError' || String(error?.message || '').includes('AbortError');
@@ -1316,7 +1420,73 @@ function PannelloFonti({ onClose }) {
     }
   }
 
+  async function monitoraLinkWeb() {
+    try {
+      // Prendi l'userId
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const userId = authUser?.id || sessionStorage.getItem('user');
+      if (!userId) return;
+
+      // Carica monitored_urls dell'utente
+      const { data: monitoredLinks, error: monitoredError } = await supabase
+        .from('monitored_urls')
+        .select('id, user_id, url, last_hash')
+        .eq('user_id', userId);
+
+      if (monitoredError || !monitoredLinks || monitoredLinks.length === 0) return;
+
+      // Per ogni link monitorato, controlla se è cambiato
+      for (const link of monitoredLinks) {
+        try {
+          const response = await fetch(link.url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (FWM Monitoraggio)' }
+          });
+
+          if (!response.ok) continue;
+
+          const html = await response.text();
+          const crypto = require('crypto');
+          const hash = crypto.createHash('sha256').update(html).digest('hex');
+
+          // Se non hai ancora un hash, inizializza senza notifica
+          if (!link.last_hash) {
+            await supabase.from('monitored_urls').update({ last_hash: hash }).eq('id', link.id);
+            continue;
+          }
+
+          // Se il hash è uguale, nessun cambio
+          if (hash === link.last_hash) continue;
+
+          // CAMBIAMENTO RILEVATO: aggiorna hash e invia notifica
+          await supabase.from('monitored_urls').update({ last_hash: hash }).eq('id', link.id);
+
+          // Crea notifica
+          const { error: insertError } = await supabase
+            .from('push_notifications_monitored_urls')
+            .insert({
+              user_id: userId,
+              url_id: link.id,
+              status: 'pending',
+              title: 'Novità sul link monitorato',
+              body: `Il link ${link.url} ha subito modifiche.`
+            });
+
+          if (!insertError) {
+            console.log(`✅ Notifica creata per ${link.url}`);
+            // Ricarica articoli per mostrare il cambio
+            caricaArticoliDalDatabase();
+          }
+        } catch (err) {
+          console.error(`⚠️ Errore monitoraggio link ${link.url}:`, err);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Errore monitoraLinkWeb:', error);
+    }
+  }
+
   async function caricaFeedEDArticoli(username) {
+    console.log('[PannelloFonti] 🔄 caricaFeedEDArticoli CHIAMATA con username:', username);
     setLoading(true);
     
     const { data: gruppiUtente } = await supabase
@@ -1359,7 +1529,94 @@ function PannelloFonti({ onClose }) {
       return;
     }
     
-    setFeeds(feedsData || []);
+    // Carica anche i link monitorati
+    // Prova prima con getUser() (auth), poi con sessionStorage - LIKE caricaArticoliDalDatabase
+    let userId = null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      userId = user?.id;
+      console.log('[PannelloFonti] caricaFeedEDArticoli - userId da auth:', userId);
+    } catch (e) {
+      console.warn('[PannelloFonti] Errore getting userId da auth:', e);
+      try {
+        const userStr = sessionStorage.getItem('user');
+        if (userStr) {
+          userId = JSON.parse(userStr).id;
+          console.log('[PannelloFonti] caricaFeedEDArticoli - userId da sessionStorage (fallback):', userId);
+        }
+      } catch (e2) {
+        console.warn('[PannelloFonti] Errore parsing user da sessionStorage:', e2);
+      }
+    }
+    
+    console.log('[PannelloFonti] caricaFeedEDArticoli - userId risolto:', userId);
+    
+    let allFeeds = feedsData || [];
+    
+    if (userId) {
+      console.log('[PannelloFonti] Caricamento monitored_urls per userId:', userId);
+      const { data: monitoredUrlsData, error: monitoredUrlsError } = await supabase
+        .from('monitored_urls')
+        .select('*')
+        .eq('user_id', userId);
+      
+      console.log('[PannelloFonti] monitoredUrlsData RAW:', monitoredUrlsData, 'error:', monitoredUrlsError);
+      console.log('[PannelloFonti] monitoredUrlsData length:', monitoredUrlsData?.length);
+      
+      if (monitoredUrlsData && Array.isArray(monitoredUrlsData)) {
+        console.log('[PannelloFonti] monitoredUrlsData è un array, length:', monitoredUrlsData.length);
+        // DEDUPLICARE per URL (evita duplicati nel database)
+        const uniqueUrls = Array.from(
+          new Map(monitoredUrlsData.map(url => [url.url, url])).values()
+        );
+        console.log('[PannelloFonti] monitoredUrlsData DOPO DEDUP:', uniqueUrls.length, 'da', monitoredUrlsData.length);
+        
+        // Converti i link monitorati in formato feed per compatibilità
+        // Usa un ID unico per evitare collisioni: "monitored_" + uuid
+        const virtualFeeds = uniqueUrls.map(url => ({
+          ...url,
+          id: `monitored_${url.id}`, // Prefisso per evitare collisioni con rss_feeds
+          url: url.url,
+          nome: url.url.split('/')[2] || url.url, // Usa il dominio come nome
+          logo_url: url.logo_url,
+          categoria_id: url.categoria_id,
+          card_target: url.card_target,
+          is_monitored_url: true, // Flag per identificarli
+          original_id: url.id // Salva l'ID originale per le query
+        }));
+        console.log('[PannelloFonti] virtualFeeds creati:', virtualFeeds.length, 'feed totali');
+        allFeeds = [...allFeeds, ...virtualFeeds];
+        console.log('[PannelloFonti] allFeeds dopo aggiunta monitored:', allFeeds.length);
+      } else {
+        console.log('[PannelloFonti] monitoredUrlsData non è un array o è null/undefined');
+      }
+    } else {
+      console.warn('[PannelloFonti] userId non disponibile, skipping monitored_urls');
+    }
+    
+    // 🔄 DEDUPLICAZIONE GLOBALE: Se uno URL appare sia in RSS che in monitored_urls, tiene solo il monitored_url
+    const seenUrls = new Set();
+    const finalFeeds = [];
+    
+    // Prima aggiungi i monitored_urls (priorità maggiore)
+    for (const feed of allFeeds) {
+      if (feed.is_monitored_url) {
+        seenUrls.add(feed.url);
+        finalFeeds.push(feed);
+      }
+    }
+    
+    // Poi aggiungi i feed RSS solo se l'URL non è già presente
+    for (const feed of allFeeds) {
+      if (!feed.is_monitored_url && !seenUrls.has(feed.url)) {
+        seenUrls.add(feed.url);
+        finalFeeds.push(feed);
+      }
+    }
+    
+    console.log('[PannelloFonti] Deduplicazione globale - Prima:', allFeeds.length, 'Dopo:', finalFeeds.length);
+    console.log('[PannelloFonti] allFeeds finali - RSS count:', (feedsData || []).length, ', Monitored URL count:', finalFeeds.filter(f => f.is_monitored_url).length, ', TOTALE DOPO DEDUP:', finalFeeds.length);
+    setFeeds(finalFeeds);
     
     await caricaArticoliDalDatabase();
     setLoading(false);
@@ -1729,27 +1986,93 @@ function PannelloFonti({ onClose }) {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
           }
+          @keyframes slideDown {
+            from {
+              opacity: 0;
+              transform: translateY(-10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
           @media (max-width: 700px) {
             .pf-header-right {
               width: 100%;
               justify-content: flex-start;
               flex-wrap: wrap;
+              gap: 0 !important;
             }
             .pf-tabs {
-              flex-wrap: wrap;
-              width: 100%;
+              flex-wrap: nowrap;
+              width: 100% !important;
+              gap: 6px !important;
+              margin-right: 0 !important;
+              margin-bottom: 8px;
+              flex: 0 0 100% !important;
             }
             .pf-tab-btn {
-              flex: 1 1 0;
-              min-width: 0;
+              flex: 1 1 0 !important;
+              min-width: 0 !important;
               text-align: center;
               justify-content: center;
-            }
-            .pf-feed-count {
-              width: 100%;
+              padding: 10px 8px !important;
+              fontSize: 13px !important;
+              display: flex !important;
+              align-items: center !important;
             }
             .pf-update-btn {
               width: 100%;
+              order: 999;
+            }
+            .pf-monitored-wrapper {
+              width: 100% !important;
+              margin: 0 !important;
+              flex: 0 0 100% !important;
+              order: 2;
+            }
+            .pf-monitored-btn {
+              width: 100% !important;
+              height: auto !important;
+              padding: 12px 14px !important;
+              margin-bottom: 8px;
+              margin-right: 0 !important;
+              min-height: 48px !important;
+              flex: 0 0 100% !important;
+            }
+            .pf-feed-count {
+              width: 100% !important;
+              margin: 0 0 8px 0 !important;
+              padding: 0 !important;
+              text-align: center;
+              order: 3;
+            }
+            .pf-monitored-dropdown {
+              position: fixed !important;
+              left: 50% !important;
+              transform: translateX(-50%) !important;
+              width: calc(100% - 24px) !important;
+              max-width: 400px !important;
+              margin-left: 0 !important;
+              top: 180px !important;
+            }
+            .pf-monitored-grid {
+              gridTemplateColumns: repeat(2, 1fr) !important;
+            }
+          }
+          /* Desktop - reset button width */
+          @media (min-width: 701px) {
+            .pf-update-btn {
+              width: auto !important;
+              flex-shrink: 0 !important;
+              min-width: auto !important;
+            }
+            .pf-feed-count {
+              width: auto !important;
             }
           }
         `}
@@ -1758,11 +2081,11 @@ function PannelloFonti({ onClose }) {
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-start',
         padding: '15px 20px',
         background: 'white',
         borderBottom: '1px solid #ddd',
-        gap: '18px',
+        gap: '8px',
         flexWrap: 'wrap',
         flexShrink: 0,
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
@@ -1771,8 +2094,8 @@ function PannelloFonti({ onClose }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer' }}>←</button>
           <h1 style={{ fontSize: '22px', color: '#333', fontWeight: 700, whiteSpace: 'nowrap' }}>Pannello Prenotazioni Articoli</h1>
         </div>
-        <div className="pf-header-right" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div className="pf-tabs" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div className="pf-header-right" style={{ display: 'flex', alignItems: 'center' }}>
+          <div className="pf-tabs" style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 0, marginRight: '15px' }}>
             {[
               { id: 'f1', label: 'Formula 1' },
               ...(hasFormulaEAccess ? [{ id: 'fe', label: 'Formula E' }] : []),
@@ -1798,8 +2121,148 @@ function PannelloFonti({ onClose }) {
               </button>
             ))}
           </div>
-          <span className="pf-feed-count" style={{ fontSize: '16px', color: '#333', fontWeight: 500, whiteSpace: 'nowrap' }}>
-            {feeds.length === 0 ? 'Nessun feed RSS configurato' : `${feeds.length} feed RSS configurati`}
+          <div className="pf-monitored-wrapper" style={{ position: 'relative', width: 'auto', display: 'flex', marginRight: '12px' }}>
+            <button
+              onClick={() => setShowMonitoredUrlsPanel(!showMonitoredUrlsPanel)}
+              className="pf-monitored-btn"
+              title="Visualizza link monitorati"
+              style={{
+                width: '42px',
+                height: '42px',
+                padding: '0',
+                borderRadius: '6px',
+                border: showMonitoredUrlsPanel ? '2px solid #34C759' : '1px solid #ccc',
+                background: showMonitoredUrlsPanel ? '#e8f5e9' : '#f7f7f7',
+                fontSize: '18px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              🌐
+            </button>
+            
+            {/* Dropdown posizionato relativamente al bottone */}
+            {showMonitoredUrlsPanel && (
+              <div
+                className="pf-monitored-dropdown"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  top: '50px',
+                  left: '50%',
+                  marginLeft: '-200px',
+                  width: '400px',
+                  background: '#fff',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
+                  zIndex: 8999,
+                  maxHeight: '400px',
+                  overflowY: 'auto',
+                  animation: 'slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
+              >
+                {/* Content */}
+                <div style={{ padding: '16px' }}>
+                  {(() => {
+                    const monitoredArticles = articoliPerTab.all.filter(a => a.is_monitored_url);
+                    console.log('[DROPDOWN] articoliPerTab.all length:', articoliPerTab.all.length);
+                    console.log('[DROPDOWN] monitoredArticles length:', monitoredArticles.length);
+                    console.log('[DROPDOWN] monitoredArticles:', monitoredArticles);
+                    
+                    if (monitoredArticles.length === 0) {
+                      return (
+                        <div style={{ textAlign: 'center', padding: '24px 12px', color: '#999' }}>
+                          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔗</div>
+                          <p style={{ fontSize: '13px', color: '#999', margin: 0 }}>
+                            Nessun link monitorato
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div style={{
+                        maxHeight: '328px',
+                        overflowY: 'auto'
+                      }}>
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(4, 1fr)',
+                          gap: '12px',
+                          alignItems: 'start'
+                        }} className="pf-monitored-grid">
+                        {monitoredArticles.map((articolo, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '8px'
+                            }}
+                          >
+                            {articolo.feedLogo && (
+                              <a
+                                href={articolo.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                  padding: '4px',
+                                  borderRadius: '8px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  border: '1px solid transparent'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = '#f0f0f0';
+                                  e.currentTarget.style.borderColor = '#d0d0d0';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'transparent';
+                                  e.currentTarget.style.borderColor = 'transparent';
+                                }}
+                              >
+                                <img 
+                                  src={articolo.feedLogo} 
+                                  alt="Logo" 
+                                  onError={(e) => {
+                                    const img = e.currentTarget;
+                                    const localFallback = getLocalLogoFallback(img.src);
+                                    if (!img.dataset.fallbackTried && localFallback && img.src !== localFallback) {
+                                      img.dataset.fallbackTried = 'local';
+                                      img.src = localFallback;
+                                      return;
+                                    }
+                                    img.onerror = null;
+                                    img.src = '/logo_filtro.png';
+                                  }}
+                                  style={{ 
+                                    width: '80px', 
+                                    height: '80px', 
+                                    objectFit: 'contain',
+                                    borderRadius: '8px'
+                                  }} 
+                                />
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+          <span className="pf-feed-count" style={{ fontSize: '14px', color: '#666', fontWeight: 500, whiteSpace: 'nowrap', flex: 0, marginRight: 'auto', marginLeft: '12px', paddingRight: '20px' }}>
+            {feeds.length === 0 ? '0 feed' : `${feeds.length} feed`}
           </span>
           <button 
             className="pf-update-btn"
@@ -1818,7 +2281,9 @@ function PannelloFonti({ onClose }) {
               justifyContent: 'center',
               gap: '8px',
               fontWeight: 600,
-              fontSize: '14px'
+              fontSize: '14px',
+              whiteSpace: 'nowrap',
+              marginLeft: 'auto'
             }}
           >
             {loadingFeeds ? (
@@ -2074,24 +2539,45 @@ function PannelloFonti({ onClose }) {
                         gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
                         gap: '12px'
                       }}>
-                        {feeds.filter(feed => !!feed.logo_url).map(feed => {
-                          let label = feed.name || '';
-                          if (!label) {
-                            try {
-                              label = new URL(feed.url).hostname;
-                            } catch {
-                              label = feed.url || 'RSS';
+                        {(() => {
+                          // Deduplicazione nel filtro: se uno URL appare come RSS e monitored_url, mostra solo il monitored_url
+                          const seenUrls = new Set();
+                          const displayFeeds = [];
+                          
+                          // Prima aggiungi i monitored_urls (hanno priorità)
+                          for (const feed of feeds) {
+                            if (feed.is_monitored_url) {
+                              seenUrls.add(feed.url);
+                              displayFeeds.push(feed);
                             }
                           }
-                          const checked = feedFilters.includes(feed.id);
-                          return (
-                            <button
-                              key={feed.id}
-                              onClick={() => toggleFeedFilter(feed.id)}
-                              type="button"
-                              style={{
-                                border: checked ? '2px solid #007AFF' : '1px solid #e6e6e6',
-                                background: '#fff',
+                          
+                          // Poi aggiungi i feed RSS solo se l'URL non è già visto e hanno logo
+                          for (const feed of feeds) {
+                            if (!feed.is_monitored_url && feed.logo_url && !seenUrls.has(feed.url)) {
+                              displayFeeds.push(feed);
+                            }
+                          }
+                          
+                          return displayFeeds.map(feed => {
+                            let label = feed.name || '';
+                            if (!label) {
+                              try {
+                                label = new URL(feed.url).hostname;
+                              } catch {
+                                label = feed.url || 'RSS';
+                              }
+                            }
+                            const checked = feedFilters.includes(String(feed.id));
+                            const isMonitored = feed.is_monitored_url;
+                            return (
+                              <button
+                                key={feed.id}
+                                onClick={() => toggleFeedFilter(String(feed.id))}
+                                type="button"
+                                style={{
+                                  border: checked ? (isMonitored ? '2px solid #34C759' : '2px solid #007AFF') : '1px solid #e6e6e6',
+                                  background: '#fff',
                                 borderRadius: '10px',
                                 padding: '10px',
                                 cursor: 'pointer',
@@ -2117,7 +2603,11 @@ function PannelloFonti({ onClose }) {
                                 <img
                                   src={normalizeLogoUrl(feed.logo_url)}
                                   alt={label}
+                                  onLoad={(e) => {
+                                    console.log('[PannelloFonti] Logo caricato:', feed.id, normalizeLogoUrl(feed.logo_url));
+                                  }}
                                   onError={(e) => {
+                                    console.error('[PannelloFonti] Errore logo:', feed.id, normalizeLogoUrl(feed.logo_url), feed.logo_url);
                                     const img = e.currentTarget;
                                     const localFallback = getLocalLogoFallback(img.src);
                                     if (!img.dataset.fallbackTried && localFallback && img.src !== localFallback) {
@@ -2152,7 +2642,8 @@ function PannelloFonti({ onClose }) {
                               }} />
                             </button>
                           );
-                        })}
+                        });
+                        })()}
                       </div>
                     </div>
                   )}
@@ -2409,6 +2900,8 @@ function PannelloFonti({ onClose }) {
         display: 'flex',
         flexDirection: 'column'
       }}>
+        {/* LISTA ARTICOLI RSS */}
+        <>
         {feeds.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <h3 style={{ color: '#666', marginBottom: '10px' }}>Nessun feed RSS configurato</h3>
@@ -2599,6 +3092,7 @@ function PannelloFonti({ onClose }) {
             })}
           </div>
         )}
+        </>
       </div>
     </div>
   );

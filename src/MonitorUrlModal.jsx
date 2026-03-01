@@ -20,32 +20,175 @@ export default function MonitorUrlModal({ userId, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [resolvedUserId, setResolvedUserId] = useState('');
 
   useEffect(() => {
-    fetchUrls();
     fetchCategorie();
+    initializeUserAndData();
     // eslint-disable-next-line
-  }, []);
+  }, [userId]);
+
+  function isUuid(value) {
+    return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  async function initializeUserAndData() {
+    let effectiveUserId = userId;
+
+    if (!isUuid(effectiveUserId)) {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id && isUuid(authData.user.id)) {
+        effectiveUserId = authData.user.id;
+      }
+    }
+
+    if (!isUuid(effectiveUserId)) {
+      setResolvedUserId('');
+      setUrls([]);
+      setError('Utente non valido per monitoraggio link');
+      return;
+    }
+
+    setResolvedUserId(effectiveUserId);
+    fetchUrls(effectiveUserId);
+  }
 
   async function fetchCategorie() {
     const { data, error } = await supabase
       .from('categorie_weekend')
-      .select('id, nome, emoji')
+      .select('*')
       .order('nome', { ascending: true });
-    if (!error && Array.isArray(data)) setCategorie(data);
+    if (!error && Array.isArray(data)) {
+      setCategorie(data);
+    } else {
+      setCategorie([]);
+      console.error('Errore caricamento categorie_weekend:', error);
+    }
   }
 
-  async function fetchUrls() {
+  async function fetchUrls(targetUserId = resolvedUserId) {
+    if (!targetUserId || !isUuid(targetUserId)) {
+      setUrls([]);
+      return;
+    }
     setLoading(true);
     setError('');
     const { data, error } = await supabase
       .from('monitored_urls')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', targetUserId)
       .order('created_at', { ascending: false });
-    if (error) setError('Errore caricamento link');
-    else setUrls(data || []);
+    if (error) {
+      console.error('[MonitorUrlModal] Errore caricamento link:', error);
+      setError('Errore caricamento link');
+    } else {
+      const urlsWithNormalizedLogos = (data || []).map(item => ({
+        ...item,
+        logo_url: normalizeLogoUrl(item.logo_url)
+      }));
+      console.log('[MonitorUrlModal] Link caricati:', urlsWithNormalizedLogos);
+      setUrls(urlsWithNormalizedLogos);
+      
+      // Aggiorna retroattivamente gli URL senza last_result
+      updateMissingHtmlAsync(urlsWithNormalizedLogos);
+    }
     setLoading(false);
+  }
+
+  async function updateMissingHtmlAsync(urlsList) {
+    const urlsWithoutHtml = urlsList.filter(u => !u.last_result?.html);
+    if (urlsWithoutHtml.length === 0) return;
+    
+    console.log(`[MonitorUrlModal] Aggiornamento retroattivo di ${urlsWithoutHtml.length} URL senza HTML`);
+    
+    for (const urlItem of urlsWithoutHtml) {
+      try {
+        const response = await fetch(`/api/fetch-html?url=${encodeURIComponent(urlItem.url)}`);
+        if (response.ok) {
+          const data = await response.json();
+          const { error } = await supabase
+            .from('monitored_urls')
+            .update({ last_result: data, last_checked: new Date().toISOString() })
+            .eq('id', urlItem.id);
+          
+          if (!error) {
+            console.log(`[MonitorUrlModal] HTML aggiornato per ${urlItem.url}`);
+            // Ricarica la lista
+            await new Promise(r => setTimeout(r, 500));
+          } else {
+            console.warn(`[MonitorUrlModal] Errore aggiornamento ${urlItem.url}:`, error);
+          }
+        }
+      } catch (err) {
+        console.warn(`[MonitorUrlModal] Errore fetch per ${urlItem.url}:`, err);
+      }
+    }
+    
+    // Ricarica dopo aggiornamenti
+    fetchUrls();
+  }
+
+  async function uploadLogoFile(file) {
+    if (!file) return null;
+    if (!file.type || !file.type.startsWith('image/')) {
+      alert('Il file selezionato non è un\'immagine valida.');
+      return null;
+    }
+
+    try {
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
+      const filePath = `${fileName}`;
+      const fileBody = file;
+      const contentType = 'image/png';
+
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('feed-logos')
+        .createSignedUploadUrl(filePath, { upsert: false });
+
+      if (signedError) throw signedError;
+
+      const buffer = await fileBody.arrayBuffer();
+      const { error: signedUploadError } = await supabase.storage
+        .from('feed-logos')
+        .uploadToSignedUrl(filePath, signedData.token, buffer, {
+          contentType,
+          cacheControl: '3600'
+        });
+
+      if (signedUploadError) throw signedUploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('feed-logos')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Errore upload logo:', error);
+      alert('Errore durante l\'upload del logo');
+      return null;
+    }
+  }
+
+  function normalizeLogoUrl(url) {
+    if (!url) return null;
+    const trimmed = url.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      if (trimmed.includes('/storage/v1/object/public/')) return trimmed;
+      if (trimmed.includes('/storage/v1/object/')) {
+        return trimmed.replace('/storage/v1/object/', '/storage/v1/object/public/');
+      }
+      return trimmed;
+    }
+
+    if (trimmed.startsWith('/')) return trimmed;
+    if (trimmed.startsWith('feed-logos/')) {
+      const path = trimmed.replace('feed-logos/', '');
+      const { data } = supabase.storage.from('feed-logos').getPublicUrl(path);
+      return data?.publicUrl || null;
+    }
+
+    return `/${trimmed}`;
   }
 
   async function addUrl(e) {
@@ -53,25 +196,54 @@ export default function MonitorUrlModal({ userId, onClose }) {
     setError('');
     setSuccess('');
     if (!url.trim()) return setError('Inserisci un link valido');
-    if (!categoriaId) return setError('Seleziona una categoria');
+    if (!isUuid(resolvedUserId)) return setError('Utente non valido per salvataggio link');
 
-    let finalLogoUrl = logoUrl;
+    let logoUrlToSave = normalizeLogoUrl(logoUrl.trim()) || null;
+    
+    // Se c'è un file da caricare, fai upload
     if (logoFile) {
-      const fileName = `logo_${Date.now()}_${logoFile.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('feed-logos')
-        .upload(fileName, logoFile, { cacheControl: '3600', upsert: false });
-      if (uploadError) return setError('Errore upload logo');
-      const { publicUrl } = supabase.storage.from('feed-logos').getPublicUrl(fileName).data;
-      finalLogoUrl = publicUrl;
+      logoUrlToSave = await uploadLogoFile(logoFile);
     }
+    logoUrlToSave = normalizeLogoUrl(logoUrlToSave);
+
+    // Fetcha il contenuto HTML della pagina
+    let lastResult = null;
+    try {
+      const response = await fetch(`/api/fetch-html?url=${encodeURIComponent(url)}`);
+      if (response.ok) {
+        const data = await response.json();
+        lastResult = {
+          html: data.html,
+          fetched_at: data.fetched_at,
+          originalSize: data.originalSize,
+          truncated: data.truncated
+        };
+        console.log('[MonitorUrlModal] HTML fetchato:', { url, size: data.originalSize, truncated: data.truncated });
+      } else {
+        console.warn('[MonitorUrlModal] Errore fetch HTML:', response.status);
+      }
+    } catch (err) {
+      console.warn('[MonitorUrlModal] Errore fetch contenuto:', err);
+    }
+
+    const insertData = {
+      user_id: resolvedUserId,
+      url,
+      logo_url: logoUrlToSave,
+      categoria_id: categoriaId || null,
+      card_target: cardTarget || null,
+      last_checked: new Date().toISOString(),
+      last_result: lastResult
+    };
 
     const { error } = await supabase
       .from('monitored_urls')
-      .insert({ user_id: userId, url, logo_url: finalLogoUrl, categoria_id: categoriaId, card_target: cardTarget });
+      .insert(insertData);
 
-    if (error) setError('Errore salvataggio link');
-    else {
+    if (error) {
+      console.error('[ERROR] Salvataggio link fallito:', JSON.stringify(error, null, 2));
+      setError(`Errore salvataggio link: ${error.message}`);
+    } else {
       setSuccess('Link aggiunto!');
       setUrl('');
       setLogoUrl('');
@@ -206,9 +378,11 @@ export default function MonitorUrlModal({ userId, onClose }) {
               value={categoriaId}
               onChange={e => setCategoriaId(e.target.value)}
               style={{ padding: 10, borderRadius: 6, border: '1px solid #ddd', fontSize: 14, flex: 1 }}
-              required
             >
               <option value="">Tutte le categorie</option>
+              {categorie.length === 0 && (
+                <option value="" disabled>Nessuna categoria disponibile</option>
+              )}
               {categorie.map(cat => (
                 <option key={cat.id} value={cat.id}>{cat.emoji ? cat.emoji + ' ' : ''}{cat.nome}</option>
               ))}
@@ -240,19 +414,53 @@ export default function MonitorUrlModal({ userId, onClose }) {
                 const categoria = categorie.find(c => c.id === u.categoria_id);
                 const cardLabel = CARD_OPTIONS.find(opt => opt.id === u.card_target)?.label || 'Auto (titolo)';
                 return (
-                  <li key={u.id} style={{ marginBottom: 12, background: '#f7f7f7', borderRadius: 8, padding: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', position: 'relative' }}>
-                    <div style={{ fontWeight: 'bold', fontSize: 15, marginBottom: 2 }}>{u.url}</div>
-                    <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>
-                      {categoria ? (categoria.emoji ? categoria.emoji + ' ' : '') + categoria.nome : 'Tutte le categorie'}
-                    </div>
-                    <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>Card: {cardLabel}</div>
-                    <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>
-                      {u.logo_url ? <span>Logo impostato</span> : <span style={{ color: '#e74c3c' }}>Nessun logo</span>}
+                  <li key={u.id} style={{ marginBottom: 12, background: '#f7f7f7', borderRadius: 8, padding: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold', fontSize: 15, marginBottom: 2 }}>{u.url}</div>
+                      <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>
+                        {categoria ? (categoria.emoji ? categoria.emoji + ' ' : '') + categoria.nome : 'Tutte le categorie'}
+                      </div>
+                      <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>Card: {cardLabel}</div>
+                      {u.logo_url && (
+                        <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <img
+                            src={u.logo_url}
+                            alt="Logo link"
+                            onLoad={() => {
+                              console.log('[MonitorUrlModal] Logo caricato:', u.logo_url);
+                            }}
+                            onError={(e) => {
+                              console.error('[MonitorUrlModal] Errore caricamento logo:', u.logo_url);
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = '/logo_filtro.png';
+                            }}
+                            style={{
+                              width: "22px",
+                              height: "22px",
+                              borderRadius: "4px",
+                              objectFit: "contain",
+                              background: "#f6f6f6",
+                              border: "1px solid #eee"
+                            }}
+                          />
+                          <span style={{ fontSize: "12px", color: "#666" }}>
+                            Logo impostato
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <button
-                      type="button"
                       onClick={() => handleRemove(u.id)}
-                      style={{ background: '#e74c3c', color: 'white', border: 'none', borderRadius: 6, padding: '6px 14px', fontWeight: 'bold', position: 'absolute', right: 12, top: 12 }}
+                      style={{
+                        background: "#FF3B30",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "4px 10px",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                        fontSize: "12px"
+                      }}
                     >
                       Rimuovi
                     </button>
