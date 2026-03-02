@@ -292,14 +292,31 @@ export default function MonitorUrlModal({ userId, onClose }) {
       last_result: lastResult
     };
 
-    const { error } = await supabase
+    const { data: insertedUrl, error } = await supabase
       .from('monitored_urls')
-      .insert(insertData);
+      .insert(insertData)
+      .select()
+      .single();
 
     if (error) {
       console.error('[ERROR] Salvataggio link fallito:', JSON.stringify(error, null, 2));
       setError(`Errore salvataggio link: ${error.message}`);
     } else {
+      // Crea automaticamente la subscription per ricevere notifiche
+      const { error: subError } = await supabase
+        .from('monitored_urls_subscriptions')
+        .insert({
+          url_id: insertedUrl.id,
+          user_id: resolvedUserId,
+          active: true
+        });
+
+      if (subError) {
+        console.warn('[MonitorUrlModal] Errore creazione subscription:', subError);
+      } else {
+        console.log('[MonitorUrlModal] Subscription creata per', url);
+      }
+
       setSuccess('Link aggiunto!');
       setUrl('');
       setLogoUrl('');
