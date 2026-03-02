@@ -37,35 +37,57 @@ export default function RitaglioImmagine({ user, onClose }) {
 
   const isMobile = windowWidth <= 768
   
-  // FIX MOBILE: Container adattato allo schermo invece di scalare canvas
-  const displayDim = isMobile ? (() => {
-    // Su mobile: riempi 90% larghezza schermo e adatta altezza
-    const maxWidth = windowWidth * 0.9
-    const maxHeight = windowHeight * 0.6 // Max 60% altezza schermo
-    const canvasAspect = dimensions.width / dimensions.height
+  // FIX: Rimpicciolisce il container se il canvas è troppo grande, mantenendo dimensioni reali per export
+  const { displayScale, containerWidth, containerHeight } = (() => {
+    const realW = dimensions.width
+    const realH = dimensions.height
     
-    let w = maxWidth
-    let h = w / canvasAspect
+    let scale = 1
     
-    // Se altezza esce dallo schermo, scala per altezza
-    if (h > maxHeight) {
-      h = maxHeight
-      w = h * canvasAspect
+    if (isMobile) {
+      // SU MOBILE: Scala smart per entrare nella finestra
+      const maxWidth = windowWidth * 0.9
+      const maxHeight = windowHeight * 0.55 // Spazio per header + pulsanti
+      const canvasAspect = realW / realH
+      
+      let w = maxWidth
+      let h = w / canvasAspect
+      
+      if (h > maxHeight) {
+        h = maxHeight
+        w = h * canvasAspect
+      }
+      
+      scale = w / realW
+    } else {
+      // SU DESKTOP: 
+      // Se PICCOLO (< 1500x1000): scala al 60%
+      // Se GRANDE (>= 1500x1000): scala dinamicamente per stare nella finestra
+      const maxWidth = windowWidth * 0.85
+      const maxHeight = windowHeight * 0.62
+      
+      if (realW < 1500 && realH < 1000) {
+        scale = 0.6
+      } else {
+        const scaleW = maxWidth / realW
+        const scaleH = maxHeight / realH
+        scale = Math.min(scaleW, scaleH, 1)
+      }
     }
     
-    console.log('📱 MOBILE displayDim:', {
-      screen: `${windowWidth}×${windowHeight}`,
-      canvas: `${dimensions.width}×${dimensions.height}`,
-      canvasAspect: canvasAspect.toFixed(2),
-      container: `${w.toFixed(0)}×${h.toFixed(0)}`
+    console.log('📐 Canvas display scale:', {
+      device: isMobile ? 'MOBILE' : 'DESKTOP',
+      realDim: `${realW}×${realH}`,
+      scale: scale.toFixed(2),
+      displayDim: `${(realW * scale).toFixed(0)}×${(realH * scale).toFixed(0)}`
     })
     
-    return { w, h }
-  })() : {
-    // DESKTOP: Logica originale (NON TOCCARE!)
-    w: dimensions.width * 0.6,
-    h: dimensions.height * 0.6
-  }
+    return {
+      displayScale: scale,
+      containerWidth: realW * scale,
+      containerHeight: realH * scale
+    }
+  })()
 
   // --- Sincronizzazione Cloud (SUPABASE RIPRISTINATO) ---
   useEffect(() => {
@@ -280,22 +302,22 @@ export default function RitaglioImmagine({ user, onClose }) {
     
     // Calcola dimensioni effettive dell'immagine in modalità cover
     const imgAspect = imgElement.naturalWidth / imgElement.naturalHeight
-    const containerAspect = displayDim.w / displayDim.h
+    const containerAspect = containerWidth / containerHeight
     
     let actualImgHeight, actualImgWidth
     
     if (imgAspect > containerAspect) {
       // Foto ORIZZONTALE → scala per HEIGHT
-      actualImgHeight = displayDim.h
+      actualImgHeight = containerHeight
       actualImgWidth = actualImgHeight * imgAspect
     } else {
       // Foto VERTICALE → scala per WIDTH
-      actualImgWidth = displayDim.w
+      actualImgWidth = containerWidth
       actualImgHeight = actualImgWidth / imgAspect
     }
     
-    const maxOffsetX = Math.max(0, (actualImgWidth - displayDim.w) / 2)
-    const maxOffsetY = Math.max(0, (actualImgHeight - displayDim.h) / 2)
+    const maxOffsetX = Math.max(0, (actualImgWidth - containerWidth) / 2)
+    const maxOffsetY = Math.max(0, (actualImgHeight - containerHeight) / 2)
     
     const boundedX = Math.min(maxOffsetX, Math.max(-maxOffsetX, newX))
     const boundedY = Math.min(maxOffsetY, Math.max(-maxOffsetY, newY))
@@ -370,12 +392,12 @@ export default function RitaglioImmagine({ user, onClose }) {
           // Immagine più larga: scala per altezza
           drawH = canvas.height
           drawW = drawH * imgAspect
-          scaleToCanvas = canvas.height / displayDim.h
+          scaleToCanvas = canvas.height / containerHeight
         } else {
           // Immagine più alta: scala per larghezza
           drawW = canvas.width
           drawH = drawW / imgAspect
-          scaleToCanvas = canvas.width / displayDim.w
+          scaleToCanvas = canvas.width / containerWidth
         }
 
         const baseX = (canvas.width - drawW) / 2
@@ -472,9 +494,9 @@ export default function RitaglioImmagine({ user, onClose }) {
     <div 
       onDragOver={(e) => e.preventDefault()} 
       onDrop={handleDrop}
-      style={{ position: 'fixed', inset: 0, background: '#fff', minHeight: '100vh', paddingTop: 'env(safe-area-inset-top)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif' }}
+      style={{ position: 'fixed', inset: 0, background: '#fff', minHeight: '100vh', paddingTop: 'env(safe-area-inset-top)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif', overflow: isMobile ? 'auto' : 'hidden' }}
     >
-      <div style={{ background: '#F2F2F7', width: isMobile ? '100%' : '900px', borderRadius: isMobile ? 0 : '28px', overflow: 'hidden', maxHeight: '95vh', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 60px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: '#F2F2F7', width: isMobile ? '100%' : '95vw', borderRadius: isMobile ? 0 : '28px', overflow: 'hidden', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? 'none' : '95vh', display: 'flex', flexDirection: 'column', boxShadow: isMobile ? 'none' : '0 30px 60px rgba(0,0,0,0.5)' }}>
         
         <div style={{ padding: isMobile ? '38px 25px 18px 25px' : '18px 25px', background: '#fff', borderBottom: '1px solid #e5e5ea', display: 'flex', alignItems: 'center', position: 'relative' }}>
           <button onClick={view === 'menu' ? onClose : () => setView('menu')} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', position: 'absolute', left: 18, top: isMobile ? '55px' : '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -630,7 +652,7 @@ export default function RitaglioImmagine({ user, onClose }) {
                 <>
                   {/* Bottoni di selezione logo e dimensioni */}
                   {userCategorie.length > 0 && userCategorie.some(cat => cat.toLowerCase() === 'formula e') ? (
-                    <div style={{ marginBottom: '20px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', position: 'relative', width: '100%', minHeight: '40px' }}>
+                    <div style={{ marginBottom: '20px', marginLeft: '47px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', position: 'relative', width: '100%', minHeight: '40px' }}>
                       {isMobile ? (
                         <>
                           <span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span>
@@ -676,8 +698,6 @@ export default function RitaglioImmagine({ user, onClose }) {
                           <button
                             onClick={() => setSelectedLogo('formula1it')}
                             style={{
-                              position: 'absolute',
-                              left: '202px',
                               padding: '12px 20px',
                               borderRadius: '12px',
                               border: 'none',
@@ -686,18 +706,15 @@ export default function RitaglioImmagine({ user, onClose }) {
                               background: selectedLogo === 'formula1it' ? '#007AFF' : '#E5E5EA',
                               color: selectedLogo === 'formula1it' ? '#fff' : '#1c1c1e',
                               cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              zIndex: 100
+                              transition: 'all 0.2s ease'
                             }}
                           >
                             Formula1.it
                           </button>
-                          <span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800', position: 'relative', zIndex: 50 }}>{dimensions.width} × {dimensions.height} PX</span>
+                          <span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span>
                           <button
                             onClick={() => setSelectedLogo('blogformulae')}
                             style={{
-                              position: 'absolute',
-                              right: '170px',
                               padding: '12px 20px',
                               borderRadius: '12px',
                               border: 'none',
@@ -706,8 +723,7 @@ export default function RitaglioImmagine({ user, onClose }) {
                               background: selectedLogo === 'blogformulae' ? '#007AFF' : '#E5E5EA',
                               color: selectedLogo === 'blogformulae' ? '#fff' : '#1c1c1e',
                               cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              zIndex: 100
+                              transition: 'all 0.2s ease'
                             }}
                           >
                             BlogFormulae.it
@@ -716,7 +732,7 @@ export default function RitaglioImmagine({ user, onClose }) {
                       )}
                     </div>
                   ) : (
-                    <div style={{ marginBottom: '20px' }}><span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span></div>
+                    <div style={{ marginBottom: '20px', marginLeft: '47px' }}><span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span></div>
                   )}
                   <div 
                     ref={containerRef}
@@ -746,12 +762,18 @@ export default function RitaglioImmagine({ user, onClose }) {
                     }}
                     onTouchEnd={() => setIsDragging(false)}
                     style={{ 
-                      width: `${displayDim.w}px`, height: `${displayDim.h}px`, background: canvasBackground, position: 'relative', 
-                      overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.4)', cursor: isDragging ? 'grabbing' : 'grab',
+                      width: `${containerWidth}px`, 
+                      height: `${containerHeight}px`, 
+                      background: canvasBackground, 
+                      position: 'relative', 
+                      overflow: 'hidden', 
+                      boxShadow: '0 25px 60px rgba(0,0,0,0.4)', 
+                      cursor: isDragging ? 'grabbing' : 'grab',
                       touchAction: 'none',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center'
+                      justifyContent: 'center',
+                      margin: '0 auto'
                     }}
                   >
                     {/* Immagine normale */}
@@ -763,13 +785,13 @@ export default function RitaglioImmagine({ user, onClose }) {
                           // Calcola dimensioni per riempire TUTTO (object-fit: cover)
                           const img = e.target
                           const imgAspect = img.naturalWidth / img.naturalHeight
-                          const containerAspect = displayDim.w / displayDim.h
+                          const containerAspect = containerWidth / containerHeight
                           
                           console.log('📐 Image loaded:', {
                             imgAspect: imgAspect.toFixed(2),
                             containerAspect: containerAspect.toFixed(2),
                             imgNatural: `${img.naturalWidth}×${img.naturalHeight}`,
-                            container: `${displayDim.w}×${displayDim.h}`
+                            container: `${containerWidth}×${containerHeight}`
                           })
                           
                           if (imgAspect > containerAspect) {
