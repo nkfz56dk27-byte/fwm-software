@@ -97,7 +97,7 @@ export default async function handler(req, res) {
 
     const { data: notifications, error } = await supabase
       .from('push_notifications_monitored_urls')
-      .select('id, user_id, username, url_id, title, body, status')
+      .select('id, user_id, url_id, title, body, status')
       .eq('status', 'pending')
       .limit(100);
 
@@ -124,7 +124,6 @@ export default async function handler(req, res) {
           title: notif.title,
           body: notif.body,
           userId: notif.user_id,
-          username: notif.username,
           url: monitoredUrl?.url || undefined
         });
 
