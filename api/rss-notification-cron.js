@@ -504,6 +504,7 @@ export default async function handler(req, res) {
               if (!insertError) sentMonitored++;
             }
           } catch (err) {
+            monitoredUrlsStatus.push({ url: link?.url || 'UNKNOWN', status: `error: ${err.message}` });
             console.error('❌ Errore controllo singolo link monitorato:', link?.url, err);
           }
         }
