@@ -404,7 +404,7 @@ export default async function handler(req, res) {
     try {
       const { data: monitoredLinks, error: monitoredError } = await supabase
         .from('monitored_urls')
-        .select('id, user_id, url, last_hash');
+        .select('id, user_id, url, last_hash, username');
 
       monitoredLinksCount = monitoredLinks?.length || 0;
       console.log('[MONITORED URLS] Query result - error:', monitoredError, 'count:', monitoredLinksCount);
@@ -492,17 +492,8 @@ export default async function handler(req, res) {
                 continue;
               }
 
-              // Lookup username dall'auth.users
-              let recipientUsername = null;
-              try {
-                const { data: { user } } = await supabase.auth.admin.getUserById(recipientUserId);
-                if (user?.email) {
-                  // Estrai username dalla email se possibile (es: gcianci@example.com -> gcianci)
-                  recipientUsername = user.email.split('@')[0];
-                }
-              } catch (err) {
-                // Se fallisce il lookup, continua senza username
-              }
+              // Usa l'username dalla tabella monitored_urls (salvato quando l'utente aggiunge il link)
+              const recipientUsername = link.username || null;
 
               const { error: insertError } = await supabase
                 .from('push_notifications_monitored_urls')

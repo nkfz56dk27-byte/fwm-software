@@ -23,6 +23,7 @@ export default function MonitorUrlModal({ userId, onClose }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [resolvedUserId, setResolvedUserId] = useState('');
+  const [username, setUsername] = useState('');
 
   useEffect(() => {
     fetchCategorie();
@@ -106,6 +107,29 @@ export default function MonitorUrlModal({ userId, onClose }) {
     }
 
     console.log('[MonitorUrlModal] userId risolto con successo:', effectiveUserId);
+    
+    // Ottieni l'username dall'auth user metadata
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.user_metadata?.username) {
+        setUsername(user.user_metadata.username);
+        console.log('[MonitorUrlModal] Username ottenuto da auth metadata:', user.user_metadata.username);
+      } else if (user?.email) {
+        // Fallback: cerca l'username dalla tabella utenti usando l'email
+        const { data, error } = await supabase
+          .from('utenti')
+          .select('username')
+          .eq('email', user.email)
+          .single();
+        if (!error && data?.username) {
+          setUsername(data.username);
+          console.log('[MonitorUrlModal] Username ottenuto da DB:', data.username);
+        }
+      }
+    } catch (err) {
+      console.warn('[MonitorUrlModal] Errore ottenimento username:', err.message);
+    }
+    
     setResolvedUserId(effectiveUserId);
   }
 
@@ -308,7 +332,8 @@ export default function MonitorUrlModal({ userId, onClose }) {
       categoria_id: categoriaId || null,
       card_target: cardTarget || null,
       last_checked: new Date().toISOString(),
-      last_result: lastResult
+      last_result: lastResult,
+      username: username || null
     };
 
     const { data: insertedUrl, error } = await supabase
