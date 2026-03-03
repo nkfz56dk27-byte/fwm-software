@@ -284,94 +284,6 @@ function App() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Effect per recuperare la sessione salvata all'avvio (mobile e desktop)
-  useEffect(() => {
-    const recuperaSessione = async () => {
-      try {
-        const isMobileDevice = window.innerWidth <= 768
-        const storage = isMobileDevice ? localStorage : sessionStorage
-        
-        // PULIZIA: Se sei su desktop, cancella eventuali dati vecchi dal localStorage
-        if (!isMobileDevice) {
-          localStorage.removeItem('user')
-          localStorage.removeItem('username')
-          localStorage.removeItem('loginTimestamp')
-          // Pulisci anche la sessione Supabase dal localStorage
-          localStorage.removeItem('supabase.auth.token')
-          console.log('[DEBUG SESSION] Desktop: localStorage pulito, uso sessionStorage')
-        }
-        
-        // Controlla se c'è una sessione Supabase attiva
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (session && session.user) {
-          console.log('[DEBUG SESSION] Sessione Supabase trovata:', session.user.email)
-          
-          // Controlla se sono passati 30 giorni dal login (SOLO SU MOBILE)
-          if (isMobileDevice) {
-            const loginTimestamp = storage.getItem('loginTimestamp')
-            const trentaGiorniInMs = 30 * 24 * 60 * 60 * 1000 // 30 giorni in millisecondi
-            
-            if (loginTimestamp) {
-              const tempoTrascorso = Date.now() - parseInt(loginTimestamp)
-              if (tempoTrascorso > trentaGiorniInMs) {
-                console.log('[DEBUG SESSION] Sessione scaduta (30 giorni su mobile), logout richiesto')
-                // Logout da Supabase
-                await supabase.auth.signOut()
-                // Pulizia storage
-                storage.removeItem('user')
-                storage.removeItem('username')
-                storage.removeItem('loginTimestamp')
-                return // Ferma il recupero e mostra schermata login
-              }
-            }
-          }
-          
-          // Recupera i dati utente dallo storage appropriato
-          const userStr = storage.getItem('user')
-          if (userStr) {
-            const userData = JSON.parse(userStr)
-            setUser(userData)
-            setMustChangePassword(userData.deve_cambiare_password || false)
-            console.log('[DEBUG SESSION] User recuperato da storage:', userData.username)
-            
-            // Inizializza notifiche native se su mobile
-            if (userData.username && isMobileDevice) {
-              import('./nativeNotificationHandler').then(({ initializeNativeNotifications, setupNotificationMessageListener }) => {
-                initializeNativeNotifications(userData.username)
-                setupNotificationMessageListener((event) => {
-                  console.log('[DEBUG SESSION] Notifica cliccata - Navigazione:', event.url)
-                })
-              })
-            }
-          } else {
-            // Se c'è sessione Supabase ma non user nel localStorage, recupera da DB
-            const { data: utentiData } = await supabase
-              .from('utenti')
-              .select('*')
-              .eq('email', session.user.email)
-              .limit(1)
-            
-            if (utentiData && utentiData.length > 0) {
-              const userData = utentiData[0]
-              setUser(userData)
-              setMustChangePassword(userData.deve_cambiare_password || false)
-              storage.setItem('user', JSON.stringify(userData))
-              storage.setItem('username', userData.username)
-              console.log('[DEBUG SESSION] User recuperato da DB:', userData.username)
-            }
-          }
-        } else {
-          console.log('[DEBUG SESSION] Nessuna sessione Supabase trovata')
-        }
-      } catch (error) {
-        console.error('[DEBUG SESSION] Errore recupero sessione:', error)
-      }
-    }
-    
-    recuperaSessione()
-  }, [])
-
   // Effect per ascoltare le notifiche realtime quando l'utente è loggato
   useEffect(() => {
     if (!user) {
@@ -691,19 +603,9 @@ function App() {
     setUser(user)
     setMustChangePassword(user.deve_cambiare_password)
     console.log('[DEBUG LOGIN] Login riuscito, user:', user)
-    
-    // Su mobile usa localStorage (persistente), su desktop sessionStorage (si cancella chiudendo tab)
-    const isMobileDevice = window.innerWidth <= 768
-    const storage = isMobileDevice ? localStorage : sessionStorage
-    
-    storage.setItem('username', username)
-    storage.setItem('user', JSON.stringify(user))
-    if (isMobileDevice) {
-      storage.setItem('loginTimestamp', Date.now().toString())
-      console.log('[DEBUG LOGIN] Username e user salvati in localStorage (mobile)')
-    } else {
-      console.log('[DEBUG LOGIN] Username e user salvati in sessionStorage (desktop)')
-    }
+    sessionStorage.setItem('username', username)
+    sessionStorage.setItem('user', JSON.stringify(user))
+    console.log('[DEBUG LOGIN] Username e user salvati in sessionStorage')
     // RIMOSSO: Inizializzazione Firebase Messaging per notifiche web
     
     // Inizializza OneSignal con polling intelligente
@@ -4144,11 +4046,11 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
 
 // ===== PENALTY POINTS VIEW =====
 function NuovaPaginaView({ onClose, user, isMobile }) {
-      // Recupera user da localStorage se non passato come prop
+      // Recupera user da sessionStorage se non passato come prop
       let userLocal = user;
       if (!userLocal) {
         try {
-          const userStr = localStorage.getItem('user');
+          const userStr = sessionStorage.getItem('user');
           if (userStr) userLocal = JSON.parse(userStr);
         } catch (e) { userLocal = null; }
       }

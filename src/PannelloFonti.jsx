@@ -1113,23 +1113,35 @@ function PannelloFonti({ onClose }) {
       let articoliMonitored = [];
       try {
         console.log('[PannelloFonti] Inizio caricamento monitored_urls');
+        const parseStoredUserId = (raw) => {
+          if (!raw || typeof raw !== 'string') return null;
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed?.id) return parsed.id;
+          } catch {
+            // raw non-JSON: prova UUID diretto
+          }
+          return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw) ? raw : null;
+        };
         
         const userId = await (async () => {
           try {
             const { data: { user } } = await supabase.auth.getUser();
             console.log('[PannelloFonti] userId da auth:', user?.id);
-            return user?.id;
+            if (user?.id) return user.id;
           } catch {
-            const userStr = sessionStorage.getItem('user');
-            console.log('[PannelloFonti] user da sessionStorage:', userStr);
-            if (userStr) {
-              try {
-                return JSON.parse(userStr).id;
-              } catch {
-                return null;
-              }
-            }
+            // fallback agli storage locali
           }
+
+          const sessionUser = parseStoredUserId(sessionStorage.getItem('user'));
+          if (sessionUser) {
+            console.log('[PannelloFonti] userId da sessionStorage:', sessionUser);
+            return sessionUser;
+          }
+
+          const localUser = parseStoredUserId(localStorage.getItem('user'));
+          console.log('[PannelloFonti] userId da localStorage:', localUser);
+          return localUser;
         })();
 
         console.log('[PannelloFonti] userId risolto:', userId);
@@ -1423,8 +1435,21 @@ function PannelloFonti({ onClose }) {
   async function monitoraLinkWeb() {
     try {
       // Prendi l'userId
+      const parseStoredUserId = (raw) => {
+        if (!raw || typeof raw !== 'string') return null;
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed?.id) return parsed.id;
+        } catch {
+          // raw non-JSON: prova UUID diretto
+        }
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw) ? raw : null;
+      };
+
       const { data: { user: authUser } } = await supabase.auth.getUser();
-      const userId = authUser?.id || sessionStorage.getItem('user');
+      const userId = authUser?.id
+        || parseStoredUserId(sessionStorage.getItem('user'))
+        || parseStoredUserId(localStorage.getItem('user'));
       if (!userId) return;
 
       // Carica monitored_urls dell'utente
@@ -1445,8 +1470,11 @@ function PannelloFonti({ onClose }) {
           if (!response.ok) continue;
 
           const html = await response.text();
-          const crypto = require('crypto');
-          const hash = crypto.createHash('sha256').update(html).digest('hex');
+          const bytes = new TextEncoder().encode(html);
+          const digest = await crypto.subtle.digest('SHA-256', bytes);
+          const hash = Array.from(new Uint8Array(digest))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
 
           // Se non hai ancora un hash, inizializza senza notifica
           if (!link.last_hash) {
@@ -1530,22 +1558,35 @@ function PannelloFonti({ onClose }) {
     }
     
     // Carica anche i link monitorati
-    // Prova prima con getUser() (auth), poi con sessionStorage - LIKE caricaArticoliDalDatabase
+    // Prova prima con getUser() (auth), poi fallback storage
     let userId = null;
+    const parseStoredUserId = (raw) => {
+      if (!raw || typeof raw !== 'string') return null;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.id) return parsed.id;
+      } catch {
+        // raw non-JSON: prova UUID diretto
+      }
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw) ? raw : null;
+    };
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       userId = user?.id;
       console.log('[PannelloFonti] caricaFeedEDArticoli - userId da auth:', userId);
     } catch (e) {
       console.warn('[PannelloFonti] Errore getting userId da auth:', e);
+    }
+
+    if (!userId) {
       try {
-        const userStr = sessionStorage.getItem('user');
-        if (userStr) {
-          userId = JSON.parse(userStr).id;
-          console.log('[PannelloFonti] caricaFeedEDArticoli - userId da sessionStorage (fallback):', userId);
-        }
+        const sessionUser = parseStoredUserId(sessionStorage.getItem('user'));
+        const localUser = parseStoredUserId(localStorage.getItem('user'));
+        userId = sessionUser || localUser;
+        console.log('[PannelloFonti] caricaFeedEDArticoli - userId da storage (fallback):', userId);
       } catch (e2) {
-        console.warn('[PannelloFonti] Errore parsing user da sessionStorage:', e2);
+        console.warn('[PannelloFonti] Errore parsing user da storage:', e2);
       }
     }
     

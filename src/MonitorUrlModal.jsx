@@ -41,6 +41,17 @@ export default function MonitorUrlModal({ userId, onClose }) {
     return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
 
+  function parseStoredUserId(raw) {
+    if (!raw || typeof raw !== 'string') return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.id && isUuid(parsed.id)) return parsed.id;
+    } catch {
+      // potrebbe essere un UUID salvato come stringa semplice
+    }
+    return isUuid(raw) ? raw : null;
+  }
+
   async function initializeUserAndData() {
     console.log('[MonitorUrlModal] initializeUserAndData START - userId prop:', userId);
     let effectiveUserId = null;
@@ -65,16 +76,24 @@ export default function MonitorUrlModal({ userId, onClose }) {
     // PRIORITY 3: Try sessionStorage
     if (!effectiveUserId) {
       try {
-        const userStr = sessionStorage.getItem('user');
-        if (userStr) {
-          const userObj = JSON.parse(userStr);
-          if (userObj?.id && isUuid(userObj.id)) {
-            effectiveUserId = userObj.id;
-            console.log('[MonitorUrlModal] userId da sessionStorage:', effectiveUserId);
-          }
+        effectiveUserId = parseStoredUserId(sessionStorage.getItem('user'));
+        if (effectiveUserId) {
+          console.log('[MonitorUrlModal] userId da sessionStorage:', effectiveUserId);
         }
       } catch (err) {
         console.log('[MonitorUrlModal] Errore lettura sessionStorage:', err.message);
+      }
+    }
+
+    // PRIORITY 4: Try localStorage (mobile / sessione persistente)
+    if (!effectiveUserId) {
+      try {
+        effectiveUserId = parseStoredUserId(localStorage.getItem('user'));
+        if (effectiveUserId) {
+          console.log('[MonitorUrlModal] userId da localStorage:', effectiveUserId);
+        }
+      } catch (err) {
+        console.log('[MonitorUrlModal] Errore lettura localStorage:', err.message);
       }
     }
 
