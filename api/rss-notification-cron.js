@@ -397,11 +397,15 @@ export default async function handler(req, res) {
     // --- INIZIO LOGICA MONITORAGGIO LINK WEB ---
     let sentMonitored = 0;
     let skippedMonitored = 0;
+    let monitoredLinksCount = 0;
 
     try {
       const { data: monitoredLinks, error: monitoredError } = await supabase
         .from('monitored_urls')
         .select('id, user_id, url, last_hash');
+
+      monitoredLinksCount = monitoredLinks?.length || 0;
+      console.log('[MONITORED URLS] Query result - error:', monitoredError, 'count:', monitoredLinksCount);
 
       if (monitoredError) throw monitoredError;
 
@@ -525,6 +529,7 @@ export default async function handler(req, res) {
       skipped_rss: skipped,
       sent_monitored: sentMonitored,
       skipped_monitored: skippedMonitored,
+      monitored_links_loaded: monitoredLinksCount,
       durationMs: Date.now() - start 
     });
   } catch (err) {
