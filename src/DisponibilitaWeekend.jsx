@@ -17,7 +17,8 @@ const UTENTE_TO_REDATTORE = {
   'nmaruzzo': 'Nicole',
   'sderamo': 'Sofia',
   'vcancelliere': 'Veronica',
-  'avalerioti': 'Alessia'
+  'avalerioti': 'Alessia',
+  'mdelia': 'Mattia'
 }
 
 // ===== COSTANTI =====
@@ -168,7 +169,8 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   
   const isAdmin = utenteCorrente?.ruolo === 'admin'
   const isMobile = windowWidth <= 768
-  const nomeRedattore = UTENTE_TO_REDATTORE[utenteCorrente?.username] || utenteCorrente?.nomeCompleto || ''
+  // Prima prova nome_redattore dal DB, poi mapping statico (legacy), poi nomeCompleto, poi nome
+  const nomeRedattore = utenteCorrente?.nome_redattore || UTENTE_TO_REDATTORE[utenteCorrente?.username] || utenteCorrente?.nomeCompleto || utenteCorrente?.nome || ''
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth)
