@@ -418,21 +418,28 @@ export default async function handler(req, res) {
               headers: { 'User-Agent': 'Mozilla/5.0 (Monitoraggio Link Web)' }
             });
 
-            if (!response.ok) continue;
+            if (!response.ok) {
+              console.log(`[MONITORED] ${link.url} - fetch failed (status ${response.status})`);
+              continue;
+            }
 
             const html = await response.text();
             const hash = createHash('sha256').update(html).digest('hex');
 
             // Prima inizializzazione hash: nessuna notifica
             if (!link.last_hash) {
+              console.log(`[MONITORED] ${link.url} - prima inizializzazione (hash iniziale)`);
               await supabase.from('monitored_urls').update({ last_hash: hash }).eq('id', link.id);
               continue;
             }
 
             // Nessuna modifica
             if (hash === link.last_hash) {
+              console.log(`[MONITORED] ${link.url} - nessun cambiamento`);
               continue;
             }
+
+            console.log(`[MONITORED] ${link.url} - CAMBIAMENTO RILEVATO! Hash precedente: ${link.last_hash?.substring(0, 8)}, nuovo: ${hash.substring(0, 8)}`);
 
             // Salva nuovo hash
             await supabase.from('monitored_urls').update({ last_hash: hash }).eq('id', link.id);
