@@ -398,6 +398,7 @@ export default async function handler(req, res) {
     let sentMonitored = 0;
     let skippedMonitored = 0;
     let monitoredLinksCount = 0;
+    let monitoredUrlsStatus = [];
 
     try {
       const { data: monitoredLinks, error: monitoredError } = await supabase
@@ -412,14 +413,17 @@ export default async function handler(req, res) {
       if (monitoredLinks && monitoredLinks.length > 0) {
         for (const link of monitoredLinks) {
           try {
-            if (!link.url) continue;
+            if (!link.url) {
+              monitoredUrlsStatus.push({ url: 'N/A', status: 'skipped_no_url' });
+              continue;
+            }
 
             const response = await fetch(link.url, {
               headers: { 'User-Agent': 'Mozilla/5.0 (Monitoraggio Link Web)' }
             });
 
             if (!response.ok) {
-              console.log(`[MONITORED] ${link.url} - fetch failed (status ${response.status})`);
+              monitoredUrlsStatus.push({ url: link.url, status: `fetch_failed_${response.status}` });
               continue;
             }
 
@@ -428,18 +432,17 @@ export default async function handler(req, res) {
 
             // Prima inizializzazione hash: nessuna notifica
             if (!link.last_hash) {
-              console.log(`[MONITORED] ${link.url} - prima inizializzazione (hash iniziale)`);
+              monitoredUrlsStatus.push({ url: link.url, status: 'initial_hash_set' });
               await supabase.from('monitored_urls').update({ last_hash: hash }).eq('id', link.id);
               continue;
             }
 
             // Nessuna modifica
             if (hash === link.last_hash) {
-              console.log(`[MONITORED] ${link.url} - nessun cambiamento`);
+              monitoredUrlsStatus.push({ url: link.url, status: 'no_change' });
               continue;
             }
-
-            console.log(`[MONITORED] ${link.url} - CAMBIAMENTO RILEVATO! Hash precedente: ${link.last_hash?.substring(0, 8)}, nuovo: ${hash.substring(0, 8)}`);
+            monitoredUrlsStatus.push({ url: link.url, status: 'change_detected' });
 
             // Salva nuovo hash
             await supabase.from('monitored_urls').update({ last_hash: hash }).eq('id', link.id);
@@ -537,6 +540,7 @@ export default async function handler(req, res) {
       sent_monitored: sentMonitored,
       skipped_monitored: skippedMonitored,
       monitored_links_loaded: monitoredLinksCount,
+      monitored_urls_status: monitoredUrlsStatus,
       durationMs: Date.now() - start 
     });
   } catch (err) {
