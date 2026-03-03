@@ -492,11 +492,24 @@ export default async function handler(req, res) {
                 continue;
               }
 
+              // Lookup username dall'auth.users
+              let recipientUsername = null;
+              try {
+                const { data: { user } } = await supabase.auth.admin.getUserById(recipientUserId);
+                if (user?.email) {
+                  // Estrai username dalla email se possibile (es: gcianci@example.com -> gcianci)
+                  recipientUsername = user.email.split('@')[0];
+                }
+              } catch (err) {
+                // Se fallisce il lookup, continua senza username
+              }
+
               const { error: insertError } = await supabase
                 .from('push_notifications_monitored_urls')
                 .insert({
                   user_id: recipientUserId,
                   url_id: link.id,
+                  username: recipientUsername,
                   status: 'pending',
                   title: 'Novità sul link monitorato',
                   body: `Il link ${link.url} ha subito modifiche.`
