@@ -2785,8 +2785,8 @@ function SetupIniziale({ classifica, onSave, onBack }) {
       const fileName = `piloti/${Date.now()}_${nomePilota.replace(/\s+/g, '_')}`;
       const { data, error } = await supabase.storage.from('loghi-piloti').upload(fileName, fotoPilota, { upsert: true });
       if (!error) {
-        const { publicUrl } = supabase.storage.from('loghi-piloti').getPublicUrl(fileName);
-        fotoUrl = publicUrl;
+        const { data: urlData } = supabase.storage.from('loghi-piloti').getPublicUrl(fileName);
+        fotoUrl = urlData.publicUrl;
       }
     }
     const nuovoPilota = { id: Date.now(), nome: nomePilota, team: teamPilota, colore: colorePilota, punti: 0, distacco: 0, attivo: true, foto: fotoUrl };
