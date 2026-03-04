@@ -1611,6 +1611,7 @@ function ModificaRedattoriSection({ weekend, articoli, onUpdate }) {
 }
 
 function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
+  const [articoliLocali, setArticoliLocali] = useState(articoli)
   const [giorno, setGiorno] = useState('giovedi')
   const [categoria, setCategoria] = useState('live')
   const [titolo, setTitolo] = useState('')
@@ -1650,9 +1651,16 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
     }
     
     if (errorArticolo) console.error('Errore:', errorArticolo)
-    else { alert('✅ Articolo aggiunto!'); setTitolo(''); setRangeGrassetto([]) }
+    else { 
+      // Aggiorna localmente senza chiudere la modale
+      setArticoliLocali([...articoliLocali, { weekend_id: weekend.id, titolo: titolo.trim(), categoria, giorno, stato: 'libero', range_grassetto: rangeGrassetto, id: Date.now() }])
+      alert('✅ Articolo aggiunto!')
+      setTitolo('')
+      setRangeGrassetto([])
+      // Ricarica per tutti gli utenti
+      onUpdate()
+    }
     setSalvando(false)
-    onUpdate()
   }
 
   async function modificaArticolo() {
@@ -1704,9 +1712,22 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
     }
     
     if (errorArticolo) console.error('Errore:', errorArticolo)
-    else { alert('✅ Articolo modificato!'); setEditArticolo(null); setTitolo(''); setRangeGrassetto([]) }
+    else { 
+      // Aggiorna localmente senza chiudere la modale
+      const newArticoli = [...articoliLocali]
+      const idx = newArticoli.findIndex(a => a.id === editArticolo.id)
+      if (idx !== -1) {
+        newArticoli[idx] = { ...newArticoli[idx], titolo: titolo.trim(), categoria, giorno, range_grassetto: rangeGrassetto }
+        setArticoliLocali(newArticoli)
+      }
+      alert('✅ Articolo modificato!')
+      setEditArticolo(null)
+      setTitolo('')
+      setRangeGrassetto([])
+      // Ricarica per tutti gli utenti
+      onUpdate()
+    }
     setSalvando(false)
-    onUpdate()
   }
 
   async function eliminaArticolo(id) {
@@ -1747,10 +1768,15 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
     }
     
     if (errorElimina) console.error('Errore:', errorElimina)
-    else alert('✅ Articolo eliminato!')
+    else {
+      // Aggiorna localmente senza chiudere la modale
+      setArticoliLocali(articoliLocali.filter(a => a.id !== id))
+      alert('✅ Articolo eliminato!')
+      // Ricarica per tutti gli utenti
+      onUpdate()
+    }
     setSalvando(false)
     setDeleteConfirm(null)
-    onUpdate()
   }
 
   function iniziaModifica(a) {
@@ -1797,7 +1823,7 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
       <div>
         <div style={{ fontSize: '16px', fontWeight: '600', marginBottom: '10px' }}>Articoli per Giorno</div>
         {GIORNI_WEEKEND.map(g => {
-          const arts = articoli.filter(a => a.giorno === g.id)
+          const arts = articoliLocali.filter(a => a.giorno === g.id)
           return arts.length > 0 ? (
             <div key={g.id} style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '10px', padding: '10px', background: g.colore, borderRadius: '8px' }}>
