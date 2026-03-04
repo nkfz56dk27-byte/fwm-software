@@ -5159,9 +5159,11 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
           <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: isMobile ? '24px' : '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
           Indietro
         </button>
-        <button onClick={() => setShowAggiungiMenu(true)} style={{ background: '#34C759', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(52, 199, 89, 0.3)' }}>
-          Aggiungi Campionato
-        </button>
+        {(userLocal?.ruolo === 'admin') && (
+          <button onClick={() => setShowAggiungiMenu(true)} style={{ background: '#34C759', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(52, 199, 89, 0.3)' }}>
+            Aggiungi Campionato
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))', gap: '30px', justifyContent: 'center', maxWidth: '900px', width: '100%', maxHeight: window.innerWidth < 768 ? 'calc(100vh - 180px)' : 'auto', overflowY: window.innerWidth < 768 ? 'auto' : 'visible', paddingRight: window.innerWidth < 768 ? '15px' : '0', paddingLeft: window.innerWidth < 768 ? '15px' : '0' }}>

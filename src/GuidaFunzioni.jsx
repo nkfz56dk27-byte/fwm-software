@@ -474,6 +474,15 @@ function GuidaFunzioni({ user, onClose }) {
       return ` ${token} `
     })
 
+    // Ripristina marker formattazione prima di rimuovere HTML
+    text = text.replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+    text = text.replace(/<span[^>]*style="[^"]*color\s*:\s*#DC2626[^"]*"[^>]*>(.*?)<\/span>/gi, '[RED]$1[/RED]')
+    text = text.replace(/<span[^>]*style="[^"]*color\s*:\s*#2563EB[^"]*"[^>]*>(.*?)<\/span>/gi, '[BLUE]$1[/BLUE]')
+    text = text.replace(/<span[^>]*style="[^"]*color\s*:\s*#16A34A[^"]*"[^>]*>(.*?)<\/span>/gi, '[GREEN]$1[/GREEN]')
+    text = text.replace(/<span[^>]*style="[^"]*color\s*:\s*#CA8A04[^"]*"[^>]*>(.*?)<\/span>/gi, '[YELLOW]$1[/YELLOW]')
+    text = text.replace(/<span[^>]*style="[^"]*color\s*:\s*#EA580C[^"]*"[^>]*>(.*?)<\/span>/gi, '[ORANGE]$1[/ORANGE]')
+    text = text.replace(/<span[^>]*style="[^"]*color\s*:\s*#9333EA[^"]*"[^>]*>(.*?)<\/span>/gi, '[PURPLE]$1[/PURPLE]')
+
     const plainWithTokens = text
       .replace(/<p[^>]*style="[^"]*clear:both[^"]*"[^>]*>\s*<\/p>/gi, ' ')
       .replace(/<br\s*\/?>/gi, '\n')
@@ -532,6 +541,20 @@ function GuidaFunzioni({ user, onClose }) {
         })
     }
 
+    const applyFormatting = (text) => {
+      let formatted = escapeHtml(text)
+      // Grassetto: **testo** → <strong>
+      formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      // Colori: [RED]testo[/RED] → <span style="color:...">
+      formatted = formatted.replace(/\[RED\](.*?)\[\/RED\]/gi, '<span style="color:#DC2626;font-weight:600;">$1</span>')
+      formatted = formatted.replace(/\[BLUE\](.*?)\[\/BLUE\]/gi, '<span style="color:#2563EB;font-weight:600;">$1</span>')
+      formatted = formatted.replace(/\[GREEN\](.*?)\[\/GREEN\]/gi, '<span style="color:#16A34A;font-weight:600;">$1</span>')
+      formatted = formatted.replace(/\[YELLOW\](.*?)\[\/YELLOW\]/gi, '<span style="color:#CA8A04;font-weight:600;">$1</span>')
+      formatted = formatted.replace(/\[ORANGE\](.*?)\[\/ORANGE\]/gi, '<span style="color:#EA580C;font-weight:600;">$1</span>')
+      formatted = formatted.replace(/\[PURPLE\](.*?)\[\/PURPLE\]/gi, '<span style="color:#9333EA;font-weight:600;">$1</span>')
+      return formatted.replace(/\n/g, '<br/>')
+    }
+
     if (blocks.length === 0) {
       pushPhotosAt(0)
       parts.push('<p></p>')
@@ -541,7 +564,7 @@ function GuidaFunzioni({ user, onClose }) {
         const isAdminParagraph = Boolean(adminParagraphMatch)
         const cleanBlock = isAdminParagraph ? String(adminParagraphMatch[1] || '').trim() : block
         pushPhotosAt(idx, isAdminParagraph)
-        parts.push(`<p${isAdminParagraph ? ' data-admin-only="true"' : ''} style="margin:0 0 10px 0; line-height:1.6;">${escapeHtml(cleanBlock).replace(/\n/g, '<br/>')}</p>`)
+        parts.push(`<p${isAdminParagraph ? ' data-admin-only="true"' : ''} style="margin:0 0 10px 0; line-height:1.6;">${applyFormatting(cleanBlock)}</p>`)
       })
       pushPhotosAt(blocks.length)
     }
@@ -654,6 +677,150 @@ function GuidaFunzioni({ user, onClose }) {
     setEditingFeatureDescription(newText)
   }
 
+  function applicaGrassetto(textareaRef) {
+    if (!textareaRef) return
+    const textarea = textareaRef
+    const text = editingFeatureDescription || ''
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    if (start === end) {
+      alert('Seleziona del testo da rendere grassetto')
+      return
+    }
+
+    const selectedText = text.substring(start, end)
+    const wrapped = `**${selectedText}**`
+    const newText = text.substring(0, start) + wrapped + text.substring(end)
+    setEditingFeatureDescription(newText)
+
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start, start + wrapped.length)
+    }, 0)
+  }
+
+  function applicaColore(textareaRef, colore) {
+    if (!textareaRef) return
+    const textarea = textareaRef
+    const text = editingFeatureDescription || ''
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    if (start === end) {
+      alert('Seleziona del testo da colorare')
+      return
+    }
+
+    const selectedText = text.substring(start, end)
+    const wrapped = `[${colore}]${selectedText}[/${colore}]`
+    const newText = text.substring(0, start) + wrapped + text.substring(end)
+    setEditingFeatureDescription(newText)
+
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start, start + wrapped.length)
+    }, 0)
+  }
+
+  function rimuoviFormattazione(textareaRef) {
+    if (!textareaRef) return
+    const textarea = textareaRef
+    const text = editingFeatureDescription || ''
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    if (start === end) {
+      alert('Seleziona del testo formattato da cui rimuovere la formattazione')
+      return
+    }
+
+    const selectedText = text.substring(start, end)
+    const cleaned = selectedText
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\[(RED|BLUE|GREEN|YELLOW)\](.*?)\[\/\1\]/gi, '$2')
+
+    const newText = text.substring(0, start) + cleaned + text.substring(end)
+    setEditingFeatureDescription(newText)
+
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start, start + cleaned.length)
+    }, 0)
+  }
+
+  function applicaGrassetto(textareaRef) {
+    if (!textareaRef) return
+    const textarea = textareaRef
+    const text = editingFeatureDescription || ''
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    if (start === end) {
+      alert('Seleziona del testo da rendere grassetto')
+      return
+    }
+
+    const selectedText = text.substring(start, end)
+    const wrapped = `**${selectedText}**`
+    const newText = text.substring(0, start) + wrapped + text.substring(end)
+    setEditingFeatureDescription(newText)
+
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start, start + wrapped.length)
+    }, 0)
+  }
+
+  function applicaColore(textareaRef, colore) {
+    if (!textareaRef) return
+    const textarea = textareaRef
+    const text = editingFeatureDescription || ''
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    if (start === end) {
+      alert('Seleziona del testo da colorare')
+      return
+    }
+
+    const selectedText = text.substring(start, end)
+    const wrapped = `[${colore}]${selectedText}[/${colore}]`
+    const newText = text.substring(0, start) + wrapped + text.substring(end)
+    setEditingFeatureDescription(newText)
+
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start, start + wrapped.length)
+    }, 0)
+  }
+
+  function rimuoviFormattazione(textareaRef) {
+    if (!textareaRef) return
+    const textarea = textareaRef
+    const text = editingFeatureDescription || ''
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+
+    if (start === end) {
+      alert('Seleziona del testo formattato da cui rimuovere la formattazione')
+      return
+    }
+
+    const selectedText = text.substring(start, end)
+    const cleaned = selectedText
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\[(RED|BLUE|GREEN|YELLOW|ORANGE|PURPLE)\](.*?)\[\/\1\]/gi, '$2')
+
+    const newText = text.substring(0, start) + cleaned + text.substring(end)
+    setEditingFeatureDescription(newText)
+
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start, start + cleaned.length)
+    }, 0)
+  }
+
   function spostaFotoInParagrafo(photoId, paragraphIndex) {
     setEditingFeaturePhotos(prev => prev.map(photo => (
       photo.id === photoId ? { ...photo, position: paragraphIndex } : photo
@@ -667,7 +834,7 @@ function GuidaFunzioni({ user, onClose }) {
   function renderPreviewParagrafo() {
     let html = buildHtmlFromEditor(editingFeatureDescription, editingFeaturePhotos)
     
-    // Nel preview in edit, evidenzia i marcatori admin
+    // Nel preview in edit, evidenzia i marcatori admin rimasti (formattazione già applicata in buildHtmlFromEditor)
     html = html.replace(/\[ADMIN\](.*?)\[\/ADMIN\]/g, '<span style="background-color:#FEF3C7;padding:0 2px;border:1px solid #FCD34D;border-radius:2px;font-weight:600;color:#92400E;">$1</span>')
 
     return (
@@ -1113,7 +1280,160 @@ function GuidaFunzioni({ user, onClose }) {
                                 fontFamily: 'inherit'
                               }}
                             />
-                            <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  applicaGrassetto(textareaRef.current)
+                                }}
+                                style={{
+                                  background: '#F3F4F6',
+                                  color: '#1F2937',
+                                  border: '1px solid #D1D5DB',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer'
+                                }}
+                                title="Rendi il testo selezionato grassetto"
+                              >
+                                <strong>B</strong>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  applicaColore(textareaRef.current, 'RED')
+                                }}
+                                style={{
+                                  background: '#FEE2E2',
+                                  color: '#DC2626',
+                                  border: '1px solid #DC2626',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer'
+                                }}
+                                title="Colora il testo di rosso"
+                              >
+                                Rosso
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  applicaColore(textareaRef.current, 'BLUE')
+                                }}
+                                style={{
+                                  background: '#DBEAFE',
+                                  color: '#2563EB',
+                                  border: '1px solid #2563EB',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer'
+                                }}
+                                title="Colora il testo di blu"
+                              >
+                                Blu
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  applicaColore(textareaRef.current, 'GREEN')
+                                }}
+                                style={{
+                                  background: '#DCFCE7',
+                                  color: '#16A34A',
+                                  border: '1px solid #16A34A',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer'
+                                }}
+                                title="Colora il testo di verde"
+                              >
+                                Verde
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  applicaColore(textareaRef.current, 'YELLOW')
+                                }}
+                                style={{
+                                  background: '#FEF9C3',
+                                  color: '#CA8A04',
+                                  border: '1px solid #CA8A04',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer'
+                                }}
+                                title="Colora il testo di giallo"
+                              >
+                                Giallo
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  applicaColore(textareaRef.current, 'ORANGE')
+                                }}
+                                style={{
+                                  background: '#FFEDD5',
+                                  color: '#EA580C',
+                                  border: '1px solid #EA580C',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer'
+                                }}
+                                title="Colora il testo di arancione"
+                              >
+                                Arancione
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  applicaColore(textareaRef.current, 'PURPLE')
+                                }}
+                                style={{
+                                  background: '#F3E8FF',
+                                  color: '#9333EA',
+                                  border: '1px solid #9333EA',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer'
+                                }}
+                                title="Colora il testo di viola"
+                              >
+                                Viola
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  rimuoviFormattazione(textareaRef.current)
+                                }}
+                                style={{
+                                  background: '#FFFFFF',
+                                  color: '#6B7280',
+                                  border: '1px solid #D1D5DB',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer'
+                                }}
+                                title="Rimuovi formattazione dal testo selezionato"
+                              >
+                                ✕ Formato
+                              </button>
+                              <div style={{ width: '100%', borderTop: '1px solid #E5E7EB', margin: '2px 0' }}></div>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
