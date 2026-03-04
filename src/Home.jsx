@@ -352,14 +352,12 @@ function ClassificaView({ classificaId, user, onBack }) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              titolo: '🏁 Nuova classifica',
-              messaggio: `La classifica "${nuovaClassifica.nome}" è stata creata e compilata!`,
-              tipo: 'classifica_creata',
-              targetTopic: 'all-users'
+              title: '🏁 Nuova classifica',
+              body: `La classifica "${nuovaClassifica.nome}" è stata creata e compilata!`
             })
           })
         } catch (err) {
-          console.error('❌ Errore invio notifica FCM:', err)
+          console.error('❌ Errore invio notifica:', err)
         }
         caricaClassifica()
       } else {
