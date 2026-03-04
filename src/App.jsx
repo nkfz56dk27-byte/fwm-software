@@ -178,6 +178,7 @@ import PressPNG from "./assets/press.png"
 import CestinoSVG from "./assets/cestino.svg"
 import CheckSVG from "./assets/check.svg"
 import VidaPNG from "./assets/vida.png"
+import InformazioniPNG from "./assets/inormazioni.png"
 import RitaglioImmagine from './RitaglioImmagine'
 import VidaMenu from './VidaMenu'
 import CalendarioAccrediti from './CalendarioAccrediti'
@@ -186,6 +187,7 @@ import GestioneCategorie from './GestioneCategorie.jsx'
 import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
 import EventiMobileMenu from './EventiMobileMenu.jsx'
+import GuidaFunzioni from './GuidaFunzioni.jsx'
 import { notificaClassificaAggiornata } from './src/pushNotifications.js'
 
 import { initializeOneSignal } from './src/onesignal.js'
@@ -269,6 +271,7 @@ function App() {
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Stato per mostrare il prompt notifiche
   const [notificheUnsubscribe, setNotificheUnsubscribe] = useState(null) // Funzione per stoppare l'ascolto notifiche
   const [toastNotification, setToastNotification] = useState(null) // Toast fallback per notifiche
+  const [showNuovaSchermata, setShowNuovaSchermata] = useState(false) // Stato per la nuova schermata
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -741,6 +744,10 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
+  if (showNuovaSchermata) {
+    return <GuidaFunzioni user={user} onClose={() => setShowNuovaSchermata(false)} />
+  }
+
   const handleSendNotification = async () => {
     await sendPushNotification({
       title: 'Test Notifica',
@@ -786,6 +793,7 @@ function App() {
         notificheNonLetteCalendario={notificheNonLetteCalendario}
         notificheNonLetteDisponibilita={notificheNonLetteDisponibilita}
         onOpenPannelloFonti={() => setShowPannelloFonti(true)}
+        onOpenNuovaSchermata={() => setShowNuovaSchermata(true)}
       />
       {/* Floating button per attivare notifiche ora gestito in Home.jsx, non qui */}
       {/* Disabilitato: NotificationPrompt non più necessario, si usa solo OneSignal */}
@@ -3274,7 +3282,7 @@ function NuovaClassificaModal({ onClose, onSave }) {
 }
 
 /// ===== HOME VIEW =====
-function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheMainMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, onOpenVidaMenu, onOpenEventiMobile, notificheNonLetteCalendario, notificheNonLetteDisponibilita, onOpenPannelloFonti }) {
+function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheMainMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, onOpenVidaMenu, onOpenEventiMobile, notificheNonLetteCalendario, notificheNonLetteDisponibilita, onOpenPannelloFonti, onOpenNuovaSchermata }) {
   const [prossimoEvento, setProssimoEvento] = useState(null)
   
   useEffect(() => {
@@ -3545,6 +3553,49 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
       <div className="home-footer">
         <p className="version-text">Versione 2.0</p>
       </div>
+
+      {/* FLOATING ACTION BUTTON in basso a destra */}
+      <button
+        onClick={onOpenNuovaSchermata}
+        style={{
+          position: 'fixed',
+          bottom: '30px',
+          right: '30px',
+          width: '60px',
+          height: '60px',
+          borderRadius: '50%',
+          background: 'rgba(0, 0, 0, 0.35)',
+          border: '1px solid rgba(255, 255, 255, 0.25)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '28px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)',
+          zIndex: 100,
+          transition: 'transform 0.2s, box-shadow 0.2s'
+        }}
+        title="Apri guida funzioni"
+        aria-label="Apri guida funzioni"
+        onMouseEnter={(e) => {
+          e.target.style.transform = 'scale(1.1)'
+          e.target.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.45)'
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.transform = 'scale(1)'
+          e.target.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.35)'
+        }}
+      >
+        <img
+          src={InformazioniPNG}
+          alt="Guida"
+          style={{
+            width: '100%',
+            height: '100%',
+            filter: 'brightness(0) saturate(100%) invert(89%) sepia(73%) saturate(1500%) hue-rotate(345deg) brightness(103%) contrast(104%)'
+          }}
+        />
+      </button>
     </div>
   )
 }

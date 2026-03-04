@@ -50,6 +50,7 @@ function App() {
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
+  const [showNuovaSchermata, setShowNuovaSchermata] = useState(false) // Stato per la nuova schermata
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Stato per mostrare il prompt notifiche
   // Mostra il prompt notifiche solo se il permesso non è stato concesso E non è stato rifiutato definitivamente
   useEffect(() => {
@@ -281,9 +282,13 @@ function App() {
     return <DisponibilitaWeekend categoria={showDisponibilita.categoria} utenteCorrente={user} onClose={() => setShowDisponibilita(null)} onNotificheChange={() => user && user.username && caricaNotificheDisponibilita(user.username)} />
   }
 
+  if (showNuovaSchermata) {
+    return <NuovaSchermataBianca onClose={() => setShowNuovaSchermata(false)} />
+  }
+
   return (
     <>
-      <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} />
+      <HomeView user={user} onLogout={handleLogout} onOpenGestione={() => setShowGestione(true)} onOpenClassificheMainMenu={() => setShowClassificheMainMenu(true)} onOpenRitaglio={() => setShowRitaglioImmagine(true)} onOpenCalendario={() => setShowCalendario(true)} onOpenDisponibilita={(categoria) => setShowDisponibilita({ categoria })} notificheNonLetteCalendario={notificheNonLetteCalendario} notificheNonLetteDisponibilita={notificheNonLetteDisponibilita} onOpenNuovaSchermata={() => setShowNuovaSchermata(true)} />
       {/* Prompt custom notifiche disattivato: ora solo OneSignal gestisce la richiesta permessi */}
     </>
   )
@@ -2233,7 +2238,7 @@ function NuovaClassificaModal({ onClose, onSave }) {
 }
 
 /// ===== HOME VIEW =====
-function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, onOpenClassificheMainMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita }) {
+function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, onOpenClassificheMainMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, notificheNonLetteCalendario, notificheNonLetteDisponibilita, onOpenNuovaSchermata }) {
   const [categorie, setCategorie] = useState([])
   const [categorieUtente, setCategorieUtente] = useState([])
   
@@ -2377,6 +2382,39 @@ function HomeView({ user, onLogout, onOpenGestione, onOpenDispositiviNotifiche, 
       <div className="home-footer">
         <p className="version-text">Versione 2.0</p>
       </div>
+
+      {/* FLOATING ACTION BUTTON in basso a destra */}
+      <button
+        onClick={onOpenNuovaSchermata}
+        style={{
+          position: 'fixed',
+          bottom: '30px',
+          right: '30px',
+          width: '60px',
+          height: '60px',
+          borderRadius: '50%',
+          background: '#00D9FF',
+          border: 'none',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '28px',
+          boxShadow: '0 4px 12px rgba(0, 217, 255, 0.4)',
+          zIndex: 100,
+          transition: 'transform 0.2s, box-shadow 0.2s'
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.transform = 'scale(1.1)'
+          e.target.style.boxShadow = '0 6px 16px rgba(0, 217, 255, 0.6)'
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.transform = 'scale(1)'
+          e.target.style.boxShadow = '0 4px 12px rgba(0, 217, 255, 0.4)'
+        }}
+      >
+        ➕
+      </button>
     </div>
   )
 }
@@ -2770,4 +2808,36 @@ function NuovaPaginaView({ onClose }) {
   )
 }
 
-export default App
+// ===== NUOVA SCHERMATA BIANCA =====
+function NuovaSchermataBianca({ onClose }) {
+  return (
+    <div className="home-container">
+      <div className="home-header">
+        <div className="header-left">
+          <button className="btn-header" onClick={onClose}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+            </svg>
+            Indietro
+          </button>
+        </div>
+        <div className="header-right"></div>
+      </div>
+
+      <div className="home-title">
+        <h1 className="title-main">Nuova Schermata</h1>
+      </div>
+
+      <div className="home-cards-wrapper">
+        <div style={{ padding: '60px 40px', textAlign: 'center' }}>
+          <p style={{ fontSize: '18px', color: '#666' }}>Schermata pronta per essere popolata 🎯</p>
+          <p style={{ fontSize: '14px', color: '#999', marginTop: '20px' }}>Cosa vuoi aggiungere qui?</p>
+        </div>
+      </div>
+
+      <div className="home-footer">
+        <p className="version-text">Versione 2.0</p>
+      </div>
+    </div>
+  )
+}
