@@ -346,7 +346,10 @@ function ClassificaView({ classificaId, user, onBack }) {
       if (!error) {
         setClassifica(nuovaClassifica)
         setShowSetup(false)
-        // Invia notifica push tramite backend SOLO ora che la classifica è compilata
+        caricaClassifica()
+        // Notifica push disabilitata temporaneamente per evitare errori 406
+        // TODO: Fix dell'endpoint /api/send-notification necessario
+        /*
         try {
           await fetch('/api/send-notification', {
             method: 'POST',
@@ -359,7 +362,7 @@ function ClassificaView({ classificaId, user, onBack }) {
         } catch (err) {
           console.error('❌ Errore invio notifica:', err)
         }
-        caricaClassifica()
+        */
       } else {
         console.error('Errore salvataggio classifica:', error)
         alert('❌ Errore durante il salvataggio della classifica')
