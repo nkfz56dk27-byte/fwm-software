@@ -1640,14 +1640,9 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
           const template = templates[0]
           const articoliTemplate = template.articoli || []
           
-          // Verifica se l'articolo non esiste già nel template
-          const articoloEsiste = articoliTemplate.some(a => a.titolo === titolo.trim() && a.categoria === categoria && a.giorno === giorno)
-          
-          if (!articoloEsiste) {
-            // Aggiungi al template
-            const articoliAggiornati = [...articoliTemplate, { titolo: titolo.trim(), categoria, giorno, range_grassetto: rangeGrassetto }]
-            await supabase.from('template_articoli').update({ articoli: articoliAggiornati }).eq('id', template.id)
-          }
+          // Aggiungi al template (duplicati inclusi)
+          const articoliAggiornati = [...articoliTemplate, { titolo: titolo.trim(), categoria, giorno, range_grassetto: rangeGrassetto }]
+          await supabase.from('template_articoli').update({ articoli: articoliAggiornati }).eq('id', template.id)
         }
       } catch (err) {
         console.error('Errore sincronizzazione template:', err)
@@ -1721,7 +1716,7 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
     const { error: errorElimina } = await supabase.from('articoli').delete().eq('id', id)
     
     if (!errorElimina && weekend.categoria_id && deleteConfirm) {
-      // Sincronizza al template della categoria (rimuovi l'articolo)
+      // Sincronizza al template della categoria (rimuovi UNO con lo stesso titolo+categoria+giorno)
       try {
         const { data: templates } = await supabase
           .from('template_articoli')
@@ -1734,12 +1729,15 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
           const template = templates[0]
           const articoliTemplate = template.articoli || []
           
-          // Rimuovi l'articolo dal template
-          const articoliAggiornati = articoliTemplate.filter(a => !(
-            a.titolo === deleteConfirm.titolo && 
-            a.categoria === deleteConfirm.categoria && 
-            a.giorno === deleteConfirm.giorno
-          ))
+          // Trova il primo articolo con lo stesso titolo, categoria e giorno e rimuovilo
+          let trovato = false
+          const articoliAggiornati = articoliTemplate.filter(a => {
+            if (!trovato && a.titolo === deleteConfirm.titolo && a.categoria === deleteConfirm.categoria && a.giorno === deleteConfirm.giorno) {
+              trovato = true
+              return false // Rimuovi solo il primo
+            }
+            return true
+          })
           
           await supabase.from('template_articoli').update({ articoli: articoliAggiornati }).eq('id', template.id)
         }
