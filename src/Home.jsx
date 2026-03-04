@@ -318,15 +318,35 @@ function ClassificaView({ classificaId, user, onBack }) {
 
   const caricaClassifica = async () => {
     try {
-      const { data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single()
-      if (!error && data) {
-        setClassifica(data)
-        if (!data.piloti || data.piloti.length === 0) {
+      console.log('📖 Caricando classificazione con ID:', classificaId)
+      // Senza .single() per evitare malformazioni della query
+      const { data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId)
+      console.log('📖 Dati ricevuti dal database:', data)
+      console.log('📖 Errore:', error)
+      
+      if (!error && data && data.length > 0) {
+        const classifica = data[0]
+        console.log('📖 Classificazione caricata:', classifica.nome)
+        console.log('📖 Piloti array:', classifica.piloti)
+        console.log('📖 Piloti length:', classifica.piloti?.length)
+        console.log('📖 GP array:', classifica.gp)
+        console.log('📖 GP length:', classifica.gp?.length)
+        
+        setClassifica(classifica)
+        
+        if (!classifica.piloti || classifica.piloti.length === 0) {
+          console.warn('⚠️ Piloti vuoti o mancanti, mostro setup')
           setShowSetup(true)
+        } else {
+          console.log('✅ Classificazione completa, nascondo setup')
+          setShowSetup(false)
         }
+      } else {
+        console.error('❌ Errore caricaClassifica:', error)
       }
       setLoading(false)
     } catch (err) {
+      console.error('❌ Exception in caricaClassifica:', err)
       setLoading(false)
     }
   }
@@ -342,27 +362,26 @@ function ClassificaView({ classificaId, user, onBack }) {
         numero_sprint_stagione: nuovaClassifica.numero_sprint_stagione || nuovaClassifica.numeroSprint || null,
       }
 
+      console.log('💾 Salvando classificazione:', updateObj)
       const { error } = await supabase.from('classifiche').update(updateObj).eq('id', classificaId)
       if (!error) {
+        console.log('✅ Classificazione salvata con successo')
+        // Aggiorna lo stato locale con i dati salvati
         setClassifica(nuovaClassifica)
         setShowSetup(false)
-        caricaClassifica()
-        // Notifica push disabilitata temporaneamente per evitare errori 406
-        // TODO: Fix dell'endpoint /api/send-notification necessario
-        /*
-        try {
-          await fetch('/api/send-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              title: '🏁 Nuova classifica',
-              body: `La classifica "${nuovaClassifica.nome}" è stata creata e compilata!`
-            })
-          })
-        } catch (err) {
-          console.error('❌ Errore invio notifica:', err)
+        
+        // Verifica che i dati siano stati salvati leggendoli dal db
+        console.log('🔍 Verificando salvataggio dal database...')
+        const { data: verifyData, error: verifyError } = await supabase
+          .from('classifiche')
+          .select('piloti, gp')
+          .eq('id', classificaId)
+        
+        if (verifyError) {
+          console.error('❌ Errore verifica salvataggio:', verifyError)
+        } else if (verifyData && verifyData.length > 0) {
+          console.log('✅ Dati verificati nel database - Piloti:', verifyData[0].piloti?.length, 'GP:', verifyData[0].gp?.length)
         }
-        */
       } else {
         console.error('Errore salvataggio classifica:', error)
         alert('❌ Errore durante il salvataggio della classifica')

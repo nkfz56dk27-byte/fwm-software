@@ -828,22 +828,46 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
 
   const caricaClassifica = async () => {
     try {
+      console.log('📖 Caricando classificazione con ID:', classificaId)
       // Prima cerca nella tabella standard
-      let { data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId).single()
-      if (!error && data) {
-        setClassifica(data)
-        if (!data.piloti || data.piloti.length === 0) {
+      let { data, error } = await supabase.from('classifiche').select('*').eq('id', classificaId)
+      console.log('📖 Dati ricevuti dal database:', data)
+      console.log('📖 Errore:', error)
+      
+      if (!error && data && data.length > 0) {
+        const classifica = data[0]
+        console.log('📖 Classificazione caricata:', classifica.nome)
+        console.log('📖 Piloti array:', classifica.piloti)
+        console.log('📖 Piloti length:', classifica.piloti?.length)
+        console.log('📖 GP array:', classifica.gp)
+        console.log('📖 GP length:', classifica.gp?.length)
+        
+        setClassifica(classifica)
+        if (!classifica.piloti || classifica.piloti.length === 0) {
+          console.warn('⚠️ Piloti vuoti o mancanti, mostro setup')
           setShowSetup(true)
+        } else {
+          console.log('✅ Classificazione completa, nascondo setup')
+          setShowSetup(false)
         }
         setLoading(false)
         return
       }
       // Se non trovata, cerca nella tabella custom
-      let customRes = await supabase.from('classifiche_custom').select('*').eq('id', classificaId).single()
-      if (!customRes.error && customRes.data) {
-        setClassifica(customRes.data)
-        if (!customRes.data.piloti || customRes.data.piloti.length === 0) {
+      let customRes = await supabase.from('classifiche_custom').select('*').eq('id', classificaId)
+      if (!customRes.error && customRes.data && customRes.data.length > 0) {
+        const classifica = customRes.data[0]
+        console.log('📖 Classificazione custom caricata:', classifica.nome)
+        console.log('📖 Piloti array:', classifica.piloti)
+        console.log('📖 Piloti length:', classifica.piloti?.length)
+        
+        setClassifica(classifica)
+        if (!classifica.piloti || classifica.piloti.length === 0) {
+          console.warn('⚠️ Piloti vuoti o mancanti, mostro setup')
           setShowSetup(true)
+        } else {
+          console.log('✅ Classificazione completa, nascondo setup')
+          setShowSetup(false)
         }
         setLoading(false)
         return
@@ -865,19 +889,37 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         numero_sprint_stagione: nuovaClassifica.numero_sprint_stagione || nuovaClassifica.numeroSprint || null,
       }
 
-      const { error } = await supabase.from('classifiche').update(updateObj).eq('id', classificaId)
+      console.log('💾 Salvando classificazione:', updateObj)
+      
+      // Determina la tabella corretta: controlla prima se esiste in classifiche_custom
+      let targetTable = 'classifiche'
+      const { data: customCheck } = await supabase.from('classifiche_custom').select('id').eq('id', classificaId)
+      if (customCheck && customCheck.length > 0) {
+        targetTable = 'classifiche_custom'
+        console.log('📝 Salvataggio su tabella custom')
+      } else {
+        console.log('📝 Salvataggio su tabella standard')
+      }
+      
+      const { error } = await supabase.from(targetTable).update(updateObj).eq('id', classificaId)
       if (!error) {
+        console.log('✅ Classificazione salvata con successo su', targetTable)
+        // Aggiorna lo stato locale con i dati salvati
         setClassifica(nuovaClassifica)
         setShowSetup(false)
         
-        // INVIA NOTIFICA PUSH per classifica aggiornata (sistema intelligente multi-device)
-        await notificaClassificaAggiornata(
-          nuovaClassifica.nome,
-          'Nuovi risultati disponibili',
-          user.username  // ← Sistema multi-device: invia solo ad altri dispositivi
-        )
+        // Verifica che i dati siano stati salvati leggendoli dal db
+        console.log('🔍 Verificando salvataggio dal database...')
+        const { data: verifyData, error: verifyError } = await supabase
+          .from(targetTable)
+          .select('piloti, gp')
+          .eq('id', classificaId)
         
-        caricaClassifica()
+        if (verifyError) {
+          console.error('❌ Errore verifica salvataggio:', verifyError)
+        } else if (verifyData && verifyData.length > 0) {
+          console.log('✅ Dati verificati nel database - Piloti:', verifyData[0].piloti?.length, 'GP:', verifyData[0].gp?.length)
+        }
       } else {
         console.error('Errore salvataggio classifica:', error)
         alert('❌ Errore durante il salvataggio della classifica')
@@ -2951,11 +2993,11 @@ function SetupIniziale({ classifica, onSave, onBack }) {
           <div style={{ display: 'flex', gap: '20px', marginBottom: '40px', background: '#f0f0f0', padding: '30px', borderRadius: '15px' }}>
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600', textAlign: 'center' }}>Numero GP:</label>
-              <input type="number" value={numeroGP} onChange={(e) => setNumeroGP(parseInt(e.target.value))} style={{ width: '100%', padding: '15px', borderRadius: '10px', border: 'none', fontSize: '24px', fontWeight: 'bold', textAlign: 'center' }} />
+              <input type="number" value={numeroGP || ''} onChange={(e) => setNumeroGP(e.target.value ? parseInt(e.target.value) : 0)} style={{ width: '100%', padding: '15px', borderRadius: '10px', border: 'none', fontSize: '24px', fontWeight: 'bold', textAlign: 'center' }} />
             </div>
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600', textAlign: 'center' }}>Numero Sprint:</label>
-              <input type="number" value={numeroSprint} onChange={(e) => setNumeroSprint(parseInt(e.target.value))} style={{ width: '100%', padding: '15px', borderRadius: '10px', border: 'none', fontSize: '24px', fontWeight: 'bold', textAlign: 'center' }} />
+              <input type="number" value={numeroSprint || ''} onChange={(e) => setNumeroSprint(e.target.value ? parseInt(e.target.value) : 0)} style={{ width: '100%', padding: '15px', borderRadius: '10px', border: 'none', fontSize: '24px', fontWeight: 'bold', textAlign: 'center' }} />
             </div>
           </div>
           <button onClick={() => setStep(2)} style={{ width: '100%', padding: '15px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>Avanti</button>
@@ -3109,12 +3151,12 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
     let classifica = classifiche.find(c => c.id === id);
     if (!classifica) {
       // Prova a caricare da Supabase se non trovata localmente
-      let { data } = await supabase.from('classifiche').select('*').eq('id', id).single();
-      if (!data) {
-        let res = await supabase.from('classifiche_custom').select('*').eq('id', id).single();
-        data = res.data;
+      let { data } = await supabase.from('classifiche').select('*').eq('id', id);
+      if (!data || data.length === 0) {
+        let res = await supabase.from('classifiche_custom').select('*').eq('id', id);
+        data = res.data && res.data.length > 0 ? res.data : null;
       }
-      classifica = data;
+      classifica = data && data.length > 0 ? data[0] : null;
     }
     // Cancella tutte le foto dei piloti dal bucket se presenti
     if (classifica && Array.isArray(classifica.piloti)) {
