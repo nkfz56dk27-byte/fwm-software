@@ -140,6 +140,13 @@ function serializeFeature(title = '', description = '', adminOnly = false) {
 function renderRichDescription(description = '', isAdmin = false) {
   let html = String(description || '')
   
+  // Gestione paragrafi interi admin-only in formato testo
+  if (!isAdmin) {
+    html = html.replace(/\[ADMIN_PAR\]([\s\S]*?)\[\/ADMIN_PAR\]/g, '')
+  } else {
+    html = html.replace(/\[ADMIN_PAR\]([\s\S]*?)\[\/ADMIN_PAR\]/g, '$1')
+  }
+  
   // Se non admin, rimuovi il contenuto [ADMIN]...[/ADMIN]
   if (!isAdmin) {
     html = html.replace(/\[ADMIN\](.*?)\[\/ADMIN\]/g, '')
@@ -150,6 +157,12 @@ function renderRichDescription(description = '', isAdmin = false) {
   
   const tempDiv = document.createElement('div')
   tempDiv.innerHTML = html
+
+  // Rimuovi blocchi marcati admin-only (paragrafi/foto) per utenti non admin
+  if (!isAdmin) {
+    tempDiv.querySelectorAll('[data-admin-only="true"]').forEach(el => el.remove())
+  }
+
   const decodedHtml = tempDiv.innerHTML
   
   return (
@@ -401,6 +414,10 @@ function GuidaFunzioni({ user, onClose }) {
     .filter(Boolean)
 
   function getImageStyle(align = 'left') {
+    if (align === 'full') {
+      const fullWidth = isMobile ? '100%' : 'min(100%, 1200px)'
+      return `display:block; float:none; clear:both; width:${fullWidth}; max-width:100%; aspect-ratio:1200/729; height:auto; object-fit:cover; border-radius:10px; margin:0 auto 14px auto;`
+    }
     const baseSize = isMobile ? 'min(42vw, 150px)' : 'min(36vw, 240px)'
     const margin = align === 'right' ? '0 0 12px 12px' : '0 12px 12px 0'
     return `float:${align}; width:${baseSize}; max-width:100%; height:auto; border-radius:8px; margin:${margin};`
@@ -418,28 +435,40 @@ function GuidaFunzioni({ user, onClose }) {
     const extracted = []
     let imgIdx = 1
 
-    text = text.replace(/<img[^>]*src="([^"]+)"[^>]*style="([^"]*)"[^>]*>/gi, (_m, src, style) => {
-      const token = `[[IMG_${imgIdx}]]`
-      const align = /float\s*:\s*right/i.test(style || '') ? 'right' : 'left'
-      extracted.push({
-        token,
-        id: `img_${Date.now()}_${imgIdx}_${Math.random().toString(36).slice(2, 7)}`,
-        src,
-        alt: `Foto ${imgIdx}`,
-        align
-      })
-      imgIdx += 1
-      return ` ${token} `
+    // Ripristina marker testo per paragrafi admin-only salvati in HTML
+    text = text.replace(/<p[^>]*data-admin-only="true"[^>]*>([\s\S]*?)<\/p>/gi, (_m, inner) => {
+      return `<p>[ADMIN_PAR]${inner}[/ADMIN_PAR]</p>`
     })
 
-    text = text.replace(/<img[^>]*src="([^"]+)"[^>]*>/gi, (_m, src) => {
+    text = text.replace(/<img([^>]*)>/gi, (_m, attrs) => {
+      const srcMatch = String(attrs || '').match(/src="([^"]+)"/i)
+      if (!srcMatch?.[1]) return _m
+
+      const src = srcMatch[1]
+      const styleMatch = String(attrs || '').match(/style="([^"]*)"/i)
+      const style = styleMatch?.[1] || ''
+      const layoutMatch = String(attrs || '').match(/data-layout="([^"]+)"/i)
+      const layout = (layoutMatch?.[1] || '').toLowerCase()
+
+      let align = 'left'
+      if (layout === 'left' || layout === 'right' || layout === 'full') {
+        align = layout
+      } else if (/aspect-ratio\s*:\s*1200\s*\/\s*729/i.test(style || '')) {
+        align = 'full'
+      } else if (/float\s*:\s*right/i.test(style || '')) {
+        align = 'right'
+      }
+
+      const adminOnly = /data-admin-only\s*=\s*"true"/i.test(String(attrs || ''))
+
       const token = `[[IMG_${imgIdx}]]`
       extracted.push({
         token,
         id: `img_${Date.now()}_${imgIdx}_${Math.random().toString(36).slice(2, 7)}`,
         src,
         alt: `Foto ${imgIdx}`,
-        align: 'left'
+        align,
+        adminOnly
       })
       imgIdx += 1
       return ` ${token} `
@@ -461,11 +490,14 @@ function GuidaFunzioni({ user, onClose }) {
 
     const photos = extracted.map(photo => {
       const foundIndex = blocksWithTokens.findIndex(block => block.includes(photo.token))
+      const rawBlock = foundIndex === -1 ? '' : blocksWithTokens[foundIndex]
+      const blockIsAdmin = /\[ADMIN_PAR\][\s\S]*?\[\/ADMIN_PAR\]/i.test(rawBlock)
       return {
         id: photo.id,
         src: photo.src,
         alt: photo.alt,
         align: photo.align,
+        adminOnly: Boolean(photo.adminOnly || blockIsAdmin),
         position: foundIndex === -1 ? blocksWithTokens.length : foundIndex
       }
     })
@@ -489,11 +521,14 @@ function GuidaFunzioni({ user, onClose }) {
       .filter(Boolean)
 
     const parts = []
-    const pushPhotosAt = (pos) => {
+    const pushPhotosAt = (pos, adminOnly = false) => {
       photos
         .filter(photo => Number(photo.position ?? 0) === pos && photo?.src)
         .forEach((photo, idx) => {
-          parts.push(`<img src="${photo.src}" alt="${photo.alt || `Foto ${idx + 1}`}" style="${getImageStyle(photo.align || 'left')}" />`)
+          const align = photo.align || 'left'
+          const isAdminPhoto = Boolean(photo.adminOnly || adminOnly)
+          const adminAttr = isAdminPhoto ? ' data-admin-only="true"' : ''
+          parts.push(`<img${adminAttr} data-layout="${align}" src="${photo.src}" alt="${photo.alt || `Foto ${idx + 1}`}" style="${getImageStyle(align)}" />`)
         })
     }
 
@@ -502,8 +537,11 @@ function GuidaFunzioni({ user, onClose }) {
       parts.push('<p></p>')
     } else {
       blocks.forEach((block, idx) => {
-        pushPhotosAt(idx)
-        parts.push(`<p style="margin:0 0 10px 0; line-height:1.6;">${escapeHtml(block).replace(/\n/g, '<br/>')}</p>`)
+        const adminParagraphMatch = String(block).match(/^\s*\[ADMIN_PAR\]([\s\S]*?)\[\/ADMIN_PAR\]\s*$/i)
+        const isAdminParagraph = Boolean(adminParagraphMatch)
+        const cleanBlock = isAdminParagraph ? String(adminParagraphMatch[1] || '').trim() : block
+        pushPhotosAt(idx, isAdminParagraph)
+        parts.push(`<p${isAdminParagraph ? ' data-admin-only="true"' : ''} style="margin:0 0 10px 0; line-height:1.6;">${escapeHtml(cleanBlock).replace(/\n/g, '<br/>')}</p>`)
       })
       pushPhotosAt(blocks.length)
     }
@@ -512,32 +550,41 @@ function GuidaFunzioni({ user, onClose }) {
     return parts.join('')
   }
 
-  function inserisciFoto() {
+  async function inserisciFoto() {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/*'
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const file = e.target?.files?.[0]
       if (!file) return
 
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const url = String(event.target?.result || '')
-        if (!url) return
+      // Upload su Supabase Storage invece di base64
+      const fileName = `guida/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      const { data, error } = await supabase.storage
+        .from('loghi-piloti')
+        .upload(fileName, file, { upsert: true })
 
-        const newIndex = editingFeaturePhotos.length + 1
-        setEditingFeaturePhotos(prev => [
-          ...prev,
-          {
-            id: `img_${Date.now()}_${newIndex}`,
-            src: url,
-            alt: `Foto ${newIndex}`,
-            align: 'left',
-            position: paragraphBlocks.length
-          }
-        ])
+      if (error) {
+        console.error('Errore upload foto:', error)
+        alert('Errore caricamento foto')
+        return
       }
-      reader.readAsDataURL(file)
+
+      const { data: urlData } = supabase.storage
+        .from('loghi-piloti')
+        .getPublicUrl(fileName)
+
+      const newIndex = editingFeaturePhotos.length + 1
+      setEditingFeaturePhotos(prev => [
+        ...prev,
+        {
+          id: `img_${Date.now()}_${newIndex}`,
+          src: urlData.publicUrl,
+          alt: `Foto ${newIndex}`,
+          align: 'left',
+          position: paragraphBlocks.length
+        }
+      ])
     }
     input.click()
   }
@@ -546,6 +593,65 @@ function GuidaFunzioni({ user, onClose }) {
     setEditingFeaturePhotos(prev => prev.map(photo => (
       photo.id === photoId ? { ...photo, align } : photo
     )))
+  }
+
+  function impostaFotoAdminOnly(photoId, adminOnly) {
+    setEditingFeaturePhotos(prev => prev.map(photo => (
+      photo.id === photoId ? { ...photo, adminOnly } : photo
+    )))
+  }
+
+  function marcaParagrafoInteroAdmin(textareaRef) {
+    if (!textareaRef) return
+    const textarea = textareaRef
+    const text = editingFeatureDescription || ''
+    const cursorStart = textarea.selectionStart
+    const cursorEnd = textarea.selectionEnd
+
+    const startBoundary = text.lastIndexOf('\n\n', Math.max(0, cursorStart - 1))
+    const endBoundary = text.indexOf('\n\n', cursorEnd)
+    const start = startBoundary === -1 ? 0 : startBoundary + 2
+    const end = endBoundary === -1 ? text.length : endBoundary
+
+    const paragraph = text.substring(start, end)
+    if (!paragraph.trim()) {
+      alert('Posizionati dentro un paragrafo con testo')
+      return
+    }
+    if (/^\s*\[ADMIN_PAR\][\s\S]*\[\/ADMIN_PAR\]\s*$/i.test(paragraph)) {
+      alert('Questo paragrafo è già admin-only')
+      return
+    }
+
+    const wrapped = `[ADMIN_PAR]${paragraph.trim()}[/ADMIN_PAR]`
+    const newText = `${text.substring(0, start)}${wrapped}${text.substring(end)}`
+    setEditingFeatureDescription(newText)
+  }
+
+  function togliMarcaturaParagrafoAdmin(textareaRef) {
+    if (!textareaRef) return
+    const textarea = textareaRef
+    const text = editingFeatureDescription || ''
+    const cursorStart = textarea.selectionStart
+    const cursorEnd = textarea.selectionEnd
+
+    const startBoundary = text.lastIndexOf('\n\n', Math.max(0, cursorStart - 1))
+    const endBoundary = text.indexOf('\n\n', cursorEnd)
+    const start = startBoundary === -1 ? 0 : startBoundary + 2
+    const end = endBoundary === -1 ? text.length : endBoundary
+
+    const paragraph = text.substring(start, end)
+    const cleaned = paragraph
+      .replace(/^\s*\[ADMIN_PAR\]\s*/i, '')
+      .replace(/\s*\[\/ADMIN_PAR\]\s*$/i, '')
+
+    if (cleaned === paragraph) {
+      alert('Il paragrafo corrente non è admin-only')
+      return
+    }
+
+    const newText = `${text.substring(0, start)}${cleaned}${text.substring(end)}`
+    setEditingFeatureDescription(newText)
   }
 
   function spostaFotoInParagrafo(photoId, paragraphIndex) {
@@ -993,7 +1099,7 @@ function GuidaFunzioni({ user, onClose }) {
                               value={editingFeatureDescription}
                               onChange={(e) => setEditingFeatureDescription(e.target.value)}
                               onClick={(e) => e.stopPropagation()}
-                              placeholder="1) Scrivi prima il testo. 2) Poi trascina le foto nelle zone 'prima del paragrafo'."
+                              placeholder="1) Scrivi prima il testo. 2) Poi trascina le foto nelle zone 'prima del paragrafo'. 3) Usa 'Paragrafo Admin' per rendere interi blocchi (e foto) visibili solo agli admin."
                               style={{
                                 width: '100%',
                                 minHeight: '130px',
@@ -1045,6 +1151,44 @@ function GuidaFunzioni({ user, onClose }) {
                                 title="Rimuovi marcatura [ADMIN] dal testo selezionato"
                               >
                                 Togli Marca
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  marcaParagrafoInteroAdmin(textareaRef.current)
+                                }}
+                                style={{
+                                  background: '#FFEDD5',
+                                  color: '#9A3412',
+                                  border: '1px solid #FDBA74',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer'
+                                }}
+                                title="Rende tutto il paragrafo corrente admin-only"
+                              >
+                                Paragrafo Admin
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  togliMarcaturaParagrafoAdmin(textareaRef.current)
+                                }}
+                                style={{
+                                  background: '#E0F2FE',
+                                  color: '#075985',
+                                  border: '1px solid #7DD3FC',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  cursor: 'pointer'
+                                }}
+                                title="Rimuove admin-only dal paragrafo corrente"
+                              >
+                                Togli Paragrafo
                               </button>
                             </div>
                           </div>
@@ -1154,6 +1298,52 @@ function GuidaFunzioni({ user, onClose }) {
                                           title="Blocca a destra"
                                         >
                                           R
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            impostaAllineamentoFoto(photo.id, 'full')
+                                          }}
+                                          style={{
+                                            background: photo.align === 'full' ? '#2563EB' : '#64748B',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '3px',
+                                            width: '20px',
+                                            height: '20px',
+                                            cursor: 'pointer',
+                                            fontSize: '11px',
+                                            flex: 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                          }}
+                                          title="Immagine grande (1200x729 responsive)"
+                                        >
+                                          F
+                                        </button>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            impostaFotoAdminOnly(photo.id, !photo.adminOnly)
+                                          }}
+                                          style={{
+                                            background: photo.adminOnly ? '#D97706' : '#64748B',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '3px',
+                                            width: '20px',
+                                            height: '20px',
+                                            cursor: 'pointer',
+                                            fontSize: '10px',
+                                            flex: 1,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                          }}
+                                          title={photo.adminOnly ? 'Foto visibile solo agli admin' : 'Rendi foto visibile solo agli admin'}
+                                        >
+                                          A
                                         </button>
                                         <button
                                           onClick={(e) => {
