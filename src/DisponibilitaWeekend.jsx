@@ -239,82 +239,6 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     if (!error) caricaWeekends()
   }
 
-  async function sincronizzaArticoliDaTemplate(weekend) {
-    try {
-      if (!weekend.categoria_id) {
-        alert('Il weekend non ha una categoria assegnata')
-        return
-      }
-
-      // Carica il template della categoria
-      const { data: templates } = await supabase
-        .from('template_articoli')
-        .select('*')
-        .eq('categoria_id', weekend.categoria_id)
-        .order('nome')
-
-      if (!templates || templates.length === 0) {
-        alert('Non ci sono template disponibili per questa categoria')
-        return
-      }
-
-      // Se c'è un solo template, usalo direttamente
-      // Altrimenti mostra una scelta (per ora usamo il primo)
-      const template = templates[0]
-      if (!template.articoli || template.articoli.length === 0) {
-        alert('Il template non contiene articoli')
-        return
-      }
-
-      // Carica gli articoli già presenti nel weekend
-      const { data: articoliEsistenti } = await supabase
-        .from('articoli')
-        .select('titolo, categoria, giorno')
-        .eq('weekend_id', weekend.id)
-
-      // Crea un set dei titoli degli articoli esistenti (per evitare duplicati)
-      const titoliesistenti = new Set(
-        (articoliEsistenti || []).map(a => `${a.titolo}|${a.categoria}|${a.giorno}`)
-      )
-
-      // Filtra gli articoli del template che non sono già presenti
-      const articoliDaAggiungere = (template.articoli || []).filter(t => {
-        const key = `${t.titolo}|${t.categoria}|${t.giorno}`
-        return !titoliesistenti.has(key)
-      })
-
-      if (articoliDaAggiungere.length === 0) {
-        alert('Il template non contiene articoli nuovi da aggiungere')
-        return
-      }
-
-      // Inserisci i nuovi articoli
-      const articoliDaInserire = articoliDaAggiungere.map(t => ({
-        weekend_id: weekend.id,
-        titolo: t.titolo,
-        categoria: t.categoria,
-        giorno: t.giorno,
-        stato: 'libero',
-        range_grassetto: t.range_grassetto || []
-      }))
-
-      const { error: errorArticoli } = await supabase
-        .from('articoli')
-        .insert(articoliDaInserire)
-
-      if (errorArticoli) {
-        console.error('Errore sincronizzazione articoli:', errorArticoli)
-        alert('Errore nella sincronizzazione degli articoli')
-      } else {
-        alert(`Sincronizzazione completata: ${articoliDaAggiungere.length} articoli aggiunti`)
-        caricaWeekends()
-      }
-    } catch (err) {
-      console.error('Errore sincronizzazione:', err)
-      alert('Errore durante la sincronizzazione')
-    }
-  }
-
   async function caricaNotifiche() {
     try {
       const username = utenteRef.current?.username;
@@ -553,7 +477,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '900px', margin: '0 auto' }}>
             {weekends.map(weekend => (
-              <WeekendCard key={weekend.id} weekend={weekend} categorie={categorie} isAdmin={isAdmin} nomeUtente={nomeRedattore} modalitaModifica={modalitaModifica} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} onSincronizza={sincronizzaArticoliDaTemplate} isMobile={isMobile} />
+              <WeekendCard key={weekend.id} weekend={weekend} categorie={categorie} isAdmin={isAdmin} nomeUtente={nomeRedattore} modalitaModifica={modalitaModifica} onDelete={() => eliminaWeekend(weekend.id)} onUpdate={caricaWeekends} isMobile={isMobile} />
             ))}
           </div>
         )}
@@ -579,10 +503,9 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   )
 }
 
-function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica, onDelete, onUpdate, onSincronizza, isMobile }) {
+function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica, onDelete, onUpdate, isMobile }) {
   const [showDettaglio, setShowDettaglio] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [sincronizzando, setSincronizzando] = useState(false)
   
   const articoli = weekend.articoli || []
   const totale = articoli.length
@@ -633,20 +556,7 @@ function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica
       </button>
 
       {isAdmin && modalitaModifica && (
-        <>
-          <button 
-            onClick={() => {
-              setSincronizzando(true)
-              onSincronizza(weekend).finally(() => setSincronizzando(false))
-            }} 
-            disabled={sincronizzando}
-            style={{ position: 'absolute', top: '8px', right: '50px', background: 'white', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: sincronizzando ? 'not-allowed' : 'pointer', fontSize: '16px', color: sincronizzando ? '#ccc' : '#007AFF', boxShadow: '0 2px 5px rgba(0,0,0,0.2)', opacity: sincronizzando ? 0.6 : 1 }}
-            title="Sincronizza articoli dal template"
-          >
-            🔄
-          </button>
-          <button onClick={() => setShowDeleteConfirm(true)} style={{ position: 'absolute', top: '8px', right: '8px', background: 'white', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '20px', color: '#FF3B30', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>✕</button>
-        </>
+        <button onClick={() => setShowDeleteConfirm(true)} style={{ position: 'absolute', top: '8px', right: '8px', background: 'white', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '20px', color: '#FF3B30', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>✕</button>
       )}
 
       {showDeleteConfirm && (
@@ -1712,8 +1622,39 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
   async function aggiungiArticolo() {
     if (!titolo.trim()) return
     setSalvando(true)
-    const { error } = await supabase.from('articoli').insert({ weekend_id: weekend.id, titolo: titolo.trim(), categoria, giorno, stato: 'libero', range_grassetto: rangeGrassetto })
-    if (error) console.error('Errore:', error)
+    
+    // Aggiungi articolo al weekend
+    const { error: errorArticolo } = await supabase.from('articoli').insert({ weekend_id: weekend.id, titolo: titolo.trim(), categoria, giorno, stato: 'libero', range_grassetto: rangeGrassetto })
+    
+    if (!errorArticolo && weekend.categoria_id) {
+      // Sincronizza al template della categoria
+      try {
+        const { data: templates } = await supabase
+          .from('template_articoli')
+          .select('*')
+          .eq('categoria_id', weekend.categoria_id)
+          .order('nome')
+          .limit(1)
+        
+        if (templates && templates.length > 0) {
+          const template = templates[0]
+          const articoliTemplate = template.articoli || []
+          
+          // Verifica se l'articolo non esiste già nel template
+          const articoloEsiste = articoliTemplate.some(a => a.titolo === titolo.trim() && a.categoria === categoria && a.giorno === giorno)
+          
+          if (!articoloEsiste) {
+            // Aggiungi al template
+            const articoliAggiornati = [...articoliTemplate, { titolo: titolo.trim(), categoria, giorno, range_grassetto: rangeGrassetto }]
+            await supabase.from('template_articoli').update({ articoli: articoliAggiornati }).eq('id', template.id)
+          }
+        }
+      } catch (err) {
+        console.error('Errore sincronizzazione template:', err)
+      }
+    }
+    
+    if (errorArticolo) console.error('Errore:', errorArticolo)
     else { alert('✅ Articolo aggiunto!'); setTitolo(''); setRangeGrassetto([]) }
     setSalvando(false)
     onUpdate()
@@ -1722,8 +1663,52 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
   async function modificaArticolo() {
     if (!editArticolo || !titolo.trim()) return
     setSalvando(true)
-    const { error } = await supabase.from('articoli').update({ titolo: titolo.trim(), categoria, giorno, range_grassetto: rangeGrassetto }).eq('id', editArticolo.id)
-    if (error) console.error('Errore:', error)
+    
+    // Modifica articolo nel weekend
+    const { error: errorArticolo } = await supabase.from('articoli').update({ titolo: titolo.trim(), categoria, giorno, range_grassetto: rangeGrassetto }).eq('id', editArticolo.id)
+    
+    if (!errorArticolo && weekend.categoria_id) {
+      // Sincronizza al template della categoria
+      try {
+        const { data: templates } = await supabase
+          .from('template_articoli')
+          .select('*')
+          .eq('categoria_id', weekend.categoria_id)
+          .order('nome')
+          .limit(1)
+        
+        if (templates && templates.length > 0) {
+          const template = templates[0]
+          const articoliTemplate = template.articoli || []
+          
+          // Trova e aggiorna l'articolo nel template
+          const indexArticolo = articoliTemplate.findIndex(a => 
+            a.titolo === editArticolo.titolo && 
+            a.categoria === editArticolo.categoria && 
+            a.giorno === editArticolo.giorno
+          )
+          
+          if (indexArticolo !== -1) {
+            // Aggiorna l'articolo esistente nel template
+            articoliTemplate[indexArticolo] = { titolo: titolo.trim(), categoria, giorno, range_grassetto: rangeGrassetto }
+            await supabase.from('template_articoli').update({ articoli: articoliTemplate }).eq('id', template.id)
+          } else {
+            // Se non trovato, aggiungi il nuovo e rimuovi il vecchio
+            const articoliAggiornati = articoliTemplate.filter(a => !(
+              a.titolo === editArticolo.titolo && 
+              a.categoria === editArticolo.categoria && 
+              a.giorno === editArticolo.giorno
+            ))
+            articoliAggiornati.push({ titolo: titolo.trim(), categoria, giorno, range_grassetto: rangeGrassetto })
+            await supabase.from('template_articoli').update({ articoli: articoliAggiornati }).eq('id', template.id)
+          }
+        }
+      } catch (err) {
+        console.error('Errore sincronizzazione template:', err)
+      }
+    }
+    
+    if (errorArticolo) console.error('Errore:', errorArticolo)
     else { alert('✅ Articolo modificato!'); setEditArticolo(null); setTitolo(''); setRangeGrassetto([]) }
     setSalvando(false)
     onUpdate()
@@ -1731,8 +1716,39 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
 
   async function eliminaArticolo(id) {
     setSalvando(true)
-    const { error } = await supabase.from('articoli').delete().eq('id', id)
-    if (error) console.error('Errore:', error)
+    
+    // Elimina articolo dal weekend
+    const { error: errorElimina } = await supabase.from('articoli').delete().eq('id', id)
+    
+    if (!errorElimina && weekend.categoria_id && deleteConfirm) {
+      // Sincronizza al template della categoria (rimuovi l'articolo)
+      try {
+        const { data: templates } = await supabase
+          .from('template_articoli')
+          .select('*')
+          .eq('categoria_id', weekend.categoria_id)
+          .order('nome')
+          .limit(1)
+        
+        if (templates && templates.length > 0) {
+          const template = templates[0]
+          const articoliTemplate = template.articoli || []
+          
+          // Rimuovi l'articolo dal template
+          const articoliAggiornati = articoliTemplate.filter(a => !(
+            a.titolo === deleteConfirm.titolo && 
+            a.categoria === deleteConfirm.categoria && 
+            a.giorno === deleteConfirm.giorno
+          ))
+          
+          await supabase.from('template_articoli').update({ articoli: articoliAggiornati }).eq('id', template.id)
+        }
+      } catch (err) {
+        console.error('Errore sincronizzazione template:', err)
+      }
+    }
+    
+    if (errorElimina) console.error('Errore:', errorElimina)
     else alert('✅ Articolo eliminato!')
     setSalvando(false)
     setDeleteConfirm(null)

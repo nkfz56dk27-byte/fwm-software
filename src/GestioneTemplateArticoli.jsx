@@ -347,25 +347,34 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
                 <button onClick={() => { setEditIndex(null); setShowAggiungi(true) }} style={{ padding: '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Aggiungi Articolo</button>
               </div>
 
-              {/* Lista articoli */}
+              {/* Lista articoli ordinata per giorno e categoria */}
               {articoli.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {articoli.map((art, idx) => (
-                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8f8f8', borderRadius: '8px' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                          {renderTextWithBold(art.titolo, art.range_grassetto || [])}
+                  {articoli
+                    .slice()
+                    .sort((a, b) => {
+                      const giorni = ['giovedi', 'venerdi', 'sabato', 'domenica']
+                      const giornoA = giorni.indexOf(a.giorno)
+                      const giornoB = giorni.indexOf(b.giorno)
+                      if (giornoA !== giornoB) return giornoA - giornoB
+                      return a.categoria.localeCompare(b.categoria)
+                    })
+                    .map((art, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8f8f8', borderRadius: '8px' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                            {renderTextWithBold(art.titolo, art.range_grassetto || [])}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#666' }}>
+                            {CATEGORIE.find(c => c.id === art.categoria)?.nome || art.categoria} • {art.giorno}
+                          </div>
                         </div>
-                        <div style={{ fontSize: '12px', color: '#666' }}>
-                          {CATEGORIE.find(c => c.id === art.categoria)?.nome || art.categoria} • {art.giorno}
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => modificaArticolo(articoli.indexOf(art))} style={{ padding: '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✏️</button>
+                          <button onClick={() => rimuoviArticolo(articoli.indexOf(art))} style={{ padding: '6px 12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => modificaArticolo(idx)} style={{ padding: '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✏️</button>
-                        <button onClick={() => rimuoviArticolo(idx)} style={{ padding: '6px 12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               )}
             </div>
