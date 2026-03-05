@@ -113,10 +113,10 @@ export default async function handler(req, res) {
       try {
         // LOG: Mostra il valore di article_guid e id notifica
         console.log(`[RSS PUSH] Notifica ID: ${notifica.id}, article_guid: ${notifica.article_guid}`);
-        // Ricostruisci i dati articolo da rss_articles
+        // Ricostruisci i dati articolo da rss_articles con join per recuperare nome feed
         const { data: article, error: articleError } = await supabase
           .from('rss_articles')
-          .select('title, description, content, link, feed_id, guid')
+          .select('title, description, content, link, feed_id, guid, rss_feeds(nome, nome_notifica)')
           .eq('guid', notifica.article_guid)
           .maybeSingle();
 
@@ -190,17 +190,23 @@ export default async function handler(req, res) {
         // Decodifica titolo e descrizione
         const titoloDecodificato = decodeHtmlEntities(article.title || 'Nuovo articolo RSS');
         const descrizioneDecodificata = decodeHtmlEntities(article.description || article.title || 'Nuovo articolo RSS');
+        // Usa nome_notifica se disponibile, altrimenti nome, altrimenti 'RSS'
+        const nomeFeed = article.rss_feeds?.nome_notifica || article.rss_feeds?.nome || 'RSS';
+        
+        // Aggiungi fonte alla descrizione
+        const descrizioneConFonte = `[${nomeFeed}] ${descrizioneDecodificata}`;
         
         // Prepara payload notifica
         const oneSignalPayload = {
           app_id: ONESIGNAL_APP_ID,
           include_player_ids: playerIds,
           headings: { en: titoloDecodificato },
-          contents: { en: descrizioneDecodificata },
+          contents: { en: descrizioneConFonte },
           data: {
             link: article.link || null,
             feed_id: article.feed_id,
-            guid: notifica.article_guid
+            guid: notifica.article_guid,
+            feed_name: nomeFeed
           },
           url: article.link || null
         };

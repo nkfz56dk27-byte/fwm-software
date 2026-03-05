@@ -7,6 +7,7 @@ function GestioneRSSModal({ onClose }) {
   const [newFeed, setNewFeed] = useState("");
   const [newLogo, setNewLogo] = useState("");
   const [newLogoFile, setNewLogoFile] = useState(null);
+  const [newNomeNotifica, setNewNomeNotifica] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -18,6 +19,7 @@ function GestioneRSSModal({ onClose }) {
   const [cardFeedEdit, setCardFeedEdit] = useState("");
   const [logoFeedEdit, setLogoFeedEdit] = useState("");
   const [logoFileEdit, setLogoFileEdit] = useState(null);
+  const [nomeNotificaEdit, setNomeNotificaEdit] = useState("");
   const [isDraggingEdit, setIsDraggingEdit] = useState(false);
 
   const CARD_OPTIONS = [
@@ -204,7 +206,8 @@ function GestioneRSSModal({ onClose }) {
         url: newFeed,
         categoria_id: categoriaSelezionata || null,
         card_target: cardSelezionata || null,
-        logo_url: logoUrl
+        logo_url: logoUrl,
+        nome_notifica: newNomeNotifica.trim() || null
       }
     ]);
     
@@ -212,6 +215,7 @@ function GestioneRSSModal({ onClose }) {
       setNewFeed("");
       setNewLogo("");
       setNewLogoFile(null);
+      setNewNomeNotifica("");
       setCategoriaSelezionata("");
       setCardSelezionata("");
       caricaFeeds();
@@ -241,7 +245,8 @@ function GestioneRSSModal({ onClose }) {
       .update({ 
         categoria_id: categoriaFeedEdit || null,
         card_target: cardFeedEdit || null,
-        logo_url: logoUrl
+        logo_url: logoUrl,
+        nome_notifica: nomeNotificaEdit.trim() || null
       })
       .eq("id", feedId);
       
@@ -251,6 +256,7 @@ function GestioneRSSModal({ onClose }) {
       setCardFeedEdit("");
       setLogoFeedEdit("");
       setLogoFileEdit(null);
+      setNomeNotificaEdit("");
       caricaFeeds();
     }
     
@@ -263,6 +269,7 @@ function GestioneRSSModal({ onClose }) {
     setCardFeedEdit(feed.card_target || "");
     setLogoFeedEdit(feed.logo_url || "");
     setLogoFileEdit(null);
+    setNomeNotificaEdit(feed.nome_notifica || "");
   }
 
   function handleDragOver(e) {
@@ -471,6 +478,20 @@ function GestioneRSSModal({ onClose }) {
               </button>
             </div>
           )}
+          <input 
+            type="text" 
+            value={newNomeNotifica} 
+            onChange={e => setNewNomeNotifica(e.target.value)} 
+            placeholder="Nome per notifiche (opzionale, es: Motorsport.com)" 
+            style={{ 
+              width: "100%", 
+              padding: "10px", 
+              borderRadius: "6px", 
+              border: "1px solid #ddd",
+              fontSize: "14px",
+              marginBottom: "8px"
+            }} 
+          />
           <div className="grss-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
             <select 
               value={categoriaSelezionata} 
@@ -676,6 +697,20 @@ function GestioneRSSModal({ onClose }) {
                             </button>
                           </div>
                         )}
+                        <input 
+                          type="text" 
+                          value={nomeNotificaEdit} 
+                          onChange={e => setNomeNotificaEdit(e.target.value)} 
+                          placeholder="Nome per notifiche (es: Motorsport.com)" 
+                          style={{ 
+                            width: "100%", 
+                            padding: "6px", 
+                            borderRadius: "4px", 
+                            border: "1px solid #ddd",
+                            fontSize: "12px",
+                            marginBottom: "4px"
+                          }} 
+                        />
                         <div style={{ display: "flex", gap: "4px" }}>
                           <button 
                             onClick={() => salvaCategoria(feed.id)}
