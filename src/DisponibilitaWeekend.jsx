@@ -674,14 +674,21 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
       // Carica il template selezionato
       const template = templates.find(t => t.id === parseInt(templateSelezionato))
       if (template && template.articoli) {
-        const articoli = template.articoli.map(t => ({ 
-          weekend_id: weekend.id, 
-          titolo: t.titolo, 
-          categoria: t.categoria, 
-          giorno: t.giorno, 
-          stato: 'libero', 
-          range_grassetto: t.range_grassetto || [] 
-        }))
+        const articoli = template.articoli
+          .sort((a, b) => {
+            // Ordina per giorno, categoria, titolo
+            if (a.giorno !== b.giorno) return a.giorno.localeCompare(b.giorno)
+            if (a.categoria !== b.categoria) return a.categoria.localeCompare(b.categoria)
+            return a.titolo.localeCompare(b.titolo)
+          })
+          .map(t => ({ 
+            weekend_id: weekend.id, 
+            titolo: t.titolo, 
+            categoria: t.categoria, 
+            giorno: t.giorno, 
+            stato: 'libero', 
+            range_grassetto: t.range_grassetto || [] 
+          }))
         const { error: errorArticoli } = await supabase.from('articoli').insert(articoli)
         if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
       }
@@ -900,7 +907,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   }, [weekend.id])
 
   async function caricaArticoli() {
-    const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id).order('giorno').order('categoria')
+    const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id).order('giorno').order('categoria').order('titolo')
     setArticoli(data || [])
     const miei = data?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
     setArticoliSelezionati(new Set(miei))
