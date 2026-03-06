@@ -18,6 +18,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   const [isMobileView, setIsMobileView] = useState(
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
   )
+  const [searchTerm, setSearchTerm] = useState('')
 
   // Carica templates salvati al mount
   useEffect(() => {
@@ -64,6 +65,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     setTemplateSelezionato(template)
     setIsNuovoTemplate(false)
     setIsEditingData(true)
+    setSearchTerm('')
     
     // Parsa il template HTML per estrarre i dati
     const parser = new DOMParser()
@@ -82,6 +84,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
         })
       }
     })
+    
+    // Ordina alfabeticamente per pilota
+    data.sort((a, b) => a.pilota.localeCompare(b.pilota, 'it', { sensitivity: 'base' }))
     
     setTableData(data)
     setOutputHtml('')
@@ -530,6 +535,27 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
             Step 1: inserisci le posizioni e premi ORDINA. Step 2: inserisci i tempi nella griglia ordinata e genera il codice.
           </p>
 
+          {/* Search bar */}
+          <div style={{ marginBottom: '20px' }}>
+            <input
+              type="text"
+              placeholder="🔍 Cerca pilota o scuderia..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                fontSize: '16px',
+                border: '2px solid #ddd',
+                borderRadius: '8px',
+                boxSizing: 'border-box',
+                transition: 'border-color 0.3s'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#007AFF'}
+              onBlur={(e) => e.target.style.borderColor = '#ddd'}
+            />
+          </div>
+
           {/* Tabella input */}
           {!isMobileView ? (
             <div style={{ marginBottom: '30px', overflowX: 'auto' }}>
@@ -543,7 +569,12 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {tableData.map((row, idx) => (
+                  {tableData
+                    .filter(row => 
+                      row.pilota.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      row.scuderia.toLowerCase().includes(searchTerm.toLowerCase())
+                    )
+                    .map((row, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ padding: '12px' }}>
                         <input
@@ -598,7 +629,12 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
             </div>
           ) : (
             <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {tableData.map((row, idx) => (
+              {tableData
+                .filter(row => 
+                  row.pilota.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  row.scuderia.toLowerCase().includes(searchTerm.toLowerCase())
+                )
+                .map((row, idx) => (
                 <div key={idx} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '12px', background: '#fff' }}>
                   <div style={{ marginBottom: '8px', fontWeight: '700', color: '#1f2937' }}>{row.pilota}</div>
                   <div style={{ marginBottom: '10px', fontSize: '13px', color: '#6b7280' }}>{row.scuderia}</div>
