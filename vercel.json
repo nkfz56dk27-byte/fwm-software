@@ -53,15 +53,5 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/send-rss-push",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/send-push-notifications",
-      "schedule": "*/5 * * * *"
-    }
   ]
 }
