@@ -8,6 +8,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   const [showPreview, setShowPreview] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
   const [templateName, setTemplateName] = useState('')
+  const [modalitaGara, setModalitaGara] = useState(false)
   const [showSaveForm, setShowSaveForm] = useState(false)
   const [templateSelezionato, setTemplateSelezionato] = useState(null)
   const [isNuovoTemplate, setIsNuovoTemplate] = useState(false)
@@ -248,13 +249,15 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     html += '      <th>Posizione</th>\n'
     html += '      <th>Pilota</th>\n'
     html += '      <th>Scuderia</th>\n'
-    html += '      <th>Tempo</th>\n'
+    if (!modalitaGara) html += '      <th>Tempo</th>\n'
     html += '    </tr>\n'
     html += '  </thead>\n'
     html += '  <tbody>\n'
 
     tableData.forEach(row => {
-      html += `    <tr><td>${row.posizione}</td><td>${row.pilota}</td><td>${row.scuderia}</td><td>${row.tempo}</td></tr>\n`
+      html += `    <tr><td>${row.posizione}</td><td>${row.pilota}</td><td>${row.scuderia}</td>`
+      if (!modalitaGara) html += `<td>${row.tempo}</td>`
+      html += '</tr>\n'
     })
 
     html += '  </tbody>\n'
@@ -558,6 +561,37 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
           </div>
 
           {/* Tabella input */}
+          {/* Toggle Modalità GARA anche in modifica template */}
+          <div style={{ margin: '10px 0 20px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              onClick={() => setModalitaGara(v => !v)}
+              style={{
+                minWidth: 110,
+                height: 38,
+                borderRadius: 8,
+                border: modalitaGara ? '2px solid #007AFF' : '2px solid #d1d5db',
+                background: modalitaGara ? '#007AFF' : '#f3f4f6',
+                color: modalitaGara ? '#fff' : '#374151',
+                fontWeight: 600,
+                fontSize: 15,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                outline: 'none',
+                boxShadow: modalitaGara ? '0 2px 8px rgba(0,122,255,0.08)' : 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 8,
+                letterSpacing: 0.5,
+                padding: '0 12px'
+              }}
+              aria-pressed={modalitaGara}
+            >
+              MODE GARA
+            </button>
+            <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 400, marginLeft: 4 }}>(solo posizioni)</span>
+          </div>
           {!isMobileView ? (
             <div style={{ marginBottom: '30px', overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
@@ -566,7 +600,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                     <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Posizione</th>
                     <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Pilota</th>
                     <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Scuderia</th>
-                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Tempo</th>
+                    {!modalitaGara && (
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Tempo</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -601,30 +637,32 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                       </td>
                       <td style={{ padding: '12px', fontSize: '14px' }}>{row.pilota}</td>
                       <td style={{ padding: '12px', fontSize: '14px' }}>{row.scuderia}</td>
-                      <td style={{ padding: '12px' }}>
-                        <input
-                          type="text"
-                          value={row.tempo}
-                          disabled={!isPosizioniOrdinate}
-                          onChange={(e) => {
-                            const newData = tableData.map(r => 
-                              r.id === row.id ? { ...r, tempo: e.target.value } : r
-                            )
-                            setTableData(newData)
-                            setOutputHtml('')
-                            setShowPreview(false)
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '8px',
-                            border: '1px solid #ddd',
-                            borderRadius: '4px',
-                            fontSize: '14px',
-                            background: isPosizioniOrdinate ? 'white' : '#f1f3f5',
-                            cursor: isPosizioniOrdinate ? 'text' : 'not-allowed'
-                          }}
-                        />
-                      </td>
+                      {!modalitaGara && (
+                        <td style={{ padding: '12px' }}>
+                          <input
+                            type="text"
+                            value={row.tempo}
+                            disabled={!isPosizioniOrdinate}
+                            onChange={(e) => {
+                              const newData = tableData.map(r => 
+                                r.id === row.id ? { ...r, tempo: e.target.value } : r
+                              )
+                              setTableData(newData)
+                              setOutputHtml('')
+                              setShowPreview(false)
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              fontSize: '14px',
+                              background: isPosizioniOrdinate ? 'white' : '#f1f3f5',
+                              cursor: isPosizioniOrdinate ? 'text' : 'not-allowed'
+                            }}
+                          />
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -667,32 +705,34 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                         }}
                       />
                     </div>
-                    <div>
-                      <label style={{ fontSize: '12px', color: '#6b7280' }}>Tempo</label>
-                      <input
-                        type="text"
-                        value={row.tempo}
-                        disabled={!isPosizioniOrdinate}
-                        onChange={(e) => {
-                          const newData = tableData.map(r => 
-                            r.id === row.id ? { ...r, tempo: e.target.value } : r
-                          )
-                          setTableData(newData)
-                          setOutputHtml('')
-                          setShowPreview(false)
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '8px',
-                          border: '1px solid #ddd',
-                          borderRadius: '4px',
-                          fontSize: '14px',
-                          marginTop: '4px',
-                          background: isPosizioniOrdinate ? 'white' : '#f1f3f5',
-                          cursor: isPosizioniOrdinate ? 'text' : 'not-allowed'
-                        }}
-                      />
-                    </div>
+                    {!modalitaGara && (
+                      <div>
+                        <label style={{ fontSize: '12px', color: '#6b7280' }}>Tempo</label>
+                        <input
+                          type="text"
+                          value={row.tempo}
+                          disabled={!isPosizioniOrdinate}
+                          onChange={(e) => {
+                            const newData = tableData.map(r => 
+                              r.id === row.id ? { ...r, tempo: e.target.value } : r
+                            )
+                            setTableData(newData)
+                            setOutputHtml('')
+                            setShowPreview(false)
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                            marginTop: '4px',
+                            background: isPosizioniOrdinate ? 'white' : '#f1f3f5',
+                            cursor: isPosizioniOrdinate ? 'text' : 'not-allowed'
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1018,6 +1058,10 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                 }}
                 onKeyPress={(e) => e.key === 'Enter' && salvaTemplate()}
               />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#f59e0b', fontWeight: 500 }}>
+                <input type="checkbox" checked={modalitaGara} onChange={e => setModalitaGara(e.target.checked)} style={{ marginRight: 4 }} />
+                Modalità GARA (solo posizioni)
+              </label>
               <button
                 onClick={salvaTemplate}
                 style={{
