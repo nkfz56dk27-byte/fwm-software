@@ -381,13 +381,13 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                 fontWeight: 'bold'
               }}
             >
-              + Aggiungi Template
+              Aggiungi Template
             </button>
           </div>
         </div>
 
         {/* Titolo */}
-        <h1 style={{ color: '#333', marginTop: 0, marginBottom: '30px', fontSize: '28px', textAlign: 'center' }}>🏁 Ordina Tabella Classifica</h1>
+        <h1 style={{ color: '#333', marginTop: 0, marginBottom: '30px', fontSize: '28px', textAlign: 'center' }}>Ordina Tabella Classifica</h1>
 
         {/* Grid di template */}
         <div style={{
@@ -530,7 +530,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
           </button>
 
           <h1 style={{ color: '#333', marginTop: 0, marginBottom: '10px', fontSize: '28px' }}>
-            🏁 Modifica Template: {templateSelezionato.nome_template}
+            Modifica Template: {templateSelezionato.nome_template}
           </h1>
           <p style={{ color: '#666', marginBottom: '20px' }}>
             Step 1: inserisci le posizioni e premi ORDINA. Step 2: inserisci i tempi nella griglia ordinata e genera il codice.
@@ -928,7 +928,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                   marginRight: '10px'
                 }}
               >
-                💾 Salva Template
+                Salva Template
               </button>
 
               <button
@@ -970,7 +970,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                   marginRight: '10px'
                 }}
               >
-                💾 Salva
+                Salva
               </button>
               
               <button
