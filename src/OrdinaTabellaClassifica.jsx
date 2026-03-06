@@ -73,10 +73,11 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     const rows = doc.querySelectorAll('tbody tr')
     
     const data = []
-    rows.forEach(row => {
+    rows.forEach((row, index) => {
       const cells = row.querySelectorAll('td')
       if (cells.length >= 4) {
         data.push({
+          id: `row-${index}-${Date.now()}`, // ID univoco e stabile
           posizione: '', // Vuoto per velocizzare
           pilota: cells[1].textContent.trim(),
           scuderia: cells[2].textContent.trim(),
@@ -574,15 +575,16 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                       row.pilota.toLowerCase().includes(searchTerm.toLowerCase()) ||
                       row.scuderia.toLowerCase().includes(searchTerm.toLowerCase())
                     )
-                    .map((row, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                    .map((row) => (
+                    <tr key={row.id} style={{ borderBottom: '1px solid #eee' }}>
                       <td style={{ padding: '12px' }}>
                         <input
                           type="number"
                           value={row.posizione}
                           onChange={(e) => {
-                            const newData = [...tableData]
-                            newData[idx].posizione = e.target.value
+                            const newData = tableData.map(r => 
+                              r.id === row.id ? { ...r, posizione: e.target.value } : r
+                            )
                             setTableData(newData)
                             setIsPosizioniOrdinate(false)
                             setOutputHtml('')
@@ -605,8 +607,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                           value={row.tempo}
                           disabled={!isPosizioniOrdinate}
                           onChange={(e) => {
-                            const newData = [...tableData]
-                            newData[idx].tempo = e.target.value
+                            const newData = tableData.map(r => 
+                              r.id === row.id ? { ...r, tempo: e.target.value } : r
+                            )
                             setTableData(newData)
                             setOutputHtml('')
                             setShowPreview(false)
@@ -634,8 +637,8 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                   row.pilota.toLowerCase().includes(searchTerm.toLowerCase()) ||
                   row.scuderia.toLowerCase().includes(searchTerm.toLowerCase())
                 )
-                .map((row, idx) => (
-                <div key={idx} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '12px', background: '#fff' }}>
+                .map((row) => (
+                <div key={row.id} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '12px', background: '#fff' }}>
                   <div style={{ marginBottom: '8px', fontWeight: '700', color: '#1f2937' }}>{row.pilota}</div>
                   <div style={{ marginBottom: '10px', fontSize: '13px', color: '#6b7280' }}>{row.scuderia}</div>
 
@@ -646,8 +649,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                         type="number"
                         value={row.posizione}
                         onChange={(e) => {
-                          const newData = [...tableData]
-                          newData[idx].posizione = e.target.value
+                          const newData = tableData.map(r => 
+                            r.id === row.id ? { ...r, posizione: e.target.value } : r
+                          )
                           setTableData(newData)
                           setIsPosizioniOrdinate(false)
                           setOutputHtml('')
@@ -670,8 +674,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                         value={row.tempo}
                         disabled={!isPosizioniOrdinate}
                         onChange={(e) => {
-                          const newData = [...tableData]
-                          newData[idx].tempo = e.target.value
+                          const newData = tableData.map(r => 
+                            r.id === row.id ? { ...r, tempo: e.target.value } : r
+                          )
                           setTableData(newData)
                           setOutputHtml('')
                           setShowPreview(false)
