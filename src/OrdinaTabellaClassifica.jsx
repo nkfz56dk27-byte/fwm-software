@@ -15,6 +15,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   const [tableData, setTableData] = useState([])
   const [isModificaMode, setIsModificaMode] = useState(false)
   const [isPosizioniOrdinate, setIsPosizioniOrdinate] = useState(false)
+  const [isMobileView, setIsMobileView] = useState(
+    typeof window !== 'undefined' ? window.innerWidth <= 768 : false
+  )
 
   // Carica templates salvati al mount
   useEffect(() => {
@@ -22,6 +25,12 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
       caricaTemplates()
     }
   }, [user])
+
+  useEffect(() => {
+    const onResize = () => setIsMobileView(window.innerWidth <= 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   async function caricaTemplates() {
     // Ottieni l'auth user per il user_id
@@ -522,20 +531,81 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
           </p>
 
           {/* Tabella input */}
-          <div style={{ marginBottom: '30px', overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
-              <thead>
-                <tr style={{ background: '#f0f0f0' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd', minWidth: '100px' }}>Posizione</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd', minWidth: '200px' }}>Pilota</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd', minWidth: '150px' }}>Scuderia</th>
-                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd', minWidth: '150px' }}>Tempo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableData.map((row, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={{ padding: '12px' }}>
+          {!isMobileView ? (
+            <div style={{ marginBottom: '30px', overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+                <thead>
+                  <tr style={{ background: '#f0f0f0' }}>
+                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Posizione</th>
+                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Pilota</th>
+                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Scuderia</th>
+                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Tempo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableData.map((row, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                      <td style={{ padding: '12px' }}>
+                        <input
+                          type="number"
+                          value={row.posizione}
+                          onChange={(e) => {
+                            const newData = [...tableData]
+                            newData[idx].posizione = e.target.value
+                            setTableData(newData)
+                            setIsPosizioniOrdinate(false)
+                            setOutputHtml('')
+                            setShowPreview(false)
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            fontSize: '14px'
+                          }}
+                        />
+                      </td>
+                      <td style={{ padding: '12px', fontSize: '14px' }}>{row.pilota}</td>
+                      <td style={{ padding: '12px', fontSize: '14px' }}>{row.scuderia}</td>
+                      <td style={{ padding: '12px' }}>
+                        <input
+                          type="text"
+                          value={row.tempo}
+                          disabled={!isPosizioniOrdinate}
+                          onChange={(e) => {
+                            const newData = [...tableData]
+                            newData[idx].tempo = e.target.value
+                            setTableData(newData)
+                            setOutputHtml('')
+                            setShowPreview(false)
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                            background: isPosizioniOrdinate ? 'white' : '#f1f3f5',
+                            cursor: isPosizioniOrdinate ? 'text' : 'not-allowed'
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {tableData.map((row, idx) => (
+                <div key={idx} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '12px', background: '#fff' }}>
+                  <div style={{ marginBottom: '8px', fontWeight: '700', color: '#1f2937' }}>{row.pilota}</div>
+                  <div style={{ marginBottom: '10px', fontSize: '13px', color: '#6b7280' }}>{row.scuderia}</div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#6b7280' }}>Posizione</label>
                       <input
                         type="number"
                         value={row.posizione}
@@ -552,17 +622,13 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                           padding: '8px',
                           border: '1px solid #ddd',
                           borderRadius: '4px',
-                          fontSize: '14px'
+                          fontSize: '14px',
+                          marginTop: '4px'
                         }}
                       />
-                    </td>
-                    <td style={{ padding: '12px', fontSize: '14px' }}>
-                      {row.pilota}
-                    </td>
-                    <td style={{ padding: '12px', fontSize: '14px' }}>
-                      {row.scuderia}
-                    </td>
-                    <td style={{ padding: '12px' }}>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#6b7280' }}>Tempo</label>
                       <input
                         type="text"
                         value={row.tempo}
@@ -580,19 +646,20 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                           border: '1px solid #ddd',
                           borderRadius: '4px',
                           fontSize: '14px',
+                          marginTop: '4px',
                           background: isPosizioniOrdinate ? 'white' : '#f1f3f5',
                           cursor: isPosizioniOrdinate ? 'text' : 'not-allowed'
                         }}
                       />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Pulsanti */}
-          <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+          <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexDirection: isMobileView ? 'column' : 'row' }}>
             {!isPosizioniOrdinate ? (
               <button
                 onClick={ordinaDatiPerPosizione}
@@ -601,6 +668,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                   color: 'white',
                   border: 'none',
                   padding: '12px 30px',
+                  width: isMobileView ? '100%' : 'auto',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   fontSize: '16px',
@@ -617,6 +685,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                   color: 'white',
                   border: 'none',
                   padding: '12px 30px',
+                  width: isMobileView ? '100%' : 'auto',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   fontSize: '16px'

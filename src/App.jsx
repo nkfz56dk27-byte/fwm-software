@@ -4097,9 +4097,9 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
 
         {/* Cards row 2 - Ordina Tabella centrata */}
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: '300px' }}>
+          <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
             <div className="card-icon-wrapper">
-              <span style={{ fontSize: '60px' }}>🏁</span>
+              <span style={{ fontSize: '48px', lineHeight: 1 }}>🏁</span>
             </div>
             <h3 className="card-title">ORDINA TABELLA</h3>
             <p className="card-subtitle">Ordina tabelle<br />classifiche HTML</p>
@@ -4153,9 +4153,9 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
 
       {/* Cards row 2 - Ordina Tabella centrata */}
       <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: '300px' }}>
+        <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
           <div className="card-icon-wrapper">
-            <span style={{ fontSize: '60px' }}>🏁</span>
+            <span style={{ fontSize: '48px', lineHeight: 1 }}>🏁</span>
           </div>
           <h3 className="card-title">ORDINA TABELLA</h3>
           <p className="card-subtitle">Ordina tabelle<br />classifiche HTML</p>
