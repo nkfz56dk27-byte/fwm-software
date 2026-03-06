@@ -188,6 +188,7 @@ import GestioneTemplateArticoli from './GestioneTemplateArticoli.jsx'
 import ProssimoEvento from './ProssimoEvento.jsx'
 import EventiMobileMenu from './EventiMobileMenu.jsx'
 import GuidaFunzioni from './GuidaFunzioni.jsx'
+import OrdinaTabellaClassifica from './OrdinaTabellaClassifica.jsx'
 import { notificaClassificaAggiornata } from './src/pushNotifications.js'
 
 import { initializeOneSignal } from './src/onesignal.js'
@@ -251,6 +252,7 @@ function App() {
   const [showClassifica, setShowClassifica] = useState(false)
   const [classificaId, setClassificaId] = useState(null)
   const [showNuovaPagina, setShowNuovaPagina] = useState(false)
+  const [showOrdinaTabellaClassifica, setShowOrdinaTabellaClassifica] = useState(false)
   const [showPannelloFonti, setShowPannelloFonti] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -702,7 +704,7 @@ function App() {
   }
 
   if (showClassificheMainMenu) {
-    return <ClassificheMainMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(false) }} onOpenClassificheMenu={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(true) }} onOpenNuovaPagina={() => { setShowClassificheMainMenu(false); setShowNuovaPagina(true) }} />
+    return <ClassificheMainMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(false) }} onOpenClassificheMenu={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(true) }} onOpenNuovaPagina={() => { setShowClassificheMainMenu(false); setShowNuovaPagina(true) }} onOpenOrdinaTabellaClassifica={() => { setShowClassificheMainMenu(false); setShowOrdinaTabellaClassifica(true) }} />
   }
 
   if (showClassificheMenu) {
@@ -715,6 +717,10 @@ function App() {
   }
   if (showNuovaPagina) {
     return <NuovaPaginaView onClose={() => { setShowNuovaPagina(false); setShowClassificheMainMenu(true); }} isMobile={isMobile} />
+  }
+
+  if (showOrdinaTabellaClassifica) {
+    return <OrdinaTabellaClassifica user={user} onClose={() => { setShowOrdinaTabellaClassifica(false); setShowClassificheMainMenu(true); }} />
   }
 
   if (showClassifica) {
@@ -4039,7 +4045,7 @@ function ModificaUtenteView({ utente, onClose, onSave }) {
 }
 
 // ===== CLASSIFICHE MAIN MENU =====
-function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu, onOpenNuovaPagina }) {
+function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu, onOpenNuovaPagina, onOpenOrdinaTabellaClassifica }) {
     // ...existing code...
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', minHeight: '100vh' }}>
@@ -4050,7 +4056,7 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
           </button>
         </div>
         {/* Cards row */}
-        <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '40px' }}>
           <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: '300px' }}>
             <div className="card-icon-wrapper">
               <img src={CoppaSVG} alt="Classifiche" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
@@ -4088,6 +4094,17 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
             <p className="card-subtitle">Gestisci i punti<br />penalità</p>
           </div>
         </div>
+
+        {/* Cards row 2 - Ordina Tabella centrata */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: '300px' }}>
+            <div className="card-icon-wrapper">
+              <span style={{ fontSize: '60px' }}>🏁</span>
+            </div>
+            <h3 className="card-title">ORDINA TABELLA</h3>
+            <p className="card-subtitle">Ordina tabelle<br />classifiche HTML</p>
+          </div>
+        </div>
       </div>
     )
   console.log('📱 ClassificheMainMenuView - isMobile ricevuto:', isMobile)
@@ -4095,7 +4112,7 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', minHeight: '100vh' }}>
       {/* Cards row */}
-      <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '40px' }}>
         <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: '300px' }}>
           <div className="card-icon-wrapper">
             <img src={CoppaSVG} alt="Classifiche" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
@@ -4131,6 +4148,17 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
           </div>
           <h3 className="card-title">PENALTY POINTS</h3>
           <p className="card-subtitle">Gestisci i punti<br />penalità</p>
+        </div>
+      </div>
+
+      {/* Cards row 2 - Ordina Tabella centrata */}
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: '300px' }}>
+          <div className="card-icon-wrapper">
+            <span style={{ fontSize: '60px' }}>🏁</span>
+          </div>
+          <h3 className="card-title">ORDINA TABELLA</h3>
+          <p className="card-subtitle">Ordina tabelle<br />classifiche HTML</p>
         </div>
       </div>
     </div>
