@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 
 export default function OrdinaTabellaClassifica({ onClose, user }) {
+  // Funzione di utilità per doppioni (deve stare fuori dal render JSX)
+  function posizioneDoppia(pos, data) {
+    if (!pos) return false;
+    return data.filter(r => String(r.posizione) === String(pos)).length > 1;
+  }
   const [templates, setTemplates] = useState([])
   const [inputHtml, setInputHtml] = useState('')
   const [outputHtml, setOutputHtml] = useState('')
@@ -20,6 +25,11 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     typeof window !== 'undefined' ? window.innerWidth <= 768 : false
   )
   const [searchTerm, setSearchTerm] = useState('')
+
+  // ✅ FIX 2: posizioniDuplicate calcolata a livello di componente, non dentro il .map()
+  const posizioniDuplicate = tableData
+    .map(r => r.posizione)
+    .filter((v, i, arr) => v && arr.indexOf(v) !== i && arr.indexOf(v) < i)
 
   // Carica templates salvati al mount
   useEffect(() => {
@@ -212,11 +222,8 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   }
 
   function ordinaDatiPerPosizione() {
-    const mancaPosizione = tableData.some(row => !String(row.posizione || '').trim())
-    if (mancaPosizione) {
-      alert('Inserisci tutte le posizioni prima di ordinare')
-      return
-    }
+    // Permetti ordinamento anche se non tutte le posizioni sono compilate
+    // Non controllo più i tempi: si può ordinare anche se non sono tutti compilati
 
     const dataSorted = [...tableData].sort((a, b) => {
       const posA = parseInt(a.posizione) || 999
@@ -254,7 +261,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     html += '  </thead>\n'
     html += '  <tbody>\n'
 
-    tableData.forEach(row => {
+    tableData.forEach((row) => {
       html += `    <tr><td>${row.posizione}</td><td>${row.pilota}</td><td>${row.scuderia}</td>`
       if (!modalitaGara) html += `<td>${row.tempo}</td>`
       html += '</tr>\n'
@@ -560,7 +567,6 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
             />
           </div>
 
-          {/* Tabella input */}
           {/* Toggle Modalità GARA anche in modifica template */}
           <div style={{ margin: '10px 0 20px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
@@ -592,6 +598,8 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
             </button>
             <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 400, marginLeft: 4 }}>(solo posizioni)</span>
           </div>
+
+          {/* Tabella input */}
           {!isMobileView ? (
             <div style={{ marginBottom: '30px', overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
@@ -607,44 +615,152 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                 </thead>
                 <tbody>
                   {tableData
-                    .filter(row => 
+                    .filter(row =>
                       row.pilota.toLowerCase().includes(searchTerm.toLowerCase()) ||
                       row.scuderia.toLowerCase().includes(searchTerm.toLowerCase())
                     )
                     .map((row) => (
-                    <tr key={row.id} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '12px' }}>
-                        <input
-                          type="number"
-                          value={row.posizione}
-                          onChange={(e) => {
-                            const newData = tableData.map(r => 
-                              r.id === row.id ? { ...r, posizione: e.target.value } : r
-                            )
-                            setTableData(newData)
-                            setIsPosizioniOrdinate(false)
-                            setOutputHtml('')
-                            setShowPreview(false)
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '8px',
-                            border: '1px solid #ddd',
-                            borderRadius: '4px',
-                            fontSize: '14px'
-                          }}
-                        />
-                      </td>
-                      <td style={{ padding: '12px', fontSize: '14px' }}>{row.pilota}</td>
-                      <td style={{ padding: '12px', fontSize: '14px' }}>{row.scuderia}</td>
+                      // ✅ FIX 1: rimosso il blocco JS illegale tra i <td>
+                      <tr key={row.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newData = tableData.map(r =>
+                                r.id === row.id ? { ...r, _posLocked: false } : r
+                              )
+                              setTableData(newData)
+                            }}
+                            disabled={!row._posLocked}
+                            style={{
+                              marginRight: 4,
+                              background: row._posLocked ? '#f59e42' : '#eee',
+                              color: row._posLocked ? '#fff' : '#bbb',
+                              border: 'none',
+                              borderRadius: 4,
+                              width: 22,
+                              height: 22,
+                              cursor: row._posLocked ? 'pointer' : 'not-allowed',
+                              fontWeight: 700,
+                              fontSize: 14,
+                              padding: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                            title="Sblocca posizione"
+                          >
+                            ⟳
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={row.posizione}
+                            disabled={row._posLocked}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const newData = tableData.map(r =>
+                                r.id === row.id ? { ...r, posizione: val } : r
+                              )
+                              setTableData(newData)
+                              setIsPosizioniOrdinate(false)
+                              setOutputHtml('')
+                              setShowPreview(false)
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value && String(e.target.value).trim() !== '') {
+                                let val = e.target.value;
+                                if (Number(val) < 1) val = '1';
+                                const newData = tableData.map(r =>
+                                  r.id === row.id ? { ...r, posizione: val, _posLocked: true } : r
+                                )
+                                setTableData(newData)
+                              }
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '8px',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              fontSize: '14px',
+                              background: row._posLocked ? '#f3f4f6' : 'white',
+                              color: row._posLocked ? '#888' : '#222',
+                              cursor: row._posLocked ? 'not-allowed' : 'text',
+                              borderColor: posizioneDoppia(row.posizione, tableData) ? '#e11d48' : '#ddd',
+                              boxShadow: posizioneDoppia(row.posizione, tableData) ? '0 0 0 2px #e11d4822' : 'none'
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{row.pilota}</td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{row.scuderia}</td>
+                        {!modalitaGara && (
+                          <td style={{ padding: '12px' }}>
+                            <input
+                              type="text"
+                              value={row.tempo}
+                              disabled={!isPosizioniOrdinate}
+                              onChange={(e) => {
+                                const newData = tableData.map(r =>
+                                  r.id === row.id ? { ...r, tempo: e.target.value } : r
+                                )
+                                setTableData(newData)
+                                setOutputHtml('')
+                                setShowPreview(false)
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '8px',
+                                border: '1px solid #ddd',
+                                borderRadius: '4px',
+                                fontSize: '14px',
+                                background: isPosizioniOrdinate ? 'white' : '#f1f3f5',
+                                cursor: isPosizioniOrdinate ? 'text' : 'not-allowed'
+                              }}
+                            />
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            // ✅ FIX 3: aggiunto indice "i" al .map() della mobile view
+            <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {tableData
+                .filter(row =>
+                  row.pilota.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  row.scuderia.toLowerCase().includes(searchTerm.toLowerCase())
+                )
+                .map((row, i) => (
+                  <div key={row.id} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '12px', background: '#fff' }}>
+                    <div style={{ marginBottom: '8px', fontWeight: '700', color: '#1f2937' }}>{row.pilota}</div>
+                    <div style={{ marginBottom: '10px', fontSize: '13px', color: '#6b7280' }}>{row.scuderia}</div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <label style={{ fontSize: '12px', color: '#6b7280' }}>Posizione</label>
+                        <div style={{
+                          width: '100%',
+                          padding: '8px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          fontSize: '14px',
+                          marginTop: '4px',
+                          background: '#f9fafb',
+                          textAlign: 'center',
+                          fontWeight: 600
+                        }}>{i + 1}</div>
+                      </div>
                       {!modalitaGara && (
-                        <td style={{ padding: '12px' }}>
+                        <div>
+                          <label style={{ fontSize: '12px', color: '#6b7280' }}>Tempo</label>
                           <input
                             type="text"
                             value={row.tempo}
                             disabled={!isPosizioniOrdinate}
                             onChange={(e) => {
-                              const newData = tableData.map(r => 
+                              const newData = tableData.map(r =>
                                 r.id === row.id ? { ...r, tempo: e.target.value } : r
                               )
                               setTableData(newData)
@@ -657,85 +773,23 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                               border: '1px solid #ddd',
                               borderRadius: '4px',
                               fontSize: '14px',
+                              marginTop: '4px',
                               background: isPosizioniOrdinate ? 'white' : '#f1f3f5',
                               cursor: isPosizioniOrdinate ? 'text' : 'not-allowed'
                             }}
                           />
-                        </td>
+                        </div>
                       )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {tableData
-                .filter(row => 
-                  row.pilota.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  row.scuderia.toLowerCase().includes(searchTerm.toLowerCase())
-                )
-                .map((row) => (
-                <div key={row.id} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '12px', background: '#fff' }}>
-                  <div style={{ marginBottom: '8px', fontWeight: '700', color: '#1f2937' }}>{row.pilota}</div>
-                  <div style={{ marginBottom: '10px', fontSize: '13px', color: '#6b7280' }}>{row.scuderia}</div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                    <div>
-                      <label style={{ fontSize: '12px', color: '#6b7280' }}>Posizione</label>
-                      <input
-                        type="number"
-                        value={row.posizione}
-                        onChange={(e) => {
-                          const newData = tableData.map(r => 
-                            r.id === row.id ? { ...r, posizione: e.target.value } : r
-                          )
-                          setTableData(newData)
-                          setIsPosizioniOrdinate(false)
-                          setOutputHtml('')
-                          setShowPreview(false)
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '8px',
-                          border: '1px solid #ddd',
-                          borderRadius: '4px',
-                          fontSize: '14px',
-                          marginTop: '4px'
-                        }}
-                      />
                     </div>
-                    {!modalitaGara && (
-                      <div>
-                        <label style={{ fontSize: '12px', color: '#6b7280' }}>Tempo</label>
-                        <input
-                          type="text"
-                          value={row.tempo}
-                          disabled={!isPosizioniOrdinate}
-                          onChange={(e) => {
-                            const newData = tableData.map(r => 
-                              r.id === row.id ? { ...r, tempo: e.target.value } : r
-                            )
-                            setTableData(newData)
-                            setOutputHtml('')
-                            setShowPreview(false)
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '8px',
-                            border: '1px solid #ddd',
-                            borderRadius: '4px',
-                            fontSize: '14px',
-                            marginTop: '4px',
-                            background: isPosizioniOrdinate ? 'white' : '#f1f3f5',
-                            cursor: isPosizioniOrdinate ? 'text' : 'not-allowed'
-                          }}
-                        />
-                      </div>
-                    )}
                   </div>
-                </div>
-              ))}
+                ))}
+            </div>
+          )}
+
+          {/* ✅ FIX 2: posizioniDuplicate ora è accessibile perché calcolata a livello di componente */}
+          {posizioniDuplicate.length > 0 && (
+            <div style={{ color: '#e11d48', fontWeight: 600, marginBottom: 10 }}>
+              Attenzione: ci sono posizioni duplicate ({[...new Set(posizioniDuplicate)].join(', ')}).
             </div>
           )}
 
@@ -821,7 +875,6 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     )
   }
 
-  // Vista ordinamento template
   // Vista ordinamento template
   return (
     <div style={{
