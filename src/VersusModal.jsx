@@ -336,7 +336,7 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
                       />
                       {punti.map((p, i) => (
                         <circle key={i} cx={p.x} cy={p.y} r={7} fill={colore} opacity={0.9}>
-                          <title>{item.nome}: {p.punti} pts</title>
+                          <title>{item.nome}: {Number(p.punti)} pts</title>
                         </circle>
                       ))}
                     </g>
