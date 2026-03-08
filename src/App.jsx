@@ -945,6 +945,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
     gpPreselezionato={gpSelezionato} 
     onClose={() => { setShowInserimentoGP(false); setGpSelezionato(null) }} 
     onSave={(nuovaClassifica) => {
+      salvaClassifica(nuovaClassifica); // Salva su Supabase!
       setShowInserimentoGP(false);
       setGpSelezionato(null);
       setClassifica(nuovaClassifica);
