@@ -1250,7 +1250,11 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
 
 // ===== INSERIMENTO RISULTATI GP =====
 function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave }) {
-            const [showGaraAccorciata, setShowGaraAccorciata] = useState(false);
+  const [showGaraAccorciata, setShowGaraAccorciata] = useState(false);
+  const [percentualeAccorciata, setPercentualeAccorciata] = useState(null);
+  const [customPiloti, setCustomPiloti] = useState(1);
+  const [customPunti, setCustomPunti] = useState(['']);
+  const [customMode, setCustomMode] = useState(false);
           const [giroVeloceId, setGiroVeloceId] = useState(null);
         const [poleId, setPoleId] = useState(null);
       const [risultati, setRisultati] = useState({});
@@ -1426,22 +1430,21 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     }
   }
 
-  const calcolaPuntiAccorciati = (pos, percentuale) => {
-    // Secondo regole FIA
-    if (percentuale === 25) {
-      // TOP 5: 6-4-3-2-1
-      const punti = [6, 4, 3, 2, 1]
-      return pos <= punti.length ? punti[pos - 1] : 0
-    } else if (percentuale === 50) {
-      // TOP 9: 13-10-8-6-5-4-3-2-1
-      const punti = [13, 10, 8, 6, 5, 4, 3, 2, 1]
-      return pos <= punti.length ? punti[pos - 1] : 0
-    } else if (percentuale === 75) {
-      // TOP 10: 19-14-12-10-8-6-4-3-2-1
-      const punti = [19, 14, 12, 10, 8, 6, 4, 3, 2, 1]
-      return pos <= punti.length ? punti[pos - 1] : 0
+  const calcolaPuntiAccorciati = (pos, percentuale, customPuntiArr) => {
+    if (percentuale === 'custom' && Array.isArray(customPuntiArr)) {
+      return pos > 0 && pos <= customPuntiArr.length ? Number(customPuntiArr[pos - 1]) : 0;
     }
-    return 0
+    if (percentuale === 25) {
+      const punti = [6, 4, 3, 2, 1];
+      return pos <= punti.length ? punti[pos - 1] : 0;
+    } else if (percentuale === 50) {
+      const punti = [13, 10, 8, 6, 5, 4, 3, 2, 1];
+      return pos <= punti.length ? punti[pos - 1] : 0;
+    } else if (percentuale === 75) {
+      const punti = [19, 14, 12, 10, 8, 6, 4, 3, 2, 1];
+      return pos <= punti.length ? punti[pos - 1] : 0;
+    }
+    return 0;
   }
 
   const garaAccorciata = () => {
@@ -1485,7 +1488,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
             
             let punti
             if (garaVecchia.accorciata) {
-              punti = calcolaPuntiAccorciati(pos, garaVecchia.percentuale_accorciata)
+              punti = calcolaPuntiAccorciati(pos, garaVecchia.percentuale_accorciata, garaVecchia.custom_punti)
             } else {
               punti = calcolaPuntiPosizione(pos, garaVecchia.tipo_gara, classifica)
             }
@@ -1519,7 +1522,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           
           let punti
           if (gara.accorciata) {
-            punti = calcolaPuntiAccorciati(pos, gara.percentuale_accorciata)
+            punti = calcolaPuntiAccorciati(pos, gara.percentuale_accorciata, gara.custom_punti)
           } else {
             punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
           }
@@ -1762,11 +1765,11 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
             <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px' }}>Seleziona percentuale di distanza</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
               <button
-                onClick={() => setPercentualeAccorciata(25)}
+                onClick={() => { setPercentualeAccorciata(25); setCustomMode(false); }}
                 style={{
                   padding: '15px',
-                  background: percentualeAccorciata === 25 ? '#007AFF' : 'white',
-                  color: percentualeAccorciata === 25 ? 'white' : '#000',
+                  background: percentualeAccorciata === 25 && !customMode ? '#007AFF' : 'white',
+                  color: percentualeAccorciata === 25 && !customMode ? 'white' : '#000',
                   border: '2px solid #007AFF',
                   borderRadius: '10px',
                   cursor: 'pointer',
@@ -1777,11 +1780,11 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                 25% (TOP 5: 6-4-3-2-1)
               </button>
               <button
-                onClick={() => setPercentualeAccorciata(50)}
+                onClick={() => { setPercentualeAccorciata(50); setCustomMode(false); }}
                 style={{
                   padding: '15px',
-                  background: percentualeAccorciata === 50 ? '#007AFF' : 'white',
-                  color: percentualeAccorciata === 50 ? 'white' : '#000',
+                  background: percentualeAccorciata === 50 && !customMode ? '#007AFF' : 'white',
+                  color: percentualeAccorciata === 50 && !customMode ? 'white' : '#000',
                   border: '2px solid #007AFF',
                   borderRadius: '10px',
                   cursor: 'pointer',
@@ -1792,11 +1795,11 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                 50% (TOP 9: 13-10-8-6-5-4-3-2-1)
               </button>
               <button
-                onClick={() => setPercentualeAccorciata(75)}
+                onClick={() => { setPercentualeAccorciata(75); setCustomMode(false); }}
                 style={{
                   padding: '15px',
-                  background: percentualeAccorciata === 75 ? '#007AFF' : 'white',
-                  color: percentualeAccorciata === 75 ? 'white' : '#000',
+                  background: percentualeAccorciata === 75 && !customMode ? '#007AFF' : 'white',
+                  color: percentualeAccorciata === 75 && !customMode ? 'white' : '#000',
                   border: '2px solid #007AFF',
                   borderRadius: '10px',
                   cursor: 'pointer',
@@ -1806,6 +1809,63 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
               >
                 75% (TOP 10: 19-14-12-10-8-6-4-3-2-1)
               </button>
+              <button
+                onClick={() => { setCustomMode(true); setPercentualeAccorciata('custom'); if (!customPunti.length) setCustomPunti(['']); }}
+                style={{
+                  padding: '15px',
+                  background: customMode ? '#007AFF' : 'white',
+                  color: customMode ? 'white' : '#000',
+                  border: '2px solid #007AFF',
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                  fontSize: '16px'
+                }}
+              >
+                Custom
+              </button>
+              {customMode && (
+                <div style={{ marginTop: '10px', background: '#f8f8f8', borderRadius: '10px', padding: '15px' }}>
+                  <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Numero piloti a punti:</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={customPiloti}
+                    onChange={e => {
+                      const n = Math.max(1, Math.min(30, Number(e.target.value)));
+                      setCustomPiloti(n);
+                      setCustomPunti(arr => {
+                        const newArr = arr.slice(0, n);
+                        while (newArr.length < n) newArr.push('');
+                        return newArr;
+                      });
+                    }}
+                    style={{ width: '60px', marginBottom: '10px', padding: '6px', borderRadius: '6px', border: '1px solid #ccc' }}
+                  />
+                  <div style={{ marginTop: '10px' }}>
+                    <label style={{ fontWeight: 'bold', marginBottom: '8px', display: 'block' }}>Punti per posizione:</label>
+                    {Array.from({ length: customPiloti }).map((_, idx) => (
+                      <input
+                        key={idx}
+                        type="number"
+                        min={0}
+                        value={customPunti[idx] || ''}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setCustomPunti(arr => {
+                            const newArr = arr.slice();
+                            newArr[idx] = val;
+                            return newArr;
+                          });
+                        }}
+                        placeholder={`Pos ${idx + 1}`}
+                        style={{ width: '60px', marginRight: '6px', marginBottom: '6px', padding: '6px', borderRadius: '6px', border: '1px solid #ccc' }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
@@ -1825,8 +1885,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
               </button>
               <button
                 onClick={() => {
-                  garaAccorciata()
-                  setShowGaraAccorciata(false)
+                  garaAccorciata();
+                  setShowGaraAccorciata(false);
                 }}
                 style={{
                   flex: 1,
@@ -1839,6 +1899,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                   fontWeight: 'bold',
                   fontSize: '16px'
                 }}
+                disabled={customMode && customPunti.slice(0, customPiloti).some(p => p === '' || isNaN(Number(p)))}
               >
                 Conferma
               </button>

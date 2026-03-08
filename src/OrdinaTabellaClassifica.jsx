@@ -569,6 +569,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
             </>
           )}
         </div>
+
         {showSaveForm && (
           <div style={{ marginBottom: '20px', padding: '15px', background: '#fff3cd', borderRadius: '8px', border: '1px solid #f59e0b' }}>
             <h3 style={{ margin: '0 0 10px 0', color: '#f59e0b', fontSize: '16px' }}>💾 Salva come Template</h3>
