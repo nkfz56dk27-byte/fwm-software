@@ -2,18 +2,20 @@ import React, { useState, useEffect } from 'react';
 import VersusModal from './VersusModal';
 
 // ===== CALCOLA PUNTI POSIZIONE =====
-function calcolaPuntiPosizione(pos, tipoGara, classifica = null) {
+function calcolaPuntiPosizione(pos, tipoGara, classifica = null, gara = {}) {
+  // Se la gara è accorciata e custom, usa i custom_punti
+  if (gara.accorciata && gara.percentuale_accorciata === 'custom' && Array.isArray(gara.custom_punti)) {
+    return pos > 0 && pos <= gara.custom_punti.length ? Number(gara.custom_punti[pos - 1]) : 0;
+  }
   // Se è attivo il modificatore libero, usa l'array personalizzato
   if (classifica && classifica.usa_modificatore_libero && Array.isArray(classifica.modificatore_libero_punti)) {
     const arr = classifica.modificatore_libero_punti
     return pos <= arr.length ? (arr[pos - 1] || 0) : 0
   }
-
   const puntiStandard = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
   const puntiSprint = [8, 7, 6, 5, 4, 3, 2, 1]
   const puntiF2Feature = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
   const puntiF2Sprint = [10, 8, 6, 5, 4, 3, 2, 1]
-  
   if (tipoGara === 'sprint' || tipoGara === 'sprintRace') {
     return pos <= puntiSprint.length ? puntiSprint[pos - 1] : 0
   } else if (tipoGara === 'featureRace') {
@@ -1133,7 +1135,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                     let puntiPole = 0;
                     let puntiGiroVeloce = 0;
                     if (!flag && posizione !== null) {
-                      puntiPos = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica);
+                      puntiPos = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                     }
                     const isPole = classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId);
                     const isGiroVeloce = classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId);
@@ -1369,7 +1371,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
             if (!pilota) return;
             if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') return;
             const pos = info.posizione;
-            let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica);
+            if (typeof pos === 'undefined' || !gara) return;
+            let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
             if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
               punti += classifica.punti_pole_valore || 3;
             }
@@ -1450,117 +1453,75 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
 
   const garaAccorciata = () => {
     const gare = [...gp.gare]
+    // Prepara risultati con flag DNS/DNF/DSQ come in salvaRisultatiGara
+    const risultatiConFlag = {};
+    Object.keys(risultati).forEach(key => {
+      if (key.endsWith('_flag')) return;
+      const pilotaId = key;
+      const flag = risultati[`${pilotaId}_flag`] || '';
+      if (flag) {
+        risultatiConFlag[pilotaId] = { flag };
+      } else if (risultati[pilotaId]) {
+        risultatiConFlag[pilotaId] = { posizione: risultati[pilotaId] };
+      }
+    });
     gare[garaCorrente] = {
       ...gare[garaCorrente],
-      risultati,
+      risultati: risultatiConFlag,
       pole_id: poleId,
       giro_veloce_id: giroVeloceId,
       completata: true,
       accorciata: true,
-      percentuale_accorciata: percentualeAccorciata
+      percentuale_accorciata: percentualeAccorciata,
+      custom_punti: percentualeAccorciata === 'custom' ? customPunti : undefined
     }
     
     const gpAggiornato = { ...gp, gare }
     let gpFinale = null
     
-    if (garaCorrente < gp.gare.length - 1) {
-      setGp(gpAggiornato)
-      setGaraCorrente(garaCorrente + 1)
-      setRisultati({})
-      setPoleId(null)
-      setGiroVeloceId(null)
-      setShowGaraAccorciata(false)
+    // Calcola e salva la classifica aggiornata dopo OGNI gara accorciata
+    let nuovoGPsalvato = gpAggiornato;
+    let nuoviGP = Array.isArray(classifica.gp) ? [...classifica.gp] : [];
+    const idx = nuoviGP.findIndex(g => g.id === nuovoGPsalvato.id);
+    if (idx >= 0) {
+      nuoviGP[idx] = nuovoGPsalvato;
     } else {
-      gpFinale = { ...gpAggiornato, completato: true }
-      const nuoviGP = classifica.gp ? [...classifica.gp.filter(g => g.id !== gpFinale.id), gpFinale] : [gpFinale]
-      
-      const nuoviPiloti = [...classifica.piloti]
-      const nuoviCostruttori = [...classifica.costruttori]
-      
-      // Se è una MODIFICA, sottrai i punti vecchi
-      if (gpPreselezionato && gpPreselezionato.completato) {
-        console.log('MODIFICA: Sottraggo punti vecchi...')
-        gpPreselezionato.gare.forEach(garaVecchia => {
-          if (!garaVecchia.completata || garaVecchia.non_disputata) return
-          
-          Object.entries(garaVecchia.risultati || {}).forEach(([pilotaId, pos]) => {
-            const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
-            if (!pilota) return
-            
-            let punti
-            if (garaVecchia.accorciata) {
-              punti = calcolaPuntiAccorciati(pos, garaVecchia.percentuale_accorciata, garaVecchia.custom_punti)
-            } else {
-              punti = calcolaPuntiPosizione(pos, garaVecchia.tipo_gara, classifica)
-            }
-            
-            if (classifica.punti_pole_attivo && String(garaVecchia.pole_id) === String(pilotaId)) {
-              punti += classifica.punti_pole_valore || 3
-            }
-            if (classifica.giro_veloce_attivo && String(garaVecchia.giro_veloce_id) === String(pilotaId)) {
-              punti += classifica.giro_veloce_valore || 1
-            }
-            
-            console.log(`${pilota.nome}: -${punti} pts (rimozione risultato vecchio)`)
-            pilota.punti = Math.max(0, (pilota.punti || 0) - punti)
-            
-            const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
-            if (costruttore) {
-              costruttore.punti = Math.max(0, (costruttore.punti || 0) - punti)
-            }
-          })
-        })
-      }
-      
-      // Calcola e assegna punti NUOVI per ogni gara del GP
-      gpFinale.gare.forEach(gara => {
-        Object.entries(gara.risultati).forEach(([pilotaId, pos]) => {
-          const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
-          if (!pilota) {
-            console.warn('Pilota non trovato:', pilotaId)
-            return
-          }
-          
-          let punti
-          if (gara.accorciata) {
-            punti = calcolaPuntiAccorciati(pos, gara.percentuale_accorciata, gara.custom_punti)
-          } else {
-            punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
-          }
-          
+      nuoviGP.push(nuovoGPsalvato);
+    }
+    // Ricalcola punti piloti/costruttori (come in salvaRisultatiGara)
+    const nuoviPiloti = classifica.piloti.map(p => ({ ...p, punti: 0 }));
+    const nuoviCostruttori = classifica.costruttori.map(c => ({ ...c, punti: 0 }));
+    nuoviGP.forEach(gpItem => {
+      gpItem.gare.forEach(gara => {
+        Object.entries(gara.risultati || {}).forEach(([pilotaId, info]) => {
+          const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId));
+          if (!pilota) return;
+          if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') return;
+          const pos = info.posizione;
+          let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
           if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
-            punti += classifica.punti_pole_valore || 3
+            punti += classifica.punti_pole_valore || 3;
           }
           if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
-            punti += classifica.giro_veloce_valore || 1
+            punti += classifica.giro_veloce_valore || 1;
           }
-          
-          console.log(`${pilota.nome}: +${punti} pts (gara accorciata ${gara.percentuale_accorciata}%)`)
-          
-          pilota.punti = (pilota.punti || 0) + punti
-          
-          const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
+          pilota.punti = (pilota.punti || 0) + punti;
+          const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team);
           if (costruttore) {
-            costruttore.punti = (costruttore.punti || 0) + punti
-          } else {
-            console.warn('Costruttore non trovato:', pilota.team)
+            costruttore.punti = (costruttore.punti || 0) + punti;
           }
-        })
-      })
-      
-      nuoviPiloti.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((p, i) => {
-        p.distacco = i === 0 ? 0 : (nuoviPiloti[0].punti || 0) - (p.punti || 0)
-      })
-      
-      nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
-        c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0)
-      })
-      
-      console.log('Salvando classifica aggiornata (gara accorciata):', { piloti: nuoviPiloti, costruttori: nuoviCostruttori })
-      
-      onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori })
-      onClose()
-    }
+        });
+      });
+    });
+    nuoviPiloti.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((p, i) => {
+      p.distacco = i === 0 ? 0 : (nuoviPiloti[0].punti || 0) - (p.punti || 0);
+    });
+    nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
+      c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0);
+    });
+    onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori });
+    onClose();
+    // NON avanzare automaticamente alla gara successiva: lascia che l’utente decida quando farlo
   }
 
   if (step === 0) {
@@ -1886,7 +1847,15 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
               </button>
               <button
                 onClick={() => {
-                  garaAccorciata();
+                  // Aggiorna solo la percentuale accorciata e i custom_punti nella gara corrente
+                  const nuoveGare = [...gp.gare];
+                  nuoveGare[garaCorrente] = {
+                    ...nuoveGare[garaCorrente],
+                    accorciata: true,
+                    percentuale_accorciata: percentualeAccorciata,
+                    custom_punti: percentualeAccorciata === 'custom' ? customPunti : undefined
+                  };
+                  setGp({ ...gp, gare: nuoveGare });
                   setShowGaraAccorciata(false);
                 }}
                 style={{
@@ -2530,7 +2499,7 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                         if (gara.accorciata) {
                           puntiGara = calcolaPuntiAccorciati(risultato, gara.percentuale_accorciata)
                         } else {
-                          puntiGara = calcolaPuntiPosizione(risultato, gara.tipo_gara, classifica)
+                          puntiGara = calcolaPuntiPosizione(risultato, gara.tipo_gara, classifica, gara)
                         }
                         if (classifica.punti_pole_attivo && String(gara.pole_id) === String(item.id)) {
                           puntiGara += classifica.punti_pole_valore || 3
@@ -2549,7 +2518,7 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                           if (gara.accorciata) {
                             puntiGara = calcolaPuntiAccorciati(pos, gara.percentuale_accorciata)
                           } else {
-                            puntiGara = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica)
+                            puntiGara = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara)
                           }
                           if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
                             puntiGara += classifica.punti_pole_valore || 3
