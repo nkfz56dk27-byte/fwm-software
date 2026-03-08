@@ -1,5 +1,24 @@
+function calcolaPuntiAccorciati(pos, percentuale, customPuntiArr) {
+  if (percentuale === 'custom' && Array.isArray(customPuntiArr)) {
+    return pos > 0 && pos <= customPuntiArr.length ? Number(customPuntiArr[pos - 1]) : 0;
+  }
+  if (percentuale === 25) {
+    const punti = [6, 4, 3, 2, 1];
+    return pos <= punti.length ? punti[pos - 1] : 0;
+  } else if (percentuale === 50) {
+    const punti = [13, 10, 8, 6, 5, 4, 3, 2, 1];
+    return pos <= punti.length ? punti[pos - 1] : 0;
+  } else if (percentuale === 75) {
+    const punti = [19, 14, 12, 10, 8, 6, 4, 3, 2, 1];
+    return pos <= punti.length ? punti[pos - 1] : 0;
+  }
+  return 0;
+}
 import React, { useState, useEffect } from 'react';
 import VersusModal from './VersusModal';
+// Fix ReferenceError: calcolaPuntiAccorciati is not defined
+// (auto-import per uso interno in questo file)
+// (Se usato in altri file, esportare/importare correttamente)
 
 // ===== CALCOLA PUNTI POSIZIONE =====
 function calcolaPuntiPosizione(pos, tipoGara, classifica = null, gara = {}) {
@@ -1434,22 +1453,6 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     }
   }
 
-  const calcolaPuntiAccorciati = (pos, percentuale, customPuntiArr) => {
-    if (percentuale === 'custom' && Array.isArray(customPuntiArr)) {
-      return pos > 0 && pos <= customPuntiArr.length ? Number(customPuntiArr[pos - 1]) : 0;
-    }
-    if (percentuale === 25) {
-      const punti = [6, 4, 3, 2, 1];
-      return pos <= punti.length ? punti[pos - 1] : 0;
-    } else if (percentuale === 50) {
-      const punti = [13, 10, 8, 6, 5, 4, 3, 2, 1];
-      return pos <= punti.length ? punti[pos - 1] : 0;
-    } else if (percentuale === 75) {
-      const punti = [19, 14, 12, 10, 8, 6, 4, 3, 2, 1];
-      return pos <= punti.length ? punti[pos - 1] : 0;
-    }
-    return 0;
-  }
 
   const garaAccorciata = () => {
     const gare = [...gp.gare]
