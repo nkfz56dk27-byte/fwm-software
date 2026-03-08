@@ -57,10 +57,13 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
         open.gp.forEach(gp => {
           if (Array.isArray(gp.gare)) {
             gp.gare.forEach(gara => {
-              // Se risultati è un oggetto {pilotaId: posizione}
+              // Se risultati è un oggetto {pilotaId: posizione} oppure {pilotaId: {posizione: X, ...}}
               if (gara.risultati && typeof gara.risultati === 'object' && !Array.isArray(gara.risultati)) {
-                Object.entries(gara.risultati).forEach(([id, posizione]) => {
-                  if (String(id) === String(pilotaId) && Number(posizione) >= 1 && Number(posizione) <= 3) count++;
+                Object.entries(gara.risultati).forEach(([id, val]) => {
+                  if (String(id) === String(pilotaId)) {
+                    if (typeof val === 'number' && val >= 1 && val <= 3) count++;
+                    else if (typeof val === 'object' && val !== null && Number(val.posizione) >= 1 && Number(val.posizione) <= 3) count++;
+                  }
                 });
               }
               // Se risultati è un array (fallback)
@@ -80,16 +83,19 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
       open.gp.forEach(gp => {
         if (Array.isArray(gp.gare)) {
           gp.gare.forEach(gara => {
-            // Se risultati è un oggetto {pilotaId: posizione}
+            // Se risultati è un oggetto {pilotaId: posizione} oppure {pilotaId: {posizione: X, ...}}
             if (gara.risultati && typeof gara.risultati === 'object' && !Array.isArray(gara.risultati)) {
-              Object.entries(gara.risultati).forEach(([id, posizione]) => {
-                if (String(id) === String(pilotaId) && Number(posizione) === 1) count++;
+              Object.entries(gara.risultati).forEach(([id, val]) => {
+                if (String(id) === String(pilotaId)) {
+                  if (typeof val === 'number' && val === 1) count++;
+                  else if (typeof val === 'object' && val !== null && Number(val.posizione) === 1) count++;
+                }
               });
             }
             // Se risultati è un array (fallback)
             else if (Array.isArray(gara.risultati)) {
-              const vincitore = gara.risultati.find(r => r.posizione === 1);
-              if (vincitore && String(vincitore.pilota_id) === String(pilotaId)) count++;
+              const vincitore = gara.risultati.find(r => r.posizione === 1 && String(r.pilota_id) === String(pilotaId));
+              if (vincitore) count++;
             }
           });
         }
@@ -296,25 +302,20 @@ export default function VersusModal({ open, onClose, handleMouseMove, handleMous
                         if (!gara.completata || gara.non_disputata) return;
                         const risultato = gara.risultati?.[item.id];
                         if (!risultato) return;
-                        // Punti gara: se è un numero, usa direttamente, altrimenti cerca posizione
+                        // Punti gara: se è un oggetto con posizione, estrai la posizione
+                        let posizione = risultato;
+                        if (typeof risultato === 'object' && risultato !== null && typeof risultato.posizione !== 'undefined') {
+                          posizione = risultato.posizione;
+                        }
                         let puntiGara = 0;
-                        if (typeof risultato === 'object' && risultato.punti != null) {
-                          puntiGara = risultato.punti;
-                        } else if (typeof risultato === 'number') {
-                          puntiGara = risultato;
-                        } else if (typeof risultato === 'object' && risultato.posizione != null) {
-                          // fallback: calcola punti da posizione
-                          puntiGara = 0;
-                          if (risultato.posizione === 1) puntiGara = 25;
-                          else if (risultato.posizione === 2) puntiGara = 18;
-                          else if (risultato.posizione === 3) puntiGara = 15;
-                          else if (risultato.posizione === 4) puntiGara = 12;
-                          else if (risultato.posizione === 5) puntiGara = 10;
-                          else if (risultato.posizione === 6) puntiGara = 8;
-                          else if (risultato.posizione === 7) puntiGara = 6;
-                          else if (risultato.posizione === 8) puntiGara = 4;
-                          else if (risultato.posizione === 9) puntiGara = 2;
-                          else if (risultato.posizione === 10) puntiGara = 1;
+                        if (gara.accorciata) {
+                          puntiGara = window.calcolaPuntiAccorciati
+                            ? window.calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti)
+                            : posizione; // fallback
+                        } else {
+                          puntiGara = window.calcolaPuntiPosizione
+                            ? window.calcolaPuntiPosizione(posizione, gara.tipo_gara, null, gara)
+                            : posizione; // fallback
                         }
                         puntiGP += puntiGara;
                       });

@@ -2495,22 +2495,26 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                       
                       if (tab === 0) {
                         // PILOTI: calcolo normale
-                        const risultato = gara.risultati?.[item.id]
-                        if (!risultato) return
-                        
-                        let puntiGara
+                        const risultato = gara.risultati?.[item.id];
+                        if (!risultato) return;
+                        let posizione = risultato;
+                        // Se risultato è oggetto con posizione, estrai la posizione
+                        if (typeof risultato === 'object' && risultato !== null && typeof risultato.posizione !== 'undefined') {
+                          posizione = risultato.posizione;
+                        }
+                        let puntiGara;
                         if (gara.accorciata) {
-                          puntiGara = calcolaPuntiAccorciati(risultato, gara.percentuale_accorciata)
+                          puntiGara = calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti);
                         } else {
-                          puntiGara = calcolaPuntiPosizione(risultato, gara.tipo_gara, classifica, gara)
+                          puntiGara = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                         }
                         if (classifica.punti_pole_attivo && String(gara.pole_id) === String(item.id)) {
-                          puntiGara += classifica.punti_pole_valore || 3
+                          puntiGara += classifica.punti_pole_valore || 3;
                         }
                         if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(item.id)) {
-                          puntiGara += classifica.giro_veloce_valore || 1
+                          puntiGara += classifica.giro_veloce_valore || 1;
                         }
-                        puntiGP += puntiGara
+                        puntiGP += puntiGara;
                       } else {
                         // COSTRUTTORI: somma punti di tutti i piloti del team
                         Object.entries(gara.risultati || {}).forEach(([pilotaId, pos]) => {
