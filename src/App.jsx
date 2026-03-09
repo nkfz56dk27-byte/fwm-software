@@ -1159,11 +1159,14 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                     let puntiPos = 0;
                     let puntiPole = 0;
                     let puntiGiroVeloce = 0;
-                    if (!flag && posizione !== null) {
+                    // Normalizza il flag per robustezza
+                    const flagNorm = (flag || '').trim().toUpperCase();
+                    if (flagNorm !== 'DNS' && flagNorm !== 'DSQ' && flagNorm !== 'DNF' && posizione !== null) {
                       puntiPos = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                     }
-                    const isPole = classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId);
-                    const isGiroVeloce = classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId);
+                    // Punti pole SEMPRE se pole_id, tranne DNS
+                    const isPole = classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS';
+                    const isGiroVeloce = classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS';
                     if (isPole) puntiPole = classifica.punti_pole_valore || 3;
                     if (isGiroVeloce) puntiGiroVeloce = classifica.giro_veloce_valore || 1;
                     const puntiTot = puntiPos + puntiPole + puntiGiroVeloce;
@@ -1353,10 +1356,13 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       if (key.endsWith('_flag')) return;
       const pilotaId = key;
       const flag = risultati[`${pilotaId}_flag`] || '';
-      if (flag) {
+      const posizione = risultati[pilotaId];
+      if (flag && posizione) {
+        risultatiConFlag[pilotaId] = { posizione, flag };
+      } else if (flag) {
         risultatiConFlag[pilotaId] = { flag };
-      } else if (risultati[pilotaId]) {
-        risultatiConFlag[pilotaId] = { posizione: risultati[pilotaId] };
+      } else if (posizione) {
+        risultatiConFlag[pilotaId] = { posizione };
       }
     });
     gare[garaCorrente] = {
@@ -1385,14 +1391,22 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
         Object.entries(gara.risultati || {}).forEach(([pilotaId, info]) => {
           const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId));
           if (!pilota) return;
-          if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') return;
-          const pos = info.posizione;
-          if (typeof pos === 'undefined' || !gara) return;
-          let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
-          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
+          // Normalizza il flag per robustezza
+          const flagNorm = (info.flag || '').trim().toUpperCase();
+          // Punti posizione SOLO se non DNS/DSQ/DNF
+          let punti = 0;
+          if (flagNorm !== 'DNS' && flagNorm !== 'DSQ' && flagNorm !== 'DNF') {
+            const pos = info.posizione;
+            if (typeof pos !== 'undefined' && gara) {
+              punti += calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
+            }
+          }
+          // Punti pole SEMPRE se pole_id, tranne DNS
+          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS') {
             punti += classifica.punti_pole_valore || 3;
           }
-          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
+          // Punti giro veloce SEMPRE se giro_veloce_id, tranne DNS
+          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS') {
             punti += classifica.giro_veloce_valore || 1;
           }
           pilota.punti = (pilota.punti || 0) + punti;
@@ -2645,20 +2659,23 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                         Object.entries(gara.risultati || {}).forEach(([pilotaId, pos]) => {
                           const pilota = classifica.piloti.find(p => String(p.id) === String(pilotaId))
                           if (!pilota || pilota.team !== item.nome) return
-                          
-                          let puntiGara
+                          let posizione = pos;
+                          if (typeof pos === 'object' && pos !== null && typeof pos.posizione !== 'undefined') {
+                            posizione = pos.posizione;
+                          }
+                          let puntiGara;
                           if (gara.accorciata) {
-                            puntiGara = calcolaPuntiAccorciati(pos, gara.percentuale_accorciata)
+                            puntiGara = calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti);
                           } else {
-                            puntiGara = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara)
+                            puntiGara = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                           }
                           if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
-                            puntiGara += classifica.punti_pole_valore || 3
+                            puntiGara += classifica.punti_pole_valore || 3;
                           }
                           if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
-                            puntiGara += classifica.giro_veloce_valore || 1
+                            puntiGara += classifica.giro_veloce_valore || 1;
                           }
-                          puntiGP += puntiGara
+                          puntiGP += puntiGara;
                         })
                       }
                     })
