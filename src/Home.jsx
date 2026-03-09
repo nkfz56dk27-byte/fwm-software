@@ -331,32 +331,13 @@ function ClassificaView({ classificaId, user, onBack }) {
 
   const salvaClassifica = async (nuovaClassifica) => {
     try {
-      const updateObj = {
-        nome: nuovaClassifica.nome,
-        gp: nuovaClassifica.gp || [],
-        piloti: nuovaClassifica.piloti || [],
-        costruttori: nuovaClassifica.costruttori || [],
-        numero_gp_stagione: nuovaClassifica.numero_gp_stagione || nuovaClassifica.numeroGP || null,
-        numero_sprint_stagione: nuovaClassifica.numero_sprint_stagione || nuovaClassifica.numeroSprint || null,
-      }
-
+      const updateObj = { ...nuovaClassifica }
       console.log('💾 Salvando classificazione:', updateObj)
       const { error } = await supabase.from('classifiche').update(updateObj).eq('id', classificaId)
       if (!error) {
         console.log('✅ Classificazione salvata con successo')
-        setClassifica(nuovaClassifica)
+        setClassifica(updateObj)
         setShowSetup(false)
-
-        const { data: verifyData, error: verifyError } = await supabase
-          .from('classifiche')
-          .select('piloti, gp')
-          .eq('id', classificaId)
-
-        if (verifyError) {
-          console.error('❌ Errore verifica salvataggio:', verifyError)
-        } else if (verifyData && verifyData.length > 0) {
-          console.log('✅ Dati verificati nel database - Piloti:', verifyData[0].piloti?.length, 'GP:', verifyData[0].gp?.length)
-        }
       } else {
         console.error('Errore salvataggio classifica:', error)
         alert('❌ Errore durante il salvataggio della classifica')
@@ -370,7 +351,7 @@ function ClassificaView({ classificaId, user, onBack }) {
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Caricamento...</div>
   if (!classifica) return <div style={{ padding: '40px', textAlign: 'center' }}>Classifica non trovata</div>
   if (showSetup) return <SetupIniziale classifica={classifica} onSave={salvaClassifica} onBack={onBack} />
-  if (showImpostazioni) return <ImpostazioniClassifica classifica={classifica} onClose={() => { setShowImpostazioni(false); caricaClassifica() }} onSave={salvaClassifica} />
+  if (showImpostazioni) return <ImpostazioniClassifica classifica={classifica} onClose={() => setShowImpostazioni(false)} onSave={salvaClassifica} />
   if (showInserimentoGP) return <InserimentoRisultatiGP classifica={classifica} gpPreselezionato={gpSelezionato} onClose={() => { setShowInserimentoGP(false); setGpSelezionato(null) }} onSave={salvaClassifica} />
   if (showGrafico) return <GraficoPronostico classifica={classifica} onClose={() => setShowGrafico(false)} />
 
