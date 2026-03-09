@@ -107,6 +107,13 @@ export default function GestioneTemplateArticoli({ onClose }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Stato per la search bar di ogni template (key: template.id)
+  const [searchByTemplate, setSearchByTemplate] = useState({});
+
+  function handleSearchChange(templateId, value) {
+    setSearchByTemplate(prev => ({ ...prev, [templateId]: value }));
+  }
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#f5f5f7', zIndex: 1000 }}>
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -165,49 +172,67 @@ export default function GestioneTemplateArticoli({ onClose }) {
             </div>
           ) : (
             <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {templates.map(template => (
-                <div key={template.id} style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', border: template.categoria ? `4px solid ${template.categoria.colore}` : '4px solid #8E8E93' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
-                    <div>
-                      <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{template.nome}</div>
-                      <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
-                        {template.categoria ? (
-                          <span style={{ color: template.categoria.colore, fontWeight: 'bold' }}>• {template.categoria.nome}</span>
-                        ) : (
-                          <span>• Generico</span>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button onClick={() => setTemplateEdit(template)} style={{ padding: '8px 16px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Modifica</button>
-                      <button onClick={() => eliminaTemplate(template.id)} style={{ padding: '8px 16px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Elimina</button>
-                    </div>
-                  </div>
-                  
-                  <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
-                    {template.articoli.length} articoli
-                  </div>
-                  
-                  {/* Preview articoli */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {template.articoli.slice(0, 5).map((art, idx) => (
-                      <div key={idx} style={{ padding: '10px', background: '#f8f8f8', borderRadius: '8px' }}>
-                        <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                          {renderTextWithBold(art.titolo, art.range_grassetto || [])}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                          {CATEGORIE.find(c => c.id === art.categoria)?.nome || art.categoria} • {art.giorno}
+              {templates.map(template => {
+                const search = searchByTemplate[template.id]?.toLowerCase() || '';
+                const filteredArticoli = search
+                  ? template.articoli.filter(art =>
+                      art.titolo.toLowerCase().includes(search) ||
+                      (art.testo && art.testo.toLowerCase().includes(search))
+                    )
+                  : template.articoli;
+                return (
+                  <div key={template.id} style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', border: template.categoria ? `4px solid ${template.categoria.colore}` : '4px solid #8E8E93' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
+                      <div>
+                        <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{template.nome}</div>
+                        <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+                          {template.categoria ? (
+                            <span style={{ color: template.categoria.colore, fontWeight: 'bold' }}>• {template.categoria.nome}</span>
+                          ) : (
+                            <span>• Generico</span>
+                          )}
                         </div>
                       </div>
-                    ))}
-                    {template.articoli.length > 5 && (
-                      <div style={{ padding: '10px', background: '#e0e0e0', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
-                        +{template.articoli.length - 5} altri articoli
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button onClick={() => setTemplateEdit(template)} style={{ padding: '8px 16px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Modifica</button>
+                        <button onClick={() => eliminaTemplate(template.id)} style={{ padding: '8px 16px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Elimina</button>
                       </div>
-                    )}
+                    </div>
+                    {/* Search bar per articoli */}
+                    <input
+                      type="text"
+                      placeholder="Cerca tra gli articoli..."
+                      value={searchByTemplate[template.id] || ''}
+                      onChange={e => handleSearchChange(template.id, e.target.value)}
+                      style={{ width: '100%', marginBottom: 12, padding: 8, borderRadius: 8, border: '1px solid #ddd', fontSize: 15 }}
+                    />
+                    <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
+                      {filteredArticoli.length} articoli
+                    </div>
+                    {/* Preview articoli filtrati */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {filteredArticoli.length === 0 && (
+                        <div style={{ color: '#999', fontStyle: 'italic', padding: '10px' }}>Nessun articolo trovato</div>
+                      )}
+                      {filteredArticoli.slice(0, 5).map((art, idx) => (
+                        <div key={idx} style={{ padding: '10px', background: '#f8f8f8', borderRadius: '8px' }}>
+                          <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                            {renderTextWithBold(art.titolo, art.range_grassetto || [])}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                            {CATEGORIE.find(c => c.id === art.categoria)?.nome || art.categoria} • {art.giorno}
+                          </div>
+                        </div>
+                      ))}
+                      {filteredArticoli.length > 5 && (
+                        <div style={{ padding: '10px', background: '#e0e0e0', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                          +{filteredArticoli.length - 5} altri articoli
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -221,6 +246,8 @@ export default function GestioneTemplateArticoli({ onClose }) {
 }
 
 function TemplateModal({ template, categorie, onClose, onSave }) {
+    // Search bar per filtrare articoli nella modale
+    const [search, setSearch] = useState('');
   const [nome, setNome] = useState(template?.nome || '')
   const [categoriaId, setCategoriaId] = useState(template?.categoria_id || null)
   const [articoli, setArticoli] = useState(template?.articoli || [])
@@ -348,9 +375,22 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
               </div>
 
               {/* Lista articoli ordinata per giorno e categoria */}
+              {/* Search bar per articoli nella modale */}
+              <input
+                type="text"
+                placeholder="Cerca tra gli articoli..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ width: '100%', marginBottom: 12, padding: 8, borderRadius: 8, border: '1px solid #ddd', fontSize: 15 }}
+              />
               {articoli.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {articoli
+                    .filter(art =>
+                      !search ||
+                      art.titolo.toLowerCase().includes(search.toLowerCase()) ||
+                      (art.testo && art.testo.toLowerCase().includes(search.toLowerCase()))
+                    )
                     .slice()
                     .sort((a, b) => {
                       const giorni = ['giovedi', 'venerdi', 'sabato', 'domenica']

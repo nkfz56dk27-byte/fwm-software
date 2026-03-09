@@ -854,6 +854,8 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
   }, [classifica])
 
   const caricaClassifica = async () => {
+      // Espone la funzione globalmente per poterla richiamare dopo upload foto
+      window.caricaClassifica = caricaClassifica;
     try {
       console.log('📖 Caricando classificazione con ID:', classificaId)
       // Prima cerca nella tabella standard
@@ -1907,6 +1909,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
 function ImpostazioniClassifica({ classifica, onClose, onSave }) {
     // Stato per feedback visivo drag attivo per ogni pilota
     const [dragActive, setDragActive] = useState({});
+    // Stato per salvataggio foto pilota
+    const [salvandoFotoId, setSalvandoFotoId] = useState(null);
   // Stato per la modale modifica foto piloti
   const [showModificaFotoPiloti, setShowModificaFotoPiloti] = useState(false);
   const [fotoPilotaFiles, setFotoPilotaFiles] = useState({}); // { [pilotaId]: File|null }
@@ -2203,6 +2207,93 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
                         </span>
                       )}
                     </div>
+                    <button
+                      type="button"
+                      disabled={salvandoFotoId === p.id}
+                      style={{
+                        padding: '7px 14px',
+                        background: salvandoFotoId === p.id ? '#98c0ff' : '#34C759',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        cursor: salvandoFotoId === p.id ? 'not-allowed' : 'pointer',
+                        marginLeft: 8
+                      }}
+                      onClick={async () => {
+                        if (!fotoPilotaFiles || !fotoPilotaFiles[p.id]) {
+                          alert('Seleziona una foto per questo pilota');
+                          return;
+                        }
+                        const file = fotoPilotaFiles[p.id];
+                        if (!(file instanceof File) || !file.type.startsWith('image/')) {
+                          alert('Il file selezionato non è un file immagine valido.');
+                          return;
+                        }
+                        // Accetta solo jpg, jpeg, png, webp
+                        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+                        if (!allowedTypes.includes(file.type)) {
+                          alert('Formato non supportato. Usa solo JPG, PNG o WEBP.');
+                          return;
+                        }
+                        const ext = file.name.split('.').pop().toLowerCase();
+                        if (!['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+                          alert('Estensione file non supportata. Usa solo JPG, PNG o WEBP.');
+                          return;
+                        }
+                        setSalvandoFotoId(p.id);
+                        try {
+                          // Path: solo caratteri validi, nessuno slash iniziale
+                          const safeId = String(p.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+                          const fileName = `piloti/${safeId}_${Date.now()}.${ext}`;
+                          console.log('[UPLOAD FOTO PILOTA] file:', file);
+                          console.log('[UPLOAD FOTO PILOTA] fileName:', fileName);
+                          const { data, error, status, statusText } = await supabase.storage.from('loghi-piloti').upload(fileName, file, { upsert: true });
+                          console.log('[UPLOAD FOTO PILOTA] response:', { data, error, status, statusText });
+                          if (error) {
+                            alert('Errore upload: ' + (error.message || error.description || error) + '\nStatus: ' + status + ' ' + (statusText || ''));
+                            setSalvandoFotoId(null);
+                            return;
+                          }
+                          const { data: urlData } = supabase.storage.from('loghi-piloti').getPublicUrl(fileName);
+                          const publicUrl = urlData.publicUrl;
+                          // Aggiorna il campo foto del pilota nella classifica
+                          const nuoviPiloti = dati.piloti.map(pil => pil.id === p.id ? { ...pil, foto: publicUrl } : pil);
+                          setDati({ ...dati, piloti: nuoviPiloti });
+                          setFotoPilotaFiles(prev => ({ ...prev, [p.id]: undefined }));
+                          // Salva su Supabase
+                          const updateObj = { piloti: nuoviPiloti };
+                          if (dati.isCustom) {
+                            await supabase.from('classifiche_custom').update(updateObj).eq('id', dati.id);
+                          } else {
+                            await supabase.from('classifiche').update(updateObj).eq('id', dati.id);
+                          }
+                          // Ricarica la classifica aggiornata dal DB per riflettere subito la foto ovunque
+                          if (typeof window.caricaClassifica === 'function') {
+                            window.caricaClassifica();
+                          }
+                          // Aggiorna anche lo stato locale delle impostazioni leggendo la classifica aggiornata
+                          let nuovaClassificaAggiornata = null;
+                          if (dati.isCustom) {
+                            const { data } = await supabase.from('classifiche_custom').select('*').eq('id', dati.id);
+                            if (data && data.length > 0) nuovaClassificaAggiornata = data[0];
+                          } else {
+                            const { data } = await supabase.from('classifiche').select('*').eq('id', dati.id);
+                            if (data && data.length > 0) nuovaClassificaAggiornata = data[0];
+                          }
+                          if (nuovaClassificaAggiornata) {
+                            setDati(nuovaClassificaAggiornata);
+                          }
+                          alert('Foto aggiornata!');
+                        } catch (err) {
+                          alert('Errore durante il salvataggio: ' + (err.message || err));
+                        }
+                        setSalvandoFotoId(null);
+                      }}
+                    >
+                      {salvandoFotoId === p.id ? 'Salvando...' : 'Salva foto'}
+                    </button>
                     {/* Qui andrà il bottone di salvataggio per ogni pilota, da implementare nella logica upload */}
                   </li>
                 ))}
