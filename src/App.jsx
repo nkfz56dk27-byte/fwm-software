@@ -916,6 +916,10 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         costruttori: nuovaClassifica.costruttori || [],
         numero_gp_stagione: nuovaClassifica.numero_gp_stagione || nuovaClassifica.numeroGP || null,
         numero_sprint_stagione: nuovaClassifica.numero_sprint_stagione || nuovaClassifica.numeroSprint || null,
+        punti_pole_attivo: typeof nuovaClassifica.punti_pole_attivo !== 'undefined' ? !!nuovaClassifica.punti_pole_attivo : false,
+        punti_pole_valore: typeof nuovaClassifica.punti_pole_valore !== 'undefined' ? Number(nuovaClassifica.punti_pole_valore) : 0,
+        giro_veloce_attivo: typeof nuovaClassifica.giro_veloce_attivo !== 'undefined' ? !!nuovaClassifica.giro_veloce_attivo : false,
+        giro_veloce_valore: typeof nuovaClassifica.giro_veloce_valore !== 'undefined' ? Number(nuovaClassifica.giro_veloce_valore) : 0,
       }
 
       console.log('💾 Salvando classificazione:', updateObj)
@@ -1981,7 +1985,9 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         modificatore_libero_punti: Array.isArray(dati.modificatore_libero_punti) ? dati.modificatore_libero_punti : []
       }
 
-      const { error } = await supabase.from('classifiche').update(updateObj).eq('id', classifica.id)
+      // Scegli la tabella giusta
+      const table = dati.isCustom ? 'classifiche_custom' : 'classifiche';
+      const { error } = await supabase.from(table).update(updateObj).eq('id', classifica.id)
       if (error) {
         console.error('Errore salvataggio impostazioni:', error)
         // Se l'errore è dovuto a colonne mancanti, riproviamo senza i campi del modificatore
@@ -1990,7 +1996,7 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
           const fallback = { ...updateObj }
           delete fallback.modificatore_libero_punti
           delete fallback.modificatore_libero_numero
-          const { error: err2 } = await supabase.from('classifiche').update(fallback).eq('id', classifica.id)
+          const { error: err2 } = await supabase.from(table).update(fallback).eq('id', classifica.id)
           if (!err2) {
             setSaveSuccess(true)
             setSalvando(false)
