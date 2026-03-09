@@ -904,7 +904,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   const [selezioniCollaborative, setSelezioniCollaborative] = useState({}) // { [articoloId]: username }
   const channelRef = useRef(null)
 
-  // Setup realtime channel per selezione collaborativa
+  // Setup realtime channel per selezione collaborativa e aggiornamento articoli
   useEffect(() => {
     const channel = supabase.channel('selezione_articoli_'+weekend.id)
       .on('broadcast', { event: 'selezione' }, payload => {
@@ -920,6 +920,15 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
           }
           return nuovo;
         });
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'articoli',
+        filter: `weekend_id=eq.${weekend.id}`
+      }, payload => {
+        // Aggiorna la schermata quando cambia lo stato di un articolo
+        caricaArticoli();
       })
       .subscribe();
     channelRef.current = channel;
