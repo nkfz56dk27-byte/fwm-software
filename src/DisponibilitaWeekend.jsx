@@ -982,14 +982,17 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   
   // PULISCE selezioni temporanee dopo conferma
   if (channelRef.current) {
-    channelRef.current.send({
-      type: 'broadcast',
-      event: 'selezione',
-      payload: {
-        username: nomeRedattore,
-        articoli: []
-      }
-    })
+    for (const id of articoliSelezionati) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'selezione',
+        payload: {
+          articoloId: id,
+          username: nomeRedattore,
+          selezionato: false
+        }
+      });
+    }
   }
   
   setSalvando(false)
@@ -1140,11 +1143,10 @@ function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, no
 function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle, selezioniCollaborative }) {
   const isLibero = articolo.stato === 'libero';
   const isMio = articolo.assegnato_a === nomeRedattore;
-  const canSelect = isLibero || isMio;
-
-  // Selezione collaborativa: chi altro lo sta selezionando?
+  // Se un altro utente lo sta selezionando, non posso selezionarlo
   const selezionatoDaAltro = selezioniCollaborative && selezioniCollaborative[articolo.id] && selezioniCollaborative[articolo.id] !== nomeRedattore;
   const altroNome = selezioniCollaborative && selezioniCollaborative[articolo.id];
+  const canSelect = (isLibero || isMio) && !selezionatoDaAltro;
 
   let statoText = '👤 libero', statoColor = '#666', bgColor = 'transparent', checkIcon = '☐', checkColor = '#ccc';
 
