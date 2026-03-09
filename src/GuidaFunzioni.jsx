@@ -1855,6 +1855,60 @@ function GuidaFunzioni({ user, onClose }) {
                                 >
                                   ✖
                                 </button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginRight: 4 }}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (activeSection && featureItem.originalIndex > 0) {
+                                        const featuresAggiornate = [...activeSection.features];
+                                        const idx = featureItem.originalIndex;
+                                        [featuresAggiornate[idx - 1], featuresAggiornate[idx]] = [featuresAggiornate[idx], featuresAggiornate[idx - 1]];
+                                        salvaSezione({ ...activeSection, features: featuresAggiornate }, { closeForm: false, showSuccess: false });
+                                      }
+                                    }}
+                                    style={{
+                                      background: 'transparent',
+                                      color: '#888',
+                                      border: 'none',
+                                      cursor: featureItem.originalIndex === 0 ? 'not-allowed' : 'pointer',
+                                      fontSize: '13px',
+                                      padding: 0,
+                                      lineHeight: 1,
+                                      width: 18,
+                                      height: 16
+                                    }}
+                                    title="Sposta paragrafo su"
+                                    disabled={featureItem.originalIndex === 0}
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (activeSection && featureItem.originalIndex < activeSection.features.length - 1) {
+                                        const featuresAggiornate = [...activeSection.features];
+                                        const idx = featureItem.originalIndex;
+                                        [featuresAggiornate[idx], featuresAggiornate[idx + 1]] = [featuresAggiornate[idx + 1], featuresAggiornate[idx]];
+                                        salvaSezione({ ...activeSection, features: featuresAggiornate }, { closeForm: false, showSuccess: false });
+                                      }
+                                    }}
+                                    style={{
+                                      background: 'transparent',
+                                      color: '#888',
+                                      border: 'none',
+                                      cursor: featureItem.originalIndex === (activeSection?.features.length - 1) ? 'not-allowed' : 'pointer',
+                                      fontSize: '13px',
+                                      padding: 0,
+                                      lineHeight: 1,
+                                      width: 18,
+                                      height: 16
+                                    }}
+                                    title="Sposta paragrafo giù"
+                                    disabled={featureItem.originalIndex === (activeSection?.features.length - 1)}
+                                  >
+                                    ▼
+                                  </button>
+                                </div>
                               </>
                             )}
                             <span
