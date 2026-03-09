@@ -197,7 +197,9 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         schema: 'public',
         table: 'notifiche_disponibilita'
       }, (payload) => {
-        console.log('[NOTIFICHE] Cambiamento ricevuto:', payload)
+        console.log('%c[NOTIFICHE][REALTIME] Cambiamento ricevuto:', 'background: #34C759; color: white; font-size: 16px', payload)
+        console.log('%c[NOTIFICHE][REALTIME] Username attuale:', 'background: #34C759; color: white; font-size: 16px', utenteRef.current?.username)
+        window.alert('[DEBUG] Listener realtime notifiche SCATTATO! (vedi console)')
         caricaNotifiche()
         if (onNotificheChange) onNotificheChange()
       })
@@ -257,11 +259,13 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         ...n, 
         letta: idsLette.has(n.id) 
       }))
+      const nonLette = notificheConStato.filter(n => !n.letta)
       setNotifiche(notificheConStato)
       setNotificheKey(k => k + 1) // Cambia chiave per forzare re-render modale
       setNotificheAggiornate(true)
       setTimeout(() => setNotificheAggiornate(false), 2000)
       console.log('[DEBUG caricaNotifiche] Notifiche aggiornate:', notificheConStato)
+      console.log('[DEBUG caricaNotifiche] Notifiche NON lette:', nonLette.map(n => n.id))
       if (onNotificheChange) {
         console.log('🔄 DEBUG: Chiamo onNotificheChange per aggiornare Home')
         onNotificheChange()

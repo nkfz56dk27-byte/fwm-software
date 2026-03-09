@@ -99,11 +99,10 @@ async function sendCalendarioReminders() {
     const dueDateStr = getDueDaysFromNow();
     console.log(`[INFO] Cercando eventi per la data: ${dueDateStr}`);
     
-    // 1. Trova gli eventi di tipo 'evento' (non gare) previsti per 2 giorni da oggi
+    // 1. Trova tutti gli eventi (inclusi gare) previsti per 2 giorni da oggi
     const { data: eventi, error: errEventi } = await supabase
       .from('eventi_calendario')
-      .select('id, titolo, data_inizio')
-      .eq('tipo', 'evento')
+      .select('id, titolo, data_inizio, tipo')
       .eq('data_inizio', dueDateStr);
     
     if (errEventi) {
