@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import { supabase } from './supabaseClient'
+import { storage } from './firebaseClient'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 
 const FEATURE_SEPARATOR = '|||'
 
@@ -574,40 +575,33 @@ function GuidaFunzioni({ user, onClose }) {
   }
 
   async function inserisciFoto() {
+    // Chiedi all'utente se vuole caricare un file o inserire un URL
+    const scelta = window.prompt('Scrivi URL immagine (GitHub/raw/Imgur) oppure lascia vuoto per caricare un file dal computer:')
+    if (scelta && scelta.trim() !== '') {
+      // Inserimento URL manuale
+      const publicUrl = scelta.trim();
+      const newIndex = editingFeaturePhotos.length + 1;
+      setEditingFeaturePhotos(prev => [
+        ...prev,
+        {
+          id: `img_${Date.now()}_${newIndex}`,
+          src: publicUrl,
+          alt: `Foto ${newIndex}`,
+          align: 'left',
+          position: paragraphBlocks.length
+        }
+      ]);
+      return;
+    }
+    // Altrimenti, carica file dal computer (opzionale: puoi anche rimuovere questa parte se vuoi solo URL)
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = 'image/*'
     input.onchange = async (e) => {
       const file = e.target?.files?.[0]
       if (!file) return
-
-      // Upload su Supabase Storage invece di base64
-      const fileName = `guida/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      const { data, error } = await supabase.storage
-        .from('loghi-piloti')
-        .upload(fileName, file, { upsert: true })
-
-      if (error) {
-        console.error('Errore upload foto:', error)
-        alert('Errore caricamento foto')
-        return
-      }
-
-      const { data: urlData } = supabase.storage
-        .from('loghi-piloti')
-        .getPublicUrl(fileName)
-
-      const newIndex = editingFeaturePhotos.length + 1
-      setEditingFeaturePhotos(prev => [
-        ...prev,
-        {
-          id: `img_${Date.now()}_${newIndex}`,
-          src: urlData.publicUrl,
-          alt: `Foto ${newIndex}`,
-          align: 'left',
-          position: paragraphBlocks.length
-        }
-      ])
+      // Qui puoi eventualmente mostrare un alert che solo URL sono supportati, oppure implementare upload su altro servizio
+      alert('Per ora puoi solo inserire immagini tramite URL (GitHub, Imgur, ecc). Carica prima la foto su GitHub e incolla il link diretto!')
     }
     input.click()
   }
