@@ -893,6 +893,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
   )
 }
 
+
 function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDelete, isMobile }) {
   const [articoli, setArticoli] = useState([])
   const [articoliSelezionati, setArticoliSelezionati] = useState(new Set())
@@ -900,7 +901,32 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   const [showAdminView, setShowAdminView] = useState(false)
   const [showTabella, setShowTabella] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const [selezioniCollaborative, setSelezioniCollaborative] = useState({}) // { [articoloId]: username }
   const channelRef = useRef(null)
+
+  // Setup realtime channel per selezione collaborativa
+  useEffect(() => {
+    const channel = supabase.channel('selezione_articoli_'+weekend.id)
+      .on('broadcast', { event: 'selezione' }, payload => {
+        if (!payload || !payload.payload) return;
+        setSelezioniCollaborative(prev => {
+          const nuovo = { ...prev };
+          // payload: { articoloId, username, selezionato }
+          const { articoloId, username, selezionato } = payload.payload;
+          if (selezionato) {
+            nuovo[articoloId] = username;
+          } else {
+            if (nuovo[articoloId] === username) delete nuovo[articoloId];
+          }
+          return nuovo;
+        });
+      })
+      .subscribe();
+    channelRef.current = channel;
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [weekend.id]);
 
   useEffect(() => {
     caricaArticoli()
@@ -980,15 +1006,40 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
 
   function toggleArticolo(articoloId, articolo) {
     const newSet = new Set(articoliSelezionati)
+    let selezionato = false;
     if (newSet.has(articoloId)) {
       newSet.delete(articoloId)
+      selezionato = false;
     } else if (articolo.stato === 'libero' || articolo.assegnato_a === nomeRedattore) {
       newSet.add(articoloId)
+      selezionato = true;
     } else {
       alert(`❌ Articolo già assegnato a ${articolo.assegnato_a}`)
       return
     }
     setArticoliSelezionati(newSet)
+    // Broadcast selezione/deselezione
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'selezione',
+        payload: {
+          articoloId,
+          username: nomeRedattore,
+          selezionato
+        }
+      })
+    }
+    // Aggiorna anche localmente lo stato collaborativo
+    setSelezioniCollaborative(prev => {
+      const nuovo = { ...prev };
+      if (selezionato) {
+        nuovo[articoloId] = nomeRedattore;
+      } else {
+        if (nuovo[articoloId] === nomeRedattore) delete nuovo[articoloId];
+      }
+      return nuovo;
+    });
   }
 
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ ...g, articoli: articoli.filter(a => a.giorno === g.id) }))
@@ -1015,7 +1066,17 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {articoliPerGiorno.map(giorno => (
-              <GiornoAccordion key={giorno.id} giorno={giorno} articoli={giorno.articoli} isExpanded={expandedDays.has(giorno.id)} articoliSelezionati={articoliSelezionati} nomeRedattore={nomeRedattore} onToggle={() => toggleGiorno(giorno.id)} onToggleArticolo={toggleArticolo} />
+              <GiornoAccordion
+                key={giorno.id}
+                giorno={giorno}
+                articoli={giorno.articoli}
+                isExpanded={expandedDays.has(giorno.id)}
+                articoliSelezionati={articoliSelezionati}
+                nomeRedattore={nomeRedattore}
+                onToggle={() => toggleGiorno(giorno.id)}
+                onToggleArticolo={toggleArticolo}
+                selezioniCollaborative={selezioniCollaborative}
+              />
             ))}
           </div>
         </div>
@@ -1036,7 +1097,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   )
 }
 
-function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, nomeRedattore, onToggle, onToggleArticolo }) {
+function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, nomeRedattore, onToggle, onToggleArticolo, selezioniCollaborative }) {
   const articoliPerCategoria = {}
   CATEGORIE.forEach(cat => {
     const arts = articoli.filter(a => a.categoria === cat.id)
@@ -1059,7 +1120,14 @@ function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, no
             <div key={catId} style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: '600', color: '#666', marginBottom: '10px' }}>{categoria.nome}</div>
               {arts.map(articolo => (
-                <ArticoloCheckbox key={articolo.id} articolo={articolo} isSelected={articoliSelezionati.has(articolo.id)} nomeRedattore={nomeRedattore} onToggle={() => onToggleArticolo(articolo.id, articolo)} />
+                <ArticoloCheckbox
+                  key={articolo.id}
+                  articolo={articolo}
+                  isSelected={articoliSelezionati.has(articolo.id)}
+                  nomeRedattore={nomeRedattore}
+                  onToggle={() => onToggleArticolo(articolo.id, articolo)}
+                  selezioniCollaborative={selezioniCollaborative}
+                />
               ))}
             </div>
           ))}
@@ -1069,17 +1137,23 @@ function GiornoAccordion({ giorno, articoli, isExpanded, articoliSelezionati, no
   )
 }
 
-function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle }) {
-  const isLibero = articolo.stato === 'libero'
-  const isMio = articolo.assegnato_a === nomeRedattore
-  const canSelect = isLibero || isMio
-  
-  let statoText = '👤 libero', statoColor = '#666', bgColor = 'transparent', checkIcon = '☐', checkColor = '#ccc'
-  
+function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle, selezioniCollaborative }) {
+  const isLibero = articolo.stato === 'libero';
+  const isMio = articolo.assegnato_a === nomeRedattore;
+  const canSelect = isLibero || isMio;
+
+  // Selezione collaborativa: chi altro lo sta selezionando?
+  const selezionatoDaAltro = selezioniCollaborative && selezioniCollaborative[articolo.id] && selezioniCollaborative[articolo.id] !== nomeRedattore;
+  const altroNome = selezioniCollaborative && selezioniCollaborative[articolo.id];
+
+  let statoText = '👤 libero', statoColor = '#666', bgColor = 'transparent', checkIcon = '☐', checkColor = '#ccc';
+
   if (isSelected) {
-    statoText = '✓ TU'; statoColor = '#34C759'; bgColor = '#34C7591A'; checkIcon = '☑'; checkColor = '#34C759'
+    statoText = '✓ TU'; statoColor = '#34C759'; bgColor = '#34C7591A'; checkIcon = '☑'; checkColor = '#34C759';
   } else if (articolo.assegnato_a && articolo.assegnato_a !== nomeRedattore) {
-    statoText = `⚠️ ${articolo.assegnato_a}`; statoColor = '#FF3B30'; bgColor = '#FFEBEE'; checkIcon = '☒'; checkColor = '#FF3B30'
+    statoText = `⚠️ ${articolo.assegnato_a}`; statoColor = '#FF3B30'; bgColor = '#FFEBEE'; checkIcon = '☒'; checkColor = '#FF3B30';
+  } else if (selezionatoDaAltro) {
+    statoText = `👁 ${altroNome}`; statoColor = '#007AFF'; bgColor = '#EAF4FF'; checkIcon = '👁'; checkColor = '#007AFF';
   }
 
   return (
@@ -1090,7 +1164,7 @@ function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle }) {
       </span>
       <span style={{ fontSize: '12px', color: statoColor, fontWeight: 'bold' }}>{statoText}</span>
     </button>
-  )
+  );
 }
 
 function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
