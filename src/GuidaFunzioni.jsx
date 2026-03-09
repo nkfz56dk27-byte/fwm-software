@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import { storage } from './firebaseClient'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import FotoGuidaFunzioniSelector from './FotoGuidaFunzioniSelector'
+import { supabase } from './supabaseClient'
 
 const FEATURE_SEPARATOR = '|||'
 
@@ -574,36 +574,30 @@ function GuidaFunzioni({ user, onClose }) {
     return parts.join('')
   }
 
-  async function inserisciFoto() {
-    // Chiedi all'utente se vuole caricare un file o inserire un URL
-    const scelta = window.prompt('Scrivi URL immagine (GitHub/raw/Imgur) oppure lascia vuoto per caricare un file dal computer:')
-    if (scelta && scelta.trim() !== '') {
-      // Inserimento URL manuale
-      const publicUrl = scelta.trim();
-      const newIndex = editingFeaturePhotos.length + 1;
-      setEditingFeaturePhotos(prev => [
-        ...prev,
-        {
-          id: `img_${Date.now()}_${newIndex}`,
-          src: publicUrl,
-          alt: `Foto ${newIndex}`,
-          align: 'left',
-          position: paragraphBlocks.length
-        }
-      ]);
-      return;
-    }
-    // Altrimenti, carica file dal computer (opzionale: puoi anche rimuovere questa parte se vuoi solo URL)
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/*'
-    input.onchange = async (e) => {
-      const file = e.target?.files?.[0]
-      if (!file) return
-      // Qui puoi eventualmente mostrare un alert che solo URL sono supportati, oppure implementare upload su altro servizio
-      alert('Per ora puoi solo inserire immagini tramite URL (GitHub, Imgur, ecc). Carica prima la foto su GitHub e incolla il link diretto!')
-    }
-    input.click()
+  // Funzione per aggiungere una foto dalla cartella locale
+  function aggiungiFotoGuidaFunzioni(src) {
+    const newIndex = editingFeaturePhotos.length + 1
+    setEditingFeaturePhotos(prev => [
+      ...prev,
+      {
+        id: `img_${Date.now()}_${newIndex}`,
+        src,
+        alt: `Foto ${newIndex}`,
+        align: 'left',
+        adminOnly: false,
+        position: paragraphBlocks.length
+      }
+    ])
+    setEditingFeatureDescription(prev => {
+      let token = `\n\n[[IMG_${newIndex}]]\n\n`
+      if (textareaRef.current && typeof textareaRef.current.selectionStart === 'number') {
+        const start = textareaRef.current.selectionStart
+        const end = textareaRef.current.selectionEnd
+        return prev.slice(0, start) + token + prev.slice(end)
+      } else {
+        return prev + token
+      }
+    })
   }
 
   function impostaAllineamentoFoto(photoId, align) {
@@ -671,77 +665,9 @@ function GuidaFunzioni({ user, onClose }) {
     setEditingFeatureDescription(newText)
   }
 
-  function applicaGrassetto(textareaRef) {
-    if (!textareaRef) return
-    const textarea = textareaRef
-    const text = editingFeatureDescription || ''
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
+  // ...existing code...
 
-    if (start === end) {
-      alert('Seleziona del testo da rendere grassetto')
-      return
-    }
-
-    const selectedText = text.substring(start, end)
-    const wrapped = `**${selectedText}**`
-    const newText = text.substring(0, start) + wrapped + text.substring(end)
-    setEditingFeatureDescription(newText)
-
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start, start + wrapped.length)
-    }, 0)
-  }
-
-  function applicaColore(textareaRef, colore) {
-    if (!textareaRef) return
-    const textarea = textareaRef
-    const text = editingFeatureDescription || ''
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-
-    if (start === end) {
-      alert('Seleziona del testo da colorare')
-      return
-    }
-
-    const selectedText = text.substring(start, end)
-    const wrapped = `[${colore}]${selectedText}[/${colore}]`
-    const newText = text.substring(0, start) + wrapped + text.substring(end)
-    setEditingFeatureDescription(newText)
-
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start, start + wrapped.length)
-    }, 0)
-  }
-
-  function rimuoviFormattazione(textareaRef) {
-    if (!textareaRef) return
-    const textarea = textareaRef
-    const text = editingFeatureDescription || ''
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-
-    if (start === end) {
-      alert('Seleziona del testo formattato da cui rimuovere la formattazione')
-      return
-    }
-
-    const selectedText = text.substring(start, end)
-    const cleaned = selectedText
-      .replace(/\*\*(.*?)\*\*/g, '$1')
-      .replace(/\[(RED|BLUE|GREEN|YELLOW)\](.*?)\[\/\1\]/gi, '$2')
-
-    const newText = text.substring(0, start) + cleaned + text.substring(end)
-    setEditingFeatureDescription(newText)
-
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(start, start + cleaned.length)
-    }, 0)
-  }
+  // ...existing code...
 
   function applicaGrassetto(textareaRef) {
     if (!textareaRef) return
@@ -1214,7 +1140,7 @@ function GuidaFunzioni({ user, onClose }) {
                       }}
                     >
                       {featureItem.parsed.adminOnly && isEditMode && (
-                        <div style={{ position: 'absolute', top: '6px', right: '10px', fontSize: '12px', fontWeight: 'bold', color: '#92400E', background: '#FEF3C7', padding: '2px 6px', borderRadius: '4px' }}>
+                        <div style={{ position: 'absolute', top: '50%', right: '130px', transform: 'translateY(-50%)', fontSize: '12px', fontWeight: 'bold', color: '#92400E', background: '#FEF3C7', padding: '2px 6px', borderRadius: '4px', zIndex: 2 }}>
                           SOLO ADMIN
                         </div>
                       )}
@@ -1690,31 +1616,11 @@ function GuidaFunzioni({ user, onClose }) {
                             </>
                           )}
 
-                          <div style={{ marginBottom: '8px' }}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                inserisciFoto()
-                              }}
-                              style={{
-                                background: '#9333EA',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                padding: '8px 12px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                width: '100%'
-                              }}
-                            >
-                            Aggiungi Foto (poi trascina nella posizione)
-                            </button>
-                          </div>
+                          <FotoGuidaFunzioniSelector onSelect={src => aggiungiFotoGuidaFunzioni(src)} />
 
                           <div style={{ marginBottom: '8px', padding: '10px', background: '#F0F9FF', borderRadius: '6px', border: '1px solid #93C5FD' }}>
                             <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#1E40AF', display: 'block', marginBottom: '6px' }}>
-                              👁️ ANTEPRIMA WIKIPEDIA-STYLE
+                              ANTEPRIMA
                             </label>
                             {renderPreviewParagrafo()}
                           </div>
