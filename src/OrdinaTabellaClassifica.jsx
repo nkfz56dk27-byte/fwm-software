@@ -262,7 +262,14 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     const nuovi = validi.map((imp, index) => {
       const posizione  = getVal(imp, 'POS', 'posizione')
       const pilotaRaw  = getVal(imp, 'DRIVER', 'pilota')
-      const pilota     = capitalizzaNomePilota(pilotaRaw)
+      // Conversione: se formato "Cognome, Nome" => "Nome Cognome"
+      let pilota = pilotaRaw;
+      if (pilotaRaw && pilotaRaw.includes(',')) {
+        const [cognome, nome] = pilotaRaw.split(',').map(s => s.trim());
+        pilota = nome && cognome ? `${nome} ${cognome}` : pilotaRaw;
+      }
+      // Capitalizza ogni parola
+      pilota = pilota.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
       const scuderia   = getVal(imp, 'TEAM', 'scuderia')
       const tempo      = getVal(imp, 'LAST', 'tempo')
       const best       = getVal(imp, 'BEST', 'best')
@@ -686,7 +693,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                 .filter(row => tableColumns.some(col => (row[col] || '').toLowerCase().includes(searchTerm.toLowerCase())))
                 .map((row) => (
                   <div key={row.id} style={{ border: '1px solid #ddd', borderRadius: '12px', padding: '16px', background: '#fff', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                    <div style={{ fontWeight: 700, fontSize: '17px', color: '#222', marginBottom: 2 }}>{row.Pilota || row.pilota}</div>
+                    <div style={{ fontWeight: 700, fontSize: '17px', color: '#222', marginBottom: 2 }}>{capitalizzaNomePilota(row.PilotaRaw || row.Pilota || row.pilota || '')}</div>
                     <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: 10 }}>{row.Scuderia || row.scuderia}</div>
                     <div style={{ display: 'flex', gap: 10 }}>
                       <div style={{ flex: 1 }}>
