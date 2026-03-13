@@ -17,8 +17,28 @@ export default function Timing71Setup({ onClose, user }) {
 
   // Genera il bookmarklet con l'userId reale dell'utente loggato — no localStorage needed
   function getBookmarkletCode() {
-    if (!userId) return ''
-    return `javascript:(function(){var rows=document.querySelectorAll('tbody tr');if(!rows.length){alert('Nessuna tabella trovata!');return;}var headers=[...document.querySelectorAll('table th')].map(function(th){return th.textContent.trim();});var pos=headers.indexOf('Pos'),drv=headers.indexOf('Driver'),team=headers.indexOf('Team'),last=headers.indexOf('Last'),best=headers.indexOf('Best');if(pos<0||drv<0){alert('Colonne non trovate. La sessione e\\' attiva?');return;}var data=[...rows].map(function(row){var cells=row.querySelectorAll('td');return{posizione:cells[pos]?cells[pos].textContent.trim():'',pilota:cells[drv]?cells[drv].textContent.trim():'',scuderia:cells[team]?cells[team].textContent.trim():'',tempo:(cells[last]&&cells[last].textContent.trim())||(cells[best]&&cells[best].textContent.trim())||''};}).filter(function(r){return r.pilota;});if(!data.length){alert('Nessun pilota trovato!');return;}var name=prompt('Nome sessione (es: Formula E Monaco Gara):',document.title||'Sessione');if(!name)return;fetch('${SUPABASE_URL}/rest/v1/timing71_import',{method:'POST',headers:{'Content-Type':'application/json','apikey':'${SUPABASE_KEY}','Authorization':'Bearer ${SUPABASE_KEY}','Prefer':'return=minimal'},body:JSON.stringify({user_id:'${userId}',session_name:name.trim(),data:data})}).then(function(r){if(r.ok){alert('\\u2705 '+data.length+' piloti salvati come "'+name.trim()+'"! Torna su FWM e clicca Sincronizza.');}else{r.text().then(function(t){alert('\\u274C Errore: '+t);});}}).catch(function(e){alert('\\u274C Errore di rete: '+e.message);});})();`
+    const uid = userId || 'INSERISCI_TUO_USER_ID';
+    return `javascript:(function(){
+      var headers=[...document.querySelectorAll('table tr th')].map(th=>th.innerText.trim());
+      var rows=[...document.querySelectorAll('table tr')].slice(1);
+      var data=rows.map(tr=>{
+        var cells=[...tr.querySelectorAll('td')];
+        var obj={};
+        headers.forEach((h,i)=>{obj[h]=cells[i]?cells[i].innerText.trim():'';});
+        return obj;
+      });
+      if(!data.length){alert('Nessun dato trovato!');return;}
+      var name=prompt('Nome sessione (es: Formula E Monaco Gara):',document.title||'Sessione');
+      if(!name)return;
+      fetch('${SUPABASE_URL}/rest/v1/timing71_import',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':'${SUPABASE_KEY}','Authorization':'Bearer ${SUPABASE_KEY}','Prefer':'return=minimal'},
+        body:JSON.stringify({user_id:'${uid}',session_name:name.trim(),data:data})
+      }).then(function(r){
+        if(r.ok){alert('\u2705 '+data.length+' righe salvate come "'+name.trim()+'"! Torna su FWM e clicca Sincronizza.');}
+        else{r.text().then(function(t){alert('\u274C Errore: '+t);});}
+      }).catch(function(e){alert('\u274C Errore di rete: '+e.message);});
+    })();`
   }
 
   function copiaCodice() {

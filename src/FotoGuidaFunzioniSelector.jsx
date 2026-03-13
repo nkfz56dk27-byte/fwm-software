@@ -2,9 +2,39 @@ import React, { useRef, useState } from 'react'
 
 // Lista statica di immagini disponibili nella cartella public/foto-guida-funzioni
 const FOTO_LIST = [
-  'Screenshot 2026-03-04 alle 12.31.21 copia.png',
   'Screenshot 2026-03-04 alle 12.31.21.png',
+  'Screenshot 2026-03-04 alle 22.50.22.png',
+  'Screenshot 2026-03-04 alle 22.50.32.png',
+  'Screenshot 2026-03-04 alle 22.50.39.png',
+  'Screenshot 2026-03-04 alle 22.51.05.png',
   'Screenshot 2026-03-04 alle 22.51.14.png',
+  'Screenshot 2026-03-04 alle 22.51.24.png',
+  'Screenshot 2026-03-04 alle 22.51.42.png',
+  'Screenshot 2026-03-04 alle 22.52.59.png',
+  'Screenshot 2026-03-04 alle 22.53.06.png',
+  'Screenshot 2026-03-04 alle 22.53.14.png',
+  'Screenshot 2026-03-04 alle 22.53.29.png',
+  'Screenshot 2026-03-04 alle 22.53.46.png',
+  'Screenshot 2026-03-04 alle 22.53.53.png',
+  'Screenshot 2026-03-04 alle 22.54.01.png',
+  'Screenshot 2026-03-04 alle 22.54.15.png',
+  'Screenshot 2026-03-04 alle 22.54.22.png',
+  'Screenshot 2026-03-04 alle 22.54.31.png',
+  'Screenshot 2026-03-04 alle 22.54.40.png',
+  'Screenshot 2026-03-04 alle 22.54.53.png',
+  'Screenshot 2026-03-04 alle 22.55.04.png',
+  'Screenshot 2026-03-04 alle 22.55.10.png',
+  'Screenshot 2026-03-04 alle 22.55.24.png',
+  'Screenshot 2026-03-04 alle 22.56.19.png',
+  'Screenshot 2026-03-04 alle 22.56.35.png',
+  'Screenshot 2026-03-04 alle 22.56.52.png',
+  'Screenshot 2026-03-04 alle 22.56.58.png',
+  'Screenshot 2026-03-04 alle 22.57.05.png',
+  'Screenshot 2026-03-04 alle 22.57.21.png',
+  'Screenshot 2026-03-04 alle 22.57.43.png',
+  'Screenshot 2026-03-04 alle 22.57.52.png',
+  'Screenshot 2026-03-04 alle 22.57.59.png',
+  'Screenshot 2026-03-09 alle 09.50.25.png',
   'Screenshot 2026-03-09 alle 09.50.34.png',
   'Screenshot 2026-03-09 alle 09.50.48.png'
 ]
@@ -87,19 +117,19 @@ export default function FotoGuidaFunzioniSelector({ onSelect }) {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'center' }}>
               {FOTO_LIST.length === 0 && (
-                <span style={{ color: '#64748B', fontSize: 13 }}>Nessuna foto disponibile nella cartella <b>public/foto-guida-funzioni</b></span>
+                    <span style={{ color: '#64748B', fontSize: 13 }}>Nessuna foto disponibile nella cartella <b>public/foto-guida-funzioni-cropped</b></span>
               )}
               {FOTO_LIST.map((file) => (
                 <button
                   key={file}
                   onClick={() => {
-                    onSelect(`/foto-guida-funzioni/${file}`)
+                        onSelect(`/foto-guida-funzioni-cropped/${file}`)
                     setOpen(false)
                   }}
                   style={{ border: '1px solid #CBD5E1', borderRadius: 8, padding: 0, background: 'white', cursor: 'pointer' }}
                   title={file}
                 >
-                  <img src={`/foto-guida-funzioni/${file}`} alt={file} style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8 }} />
+                    <img src={`/foto-guida-funzioni-cropped/${file}`} alt={file} style={{ width: 90, height: 90, objectFit: 'cover', objectPosition: 'center', borderRadius: 8, display: 'block' }} />
                 </button>
               ))}
             </div>

@@ -416,12 +416,12 @@ function GuidaFunzioni({ user, onClose }) {
 
   function getImageStyle(align = 'left') {
     if (align === 'full') {
-      const fullWidth = isMobile ? '100%' : 'min(100%, 1200px)'
-      return `display:block; float:none; clear:both; width:${fullWidth}; max-width:100%; aspect-ratio:1200/729; height:auto; object-fit:cover; border-radius:10px; margin:0 auto 14px auto;`
+      // Immagine a tutta larghezza, senza limiti, centrata
+      return `display:block; float:none; clear:both; width:100%; max-width:1200px; aspect-ratio:1200/729; height:auto; object-fit:cover; border-radius:10px; margin:0 auto 18px auto;`;
     }
-    const baseSize = isMobile ? 'min(42vw, 150px)' : 'min(36vw, 240px)'
-    const margin = align === 'right' ? '0 0 12px 12px' : '0 12px 12px 0'
-    return `float:${align}; width:${baseSize}; max-width:100%; height:auto; border-radius:8px; margin:${margin};`
+    const baseSize = isMobile ? 'min(42vw, 150px)' : 'min(36vw, 240px)';
+    const margin = align === 'right' ? '0 0 12px 12px' : '0 12px 12px 0';
+    return `float:${align}; width:${baseSize}; max-width:100%; height:auto; border-radius:8px; margin:${margin};`;
   }
 
   function escapeHtml(value = '') {
@@ -796,12 +796,8 @@ function GuidaFunzioni({ user, onClose }) {
       { closeForm: false, showSuccess: false }
     )
 
-    setEditingFeatureIndex(null)
-    setEditingFeatureTitle('')
-    setEditingFeatureDescription('')
-    setEditingFeaturePhotos([])
-    setDraggedPhotoId(null)
-    setEditingFeatureAdminOnly(false)
+    // Non resetto più lo stato di editing dopo il salvataggio, così l'utente resta nella schermata di modifica
+    // Se vuoi chiudere la schermata dopo il salvataggio, puoi farlo manualmente con un bottone "Chiudi" o simile
   }
 
   const normalizedSearch = searchTerm.trim().toLowerCase()

@@ -3,6 +3,16 @@ import { supabase } from './supabaseClient'
 import Timing71Setup from './Timing71Setup'
 
 export default function OrdinaTabellaClassifica({ onClose, user }) {
+
+  function capitalizzaNomePilota(nome) {
+    if (!nome) return '';
+    return nome.split(',').map(parte =>
+      parte.trim().split(' ').map(word =>
+        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      ).join(' ')
+    ).join(', ');
+  }
+
   function posizioneDoppia(pos, data) {
     if (!pos) return false
     return data.filter(r => String(r.posizione) === String(pos)).length > 1
@@ -35,6 +45,28 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   const [isNuovoTemplate, setIsNuovoTemplate] = useState(false)
   const [isEditingData, setIsEditingData] = useState(false)
   const [tableData, setTableData] = useState([])
+  const MAIN_COLUMNS = ["Posizione", "Pilota", "Scuderia", "Best", "Tempo"]
+
+  const COLUMN_MAP = {
+    'POS': 'Posizione', 'NUM': 'Numero', 'STATE': 'Stato',
+    'DRIVER': 'Pilota', 'TEAM': 'Scuderia', 'LAPS': 'Giri',
+    'T': 'T', 'TS': 'TS', 'TA': 'TA', 'GAP': 'Gap',
+    'INT': 'Intervallo', 'S1': 'S1', 'S2': 'S2', 'S3': 'S3',
+    'SPD': 'Velocità', 'LAST': 'Tempo', 'BEST': 'Best', 'PITS': 'Pits',
+    'Track Temp': 'Temp Pista', 'Air Temp': 'Temp Aria',
+    'Wind Speed': 'Vento', 'Direction': 'Direzione Vento',
+    'Humidity': 'Umidità', 'Pressure': 'Pressione',
+    'Track': 'Tracciato', 'Visible': 'Visible',
+    'Column': 'Column', 'Description': 'Description'
+  }
+  const REVERSE_COLUMN_MAP = Object.fromEntries(
+    Object.entries(COLUMN_MAP).map(([k, v]) => [v, k])
+  )
+
+  const [showColonneModal, setShowColonneModal] = useState(false)
+  const [colonneVisibili, setColonneVisibili] = useState([...MAIN_COLUMNS])
+  const [tableColumns, setTableColumns] = useState(MAIN_COLUMNS)
+  const [extraColumns, setExtraColumns] = useState([])
   const [isModificaMode, setIsModificaMode] = useState(false)
   const [isPosizioniOrdinate, setIsPosizioniOrdinate] = useState(false)
   const [isMobileView, setIsMobileView] = useState(
@@ -42,7 +74,17 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   )
   const [searchTerm, setSearchTerm] = useState('')
 
-  // ── Timing71 ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (modalitaGara) {
+      setColonneVisibili(["Posizione", "Pilota", "Scuderia"])
+    } else {
+      setColonneVisibili([...MAIN_COLUMNS])
+    }
+  }, [modalitaGara])
+
+  const [showRemoveMode, setShowRemoveMode] = useState(false)
+
+  // ── Timing71 ──────────────────────────────────────────────────────────────
   const [showTiming71Setup, setShowTiming71Setup] = useState(false)
   const [showSyncPanel, setShowSyncPanel] = useState(false)
   const [timing71Sessions, setTiming71Sessions] = useState([])
@@ -74,6 +116,47 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     setTemplates(data || [])
   }
 
+  // ── FIX #2: apriTemplate aggiunta (era mancante) ─────────────────────────
+  function apriTemplate(template) {
+    setInputHtml(template.html_template || '')
+    setTemplateSelezionato(template)
+    setIsNuovoTemplate(false)
+    setOutputHtml('')
+    setShowPreview(false)
+    setIsPosizioniOrdinate(false)
+    setSyncStatus(null)
+    setShowSyncPanel(false)
+
+    // Parsa l'HTML del template per ricostruire tableData
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(template.html_template || '', 'text/html')
+    const headers = Array.from(doc.querySelectorAll('thead th')).map(th => th.textContent.trim())
+    const rows = doc.querySelectorAll('tbody tr')
+
+    if (rows.length > 0 && headers.length > 0) {
+      const data = Array.from(rows).map((row, idx) => {
+        const cells = row.querySelectorAll('td')
+        const obj = { id: `row-${idx}-${Date.now()}`, _posLocked: false }
+        headers.forEach((header, i) => {
+          obj[header] = cells[i] ? cells[i].textContent.trim() : ''
+        })
+        // Alias minuscoli per compatibilità con il resto del codice
+        obj.posizione = obj['Posizione'] || ''
+        obj.pilota    = obj['Pilota']    || ''
+        obj.scuderia  = obj['Scuderia']  || ''
+        obj.tempo     = obj['Tempo']     || ''
+        return obj
+      })
+      setTableData(data)
+
+      const extraCols = headers.filter(h => !MAIN_COLUMNS.includes(h))
+      setTableColumns([...MAIN_COLUMNS, ...extraCols])
+      setExtraColumns(extraCols)
+    }
+
+    setIsEditingData(true)
+  }
+
   // ── Carica sessioni Timing71 (con pulizia automatica > 24h) ───────────────
   async function caricaSessioniTiming71() {
     setSyncLoading(true)
@@ -83,8 +166,6 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
         setSyncStatus('error'); setSyncMessage('❌ Utente non autenticato')
         setSyncLoading(false); return
       }
-
-      // Elimina sessioni più vecchie di 24 ore
       const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
       await supabase.from('timing71_import').delete()
         .eq('user_id', u.id)
@@ -108,74 +189,120 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     setSyncLoading(false)
   }
 
-  // ── Applica sessione Timing71 al tableData ────────────────────────────────
+  // ── FIX #3: eliminaSessione aggiunta (era mancante) ──────────────────────
+  async function eliminaSessione(id, e) {
+    e.stopPropagation()
+    if (!confirm('Eliminare questa sessione Timing71?')) return
+    const { error } = await supabase.from('timing71_import').delete().eq('id', id)
+    if (error) { alert('❌ Errore eliminazione sessione'); return }
+    setTiming71Sessions(prev => prev.filter(s => s.id !== id))
+  }
+
+  // ── FIX #1: applicaSessione riscritta correttamente ──────────────────────
   function applicaSessione(sessione) {
+    const LOCAL_COLUMN_MAP = {
+      'Pos': 'Posizione', 'Driver': 'Pilota', 'Team': 'Scuderia',
+      'Laps': 'Giri', 'Gap': 'Gap', 'Best': 'Best', 'Last': 'Tempo',
+      'Pits': 'Pits', 'State': 'Stato', 'Num Jump to:': 'Numero',
+      'T': 'T', 'TS': 'TS', 'TA': 'TA', 'Int': 'Intervallo',
+      'S1': 'S1', 'S2': 'S2', 'S3': 'S3', 'Spd': 'Velocità',
+    }
+    const LOCAL_REVERSE_MAP = Object.fromEntries(
+      Object.entries(LOCAL_COLUMN_MAP).map(([k, v]) => [v, k])
+    )
+
     const importati = sessione.data
     if (!Array.isArray(importati) || importati.length === 0) {
       setSyncStatus('error'); setSyncMessage('❌ Nessun dato in questa sessione'); return
     }
 
-    if (tableData.length > 0) {
-      const aggiornati = tableData.map(row => {
-        const match = importati.find(imp => {
-          if (!imp.pilota) return false
-          const nr = normalizzaNome(row.pilota)
-          const ni = normalizzaNome(imp.pilota)
-          return nr === ni ||
-            nr.includes(ni) || ni.includes(nr) ||
-            nr.split(' ').pop() === ni.split(' ').pop() ||
-            nr.split(' ')[0] === ni.split(' ')[0]
-        })
-        if (match) return { ...row, posizione: match.posizione || row.posizione, tempo: match.tempo || row.tempo, _posLocked: !!match.posizione }
-        return row
+    // Costruisce lista colonne da tutti i dati importati
+    const allColumnsRaw = Array.from(new Set(importati.flatMap(obj => Object.keys(obj))))
+    const mappedColumns = allColumnsRaw.map(col => LOCAL_COLUMN_MAP[col] || col)
+    const allColumns = Array.from(new Set([
+      ...MAIN_COLUMNS,
+      ...mappedColumns.filter(col => !MAIN_COLUMNS.includes(col))
+    ]))
+
+    setTableColumns(allColumns)
+    setExtraColumns(allColumns.filter(col => !MAIN_COLUMNS.includes(col)))
+    setColonneVisibili(["Posizione", "Pilota", "Scuderia", "Best"])
+
+    // Helper: ricerca case-insensitive / trim tra le chiavi dell'oggetto
+    const getVal = (obj, ...keys) => {
+      for (const k of keys) {
+        for (const key of Object.keys(obj)) {
+          if (key.trim().toLowerCase() === k.trim().toLowerCase()) {
+            return (obj[key] || '').trim()
+          }
+        }
+      }
+      return ''
+    }
+
+    const isNumero = v => /^\d+$/.test(v)
+
+    // Utility: normalizza chiave (solo alfanumerici minuscoli)
+    const normalizeKey = key => key.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+    // Filtra solo piloti validi (posizione numerica + pilota + scuderia presenti)
+    const validi = importati.filter(imp => {
+      const pos      = getVal(imp, 'POS', 'posizione')
+      const pilotaRaw = getVal(imp, 'DRIVER', 'pilota')
+      const scuderia  = getVal(imp, 'TEAM', 'scuderia')
+      return isNumero(pos) && !!normalizzaNome(pilotaRaw) && !!normalizzaNome(scuderia)
+    })
+
+    if (validi.length === 0) {
+      alert('❌ Nessun pilota valido trovato nell\'importazione. I dati esistenti non sono stati toccati.')
+      return
+    }
+
+    // FIX #4: riga costruita correttamente con return + alias posizione minuscolo
+    const nuovi = validi.map((imp, index) => {
+      const posizione  = getVal(imp, 'POS', 'posizione')
+      const pilotaRaw  = getVal(imp, 'DRIVER', 'pilota')
+      const pilota     = capitalizzaNomePilota(pilotaRaw)
+      const scuderia   = getVal(imp, 'TEAM', 'scuderia')
+      const tempo      = getVal(imp, 'LAST', 'tempo')
+      const best       = getVal(imp, 'BEST', 'best')
+
+      const row = {
+        id:        `t71-${index}-${Date.now()}`,
+        Posizione: posizione,
+        posizione: posizione,   // alias minuscolo usato da posizioneDoppia & co.
+        Pilota:    pilota,
+        PilotaRaw: pilotaRaw,
+        Scuderia:  scuderia,
+        scuderia:  scuderia,
+        Tempo:     tempo,
+        tempo:     tempo,
+        Best:      best,
+        _posLocked: false,
+      }
+
+      // Popola le colonne extra con i valori reali dell'import
+      const impNormMap = {}
+      Object.keys(imp).forEach(k => { impNormMap[normalizeKey(k)] = imp[k] })
+
+      allColumns.forEach(col => {
+        if (["Posizione", "Pilota", "Scuderia", "Tempo", "Best"].includes(col)) return
+        const timing71Col = LOCAL_REVERSE_MAP[col] || col
+        const normKey = normalizeKey(timing71Col)
+        row[col] = impNormMap[normKey] || impNormMap[normalizeKey(col)] || ''
       })
 
-      const matched = aggiornati.filter((r, i) =>
-        r.posizione !== tableData[i].posizione || r.tempo !== tableData[i].tempo
-      ).length
-
-      setTableData(aggiornati)
-      setIsPosizioniOrdinate(false); setOutputHtml(''); setShowPreview(false); setShowSyncPanel(false)
-
-      if (matched === 0) { setSyncStatus('warning'); setSyncMessage(`⚠️ Nessun pilota trovato in comune. Controlla i nomi nel template.`) }
-      else if (matched < tableData.length) { setSyncStatus('warning'); setSyncMessage(`⚠️ Aggiornati ${matched}/${tableData.length} piloti. Completa i rimanenti manualmente.`) }
-      else { setSyncStatus('success'); setSyncMessage(`✅ Importati ${matched} piloti da "${sessione.session_name}"! Premi ORDINA.`) }
-    } else {
-      const nuoviDati = importati.map((imp, index) => ({
-        id: `t71-${index}-${Date.now()}`,
-        posizione: imp.posizione || '', pilota: imp.pilota || '',
-        scuderia: imp.scuderia || '', tempo: imp.tempo || '',
-        _posLocked: !!imp.posizione
-      }))
-      setTableData(nuoviDati)
-      setIsPosizioniOrdinate(false); setOutputHtml(''); setShowPreview(false); setShowSyncPanel(false)
-      setSyncStatus('success'); setSyncMessage(`✅ Caricati ${nuoviDati.length} piloti da "${sessione.session_name}"!`)
-    }
-  }
-
-  async function eliminaSessione(id, e) {
-    e.stopPropagation()
-    if (!confirm('Eliminare questa sessione?')) return
-    await supabase.from('timing71_import').delete().eq('id', id)
-    caricaSessioniTiming71()
-  }
-
-  function apriTemplate(template) {
-    setTemplateSelezionato(template); setIsNuovoTemplate(false)
-    setIsEditingData(true); setSearchTerm('')
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(template.html_template, 'text/html')
-    const rows = doc.querySelectorAll('tbody tr')
-    const data = []
-    rows.forEach((row, index) => {
-      const cells = row.querySelectorAll('td')
-      if (cells.length >= 4) {
-        data.push({ id: `row-${index}-${Date.now()}`, posizione: '', pilota: cells[1].textContent.trim(), scuderia: cells[2].textContent.trim(), tempo: '' })
-      }
+      return row  // ← era mancante
     })
-    data.sort((a, b) => a.pilota.localeCompare(b.pilota, 'it', { sensitivity: 'base' }))
-    setTableData(data); setOutputHtml(''); setShowPreview(false)
-    setIsPosizioniOrdinate(false); setSyncStatus(null); setSyncMessage('')
+
+    // Aggiorna il tableData con i dati importati
+    setTableData(nuovi)
+    setSyncStatus('success')
+    setSyncMessage(`✅ ${nuovi.length} piloti importati con successo`)
+    setShowSyncPanel(false)
+    setIsPosizioniOrdinate(false)
+    setOutputHtml('')
+    setShowPreview(false)
   }
 
   async function salvaTemplate() {
@@ -183,7 +310,8 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser?.id) { alert('❌ Errore: utente non autenticato'); return }
     const { error } = await supabase.from('ordina_tabella_templates').insert({
-      username: user.username, user_id: authUser.id, nome_template: templateName.trim(), html_template: inputHtml
+      username: user.username, user_id: authUser.id,
+      nome_template: templateName.trim(), html_template: inputHtml
     })
     if (error) { alert('❌ Errore nel salvataggio: ' + (error.message || '')); return }
     setTemplateName(''); setShowSaveForm(false)
@@ -207,7 +335,12 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     const data = []
     rows.forEach(row => {
       const cells = row.querySelectorAll('td')
-      if (cells.length >= 3) data.push({ posizione: parseInt(cells[0].textContent.trim()) || 999, pilota: cells[1].textContent.trim(), scuderia: cells[2].textContent.trim(), tempo: cells[3] ? cells[3].textContent.trim() : '' })
+      if (cells.length >= 3) data.push({
+        posizione: parseInt(cells[0].textContent.trim()) || 999,
+        pilota: cells[1].textContent.trim(),
+        scuderia: cells[2].textContent.trim(),
+        tempo: cells[3] ? cells[3].textContent.trim() : ''
+      })
     })
     data.sort((a, b) => a.posizione - b.posizione)
     let html = '<table class="table table-hover table-striped table-condensed" style="width:100%;">\n'
@@ -225,13 +358,17 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   function generaHtmlDaDati() {
     if (tableData.length === 0) { alert('Nessun dato da elaborare'); return }
     if (!isPosizioniOrdinate) { alert('Prima ordina la griglia con il tasto ORDINA'); return }
+    const columns = colonneVisibili
     let html = '<table class="table table-hover table-striped table-condensed" style="width:100%;">\n'
-    html += '  <thead>\n    <tr>\n      <th>Posizione</th>\n      <th>Pilota</th>\n      <th>Scuderia</th>\n'
-    if (!modalitaGara) html += '      <th>Tempo</th>\n'
-    html += '    </tr>\n  </thead>\n  <tbody>\n'
-    tableData.forEach(row => {
-      html += `    <tr><td>${row.posizione}</td><td>${row.pilota}</td><td>${row.scuderia}</td>`
-      if (!modalitaGara) html += `<td>${row.tempo}</td>`
+    html += '  <thead>\n    <tr>'
+    columns.forEach(col => { html += `<th>${col}</th>` })
+    html += '</tr>\n  </thead>\n  <tbody>\n'
+    tableData.forEach((row) => {
+      html += '    <tr>'
+      columns.forEach(col => {
+        const value = row[col] !== undefined ? row[col] : ''
+        html += `<td>${value}</td>`
+      })
       html += '</tr>\n'
     })
     html += '  </tbody>\n</table>'
@@ -248,7 +385,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
       setCopySuccess(true); setTimeout(() => setCopySuccess(false), 2000)
     }
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(outputHtml).then(() => { setCopySuccess(true); setTimeout(() => setCopySuccess(false), 2000) }).catch(doFallback)
+      navigator.clipboard.writeText(outputHtml)
+        .then(() => { setCopySuccess(true); setTimeout(() => setCopySuccess(false), 2000) })
+        .catch(doFallback)
     } else doFallback()
   }
 
@@ -288,7 +427,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
           </div>
         </div>
 
-        <h1 style={{ color: '#333', marginTop: 0, marginBottom: '30px', fontSize: '28px', textAlign: 'center' }}>Ordina Tabella Classifica</h1>
+        <h1 style={{ color: '#333', marginTop: 0, marginBottom: '30px', fontSize: '28px', textAlign: 'center' }}>Tabella HTML</h1>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
           {templates.length === 0 ? (
@@ -395,7 +534,6 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
             </div>
           )}
 
-          {/* Messaggio stato sync */}
           {syncStatus && (
             <div style={{ marginBottom: '16px', padding: '12px 16px', borderRadius: '8px', fontWeight: 600, fontSize: '14px',
               background: syncStatus === 'success' ? '#dcfce7' : syncStatus === 'warning' ? '#fef9c3' : '#fee2e2',
@@ -418,12 +556,61 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
 
           {/* Toggle Modalità GARA */}
           <div style={{ margin: '10px 0 20px 0', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button type="button" onClick={() => setModalitaGara(v => !v)}
+            <button type="button" onClick={() => {
+              setModalitaGara(v => {
+                const next = !v
+                if (next) setColonneVisibili(["Posizione", "Pilota", "Scuderia"])
+                return next
+              })
+            }}
               style={{ minWidth: 110, height: 38, borderRadius: 8, border: modalitaGara ? '2px solid #007AFF' : '2px solid #d1d5db', background: modalitaGara ? '#007AFF' : '#f3f4f6', color: modalitaGara ? '#fff' : '#374151', fontWeight: 600, fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 12px' }}>
               MODE GARA
             </button>
             <span style={{ fontSize: 13, color: '#6b7280' }}>(solo posizioni)</span>
           </div>
+
+          {/* Toggle colonne */}
+          <div style={{ marginBottom: 10 }}>
+            <button
+              onClick={() => setShowColonneModal(true)}
+              style={{ background: '#2563eb', color: 'white', border: 'none', padding: '8px 18px', borderRadius: '6px', fontWeight: 600, fontSize: 15, cursor: 'pointer' }}
+            >
+              Seleziona colonne da mostrare
+            </button>
+          </div>
+
+          {/* Modale selezione colonne */}
+          {showColonneModal && (
+            <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.25)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: 'white', borderRadius: 12, padding: 24, minWidth: 520, boxShadow: '0 4px 24px rgba(0,0,0,0.15)', maxWidth: 700, maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ marginTop: 0, marginBottom: 18, fontSize: 20, color: '#2563eb' }}>Colonne visibili</h3>
+                <form style={{ flex: 1, overflowY: 'auto' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px' }}>
+                    {[...new Set([...tableColumns, ...extraColumns])].map((col) => (
+                      <div key={col} style={{ marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={colonneVisibili.includes(col)}
+                          onChange={e => {
+                            if (e.target.checked) setColonneVisibili(prev => Array.from(new Set([...prev, col])))
+                            else setColonneVisibili(prev => prev.filter(c => c !== col))
+                          }}
+                          id={"chk-"+col}
+                        />
+                        <label htmlFor={"chk-"+col} style={{ fontSize: 15 }}>{col}</label>
+                      </div>
+                    ))}
+                  </div>
+                  {[...new Set([...tableColumns, ...extraColumns])].length === MAIN_COLUMNS.length && (
+                    <div style={{ color: '#888', fontSize: 14, marginTop: 10 }}>Non ci sono colonne extra. Puoi aggiungerle manualmente o tramite import.</div>
+                  )}
+                </form>
+                <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setShowColonneModal(false)} style={{ background: '#64748b', color: 'white', border: 'none', padding: '8px 18px', borderRadius: '6px', fontWeight: 600, fontSize: 15, cursor: 'pointer' }}>Chiudi</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Tabella - Desktop */}
           {!isMobileView ? (
@@ -431,38 +618,63 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
               <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
                 <thead>
                   <tr style={{ background: '#f0f0f0' }}>
-                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Posizione</th>
-                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Pilota</th>
-                    <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Scuderia</th>
-                    {!modalitaGara && <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd' }}>Tempo</th>}
+                    {Array.from(new Set([
+                      ...tableColumns.filter(col => col !== "Tempo" || !modalitaGara),
+                      ...extraColumns
+                    ])).filter(col => colonneVisibili.includes(col)).map((col, idx) => (
+                      <th key={col+idx} style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #ddd', background: extraColumns.includes(col) ? '#f3f4f6' : undefined, color: extraColumns.includes(col) ? '#64748b' : undefined }}>{col}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {tableData
-                    .filter(row => row.pilota.toLowerCase().includes(searchTerm.toLowerCase()) || row.scuderia.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .filter(row => Array.from(new Set([...tableColumns, ...extraColumns])).some(col => (row[col] || '').toLowerCase().includes(searchTerm.toLowerCase())))
                     .map((row) => (
                       <tr key={row.id} style={{ borderBottom: '1px solid #eee' }}>
-                        <td style={{ padding: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <button type="button" onClick={() => setTableData(tableData.map(r => r.id === row.id ? { ...r, _posLocked: false } : r))}
-                            disabled={!row._posLocked}
-                            style={{ marginRight: 4, background: row._posLocked ? '#f59e42' : '#eee', color: row._posLocked ? '#fff' : '#bbb', border: 'none', borderRadius: 4, width: 22, height: 22, cursor: row._posLocked ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: 14, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                            title="Sblocca posizione">⟳</button>
-                          <input type="number" min="1" value={row.posizione} disabled={row._posLocked}
-                            onChange={(e) => { setTableData(tableData.map(r => r.id === row.id ? { ...r, posizione: e.target.value } : r)); setIsPosizioniOrdinate(false); setOutputHtml(''); setShowPreview(false) }}
-                            onBlur={(e) => { if (e.target.value && String(e.target.value).trim() !== '') { let val = e.target.value; if (Number(val) < 1) val = '1'; setTableData(tableData.map(r => r.id === row.id ? { ...r, posizione: val, _posLocked: true } : r)) } }}
-                            style={{ width: '100%', padding: '8px', border: '1px solid', borderRadius: '4px', fontSize: '14px', background: row._posLocked ? '#f3f4f6' : 'white', color: row._posLocked ? '#888' : '#222', cursor: row._posLocked ? 'not-allowed' : 'text', borderColor: posizioneDoppia(row.posizione, tableData) ? '#e11d48' : '#ddd', boxShadow: posizioneDoppia(row.posizione, tableData) ? '0 0 0 2px #e11d4822' : 'none' }}
-                          />
-                        </td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{row.pilota}</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{row.scuderia}</td>
-                        {!modalitaGara && (
-                          <td style={{ padding: '12px' }}>
-                            <input type="text" value={row.tempo} disabled={!isPosizioniOrdinate}
-                              onChange={(e) => { setTableData(tableData.map(r => r.id === row.id ? { ...r, tempo: e.target.value } : r)); setOutputHtml(''); setShowPreview(false) }}
-                              style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '14px', background: isPosizioniOrdinate ? 'white' : '#f1f3f5', cursor: isPosizioniOrdinate ? 'text' : 'not-allowed' }}
-                            />
-                          </td>
-                        )}
+                        {Array.from(new Set([
+                          ...tableColumns.filter(col => col !== "Tempo" || !modalitaGara),
+                          ...extraColumns
+                        ])).filter(col => colonneVisibili.includes(col)).map((col, idx) => {
+                          if (col === "Posizione") {
+                            return (
+                              <td key={col+idx} style={{ padding: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <button type="button" onClick={() => setTableData(tableData.map(r => r.id === row.id ? { ...r, _posLocked: false } : r))}
+                                  disabled={!row._posLocked}
+                                  style={{ marginRight: 4, background: row._posLocked ? '#f3f4f6' : '#eee', color: row._posLocked ? '#888' : '#bbb', border: 'none', borderRadius: 4, width: 22, height: 22, cursor: row._posLocked ? 'pointer' : 'not-allowed', fontWeight: 700, fontSize: 14, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                  title="Sblocca posizione">⟳</button>
+                                <input type="number" min="1" value={row.posizione || row["Posizione"] || ''}
+                                  disabled={row._posLocked}
+                                  onChange={(e) => { setTableData(tableData.map(r => r.id === row.id ? { ...r, posizione: e.target.value, [col]: e.target.value } : r)); setIsPosizioniOrdinate(false); setOutputHtml(''); setShowPreview(false) }}
+                                  onBlur={(e) => { if (e.target.value && String(e.target.value).trim() !== '') { let val = e.target.value; if (Number(val) < 1) val = '1'; setTableData(tableData.map(r => r.id === row.id ? { ...r, posizione: val, [col]: val, _posLocked: true } : r)) } }}
+                                  style={{ width: '100%', padding: '8px', border: '1px solid', borderRadius: '4px', fontSize: '14px', background: row._posLocked ? '#f3f4f6' : 'white', color: row._posLocked ? '#888' : '#222', cursor: row._posLocked ? 'not-allowed' : 'text', borderColor: posizioneDoppia(row.posizione || row["Posizione"], tableData) ? '#e11d48' : '#ddd', boxShadow: posizioneDoppia(row.posizione || row["Posizione"], tableData) ? '0 0 0 2px #e11d4822' : 'none' }}
+                                />
+                              </td>
+                            )
+                          }
+                          if (col === "Pilota") {
+                            return (
+                              <td key={col+idx} style={{ padding: '12px', fontSize: '14px' }}>{capitalizzaNomePilota(row.PilotaRaw || row.Pilota || row[col] || '')}</td>
+                            )
+                          }
+                          if (col === "Scuderia") {
+                            return <td key={col+idx} style={{ padding: '12px', fontSize: '14px' }}>{row[col]}</td>
+                          }
+                          if (col === "Tempo" && modalitaGara) return null
+                          const tuttePosizioniOk = tableData.every(r => (r.posizione || r["Posizione"]) && String(r.posizione || r["Posizione"]).trim() !== '')
+                          const isTempo = col === "Tempo"
+                          const isTempoLocked = isTempo && !tuttePosizioniOk
+                          return (
+                            <td key={col+idx} style={{ padding: '12px', fontSize: '14px', background: extraColumns.includes(col) ? 'white' : undefined }}>
+                              <input
+                                type={col.toLowerCase().includes('pos') ? 'number' : 'text'}
+                                value={row[col] || ''}
+                                onChange={e => { setTableData(tableData.map(r => r.id === row.id ? { ...r, [col]: e.target.value } : r)); setOutputHtml(''); setShowPreview(false) }}
+                                style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '14px', background: isTempoLocked ? '#f3f4f6' : 'white', color: isTempoLocked ? '#888' : '#222', cursor: isTempoLocked ? 'not-allowed' : 'text' }}
+                                disabled={isTempoLocked}
+                              />
+                            </td>
+                          )
+                        })}
                       </tr>
                     ))}
                 </tbody>
@@ -471,22 +683,28 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
           ) : (
             <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {tableData
-                .filter(row => row.pilota.toLowerCase().includes(searchTerm.toLowerCase()) || row.scuderia.toLowerCase().includes(searchTerm.toLowerCase()))
-                .map((row, i) => (
-                  <div key={row.id} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '12px', background: '#fff' }}>
-                    <div style={{ marginBottom: '8px', fontWeight: '700', color: '#1f2937' }}>{row.pilota}</div>
-                    <div style={{ marginBottom: '10px', fontSize: '13px', color: '#6b7280' }}>{row.scuderia}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <div>
+                .filter(row => tableColumns.some(col => (row[col] || '').toLowerCase().includes(searchTerm.toLowerCase())))
+                .map((row) => (
+                  <div key={row.id} style={{ border: '1px solid #ddd', borderRadius: '12px', padding: '16px', background: '#fff', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                    <div style={{ fontWeight: 700, fontSize: '17px', color: '#222', marginBottom: 2 }}>{row.Pilota || row.pilota}</div>
+                    <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: 10 }}>{row.Scuderia || row.scuderia}</div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ flex: 1 }}>
                         <label style={{ fontSize: '12px', color: '#6b7280' }}>Posizione</label>
-                        <div style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '14px', marginTop: '4px', background: '#f9fafb', textAlign: 'center', fontWeight: 600 }}>{i + 1}</div>
+                        <input type="number" min="1" value={row.posizione || row["Posizione"] || ''}
+                          disabled={row._posLocked}
+                          onChange={e => { setTableData(tableData.map(r => r.id === row.id ? { ...r, posizione: e.target.value, ["Posizione"]: e.target.value } : r)); setIsPosizioniOrdinate(false); setOutputHtml(''); setShowPreview(false) }}
+                          onBlur={e => { if (e.target.value && String(e.target.value).trim() !== '') { let val = e.target.value; if (Number(val) < 1) val = '1'; setTableData(tableData.map(r => r.id === row.id ? { ...r, posizione: val, ["Posizione"]: val, _posLocked: true } : r)) } }}
+                          style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '14px', background: row._posLocked ? '#f3f4f6' : 'white', color: row._posLocked ? '#888' : '#222', cursor: row._posLocked ? 'not-allowed' : 'text' }}
+                        />
                       </div>
                       {!modalitaGara && (
-                        <div>
+                        <div style={{ flex: 1 }}>
                           <label style={{ fontSize: '12px', color: '#6b7280' }}>Tempo</label>
-                          <input type="text" value={row.tempo} disabled={!isPosizioniOrdinate}
-                            onChange={(e) => { setTableData(tableData.map(r => r.id === row.id ? { ...r, tempo: e.target.value } : r)); setOutputHtml(''); setShowPreview(false) }}
-                            style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '14px', marginTop: '4px', background: isPosizioniOrdinate ? 'white' : '#f1f3f5', cursor: isPosizioniOrdinate ? 'text' : 'not-allowed' }}
+                          <input type="text" value={row.tempo || row["Tempo"] || ''}
+                            disabled={!isPosizioniOrdinate}
+                            onChange={e => { setTableData(tableData.map(r => r.id === row.id ? { ...r, tempo: e.target.value, ["Tempo"]: e.target.value } : r)); setOutputHtml(''); setShowPreview(false) }}
+                            style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '14px', background: isPosizioniOrdinate ? 'white' : '#f1f3f5', color: isPosizioniOrdinate ? '#222' : '#888', cursor: isPosizioniOrdinate ? 'text' : 'not-allowed' }}
                           />
                         </div>
                       )}
@@ -511,7 +729,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
           </div>
 
           {showPreview && (
-            <div style={{ marginTop: '30px', padding: '20px', border: '2px solid #ddd', borderRadius: '4px', background: '#fafafa', marginBottom: '20px' }}>
+            <div id="outputHtmlArea" style={{ marginTop: '30px', padding: '20px', border: '2px solid #ddd', borderRadius: '4px', background: '#fafafa', marginBottom: '20px' }}>
               <h2 style={{ marginTop: 0, color: '#555', fontSize: '20px' }}>Anteprima Ordinata:</h2>
               <div dangerouslySetInnerHTML={{ __html: outputHtml }} />
               <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
@@ -525,75 +743,93 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     )
   }
 
-  // ── Vista ordinamento manuale ─────────────────────────────────────────────
+  // ── Vista ordinamento manuale (Nuovo Template) ────────────────────────────
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', padding: '40px 20px', overflowY: 'auto' }}>
-      <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', background: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-        <button onClick={() => { setTemplateSelezionato(null); setIsNuovoTemplate(false); setInputHtml(''); setOutputHtml(''); setShowPreview(false); setTemplateName(''); setShowSaveForm(false) }}
-          style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px', padding: 0 }}>
-          ← Indietro
-        </button>
-        <h1 style={{ color: '#333', marginTop: 0, marginBottom: '10px', fontSize: '28px' }}>🏁 Ordina Tabella Classifica</h1>
-        <p style={{ color: '#666', marginBottom: '20px' }}>Incolla il codice HTML della tabella qui sotto e clicca "Ordina"</p>
-        {templates.length > 0 && !isNuovoTemplate && (
-          <div style={{ marginBottom: '20px', padding: '15px', background: '#f0f8ff', borderRadius: '8px', border: '1px solid #4a90e2' }}>
-            <h3 style={{ margin: '0 0 10px 0', color: '#2563eb', fontSize: '16px' }}>📋 Carica Template</h3>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              {templates.map(template => (
-                <button key={template.id} onClick={() => setInputHtml(template.html_template)}
-                  style={{ background: '#2563eb', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}>
-                  {template.nome_template}
-                </button>
+    isNuovoTemplate ? (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', padding: '40px 20px', overflowY: 'auto' }}>
+        <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', background: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+          <button onClick={() => { setTemplateSelezionato(null); setIsNuovoTemplate(false); setInputHtml(''); setOutputHtml(''); setShowPreview(false); setTemplateName(''); setShowSaveForm(false) }}
+            style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px', padding: 0 }}>
+            ← Indietro
+          </button>
+          <h1 style={{ color: '#2563eb', marginTop: 0, marginBottom: '10px', fontSize: '32px', fontWeight: 700, letterSpacing: '-1px', display: 'flex', alignItems: 'center', gap: '10px' }}>📝 Nuovo Template Timing71</h1>
+          <p style={{ color: '#64748b', marginBottom: '24px', fontSize: '17px', fontWeight: 500 }}>Inserisci solo pilota e scuderia. Le altre colonne saranno generate automaticamente.</p>
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '18px' }}>
+              <button onClick={() => setTableData(prev => [...prev, { pilota: '', scuderia: '' }])}
+                style={{ background: '#2563eb', color: 'white', border: 'none', padding: '12px 28px', borderRadius: '8px', fontSize: '17px', fontWeight: 700, boxShadow: '0 2px 8px rgba(37,99,235,0.12)', cursor: 'pointer' }}>+ Aggiungi pilota</button>
+              {tableData.length > 0 && (
+                <button onClick={() => setShowRemoveMode(true)}
+                  style={{ background: '#64748b', color: 'white', border: 'none', padding: '12px 28px', borderRadius: '8px', fontSize: '17px', fontWeight: 700, cursor: 'pointer' }}>- Rimuovi pilota</button>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '18px' }}>
+              {tableData.length === 0 && (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#2563eb', fontWeight: 600, fontSize: '18px', padding: '32px 0' }}>Aggiungi almeno un pilota</div>
+              )}
+              {tableData.map((row, idx) => (
+                <div key={idx} style={{ background: '#f8fafc', border: '2px solid #e0e7ef', borderRadius: '16px', boxShadow: '0 2px 8px rgba(37,99,235,0.07)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', position: 'relative' }}>
+                  <div style={{ position: 'absolute', top: '12px', right: '18px', color: '#2563eb', fontWeight: 700, fontSize: '18px', opacity: 0.7 }}>#{idx+1}</div>
+                  {showRemoveMode && (
+                    <button onClick={() => { setTableData(prev => prev.filter((_, i) => i !== idx)); if (tableData.length === 1) setShowRemoveMode(false) }}
+                      style={{ position: 'absolute', top: '12px', left: '12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: '50%', width: '32px', height: '32px', fontSize: '20px', fontWeight: 700, cursor: 'pointer', zIndex: 2 }}
+                      title="Rimuovi pilota">✕</button>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '15px', color: '#2563eb', fontWeight: 600 }}>Pilota</label>
+                    <input type="text" placeholder="Nome pilota" style={{ padding: '12px', border: '2px solid #c7d2fe', borderRadius: '8px', fontSize: '16px', fontWeight: 500, background: '#fff', color: '#1e293b' }} value={row.pilota || ''} onChange={e => { const val = e.target.value; setTableData(prev => { const arr = [...prev]; arr[idx] = { ...arr[idx], pilota: val }; return arr }) }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '15px', color: '#2563eb', fontWeight: 600 }}>Scuderia</label>
+                    <input type="text" placeholder="Nome scuderia" style={{ padding: '12px', border: '2px solid #c7d2fe', borderRadius: '8px', fontSize: '16px', fontWeight: 500, background: '#fff', color: '#1e293b' }} value={row.scuderia || ''} onChange={e => { const val = e.target.value; setTableData(prev => { const arr = [...prev]; arr[idx] = { ...arr[idx], scuderia: val }; return arr }) }} />
+                  </div>
+                </div>
               ))}
             </div>
           </div>
-        )}
-        <textarea value={inputHtml} onChange={(e) => setInputHtml(e.target.value)} placeholder="Incolla qui il codice HTML della tabella..."
-          style={{ width: '100%', minHeight: '300px', padding: '15px', border: '2px solid #ddd', borderRadius: '4px', fontFamily: 'monospace', fontSize: '13px', marginBottom: '15px', resize: 'vertical' }}
-        />
-        <div style={{ marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-          {!isNuovoTemplate && (
-            <>
-              <button onClick={ordinaTabella} style={{ background: '#007bff', color: 'white', border: 'none', padding: '12px 30px', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>Ordina per Posizione</button>
-              <button onClick={copiaOutput} disabled={!outputHtml} style={{ background: outputHtml ? '#28a745' : '#ccc', color: 'white', border: 'none', padding: '12px 30px', borderRadius: '4px', cursor: outputHtml ? 'pointer' : 'not-allowed', fontSize: '16px' }}>Copia Output</button>
-              <button onClick={() => setShowSaveForm(!showSaveForm)} disabled={!inputHtml.trim()} style={{ background: inputHtml.trim() ? '#f59e0b' : '#ccc', color: 'white', border: 'none', padding: '12px 30px', borderRadius: '4px', cursor: inputHtml.trim() ? 'pointer' : 'not-allowed', fontSize: '16px' }}>Salva Template</button>
-              <button onClick={reset} style={{ background: '#6c757d', color: 'white', border: 'none', padding: '12px 30px', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>Reset</button>
-              {copySuccess && <span style={{ color: '#28a745', fontWeight: 'bold', alignSelf: 'center' }}>✓ Copiato!</span>}
-            </>
+          <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+            <input type="text" value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="Nome template (es: Formula 2, Formula 3...)"
+              style={{ flex: 1, padding: '14px', border: '2px solid #2563eb', borderRadius: '8px', fontSize: '17px', minWidth: '220px', fontWeight: 600, background: '#f8fafc', color: '#2563eb' }} />
+            <button onClick={() => {
+              const timing71Columns = ['Posizione', 'Pilota', 'Scuderia', 'Tempo', 'Giri', 'Gap', 'Gap Leader', 'Gap Prec.', 'Best Lap', 'Pit', 'Status', 'Penalità', 'Note']
+              let html = '<table class="table table-hover table-striped table-condensed" style="width:100%;">\n'
+              html += '  <thead>\n    <tr>'
+              timing71Columns.forEach(col => { html += `<th>${col}</th>` })
+              html += '</tr>\n  </thead>\n  <tbody>\n'
+              tableData.forEach((row, idx) => {
+                if (!row || !row.pilota) return
+                html += `    <tr><td>${idx+1}</td><td>${row.pilota || ''}</td><td>${row.scuderia || ''}</td>`
+                for (let i = 3; i < timing71Columns.length; i++) html += '<td></td>'
+                html += '</tr>\n'
+              })
+              html += '  </tbody>\n</table>'
+              setInputHtml(html); setOutputHtml(html); setShowPreview(true); setShowSaveForm(true)
+            }} style={{ background: '#2563eb', color: 'white', border: 'none', padding: '14px 36px', borderRadius: '8px', cursor: 'pointer', fontSize: '18px', fontWeight: 700 }}>Genera e Salva</button>
+            <button onClick={() => { setTemplateSelezionato(null); setIsNuovoTemplate(false); setInputHtml(''); setOutputHtml(''); setShowPreview(false); setTemplateName(''); setShowSaveForm(false) }}
+              style={{ background: '#64748b', color: 'white', border: 'none', padding: '14px 36px', borderRadius: '8px', cursor: 'pointer', fontSize: '18px', fontWeight: 700 }}>Annulla</button>
+          </div>
+          {showPreview && (
+            <div style={{ marginTop: '30px', padding: '20px', border: '2px solid #ddd', borderRadius: '4px', background: '#fafafa' }}>
+              <h2 style={{ marginTop: 0, color: '#555', fontSize: '20px' }}>Anteprima Template:</h2>
+              <div dangerouslySetInnerHTML={{ __html: outputHtml }} />
+            </div>
           )}
-          {isNuovoTemplate && (
-            <>
-              <button onClick={() => setShowSaveForm(!showSaveForm)} disabled={!inputHtml.trim()} style={{ background: inputHtml.trim() ? '#10b981' : '#ccc', color: 'white', border: 'none', padding: '12px 30px', borderRadius: '4px', cursor: inputHtml.trim() ? 'pointer' : 'not-allowed', fontSize: '16px' }}>Salva</button>
-              <button onClick={() => { setTemplateSelezionato(null); setIsNuovoTemplate(false); setInputHtml(''); setOutputHtml(''); setShowPreview(false); setTemplateName(''); setShowSaveForm(false) }}
-                style={{ background: '#6c757d', color: 'white', border: 'none', padding: '12px 30px', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>Annulla</button>
-            </>
-          )}
-        </div>
-
-        {showSaveForm && (
-          <div style={{ marginBottom: '20px', padding: '15px', background: '#fff3cd', borderRadius: '8px', border: '1px solid #f59e0b' }}>
-            <h3 style={{ margin: '0 0 10px 0', color: '#f59e0b', fontSize: '16px' }}>💾 Salva come Template</h3>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <input type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Nome template (es: Formula 2, Formula 3...)"
-                style={{ flex: 1, padding: '10px', border: '2px solid #f59e0b', borderRadius: '4px', fontSize: '14px', minWidth: '200px' }}
-                onKeyPress={(e) => e.key === 'Enter' && salvaTemplate()}
-              />
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: '#f59e0b', fontWeight: 500 }}>
-                <input type="checkbox" checked={modalitaGara} onChange={e => setModalitaGara(e.target.checked)} style={{ marginRight: 4 }} />
-                Modalità GARA
-              </label>
+          {showSaveForm && (
+            <div style={{ marginBottom: '20px', padding: '15px', background: '#fff3cd', borderRadius: '8px', border: '1px solid #f59e0b' }}>
+              <h3 style={{ margin: '0 0 10px 0', color: '#f59e0b', fontSize: '16px' }}>💾 Salva come Template</h3>
               <button onClick={salvaTemplate} style={{ background: '#10b981', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}>Salva</button>
               <button onClick={() => { setShowSaveForm(false); setTemplateName('') }} style={{ background: '#6c757d', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}>Annulla</button>
             </div>
-          </div>
-        )}
-        {showPreview && (
-          <div style={{ marginTop: '30px', padding: '20px', border: '2px solid #ddd', borderRadius: '4px', background: '#fafafa' }}>
-            <h2 style={{ marginTop: 0, color: '#555', fontSize: '20px' }}>Anteprima Ordinata:</h2>
-            <div dangerouslySetInnerHTML={{ __html: outputHtml }} />
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    ) : (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', padding: '40px 20px', overflowY: 'auto' }}>
+        <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', background: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+          {/* Contenuto fallback — questo branch non dovrebbe essere raggiunto normalmente */}
+        </div>
+      </div>
+    )
   )
 }
