@@ -567,7 +567,7 @@ export default function RitaglioImmagine({ user, onClose }) {
                   <StyledButton fullWidth onClick={() => startNewProject(document.getElementById('w').value, document.getElementById('h').value, document.getElementById('proj_name').value)}>SALVA</StyledButton>
                 </div>
 
-                <div style={{ background: '#fff', padding: '35px 35px 35px 50px', borderRadius: '24px', width: '300px', textAlign: 'left', position: 'relative' }}>
+                <div style={{ background: '#fff', padding: '18px 18px 8px 18px', borderRadius: '10px', width: '300px', textAlign: 'left', position: 'relative' }}>
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '15px' }}>FORMATI CLOUD</label>
                   
                   {/* SEZIONE PREFERITI */}
@@ -584,16 +584,29 @@ export default function RitaglioImmagine({ user, onClose }) {
                              style={{ 
                                cursor: 'pointer', 
                                padding: '14px', 
-                               background: '#FFF8F0', 
+                               background: favoriteProjects.includes(p.id) ? '#FFF8F0' : '#E5E5EA',
                                marginBottom: '12px', 
                                borderRadius: '14px', 
                                border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF', 
                                position: 'relative' 
                              }}>
-                          <div style={{ fontWeight: '800', fontSize: '13px', color: '#FF9500' }}>{p.nome || 'Senza Nome'}</div>
-                          <div style={{ fontSize: '12px', color: '#8e8e93' }}>{p.width} × {p.height}</div>
-                          <div style={{ position: 'absolute', left: '-40px', top: '50%', transform: 'translateY(-50%)', fontSize: '20px', cursor: 'pointer', padding: '5px' }} onClick={(e) => { e.stopPropagation(); toggleFavorite(p.id); }}>
-                            ⭐
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              style={{
+                                fontSize: '18px',
+                                color: '#FFD600',
+                                cursor: 'pointer',
+                                padding: '0 8px 0 0',
+                                verticalAlign: 'middle',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavorite(p.id);
+                              }}
+                            >
+                              ⭐
+                            </span>
+                            <div style={{ fontWeight: '800', fontSize: '13px', color: '#FF3B30' }}>{p.nome || 'Senza Nome'}</div>
                           </div>
                         </div>
                       ))}
@@ -604,30 +617,55 @@ export default function RitaglioImmagine({ user, onClose }) {
                   {recentProjects.filter(p => !favoriteProjects.includes(p.id)).length > 0 && (
                     <>
                       <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '10px', marginTop: favoriteProjects.length > 0 ? '20px' : '0' }}>ALTRI PROGETTI</label>
-                      {recentProjects.filter(p => !favoriteProjects.includes(p.id)).map((p, i) => (
-                        <div key={i} onClick={() => { 
-                          setDimensions({width: p.width, height: p.height}); 
-                          setView('editor'); 
-                          // Imposta la modalità corretta quando apri il progetto
-                          setProjectMode(p.nome && p.nome.toLowerCase().includes('cover') ? 'cover' : 'normale');
-                        }} 
-                             style={{ 
-                               cursor: 'pointer', 
-                               padding: '14px', 
-                               background: '#F2F2F7', 
-                               marginBottom: '12px', 
-                               borderRadius: '14px', 
-                               border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF', 
-                               position: 'relative' 
-                             }}>
-                          <div style={{ fontWeight: '800', fontSize: '13px', color: '#007AFF' }}>{p.nome || 'Senza Nome'}</div>
-                          <div style={{ fontSize: '12px', color: '#8e8e93' }}>{p.width} × {p.height}</div>
-                          <div style={{ position: 'absolute', left: '-40px', top: '50%', transform: 'translateY(-50%)', fontSize: '20px', cursor: 'pointer', padding: '5px' }} onClick={(e) => { e.stopPropagation(); toggleFavorite(p.id); }}>
-                            ☆
+                      <div style={{
+                        maxHeight: '340px',
+                        overflowY: 'auto',
+                        paddingRight: '8px',
+                        marginBottom: '10px',
+                        background: 'transparent',
+                      }}>
+                        {recentProjects.filter(p => !favoriteProjects.includes(p.id)).map((p, i) => (
+                          <div key={i} onClick={() => { 
+                            setDimensions({width: p.width, height: p.height}); 
+                            setView('editor'); 
+                            setProjectMode(p.nome && p.nome.toLowerCase().includes('cover') ? 'cover' : 'normale');
+                          }} 
+                               style={{ 
+                                 cursor: 'pointer',
+                                 padding: '14px',
+                                 background: favoriteProjects.includes(p.id) ? '#FFF8F0' : '#F8F9FA',
+                                 marginBottom: '12px',
+                                 borderRadius: '14px',
+                                 border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF',
+                                 display: 'flex',
+                                 alignItems: 'center',
+                                 justifyContent: 'space-between',
+                                 gap: '8px',
+                               }}>
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span
+                                  style={{
+                                    fontSize: '18px',
+                                    color: favoriteProjects.includes(p.id) ? '#FFD600' : '#C7C7CC',
+                                    cursor: 'pointer',
+                                    padding: '0 8px 0 0',
+                                    verticalAlign: 'middle',
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleFavorite(p.id);
+                                  }}
+                                >
+                                  {favoriteProjects.includes(p.id) ? '⭐' : '☆'}
+                                </span>
+                                <div style={{ fontWeight: '800', fontSize: '13px', color: p.nome && p.nome.toLowerCase().includes('cover') ? '#FF3B30' : '#007AFF' }}>{p.nome || 'Senza Nome'}</div>
+                              </div>
+                              <span onClick={(e) => deleteProject(e, p.id)} style={{ fontSize: '18px', color: '#FF3B30', fontWeight: 'bold', cursor: 'pointer', padding: '5px' }}>✕</span>
+                            </>
                           </div>
-                          <div onClick={(e) => deleteProject(e, p.id)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#FF3B30', fontSize: '18px', fontWeight: 'bold', padding: '5px' }}>✕</div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </>
                   )}
                   
