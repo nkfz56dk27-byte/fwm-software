@@ -1306,7 +1306,19 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           gpPreselezionato.tipo_weekend === 'sprintF1' ? [{ id: Date.now(), tipo_gara: 'sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'principale', risultati: {}, completata: false }] :
           [{ id: Date.now(), tipo_gara: 'f2sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'featureRace', risultati: {}, completata: false }]
   } : null)
-  const [garaCorrente, setGaraCorrente] = useState(0)
+  // Patch: open on first incomplete race
+  const getFirstIncompleteGaraIdx = (gpObj) => {
+    if (!gpObj || !gpObj.gare) return 0;
+    const idx = gpObj.gare.findIndex(g => !g.completata);
+    return idx >= 0 ? idx : 0;
+  };
+  const [garaCorrente, setGaraCorrente] = useState(() => getFirstIncompleteGaraIdx(gpPreselezionato ? {
+    ...gpPreselezionato,
+    gare: gpPreselezionato.gare && gpPreselezionato.gare.length > 0 ? gpPreselezionato.gare : 
+          gpPreselezionato.tipo_weekend === 'standard' ? [{ id: Date.now(), tipo_gara: 'principale', risultati: {}, completata: false }] :
+          gpPreselezionato.tipo_weekend === 'sprintF1' ? [{ id: Date.now(), tipo_gara: 'sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'principale', risultati: {}, completata: false }] :
+          [{ id: Date.now(), tipo_gara: 'f2sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'featureRace', risultati: {}, completata: false }]
+  } : null));
   // Funzione per mappare i risultati salvati nel formato adatto agli input
   function mapRisultatiInput(ris) {
     if (!ris) return {};
@@ -1580,18 +1592,22 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     .filter(([key, val]) => !key.endsWith('_flag') && val)
     .map(([key, val]) => val);
 
-  // --- TABS F2 ---
+  // --- TABS Sprint/Main ---
+  const isSprintF1 = gp.tipo_weekend === 'sprintF1' && gp.gare.length === 2;
   const isF2 = gp.tipo_weekend === 'f2' && gp.gare.length === 2;
   const tabLabels = isF2 ? [
     { label: 'Sprint Race', idx: gp.gare.findIndex(g => g.tipo_gara === 'f2sprint') },
     { label: 'Feature Race', idx: gp.gare.findIndex(g => g.tipo_gara === 'featureRace') }
+  ] : isSprintF1 ? [
+    { label: 'Sprint Race', idx: gp.gare.findIndex(g => g.tipo_gara === 'sprint') },
+    { label: 'Gara Principale', idx: gp.gare.findIndex(g => g.tipo_gara === 'principale') }
   ] : [];
 
   return (
     <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
       <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Annulla</button>
       <h1 style={{ fontSize: '28px', marginBottom: '10px', textAlign: 'center' }}>GP: {gp.nome}</h1>
-      {isF2 && (
+      {tabLabels.length > 0 && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '0', marginBottom: '28px', marginTop: '8px', borderBottom: '3px solid #e0eaff', width: '100%' }}>
           {tabLabels.map(tab => (
             <button
