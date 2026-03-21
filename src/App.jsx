@@ -1759,7 +1759,9 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
         </div>
       </div>
 
-      {classifica.punti_pole_attivo && garaAttuale.tipo_gara === 'featureRace' && (
+      {classifica.punti_pole_attivo && (
+        (classifica.formato === 'f2' ? garaAttuale && garaAttuale.tipo_gara === 'featureRace' : true)
+      ) && (
         <div style={{ marginBottom: '20px' }}>
           <h3 style={{ marginBottom: '10px', fontWeight: '600' }}>Pole Position:</h3>
           <select value={poleId || ''} onChange={(e) => setPoleId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
@@ -1769,7 +1771,9 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
         </div>
       )}
 
-      {classifica.giro_veloce_attivo && (garaAttuale.tipo_gara === 'featureRace' || garaAttuale.tipo_gara === 'f2sprint' || garaAttuale.tipo_gara === 'sprint') && (
+      {classifica.giro_veloce_attivo && (
+        (classifica.formato === 'f2' ? (garaAttuale.tipo_gara === 'featureRace' || garaAttuale.tipo_gara === 'f2sprint') : true)
+      ) && (
         <div style={{ marginBottom: '30px' }}>
           <h3 style={{ marginBottom: '10px', fontWeight: '600' }}>Giro Veloce:</h3>
           <select value={giroVeloceId || ''} onChange={(e) => setGiroVeloceId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
