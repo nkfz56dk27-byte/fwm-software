@@ -908,6 +908,34 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   const [selezioniCollaborative, setSelezioniCollaborative] = useState({}) // { [articoloId]: username }
   const channelRef = useRef(null)
 
+    // Rimuovi selezioni temporanee (occhi) su chiusura pagina/app
+    useEffect(() => {
+      function handleUnload() {
+        if (!channelRef.current) return;
+        const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
+        let selezioneTemporanea = [];
+        try {
+          selezioneTemporanea = JSON.parse(sessionStorage.getItem(key)) || [];
+        } catch {
+          selezioneTemporanea = [];
+        }
+        for (const id of selezioneTemporanea) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'selezione',
+            payload: {
+              articoloId: id,
+              username: nomeRedattore,
+              selezionato: false
+            }
+          });
+        }
+      }
+      window.addEventListener('beforeunload', handleUnload);
+      return () => {
+        window.removeEventListener('beforeunload', handleUnload);
+      };
+    }, [weekend.id, nomeRedattore]);
   // Setup realtime channel per selezione collaborativa e aggiornamento articoli
   useEffect(() => {
     const channel = supabase.channel('selezione_articoli_'+weekend.id)
