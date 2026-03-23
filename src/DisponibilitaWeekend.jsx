@@ -934,37 +934,41 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
       }, [weekend.id, nomeRedattore, channelRef.current]);
     // Rimuovi selezioni temporanee (occhi) su chiusura pagina/app
     useEffect(() => {
+      function pulisciSelezioniTemporanee() {
+        if (!channelRef.current) return;
+        const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
+        let selezioneTemporanea = [];
+        try {
+          selezioneTemporanea = JSON.parse(sessionStorage.getItem(key)) || [];
+        } catch {
+          selezioneTemporanea = [];
+        }
+        selezioneTemporanea.forEach(id => {
+          const art = articoli.find(a => a.id === id);
+          if (art && art.assegnato_a !== nomeRedattore) {
+            channelRef.current.send({
+              type: 'broadcast',
+              event: 'selezione',
+              payload: {
+                articoloId: id,
+                username: nomeRedattore,
+                selezionato: false
+              }
+            });
+          }
+        });
+        sessionStorage.removeItem(key);
+      }
       function handleVisibilityChange() {
         if (document.visibilityState === 'hidden') {
-          if (!channelRef.current) return;
-          const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
-          let selezioneTemporanea = [];
-          try {
-            selezioneTemporanea = JSON.parse(sessionStorage.getItem(key)) || [];
-          } catch {
-            selezioneTemporanea = [];
-          }
-          selezioneTemporanea.forEach(id => {
-            const art = articoli.find(a => a.id === id);
-            if (art && art.assegnato_a !== nomeRedattore) {
-              channelRef.current.send({
-                type: 'broadcast',
-                event: 'selezione',
-                payload: {
-                  articoloId: id,
-                  username: nomeRedattore,
-                  selezionato: false
-                }
-              });
-            }
-          });
-          // Pulisci la selezione temporanea da sessionStorage
-          sessionStorage.removeItem(key);
+          pulisciSelezioniTemporanee();
         }
       }
       document.addEventListener('visibilitychange', handleVisibilityChange);
       return () => {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
+        // Pulizia anche su unmount (navigazione interna)
+        pulisciSelezioniTemporanee();
       };
     }, [weekend.id, nomeRedattore, articoli]);
   // Setup realtime channel per selezione collaborativa e aggiornamento articoli
