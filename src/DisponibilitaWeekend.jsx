@@ -950,12 +950,24 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   async function caricaArticoli() {
     const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id).order('giorno').order('categoria').order('titolo')
     setArticoli(data || [])
-    // Dopo ogni caricamento, la selezione riflette SOLO gli articoli assegnati a me
-    const miei = data?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
-    setArticoliSelezionati(new Set(miei))
-    // Aggiorna anche la sessionStorage per coerenza
+    // Recupera la selezione temporanea da sessionStorage
     const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
-    sessionStorage.setItem(key, JSON.stringify(miei));
+    let selezioneTemporanea = [];
+    try {
+      selezioneTemporanea = JSON.parse(sessionStorage.getItem(key)) || [];
+    } catch {
+      selezioneTemporanea = [];
+    }
+    // Mantieni solo quelli ancora liberi o già assegnati a me
+    const validi = (data || []).filter(a =>
+      selezioneTemporanea.includes(a.id) && (a.stato === 'libero' || a.assegnato_a === nomeRedattore)
+    ).map(a => a.id);
+    // Aggiungi anche quelli già assegnati a me (se non già inclusi)
+    const miei = (data || []).filter(a => a.assegnato_a === nomeRedattore).map(a => a.id);
+    const unione = Array.from(new Set([...validi, ...miei]));
+    setArticoliSelezionati(new Set(unione));
+    // Aggiorna anche la sessionStorage per coerenza
+    sessionStorage.setItem(key, JSON.stringify(unione));
   }
 
   async function salvaArticoli(conferma = false) {
