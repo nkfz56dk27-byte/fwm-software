@@ -908,9 +908,10 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   const [selezioniCollaborative, setSelezioniCollaborative] = useState({}) // { [articoloId]: username }
   const channelRef = useRef(null)
 
-      // All'avvio, rimuovi tutte le selezioni temporanee (occhi) dell'utente
+      // All'avvio, rimuovi tutte le selezioni temporanee (occhi) dell'utente SOLO quando il canale è pronto
+      const puliziaEffettuataRef = useRef(false);
       useEffect(() => {
-        if (!channelRef.current) return;
+        if (!channelRef.current || puliziaEffettuataRef.current) return;
         const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
         let selezioneTemporanea = [];
         try {
@@ -929,35 +930,43 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
             }
           });
         }
-      }, [weekend.id, nomeRedattore]);
+        puliziaEffettuataRef.current = true;
+      }, [weekend.id, nomeRedattore, channelRef.current]);
     // Rimuovi selezioni temporanee (occhi) su chiusura pagina/app
     useEffect(() => {
-      function handleUnload() {
-        if (!channelRef.current) return;
-        const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
-        let selezioneTemporanea = [];
-        try {
-          selezioneTemporanea = JSON.parse(sessionStorage.getItem(key)) || [];
-        } catch {
-          selezioneTemporanea = [];
-        }
-        for (const id of selezioneTemporanea) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'selezione',
-            payload: {
-              articoloId: id,
-              username: nomeRedattore,
-              selezionato: false
+      function handleVisibilityChange() {
+        if (document.visibilityState === 'hidden') {
+          if (!channelRef.current) return;
+          const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
+          let selezioneTemporanea = [];
+          try {
+            selezioneTemporanea = JSON.parse(sessionStorage.getItem(key)) || [];
+          } catch {
+            selezioneTemporanea = [];
+          }
+          selezioneTemporanea.forEach(id => {
+            const art = articoli.find(a => a.id === id);
+            if (art && art.assegnato_a !== nomeRedattore) {
+              channelRef.current.send({
+                type: 'broadcast',
+                event: 'selezione',
+                payload: {
+                  articoloId: id,
+                  username: nomeRedattore,
+                  selezionato: false
+                }
+              });
             }
           });
+          // Pulisci la selezione temporanea da sessionStorage
+          sessionStorage.removeItem(key);
         }
       }
-      window.addEventListener('beforeunload', handleUnload);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
       return () => {
-        window.removeEventListener('beforeunload', handleUnload);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
-    }, [weekend.id, nomeRedattore]);
+    }, [weekend.id, nomeRedattore, articoli]);
   // Setup realtime channel per selezione collaborativa e aggiornamento articoli
   useEffect(() => {
     const channel = supabase.channel('selezione_articoli_'+weekend.id)
