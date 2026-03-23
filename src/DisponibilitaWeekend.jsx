@@ -908,6 +908,28 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   const [selezioniCollaborative, setSelezioniCollaborative] = useState({}) // { [articoloId]: username }
   const channelRef = useRef(null)
 
+      // All'avvio, rimuovi tutte le selezioni temporanee (occhi) dell'utente
+      useEffect(() => {
+        if (!channelRef.current) return;
+        const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
+        let selezioneTemporanea = [];
+        try {
+          selezioneTemporanea = JSON.parse(sessionStorage.getItem(key)) || [];
+        } catch {
+          selezioneTemporanea = [];
+        }
+        for (const id of selezioneTemporanea) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'selezione',
+            payload: {
+              articoloId: id,
+              username: nomeRedattore,
+              selezionato: false
+            }
+          });
+        }
+      }, [weekend.id, nomeRedattore]);
     // Rimuovi selezioni temporanee (occhi) su chiusura pagina/app
     useEffect(() => {
       function handleUnload() {
