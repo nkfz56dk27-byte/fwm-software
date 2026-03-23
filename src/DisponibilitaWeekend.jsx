@@ -912,6 +912,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   useEffect(() => {
     const channel = supabase.channel('selezione_articoli_'+weekend.id)
       .on('broadcast', { event: 'selezione' }, payload => {
+        console.log('[REALTIME] Broadcast ricevuto:', payload);
         if (!payload || !payload.payload) return;
         setSelezioniCollaborative(prev => {
           const nuovo = { ...prev };
@@ -922,6 +923,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
           } else {
             if (nuovo[articoloId] === username) delete nuovo[articoloId];
           }
+          console.log('[REALTIME] Stato selezioniCollaborative aggiornato:', nuovo);
           return nuovo;
         });
       })
@@ -948,70 +950,74 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   async function caricaArticoli() {
     const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id).order('giorno').order('categoria').order('titolo')
     setArticoli(data || [])
+    // Dopo ogni caricamento, la selezione riflette SOLO gli articoli assegnati a me
     const miei = data?.filter(a => a.assegnato_a === nomeRedattore).map(a => a.id) || []
     setArticoliSelezionati(new Set(miei))
+    // Aggiorna anche la sessionStorage per coerenza
+    const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
+    sessionStorage.setItem(key, JSON.stringify(miei));
   }
 
   async function salvaArticoli(conferma = false) {
-  setSalvando(true)
-  for (const id of articoliSelezionati) {
-    await supabase.from('articoli').update({ stato: 'assegnato', assegnato_a: nomeRedattore }).eq('id', id)
-  }
-  const articoliMiei = articoli.filter(a => a.assegnato_a === nomeRedattore)
-  for (const art of articoliMiei) {
-    if (!articoliSelezionati.has(art.id)) {
-      await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
-    }
-  }
-  
-  // CREA NOTIFICA quando conferma
-  if (conferma && articoliSelezionati.size > 0) {
-    await supabase.from('notifiche_disponibilita').insert({
-      messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
-      weekend_id: weekend.id
-    })
-    // Forza ricarica notifiche per farle apparire subito
-    window.dispatchEvent(new CustomEvent('notificheDisponibilitaAggiornate', {
-      detail: {
-        nonLette: 0,
-        tutte: 0
-      }
-    }))
-    // Inserisci anche nella tabella push_disponibilita_weekend per pipeline OneSignal
-    await supabase.from('push_disponibilita_weekend').insert({
-      title: 'Disponibilità Weekend',
-      body: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
-      notification_type: 'disponibilita_weekend',
-      target_all: true,
-      data: { weekend_id: weekend.id }
-    })
-      // Trigger funzione cloud su Vercel per processare notifiche
-      try {
-        await fetch('https://fwm-software.vercel.app/api/processPushNotifications', { method: 'POST' });
-      } catch (err) {
-        console.error('[ERRORE TRIGGER PROCESS PUSH NOTIFICATIONS]', err);
-      }
-  }
-  
-  // PULISCE selezioni temporanee dopo conferma
-  if (channelRef.current) {
+    setSalvando(true)
     for (const id of articoliSelezionati) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'selezione',
-        payload: {
-          articoloId: id,
-          username: nomeRedattore,
-          selezionato: false
-        }
-      });
+      await supabase.from('articoli').update({ stato: 'assegnato', assegnato_a: nomeRedattore }).eq('id', id)
     }
+    const articoliMiei = articoli.filter(a => a.assegnato_a === nomeRedattore)
+    for (const art of articoliMiei) {
+      if (!articoliSelezionati.has(art.id)) {
+        await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
+      }
+    }
+    // CREA NOTIFICA quando conferma
+    if (conferma && articoliSelezionati.size > 0) {
+      await supabase.from('notifiche_disponibilita').insert({
+        messaggio: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
+        weekend_id: weekend.id
+      })
+      // Forza ricarica notifiche per farle apparire subito
+      window.dispatchEvent(new CustomEvent('notificheDisponibilitaAggiornate', {
+        detail: {
+          nonLette: 0,
+          tutte: 0
+        }
+      }))
+      // Inserisci anche nella tabella push_disponibilita_weekend per pipeline OneSignal
+      await supabase.from('push_disponibilita_weekend').insert({
+        title: 'Disponibilità Weekend',
+        body: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
+        notification_type: 'disponibilita_weekend',
+        target_all: true,
+        data: { weekend_id: weekend.id }
+      })
+        // Trigger funzione cloud su Vercel per processare notifiche
+        try {
+          await fetch('https://fwm-software.vercel.app/api/processPushNotifications', { method: 'POST' });
+        } catch (err) {
+          console.error('[ERRORE TRIGGER PROCESS PUSH NOTIFICATIONS]', err);
+        }
+    }
+    // PULISCE selezioni temporanee dopo conferma
+    if (channelRef.current) {
+      for (const id of articoliSelezionati) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'selezione',
+          payload: {
+            articoloId: id,
+            username: nomeRedattore,
+            selezionato: false
+          }
+        });
+      }
+    }
+    // Dopo la conferma, svuota la selezione temporanea anche da sessionStorage SOLO se sono io a confermare
+    const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
+    sessionStorage.removeItem(key);
+    setSalvando(false)
+    if (conferma) alert(`✅ Confermati ${articoliSelezionati.size} articoli per ${nomeRedattore}!`)
+    caricaArticoli()
   }
-  
-  setSalvando(false)
-  if (conferma) alert(`✅ Confermati ${articoliSelezionati.size} articoli per ${nomeRedattore}!`)
-  caricaArticoli()
-}
 
   function toggleGiorno(giorno) {
     const newSet = new Set(expandedDays)
@@ -1034,6 +1040,10 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
       return
     }
     setArticoliSelezionati(newSet)
+    // Salva la selezione temporanea in sessionStorage
+    const key = `articoliSelezionati_${weekend.id}_${nomeRedattore}`;
+    sessionStorage.setItem(key, JSON.stringify(Array.from(newSet)));
+      // Non serve più ripristinare la selezione temporanea qui: viene gestita in caricaArticoli
     // Broadcast selezione/deselezione
     if (channelRef.current) {
       channelRef.current.send({
