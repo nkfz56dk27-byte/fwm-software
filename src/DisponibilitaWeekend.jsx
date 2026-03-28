@@ -1290,11 +1290,11 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
           <table style={{ borderCollapse: 'collapse', width: 'auto', transform: `scale(${zoom})`, transformOrigin: 'top left' }}>
             <thead>
               <tr>
-                <th style={{ border: '1px solid black', padding: '10px', background: '#ddd', fontWeight: 'bold', fontSize: '12px', width: '120px' }}>GIORNO</th>
+                <th style={{ border: '1px solid black', padding: '10px', background: '#ddd', fontWeight: 'bold', fontSize: '12px', minWidth: '110px', width: '140px' }}>GIORNO</th>
                 {redattoriOrdinati.map(r => (
-                  <th key={r} style={{ border: '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '11px', width: '120px' }}>{r}</th>
+                  <th key={r} style={{ border: '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '12px', minWidth: '160px', width: '180px' }}>{r}</th>
                 ))}
-                <th style={{ border: '1px solid black', padding: '10px', background: '#FFE5CC', fontWeight: 'bold', fontSize: '12px', width: '120px' }}>Liberi</th>
+                <th style={{ border: '1px solid black', padding: '10px', background: '#FFE5CC', fontWeight: 'bold', fontSize: '12px', minWidth: '160px', width: '180px' }}>Liberi</th>
               </tr>
             </thead>
             <tbody>
@@ -1309,16 +1309,22 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
                     {redattoriOrdinati.map(r => {
                       const articoliRedattore = arts.filter(a => a.assegnato_a === r)
                       return (
-                        <td key={r} style={{ border: '1px solid #ccc', padding: '8px', background: giorno.colore.replace('0.3', '0.15'), fontSize: '9px', verticalAlign: 'top', height: '120px', overflow: 'auto' }}>
+                        <td key={r} style={{ border: '1px solid #ccc', padding: '8px 8px', background: giorno.colore.replace('0.3', '0.15'), fontSize: '13px', verticalAlign: 'top', minWidth: '160px', width: '180px', minHeight: '32px', height: '120px', overflow: 'auto' }}>
                           {articoliRedattore.map(a => (
-                            <div key={a.id} style={{ marginBottom: '4px' }}>{renderTextWithBold(a.titolo, a.range_grassetto)}</div>
+                            <div key={a.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', gap: '10px', minHeight: '22px' }}>
+                              <span style={{ color: '#111', fontSize: '30px', lineHeight: 1, marginRight: '0.5ch', display: 'inline-block', verticalAlign: 'middle' }}>•</span>
+                              <span style={{ flex: 1, wordBreak: 'break-word', fontSize: isMobile ? '12px' : '14px', lineHeight: 1.3 }}>{renderTextWithBold(a.titolo, a.range_grassetto)}</span>
+                            </div>
                           ))}
                         </td>
                       )
                     })}
-                    <td style={{ border: '1px solid #ccc', padding: '8px', background: giorno.colore.replace('0.3', '0.3'), fontSize: '9px', verticalAlign: 'top', height: '120px', overflow: 'auto' }}>
+                    <td style={{ border: '1px solid #ccc', padding: '8px 8px', background: giorno.colore.replace('0.3', '0.3'), fontSize: '13px', verticalAlign: 'top', minWidth: '160px', width: '180px', minHeight: '32px', height: '120px', overflow: 'auto' }}>
                       {liberi.map(a => (
-                        <div key={a.id} style={{ marginBottom: '4px' }}>{renderTextWithBold(a.titolo, a.range_grassetto)}</div>
+                        <div key={a.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', gap: '10px', minHeight: '22px' }}>
+                          <span style={{ color: '#111', fontSize: '30px', lineHeight: 1, marginRight: '0.5ch', display: 'inline-block', verticalAlign: 'middle' }}>•</span>
+                          <span style={{ flex: 1, wordBreak: 'break-word', fontSize: isMobile ? '12px' : '14px', lineHeight: 1.3 }}>{renderTextWithBold(a.titolo, a.range_grassetto)}</span>
+                        </div>
                       ))}
                     </td>
                   </tr>
