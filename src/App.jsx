@@ -1644,6 +1644,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
          garaAttuale.tipo_gara === 'featureRace' ? '🏆 Feature Race' :
          '🏎️ Sprint Race'}
       </h2>
+
       <div style={{ marginBottom: '30px' }}>
         <h3 style={{ marginBottom: '15px', fontWeight: '600' }}>Inserisci posizioni:</h3>
         {/* BARRA DI RICERCA PILOTA */}
@@ -1757,6 +1758,12 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
             });
           })()}
         </div>
+        {/* MESSAGGIO POSIZIONI DUPLICATE */}
+        {posizioniDuplicate.length > 0 && (
+          <div style={{ color: '#e11d48', fontWeight: 600, marginTop: 10, marginBottom: 0 }}>
+            ⚠️ Posizioni duplicate: {[...new Set(posizioniDuplicate)].join(', ')}
+          </div>
+        )}
       </div>
 
       {classifica.punti_pole_attivo && (
