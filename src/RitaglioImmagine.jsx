@@ -24,7 +24,8 @@ export default function RitaglioImmagine({ user, onClose }) {
   const [counterWithoutLogo, setCounterWithoutLogo] = useState(1)
   const [projectMode, setProjectMode] = useState('normale') // SOLO per il menu, non tocca il sistema
   const [projectImages, setProjectImages] = useState({ normale: [], cover: [] }) // Separa le foto per progetto
-  const [favoriteProjects, setFavoriteProjects] = useState([]) // Progetti preferiti
+  const [favoriteProjects, setFavoriteProjects] = useState([]) // Solo gli id dei preferiti
+  const [favoriteProjectsData, setFavoriteProjectsData] = useState([]) // Dati completi dei preferiti
   const [mobileImgStyle, setMobileImgStyle] = useState({ width: '100%', height: 'auto' }) // FIX MOBILE: dimensioni immagine
   const [showCenterCross, setShowCenterCross] = useState(false) // Croce di centratura
   const [canvasBackground, setCanvasBackground] = useState('#000000') // Colore delle strisce del canvas
@@ -155,7 +156,20 @@ export default function RitaglioImmagine({ user, onClose }) {
         .from('progetti_preferiti')
         .select('project_id')
         .eq('username', user.username);
-      if (data) setFavoriteProjects(data.map(p => p.project_id));
+      if (data) {
+        const ids = data.map(p => p.project_id);
+        setFavoriteProjects(ids);
+        if (ids.length > 0) {
+          // Carica i dati completi dei progetti preferiti
+          const { data: progettiData } = await supabase
+            .from('progetti_dimensioni')
+            .select('*')
+            .in('id', ids);
+          setFavoriteProjectsData(progettiData || []);
+        } else {
+          setFavoriteProjectsData([]);
+        }
+      }
     } catch (err) {
       console.error('Errore caricamento preferiti:', err);
     }
@@ -170,6 +184,7 @@ export default function RitaglioImmagine({ user, onClose }) {
       .from('progetti_dimensioni')
       .select('*')
       .order('created_at', { ascending: false })
+      .limit(6)
     if (data) setRecentProjects(data)
   }
 
@@ -568,79 +583,38 @@ export default function RitaglioImmagine({ user, onClose }) {
 
                 <div style={{ background: '#fff', padding: '18px 18px 8px 18px', borderRadius: '10px', width: '300px', textAlign: 'left', position: 'relative' }}>
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '15px' }}>FORMATI CLOUD</label>
-                  <div style={{ height: 'calc(100vh - 250px)', overflowY: 'auto', paddingRight: 0, marginBottom: 0, background: 'transparent' }}>
-                    {/* SEZIONE PREFERITI */}
-                    {favoriteProjects.length > 0 && (
-                      <>
-                        <label style={{ fontSize: '11px', fontWeight: '800', color: '#FF3B30', display: 'block', marginBottom: '10px' }}>⭐ PREFERITI</label>
-                        {favoriteProjects.map((favId, i) => {
-                          const p = recentProjects.find(proj => String(proj.id) === String(favId));
-                          if (!p) return null;
-                          return (
-                            <div key={p.id} onClick={() => { 
-                              setDimensions({width: p.width, height: p.height}); 
-                              setView('editor'); 
-                              setProjectMode(p.nome && p.nome.toLowerCase().includes('cover') ? 'cover' : 'normale');
-                            }} 
-                                 style={{ 
-                                   cursor: 'pointer', 
-                                   padding: '14px', 
-                                   background: '#FFF8F0',
-                                   marginBottom: '12px', 
-                                   borderRadius: '14px', 
-                                   border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF', 
-                                   position: 'relative' 
-                                 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span
-                                  style={{
-                                    fontSize: '18px',
-                                    color: '#FFD600',
-                                    cursor: 'pointer',
-                                    padding: '0 8px 0 0',
-                                    verticalAlign: 'middle',
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleFavorite(p.id);
-                                  }}
-                                >
-                                  ⭐
-                                </span>
-                                <div style={{ fontWeight: '800', fontSize: '13px', color: '#FF3B30' }}>{p.nome || 'Senza Nome'}</div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </>
-                    )}
-                    {/* SEZIONE ALTRI PROGETTI */}
-                    {recentProjects.filter(p => !favoriteProjects.includes(String(p.id))).length > 0 && (
-                      <>
-                        <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '10px', marginTop: favoriteProjects.length > 0 ? '20px' : '0' }}>ALTRI PROGETTI</label>
-                        {recentProjects.filter(p => !favoriteProjects.includes(String(p.id))).map((p, i) => (
+                  
+                  {/* SEZIONE PREFERITI */}
+                  {favoriteProjectsData.length > 0 && (
+                    <>
+                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#FF3B30', display: 'block', marginBottom: '10px' }}>⭐ PREFERITI</label>
+                      <div style={{
+                        maxHeight: '340px',
+                        overflowY: 'auto',
+                        paddingRight: '8px',
+                        marginBottom: '10px',
+                        background: 'transparent',
+                      }}>
+                        {favoriteProjectsData.map((p, i) => (
                           <div key={i} onClick={() => { 
                             setDimensions({width: p.width, height: p.height}); 
                             setView('editor'); 
                             setProjectMode(p.nome && p.nome.toLowerCase().includes('cover') ? 'cover' : 'normale');
                           }} 
                                style={{ 
-                                 cursor: 'pointer',
-                                 padding: '14px',
-                                 background: favoriteProjects.includes(String(p.id)) ? '#FFF8F0' : '#F8F9FA',
-                                 marginBottom: '12px',
-                                 borderRadius: '14px',
-                                 border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF',
-                                 display: 'flex',
-                                 alignItems: 'center',
-                                 justifyContent: 'space-between',
-                                 gap: '8px',
+                                 cursor: 'pointer', 
+                                 padding: '14px', 
+                                 background: favoriteProjects.includes(p.id) ? '#FFF8F0' : '#E5E5EA',
+                                 marginBottom: '12px', 
+                                 borderRadius: '14px', 
+                                 border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF', 
+                                 position: 'relative' 
                                }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <span
                                 style={{
                                   fontSize: '18px',
-                                  color: favoriteProjects.includes(String(p.id)) ? '#FFD600' : '#C7C7CC',
+                                  color: '#FFD600',
                                   cursor: 'pointer',
                                   padding: '0 8px 0 0',
                                   verticalAlign: 'middle',
@@ -650,17 +624,73 @@ export default function RitaglioImmagine({ user, onClose }) {
                                   toggleFavorite(p.id);
                                 }}
                               >
-                                {favoriteProjects.includes(String(p.id)) ? '⭐' : '☆'}
+                                ⭐
                               </span>
-                              <div style={{ fontWeight: '800', fontSize: '13px', color: p.nome && p.nome.toLowerCase().includes('cover') ? '#FF3B30' : '#007AFF' }}>{p.nome || 'Senza Nome'}</div>
+                              <div style={{ fontWeight: '800', fontSize: '13px', color: '#FF3B30' }}>{p.nome || 'Senza Nome'}</div>
                             </div>
-                            <span onClick={(e) => deleteProject(e, p.id)} style={{ fontSize: '18px', color: '#FF3B30', fontWeight: 'bold', cursor: 'pointer', padding: '5px' }}>✕</span>
                           </div>
                         ))}
-                      </>
-                    )}
-                    {recentProjects.length === 0 && <p style={{ color: '#c7c7cc', fontSize: '14px' }}>Nessun formato salvato</p>}
-                  </div>
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* SEZIONE ALTRI PROGETTI */}
+                  {recentProjects.filter(p => !favoriteProjects.includes(p.id)).length > 0 && (
+                    <>
+                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '10px', marginTop: favoriteProjects.length > 0 ? '20px' : '0' }}>ALTRI PROGETTI</label>
+                      <div style={{
+                        maxHeight: '340px',
+                        overflowY: 'auto',
+                        paddingRight: '8px',
+                        marginBottom: '10px',
+                        background: 'transparent',
+                      }}>
+                        {recentProjects.filter(p => !favoriteProjects.includes(p.id)).map((p, i) => (
+                          <div key={i} onClick={() => { 
+                            setDimensions({width: p.width, height: p.height}); 
+                            setView('editor'); 
+                            setProjectMode(p.nome && p.nome.toLowerCase().includes('cover') ? 'cover' : 'normale');
+                          }} 
+                               style={{ 
+                                 cursor: 'pointer',
+                                 padding: '14px',
+                                 background: favoriteProjects.includes(p.id) ? '#FFF8F0' : '#F8F9FA',
+                                 marginBottom: '12px',
+                                 borderRadius: '14px',
+                                 border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF',
+                                 display: 'flex',
+                                 alignItems: 'center',
+                                 justifyContent: 'space-between',
+                                 gap: '8px',
+                               }}>
+                            <>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span
+                                  style={{
+                                    fontSize: '18px',
+                                    color: favoriteProjects.includes(p.id) ? '#FFD600' : '#C7C7CC',
+                                    cursor: 'pointer',
+                                    padding: '0 8px 0 0',
+                                    verticalAlign: 'middle',
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleFavorite(p.id);
+                                  }}
+                                >
+                                  {favoriteProjects.includes(p.id) ? '⭐' : '☆'}
+                                </span>
+                                <div style={{ fontWeight: '800', fontSize: '13px', color: p.nome && p.nome.toLowerCase().includes('cover') ? '#FF3B30' : '#007AFF' }}>{p.nome || 'Senza Nome'}</div>
+                              </div>
+                              <span onClick={(e) => deleteProject(e, p.id)} style={{ fontSize: '18px', color: '#FF3B30', fontWeight: 'bold', cursor: 'pointer', padding: '5px' }}>✕</span>
+                            </>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  
+                  {recentProjects.length === 0 && <p style={{ color: '#c7c7cc', fontSize: '14px' }}>Nessun formato salvato</p>}
                 </div>
               </div>
             </div>
