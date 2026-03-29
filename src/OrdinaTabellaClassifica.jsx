@@ -1,3 +1,24 @@
+  // Importa solo le posizioni da una sessione Timing71, matchando per nome pilota
+  function handleImportaSoloPosizioni(sessione) {
+    if (!sessione || !Array.isArray(sessione.data)) return;
+    // Crea una mappa nome pilota -> posizione dalla sessione Timing71
+    const posMap = {};
+    sessione.data.forEach(row => {
+      const nomePilota = row.Pilota || row.DRIVER || row.Driver || row.pilota || row["Nome"] || row["NOME"] || row["driver"] || '';
+      const posizione = row.Posizione || row.POS || row.posizione || row["Pos"] || row["POSIZIONE"] || row["pos"] || '';
+      if (nomePilota && posizione) posMap[nomePilota.trim().toLowerCase()] = posizione;
+    });
+    setTableData(prev => prev.map(r => {
+      const nome = (r.Pilota || r.pilota || r.PilotaRaw || '').trim().toLowerCase();
+      if (nome && posMap[nome]) {
+        return { ...r, posizione: posMap[nome], Posizione: posMap[nome] };
+      }
+      return r;
+    }));
+    setSyncStatus('success');
+    setSyncMessage('✅ Posizioni aggiornate solo per i piloti già presenti');
+    setShowSyncPanel(false);
+  }
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import Timing71Setup from './Timing71Setup'
@@ -517,22 +538,26 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
                   {timing71Sessions.map(sessione => (
                     <div key={sessione.id}
-                      onClick={() => applicaSessione(sessione)}
                       style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'white', borderRadius: '8px', border: '1px solid #d1fae5', cursor: 'pointer', transition: 'all 0.2s' }}
                       onMouseEnter={(e) => { e.currentTarget.style.background = '#f0fdf4'; e.currentTarget.style.borderColor = '#6ee7b7' }}
                       onMouseLeave={(e) => { e.currentTarget.style.background = 'white'; e.currentTarget.style.borderColor = '#d1fae5' }}
                     >
-                      <div>
+                      <div onClick={() => applicaSessione(sessione)} style={{ flex: 1, cursor: 'pointer' }}>
                         <div style={{ fontWeight: 700, color: '#111', fontSize: '15px' }}>{sessione.session_name}</div>
                         <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
                           {Array.isArray(sessione.data) ? sessione.data.length : 0} piloti · {formattaData(sessione.created_at)}
                         </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ background: '#16a34a', color: 'white', fontSize: '12px', fontWeight: 700, padding: '4px 10px', borderRadius: '20px' }}>Usa</span>
+                        <span style={{ background: '#16a34a', color: 'white', fontSize: '12px', fontWeight: 700, padding: '4px 10px', borderRadius: '20px', cursor: 'pointer' }} onClick={() => applicaSessione(sessione)}>Usa</span>
                         <button onClick={(e) => eliminaSessione(sessione.id, e)}
                           style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '16px', padding: '2px 6px', borderRadius: '4px' }}
                           title="Elimina">✕</button>
+                        <button onClick={() => handleImportaSoloPosizioni(sessione)}
+                          style={{ background: '#2563eb', color: 'white', border: 'none', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
+                          title="Importa solo posizioni">
+                          Solo posizioni
+                        </button>
                       </div>
                     </div>
                   ))}

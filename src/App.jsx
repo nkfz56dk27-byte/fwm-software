@@ -1281,6 +1281,68 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
 
 // ===== INSERIMENTO RISULTATI GP =====
 function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave }) {
+    // Stato per pannello sync Timing71
+    const [showSyncPanel, setShowSyncPanel] = useState(false);
+    const [timing71Sessions, setTiming71Sessions] = useState([]);
+    const [syncLoading, setSyncLoading] = useState(false);
+    const [syncStatus, setSyncStatus] = useState(null);
+    const [syncMessage, setSyncMessage] = useState('');
+
+    // Carica sessioni Timing71
+    async function caricaSessioniTiming71() {
+      setSyncLoading(true);
+      try {
+        const u = JSON.parse(sessionStorage.getItem('user'));
+        if (!u?.id) {
+          setSyncStatus('error'); setSyncMessage('❌ Utente non autenticato');
+          setSyncLoading(false); return;
+        }
+        const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        await supabase.from('timing71_import').delete()
+          .eq('user_id', u.id)
+          .lt('created_at', ieri);
+
+        const { data, error } = await supabase
+          .from('timing71_import')
+          .select('*')
+          .eq('user_id', u.id)
+          .order('created_at', { ascending: false })
+          .limit(20);
+        if (error) {
+          setSyncStatus('error'); setSyncMessage('❌ Errore: ' + error.message);
+          setSyncLoading(false); return;
+        }
+        setTiming71Sessions(data || []);
+      } catch(e) {
+        setSyncStatus('error'); setSyncMessage('❌ Errore lettura sessione');
+      }
+      setSyncLoading(false);
+    }
+
+    // Importa solo le posizioni da una sessione Timing71, matchando per nome pilota
+    function importaSoloPosizioni(sessione) {
+      if (!sessione || !Array.isArray(sessione.data)) return;
+      // Crea una mappa nome pilota -> posizione dalla sessione Timing71
+      const posMap = {};
+      sessione.data.forEach(row => {
+        const nomePilota = row.Pilota || row.DRIVER || row.Driver || row.pilota || row["Nome"] || row["NOME"] || row["driver"] || '';
+        const posizione = row.Posizione || row.POS || row.posizione || row["Pos"] || row["POSIZIONE"] || row["pos"] || '';
+        if (nomePilota && posizione) posMap[nomePilota.trim().toLowerCase()] = posizione;
+      });
+      setRisultati(prev => {
+        const nuovo = { ...prev };
+        classifica.piloti.forEach(p => {
+          const nome = (p.nome || '').trim().toLowerCase();
+          if (nome && posMap[nome]) {
+            nuovo[p.id] = posMap[nome];
+          }
+        });
+        return nuovo;
+      });
+      setSyncStatus('success');
+      setSyncMessage('✅ Posizioni aggiornate solo per i piloti già presenti');
+      setShowSyncPanel(false);
+    }
   const [showGaraAccorciata, setShowGaraAccorciata] = useState(false);
   const [percentualeAccorciata, setPercentualeAccorciata] = useState(null);
   const [customPiloti, setCustomPiloti] = useState(1);
@@ -1646,9 +1708,14 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       </h2>
 
       <div style={{ marginBottom: '30px' }}>
-        <h3 style={{ marginBottom: '15px', fontWeight: '600' }}>Inserisci posizioni:</h3>
+        <div style={{ marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button onClick={() => { setShowSyncPanel(true); caricaSessioniTiming71(); }} style={{ alignSelf: 'flex-end', background: '#2563eb', color: 'white', border: 'none', padding: '8px 18px', borderRadius: '8px', fontWeight: 700, fontSize: '15px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(37,99,235,0.12)' }}>
+            Sincronizza posizioni da Timing71
+          </button>
+        </div>
+        
         {/* BARRA DI RICERCA PILOTA */}
-        <div style={{ position: 'sticky', top: '-40px', background: 'white', zIndex: 10, paddingBottom: '15px', marginTop: '-10px' }}>
+        <div style={{ marginBottom: 18 }}>
           <input 
             type="text"
             placeholder="🔍 Cerca pilota per nome..."
@@ -1665,6 +1732,42 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
             }}
           />
         </div>
+              {/* MODAL/PANNELLO SYNC TIMING71 */}
+              {showSyncPanel && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ background: 'white', borderRadius: '16px', padding: '32px', minWidth: 340, maxWidth: 420, width: '90%', boxShadow: '0 4px 24px rgba(0,0,0,0.13)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                      <h2 style={{ margin: 0, fontSize: '20px', color: '#2563eb' }}>Sessioni Timing71</h2>
+                      <button onClick={() => setShowSyncPanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '22px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+                    </div>
+                    {syncLoading ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>Caricamento...</div>
+                    ) : timing71Sessions.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+                        <p style={{ marginBottom: '8px' }}>Nessuna sessione salvata.</p>
+                        <p style={{ fontSize: '13px' }}>Usa il bookmarklet su timing71.org, poi aggiorna.</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: 320, overflowY: 'auto' }}>
+                        {timing71Sessions.map(sessione => (
+                          <div key={sessione.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #d1fae5', cursor: 'pointer', transition: 'all 0.2s' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 700, color: '#111', fontSize: '15px' }}>{sessione.session_name}</div>
+                              <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{Array.isArray(sessione.data) ? sessione.data.length : 0} piloti · {new Date(sessione.created_at).toLocaleString('it-IT')}</div>
+                            </div>
+                            <button onClick={() => importaSoloPosizioni(sessione)} style={{ background: '#2563eb', color: 'white', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', marginLeft: 10 }}>Importa solo posizioni</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {syncStatus && (
+                      <div style={{ marginTop: 18, padding: '10px 14px', borderRadius: '8px', fontWeight: 600, fontSize: '14px', background: syncStatus === 'success' ? '#dcfce7' : '#fee2e2', color: syncStatus === 'success' ? '#166534' : '#991b1b', border: `1px solid ${syncStatus === 'success' ? '#86efac' : '#fca5a5'}` }}>
+                        {syncMessage}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {(() => {
             // Ordina piloti: prima quelli con posizione (ordine crescente), poi solo flag o vuoti
