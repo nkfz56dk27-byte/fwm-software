@@ -6,12 +6,18 @@
     sessione.data.forEach(row => {
       const nomePilota = row.Pilota || row.DRIVER || row.Driver || row.pilota || row["Nome"] || row["NOME"] || row["driver"] || '';
       const posizione = row.Posizione || row.POS || row.posizione || row["Pos"] || row["POSIZIONE"] || row["pos"] || '';
-      if (nomePilota && posizione) posMap[nomePilota.trim().toLowerCase()] = posizione;
+      const key = chiavePilota(nomePilota)
+      if (key && posizione) posMap[key] = posizione;
     });
     setTableData(prev => prev.map(r => {
-      const nome = (r.Pilota || r.pilota || r.PilotaRaw || '').trim().toLowerCase();
-      if (nome && posMap[nome]) {
-        return { ...r, posizione: posMap[nome], Posizione: posMap[nome] };
+      const key = chiavePilota(r.Pilota || r.pilota || r.PilotaRaw || '')
+      if (key && posMap[key]) {
+        // Aggiorna solo posizione, non toccare mai la scuderia
+        return { 
+          ...r, 
+          posizione: posMap[key], 
+          Posizione: posMap[key]
+        };
       }
       return r;
     }));
@@ -52,6 +58,30 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
       .split('').map(c => mappa[c] || c).join('')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toLowerCase().trim()
+  }
+
+  function pilotaNomeCognome(nome) {
+    if (!nome) return ''
+    const raw = String(nome).trim()
+    if (!raw) return ''
+    if (raw.includes(',')) {
+      const [cognome, nomeProprio] = raw.split(',').map(s => s.trim())
+      const swapped = (nomeProprio && cognome) ? `${nomeProprio} ${cognome}` : raw
+      return swapped
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ')
+    }
+    return raw
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ')
+  }
+
+  function chiavePilota(nome) {
+    return normalizzaNome(pilotaNomeCognome(nome))
   }
 
   const [templates, setTemplates] = useState([])
@@ -249,11 +279,15 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     setExtraColumns(allColumns.filter(col => !MAIN_COLUMNS.includes(col)))
     setColonneVisibili(["Posizione", "Pilota", "Scuderia", "Best"])
 
-    // Helper: ricerca case-insensitive / trim tra le chiavi dell'oggetto
+    // Utility: normalizza chiave (solo alfanumerici minuscoli)
+    const normalizeKey = key => String(key || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+    // Helper: ricerca tollerante tra le chiavi dell'oggetto (case-insensitive + rimozione punteggiatura)
     const getVal = (obj, ...keys) => {
       for (const k of keys) {
+        const nk = normalizeKey(k)
         for (const key of Object.keys(obj)) {
-          if (key.trim().toLowerCase() === k.trim().toLowerCase()) {
+          if (normalizeKey(key) === nk) {
             return (obj[key] || '').trim()
           }
         }
@@ -261,28 +295,87 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
       return ''
     }
 
-    const isNumero = v => /^\d+$/.test(v)
+    const parsePos = (v) => {
+      if (v === null || v === undefined) return null
+      const raw = String(v).trim()
+      if (!raw) return null
+      const m = raw.match(/\d+/)
+      if (!m) return null
+      const n = parseInt(m[0], 10)
+      return Number.isFinite(n) ? n : null
+    }
 
-    // Utility: normalizza chiave (solo alfanumerici minuscoli)
-    const normalizeKey = key => key.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const getCellsFromCols = (imp) => {
+      const entries = Object.entries(imp || {})
+        .map(([k, v]) => {
+          const m = String(k).match(/^COL_(\d+)$/i)
+          if (!m) return null
+          return { idx: parseInt(m[1], 10), value: (v ?? '').toString().trim() }
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.idx - b.idx)
+      return entries.map(e => e.value)
+    }
+
+    const inferFieldsFromCols = (imp) => {
+      const cells = getCellsFromCols(imp)
+      if (!cells.length) return { pos: '', driver: '', team: '', last: '', best: '' }
+
+      let posIdx = -1
+      let driverIdx = -1
+      let teamIdx = -1
+      let lastIdx = -1
+      let bestIdx = -1
+
+      for (let i = 0; i < cells.length; i++) {
+        const v = cells[i]
+        if (posIdx === -1 && /^\d{1,2}$/.test(v)) posIdx = i
+        if (driverIdx === -1 && (String(v).includes(',') || /^[A-Z\s]+$/i.test(v))) driverIdx = i
+      }
+      if (driverIdx !== -1 && driverIdx + 1 < cells.length) teamIdx = driverIdx + 1
+
+      // tempi: spesso sono verso destra; prendo gli ultimi 2 valori che sembrano "mm:ss" o "hh:mm:ss" o simili
+      const isTime = (s) => /^\d{1,2}:\d{2}(?:\.\d+)?$/.test(String(s || '').trim()) || /^\d{1,2}:\d{2}:\d{2}$/.test(String(s || '').trim())
+      for (let i = cells.length - 1; i >= 0; i--) {
+        if (lastIdx === -1 && isTime(cells[i])) { lastIdx = i; continue }
+        if (lastIdx !== -1 && bestIdx === -1 && isTime(cells[i])) { bestIdx = i; break }
+      }
+
+      return {
+        pos: posIdx !== -1 ? cells[posIdx] : '',
+        driver: driverIdx !== -1 ? cells[driverIdx] : '',
+        team: teamIdx !== -1 ? cells[teamIdx] : '',
+        last: lastIdx !== -1 ? cells[lastIdx] : '',
+        best: bestIdx !== -1 ? cells[bestIdx] : '',
+      }
+    }
 
     // Filtra solo piloti validi (posizione numerica + pilota + scuderia presenti)
     const validi = importati.filter(imp => {
-      const pos      = getVal(imp, 'POS', 'posizione')
-      const pilotaRaw = getVal(imp, 'DRIVER', 'pilota')
-      const scuderia  = getVal(imp, 'TEAM', 'scuderia')
-      return isNumero(pos) && !!normalizzaNome(pilotaRaw) && !!normalizzaNome(scuderia)
+      const inferred = inferFieldsFromCols(imp)
+      const pos      = getVal(imp, 'POS', 'Pos', 'pos', 'posizione') || inferred.pos
+      const pilotaRaw = getVal(imp, 'DRIVER', 'Driver', 'pilota') || inferred.driver
+      const scuderia  = getVal(imp, 'TEAM', 'Team', 'scuderia') || inferred.team
+      return parsePos(pos) !== null && !!normalizzaNome(pilotaRaw)
     })
 
     if (validi.length === 0) {
+      const first = importati && importati[0] ? importati[0] : null
+      const keys = first ? Object.keys(first) : []
       alert('❌ Nessun pilota valido trovato nell\'importazione. I dati esistenti non sono stati toccati.')
+      console.warn('[Timing71] Import fallito: nessuna riga valida', { firstRowKeys: keys, firstRow: first })
       return
     }
 
-    // FIX #4: riga costruita correttamente con return + alias posizione minuscolo
+    // Importa TUTTI i piloti da Timing71, mantenendo le scuderie per quelli che matchano
     const nuovi = validi.map((imp, index) => {
-      const posizione  = getVal(imp, 'POS', 'posizione')
-      const pilotaRaw  = getVal(imp, 'DRIVER', 'pilota')
+      const inferred = inferFieldsFromCols(imp)
+      const posizioneRaw = getVal(imp, 'POS', 'Pos', 'pos', 'posizione') || inferred.pos
+      const posParsed = parsePos(posizioneRaw)
+      const posizione = posParsed !== null ? String(posParsed) : (posizioneRaw || '')
+      const pilotaRaw = getVal(imp, 'DRIVER', 'Driver', 'pilota') || inferred.driver
+      const key = chiavePilota(pilotaRaw)
+
       // Conversione: se formato "Cognome, Nome" => "Nome Cognome"
       let pilota = pilotaRaw;
       if (pilotaRaw && pilotaRaw.includes(',')) {
@@ -291,46 +384,27 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
       }
       // Capitalizza ogni parola
       pilota = pilota.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
-      const scuderia   = getVal(imp, 'TEAM', 'scuderia')
-      const tempo      = getVal(imp, 'LAST', 'tempo')
-      const best       = getVal(imp, 'BEST', 'best')
 
-      const row = {
-        id:        `t71-${index}-${Date.now()}`,
+      // Cerca se questo pilota esiste già nella tabella corrente
+      const esistente = tableData.find(r => chiavePilota(r.Pilota || r.pilota || r.PilotaRaw || '') === key)
+
+      return {
+        id: esistente?.id || `t71-${index}-${Date.now()}`,
         Posizione: posizione,
-        posizione: posizione,   // alias minuscolo usato da posizioneDoppia & co.
-        Pilota:    pilota,
+        posizione: posizione,
+        Pilota: pilota,
         PilotaRaw: pilotaRaw,
-        Scuderia:  scuderia,
-        scuderia:  scuderia,
-        Tempo:     tempo,
-        tempo:     tempo,
-        Best:      best,
-        _posLocked: false,
+        Scuderia: esistente?.Scuderia || '', // Mantiene scuderia esistente se c'è
+        Team: esistente?.Team || '', // Mantiene team esistente se c'è
+        Tempo: getVal(imp, 'LAST', 'Last', 'tempo') || inferred.last || '',
+        Best: getVal(imp, 'BEST', 'Best', 'best') || inferred.best || ''
       }
-
-      // Popola le colonne extra con i valori reali dell'import
-      const impNormMap = {}
-      Object.keys(imp).forEach(k => { impNormMap[normalizeKey(k)] = imp[k] })
-
-      allColumns.forEach(col => {
-        if (["Posizione", "Pilota", "Scuderia", "Tempo", "Best"].includes(col)) return
-        const timing71Col = LOCAL_REVERSE_MAP[col] || col
-        const normKey = normalizeKey(timing71Col)
-        row[col] = impNormMap[normKey] || impNormMap[normalizeKey(col)] || ''
-      })
-
-      return row  // ← era mancante
     })
 
-    // Aggiorna il tableData con i dati importati
     setTableData(nuovi)
     setSyncStatus('success')
-    setSyncMessage(`✅ ${nuovi.length} piloti importati con successo`)
+    setSyncMessage(`✅ ${nuovi.length} piloti importati da Timing71`)
     setShowSyncPanel(false)
-    setIsPosizioniOrdinate(false)
-    setOutputHtml('')
-    setShowPreview(false)
   }
 
   async function salvaTemplate() {
@@ -394,7 +468,10 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     tableData.forEach((row) => {
       html += '    <tr>'
       columns.forEach(col => {
-        const value = row[col] !== undefined ? row[col] : ''
+        let value = row[col] !== undefined ? row[col] : ''
+        if (col === 'Pilota') {
+          value = row.Pilota || pilotaNomeCognome(row.PilotaRaw || row.pilota || value)
+        }
         html += `<td>${value}</td>`
       })
       html += '</tr>\n'
@@ -685,7 +762,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                           }
                           if (col === "Pilota") {
                             return (
-                              <td key={col+idx} style={{ padding: '12px', fontSize: '14px' }}>{capitalizzaNomePilota(row.PilotaRaw || row.Pilota || row[col] || '')}</td>
+                              <td key={col+idx} style={{ padding: '12px', fontSize: '14px' }}>{row.PilotaRaw || row.Pilota || row[col] || ''}</td>
                             )
                           }
                           if (col === "Scuderia") {
@@ -718,7 +795,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                 .filter(row => tableColumns.some(col => (row[col] || '').toLowerCase().includes(searchTerm.toLowerCase())))
                 .map((row) => (
                   <div key={row.id} style={{ border: '1px solid #ddd', borderRadius: '12px', padding: '16px', background: '#fff', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-                    <div style={{ fontWeight: 700, fontSize: '17px', color: '#222', marginBottom: 2 }}>{capitalizzaNomePilota(row.PilotaRaw || row.Pilota || row.pilota || '')}</div>
+                    <div style={{ fontWeight: 700, fontSize: '17px', color: '#222', marginBottom: 2 }}>{row.PilotaRaw || row.Pilota || row.pilota || ''}</div>
                     <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: 10 }}>{row.Scuderia || row.scuderia}</div>
                     <div style={{ display: 'flex', gap: 10 }}>
                       <div style={{ flex: 1 }}>
