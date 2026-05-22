@@ -158,11 +158,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   }, [])
 
   async function caricaTemplates() {
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    let query = supabase.from('ordina_tabella_templates').select('*').order('nome_template')
-    if (authUser?.id) query = query.eq('user_id', authUser.id)
-    else query = query.eq('username', user.username)
-    const { data, error } = await query
+    const { data, error } = await supabase.from('ordina_tabella_templates').select('*').order('nome_template')
     if (error) { console.error('Errore caricamento templates:', error); return }
     setTemplates(data || [])
   }
