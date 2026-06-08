@@ -472,7 +472,7 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: zIndex }}>
       <div style={{ background: 'white', borderRadius: '15px', width: isMobile ? '100vw' : '600px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>📋 Programmazione Weekend</div>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Programmazione Weekend</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
         </div>
         
@@ -621,6 +621,251 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
             Salva Programmazione
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Componente per configurare un intero campionato con più eventi
+function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utenteCorrente }) {
+  const [campionatoSelezionato, setCampionatoSelezionato] = useState('');
+  const [eventi, setEventi] = useState([]);
+  const [salvando, setSalvando] = useState(false);
+  const [showSessioniModal, setShowSessioniModal] = useState(false);
+  const [eventoCorrenteSessioni, setEventoCorrenteSessioni] = useState(null);
+  const [programmazioneWeekend, setProgrammazioneWeekend] = useState(null);
+
+  // Aggiunge un nuovo evento alla lista
+  const aggiungiEvento = () => {
+    const nuovoEvento = {
+      id: `temp-${Date.now()}`,
+      titolo: '',
+      data_inizio: '',
+      data_fine: '',
+      orario: '',
+      programmazione_weekend: null
+    };
+    setEventi([...eventi, nuovoEvento]);
+  };
+
+  // Rimuove un evento dalla lista
+  const rimuoviEvento = (id) => {
+    setEventi(eventi.filter(e => e.id !== id));
+  };
+
+  // Aggiorna un evento
+  const aggiornaEvento = (id, campo, valore) => {
+    setEventi(eventi.map(e => e.id === id ? { ...e, [campo]: valore } : e));
+  };
+
+  // Salva il campionato completo
+  const salvaCampionato = async () => {
+    if (!campionatoSelezionato) {
+      alert('Seleziona un campionato!');
+      return;
+    }
+    if (eventi.length === 0) {
+      alert('Aggiungi almeno un evento!');
+      return;
+    }
+
+    setSalvando(true);
+    try {
+      // Crea tutti gli eventi
+      const eventiCreati = [];
+      for (const evento of eventi) {
+        if (!evento.titolo || !evento.data_inizio) continue;
+
+        const { data, error } = await supabase.from('eventi_calendario').insert({
+          titolo: evento.titolo,
+          tipo: 'gara',
+          campionato_id: campionatoSelezionato,
+          data_inizio: evento.data_inizio,
+          data_fine: evento.data_fine || evento.data_inizio,
+          orario: evento.orario || null,
+          programmazione_weekend: evento.programmazione_weekend || null,
+          max_accrediti: 0,
+          accredito_status: 'nessuno'
+        }).select().single();
+
+        if (error) {
+          console.error('Errore creazione evento:', error);
+        } else {
+          eventiCreati.push(data);
+        }
+      }
+
+      // Invia una sola notifica per l'intero campionato
+      const campionato = campionati.find(c => c.id === campionatoSelezionato);
+      const username = utenteCorrente?.username || utenteCorrente?.email?.split('@')[0] || 'Utente';
+      const nomeCampionato = campionato?.nome || campionato?.sigla || campionatoSelezionato;
+      const messaggio = `Campionato ${nomeCampionato} configurato con ${eventiCreati.length} eventi da ${username}`;
+
+      await supabase.from('notifiche').insert({
+        messaggio: messaggio,
+        tipo: 'calendario',
+        letta: false
+      });
+
+      // Notifica push
+      const { inserisciNotificaPushCalendario } = await import('./inserisciNotificaPushCalendario');
+      await inserisciNotificaPushCalendario({
+        title: `Campionato ${nomeCampionato} Configurato`,
+        body: `${eventiCreati.length} eventi aggiunti al calendario da ${username}`,
+        notification_type: 'calendario_campionato',
+        target_all: true,
+        data: { campionatoId: campionatoSelezionato, numeroEventi: eventiCreati.length }
+      });
+
+      onSave(eventiCreati);
+      alert(`✅ Campionato configurato con ${eventiCreati.length} eventi!`);
+      onClose();
+    } catch (error) {
+      console.error('Errore salvataggio campionato:', error);
+      alert('Errore nel salvataggio del campionato');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+      <div style={{ background: 'white', borderRadius: '15px', width: isMobile ? '100vw' : '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', borderBottom: '1px solid #e0e0e0' }}>
+          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Configura Stagione</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+        </div>
+
+        <div style={{ padding: '20px', borderBottom: '1px solid #e0e0e0' }}>
+          <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '8px' }}>Seleziona Campionato</label>
+          <select
+            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }}
+            value={campionatoSelezionato}
+            onChange={(e) => setCampionatoSelezionato(e.target.value)}
+          >
+            <option value="">-- Seleziona --</option>
+            {campionati.map(c => (
+              <option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+          <button
+            onClick={aggiungiEvento}
+            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px dashed #007AFF', background: '#f0f8ff', color: '#007AFF', cursor: 'pointer', fontSize: '14px', fontWeight: '600', marginBottom: '20px' }}
+          >
+            ➕ Aggiungi Evento
+          </button>
+
+          {eventi.map((evento, index) => (
+            <div key={evento.id} style={{ marginBottom: '15px', padding: '15px', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e9ecef' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '16px', color: '#007AFF' }}>Evento {index + 1}</span>
+                <button
+                  onClick={() => rimuoviEvento(evento.id)}
+                  style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '20px', fontWeight: 'bold', padding: 0 }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '5px' }}>Titolo</label>
+                <input
+                  type="text"
+                  style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ddd', fontSize: '14px' }}
+                  value={evento.titolo}
+                  onChange={(e) => aggiornaEvento(evento.id, 'titolo', e.target.value)}
+                  placeholder="es. GP Monaco"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '5px' }}>Inizio</label>
+                  <input
+                    type="date"
+                    style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ddd', fontSize: '14px' }}
+                    value={evento.data_inizio}
+                    onChange={(e) => aggiornaEvento(evento.id, 'data_inizio', e.target.value)}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '5px' }}>Fine</label>
+                  <input
+                    type="date"
+                    style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ddd', fontSize: '14px' }}
+                    value={evento.data_fine}
+                    onChange={(e) => aggiornaEvento(evento.id, 'data_fine', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '5px' }}>Orario (opzionale)</label>
+                <input
+                  type="time"
+                  style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ddd', fontSize: '14px' }}
+                  value={evento.orario}
+                  onChange={(e) => aggiornaEvento(evento.id, 'orario', e.target.value)}
+                />
+              </div>
+
+              <button
+                onClick={() => {
+                  setEventoCorrenteSessioni(evento);
+                  setProgrammazioneWeekend(evento.programmazione_weekend);
+                  setShowSessioniModal(true);
+                }}
+                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #007AFF', background: '#fff', color: '#007AFF', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
+              >
+                ⚙️ Configura Sessioni Weekend
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding: '20px', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '10px' }}>
+          <button
+            onClick={onClose}
+            style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '2px solid #000', background: '#fff', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold' }}
+          >
+            Annulla
+          </button>
+          <button
+            onClick={salvaCampionato}
+            disabled={salvando}
+            style={{ flex: 2, padding: '12px', borderRadius: '8px', border: 'none', background: '#34C759', color: '#fff', cursor: salvando ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: 'bold', opacity: salvando ? 0.7 : 1 }}
+          >
+            {salvando ? 'Salvataggio...' : 'Salva Campionato'}
+          </button>
+        </div>
+
+        {/* SessioniWeekendModal per configurare sessioni di un evento singolo */}
+        {showSessioniModal && eventoCorrenteSessioni && (
+          <SessioniWeekendModal
+            onClose={() => setShowSessioniModal(false)}
+            onSave={(sessioni, programmazioneFormattata) => {
+              console.log('Sessioni salvate per evento:', sessioni);
+              console.log('Programmazione formattata:', programmazioneFormattata);
+              // Aggiorna la programmazione_weekend dell'evento corrente
+              setEventi(eventi.map(e =>
+                e.id === eventoCorrenteSessioni.id
+                  ? { ...e, programmazione_weekend: programmazioneFormattata }
+                  : e
+              ));
+              setShowSessioniModal(false);
+            }}
+            isMobile={isMobile}
+            eventoData={{
+              data_inizio: eventoCorrenteSessioni.data_inizio,
+              data_fine: eventoCorrenteSessioni.data_fine
+            }}
+            setProgrammazioneWeekend={(value) => setProgrammazioneWeekend(value)}
+            zIndex={30000}
+          />
+        )}
       </div>
     </div>
   );
@@ -777,6 +1022,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
   const [showNotifiche, setShowNotifiche] = useState(false)
   const [eventoSelezionato, setEventoSelezionato] = useState(null)
   const [showSessioniModal, setShowSessioniModal] = useState(false) // NUOVO: modal per sessioni
+  const [showConfiguraCampionato, setShowConfiguraCampionato] = useState(false) // NUOVO: modal per configurazione campionato completo
 const [eventoDataSessioni, setEventoDataSessioni] = useState(null) // NUOVO: dati evento per sessioni
 const [currentSetProgrammazioneWeekend, setCurrentSetProgrammazioneWeekend] = useState(null) // NUOVO: funzione corrente per aggiornare programmazione
 const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOVO: programmazione salvata per persistenza
@@ -791,10 +1037,10 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
     return () => window.removeEventListener('resize', handleResize)
   }, [])
   
-  useEffect(() => { 
-    caricaDati() 
+  useEffect(() => {
+    caricaDati()
   }, [])
-  
+
   async function caricaDati() {
     setLoading(true)
     
@@ -1090,10 +1336,10 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
       
       {/* MODALI - RIPRISTINATI E COMPLETI */}
 {showNuovoEvento && (
-  <NuovoEventoModal 
-    campionati={campionati} 
-    onClose={() => setShowNuovoEvento(false)} 
-    onSave={async (titolo, eventoId, dataInizio, campionatoId, accreditoStatus = 'nessuno', maxAccrediti = 0) => { 
+  <NuovoEventoModal
+    campionati={campionati}
+    onClose={() => setShowNuovoEvento(false)}
+    onSave={async (titolo, eventoId, dataInizio, campionatoId, accreditoStatus = 'nessuno', maxAccrediti = 0) => {
       const dataFormattata = formatData(dataInizio);
       const username = utenteCorrente?.username || utenteCorrente?.email?.split('@')[0] || 'Utente';
       // Ensure accreditoStatus is always a string
@@ -1145,16 +1391,20 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
           messaggio = `Nuovo evento: ${campionato.emoji} ${titolo} (${campionato.nome}) il ${dataFormattata} creato da ${username}`;
         }
       }
-      await creaNotificaCalendario(messaggio, eventoId); 
-      caricaDati(); 
-    }} 
-    utenteCorrente={utenteCorrente} 
-    isMobile={isMobile} 
+      await creaNotificaCalendario(messaggio, eventoId);
+      caricaDati();
+    }}
+    utenteCorrente={utenteCorrente}
+    isMobile={isMobile}
     onRefreshCampionati={caricaDati}
     onOpenSessioniModal={(eventoData, setProgrammazioneWeekend) => {
       setEventoDataSessioni(eventoData);
       setCurrentSetProgrammazioneWeekend(() => setProgrammazioneWeekend);
       setShowSessioniModal(true);
+    }}
+    onOpenConfiguraCampionato={() => {
+      setShowNuovoEvento(false);
+      setShowConfiguraCampionato(true);
     }}
   />
 )}
@@ -1181,6 +1431,18 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
         />
       )}
       
+      {showConfiguraCampionato && (
+        <ConfiguraCampionatoModal
+          campionati={campionati}
+          onClose={() => setShowConfiguraCampionato(false)}
+          onSave={async (eventiCreati) => {
+            console.log('Campionato configurato con eventi:', eventiCreati);
+            caricaDati();
+          }}
+          isMobile={isMobile}
+          utenteCorrente={utenteCorrente}
+        />
+      )}
       {showNotifiche && (
         <NotificheModal
           notifiche={notifiche}
@@ -1809,7 +2071,7 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
     </div>
   );
 }
-function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobile, onOpenSessioniModal }) {
+function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobile, onOpenSessioniModal, onOpenConfiguraCampionato }) {
   const [salvando, setSalvando] = useState(false);
   const [titolo, setTitolo] = useState("");
   const [tipo, setTipo] = useState("gara");
@@ -1931,6 +2193,31 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
                   <option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={() => {
+                  // Chiudi questo modal e apri quello di configurazione campionato
+                  onClose();
+                  // Apri il modal di configurazione campionato
+                  if (onOpenConfiguraCampionato) {
+                    onOpenConfiguraCampionato();
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  border: '2px solid #FF9500',
+                  background: '#FF9500',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  marginTop: '10px'
+                }}
+              >
+                Configura Stagione
+              </button>
             </>
           ) : (
             <>
@@ -1982,7 +2269,7 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
               </button>
               {programmazioneWeekend && (
                 <div style={{fontSize: '11px', color: '#007AFF', marginTop: '4px'}}>
-                  📋 Programmazione: {programmazioneWeekend}
+                Programmazione: {programmazioneWeekend}
                 </div>
               )}
             </div>
@@ -2407,7 +2694,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                 </button>
                 {edit.programmazione_weekend && (
                   <div style={{fontSize: '11px', color: '#007AFF', marginTop: '4px'}}>
-                    📋 Programmazione: {safeRender(edit.programmazione_weekend)}
+                    Programmazione: {safeRender(edit.programmazione_weekend)}
                   </div>
                 )}
               </div>
