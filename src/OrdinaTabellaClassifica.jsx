@@ -664,8 +664,8 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   // ── Vista Editing Dati ────────────────────────────────────────────────────
   if (isEditingData && templateSelezionato) {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', padding: '40px 20px', overflowY: 'auto' }}>
-        <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', background: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', padding: isMobileView ? '20px 0' : '40px 20px', overflowY: 'auto' }}>
+        <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', background: 'white', padding: isMobileView ? '20px' : '30px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
 
           <button onClick={() => { setTemplateSelezionato(null); setIsEditingData(false); setTableData([]); setOutputHtml(''); setShowPreview(false); setIsPosizioniOrdinate(false); setSyncStatus(null); setShowSyncPanel(false) }}
             style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px', padding: 0 }}>
@@ -676,22 +676,22 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
             <h1 style={{ color: '#333', marginTop: 0, marginBottom: 0, fontSize: '28px' }}>
               {templateSelezionato.nome_template}
             </h1>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexDirection: isMobileView ? 'column' : 'row', flexWrap: isMobileView ? 'nowrap' : 'nowrap', width: isMobileView ? '100%' : 'auto' }}>
               <button
                 onClick={() => { setShowSyncPanel(v => !v); if (!showSyncPanel) caricaSessioniTiming71() }}
-                style={{ background: showSyncPanel ? '#15803d' : '#16a34a', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(22,163,74,0.3)' }}>
+                style={{ background: showSyncPanel ? '#15803d' : '#16a34a', color: 'white', border: 'none', padding: isMobileView ? '12px' : '12px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: isMobileView ? '14px' : '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(22,163,74,0.3)', width: isMobileView ? '100%' : 'auto' }}>
                 🔄 Sincronizza Timing71
               </button>
               {isModificaMode && (
                 <>
                   <button
                     onClick={() => setTableData([...tableData, { id: `new-${Date.now()}`, Pilota: '', Scuderia: '', posizione: '', Posizione: '', Tempo: '', Best: '', _posLocked: false }])}
-                    style={{ background: '#2563eb', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+                    style={{ background: '#2563eb', color: 'white', border: 'none', padding: isMobileView ? '12px' : '12px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: isMobileView ? '14px' : '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap', width: isMobileView ? '100%' : 'auto' }}>
                     ➕ Aggiungi pilota
                   </button>
                   <button
                     onClick={aggiornaTemplate}
-                    style={{ background: '#10b981', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+                    style={{ background: '#10b981', color: 'white', border: 'none', padding: isMobileView ? '12px' : '12px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: isMobileView ? '14px' : '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap', width: isMobileView ? '100%' : 'auto' }}>
                     💾 Salva modifiche
                   </button>
                 </>
