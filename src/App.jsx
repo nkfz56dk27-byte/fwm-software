@@ -44,6 +44,11 @@ function calcolaPuntiPosizione(pos, tipoGara, classifica = null, gara = {}) {
   }
   return pos <= puntiStandard.length ? puntiStandard[pos - 1] : 0
 }
+// ===== CALCOLA SE IN ZONA PUNTI =====
+function isInZonaPunti(pos, tipoGara, classifica = null, gara = {}) {
+  const punti = calcolaPuntiPosizione(pos, tipoGara, classifica, gara);
+  return punti > 0;
+}
 // ===== CALCOLA COMBINAZIONI VITTORIA =====
 function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRimanenti) {
   const combinazioni = []
@@ -986,6 +991,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
     ? classifica.gp.filter(g => g.completato).sort((a, b) => a.id - b.id)
     : []
   const gpDaCompletare = classifica.gp ? classifica.gp.filter(g => !g.completato) : []
+  const gpTutti = classifica.gp ? classifica.gp : []
 
   return (
     <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
@@ -1166,7 +1172,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                     }
                     // Punti pole SEMPRE se pole_id, tranne DNS
                     const isPole = classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS';
-                    const isGiroVeloce = classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS';
+                    const isGiroVeloce = classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS' && isInZonaPunti(posizione, gara.tipo_gara, classifica, gara);
                     if (isPole) puntiPole = classifica.punti_pole_valore || 3;
                     if (isGiroVeloce) puntiGiroVeloce = classifica.giro_veloce_valore || 1;
                     const puntiTot = puntiPos + puntiPole + puntiGiroVeloce;
@@ -1449,6 +1455,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     // Il GP è completato solo se tutte le gare sono completate
     const tutteCompletate = gare.every(g => g.completata);
     const gpAggiornato = { ...gp, gare, completato: tutteCompletate };
+    // Aggiorna lo stato locale gp per sincronizzare
+    setGp(gpAggiornato);
     // Aggiorna la lista GP nella classifica
     let nuoviGP = Array.isArray(classifica.gp) ? [...classifica.gp] : [];
     const idx = nuoviGP.findIndex(g => g.id === gpAggiornato.id);
@@ -1467,10 +1475,10 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           if (!pilota) return;
           // Normalizza il flag per robustezza
           const flagNorm = (info.flag || '').trim().toUpperCase();
+          const pos = info.posizione;
           // Punti posizione SOLO se non DNS/DSQ/DNF
           let punti = 0;
           if (flagNorm !== 'DNS' && flagNorm !== 'DSQ' && flagNorm !== 'DNF') {
-            const pos = info.posizione;
             if (typeof pos !== 'undefined' && gara) {
               punti += calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
             }
@@ -1479,8 +1487,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS') {
             punti += classifica.punti_pole_valore || 3;
           }
-          // Punti giro veloce SEMPRE se giro_veloce_id, tranne DNS
-          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS') {
+          // Punti giro veloce SEMPRE se giro_veloce_id, tranne DNS, e solo se in zona punti
+          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS' && isInZonaPunti(pos, gara.tipo_gara, classifica, gara)) {
             punti += classifica.giro_veloce_valore || 1;
           }
           pilota.punti = (pilota.punti || 0) + punti;
@@ -1588,7 +1596,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
             punti += classifica.punti_pole_valore || 3;
           }
-          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
+          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && isInZonaPunti(pos, gara.tipo_gara, classifica, gara)) {
             punti += classifica.giro_veloce_valore || 1;
           }
           pilota.punti = (pilota.punti || 0) + punti;
@@ -1647,7 +1655,43 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
   }
 
   const garaAttuale = gp.gare[garaCorrente]
-  const pilotiAttivi = classifica.piloti.filter(p => p.attivo)
+  const pilotiAttivi = classifica.piloti.filter(p => p.attivo).sort((a, b) => {
+    // Funzione helper per estrarre il cognome completo (con particelle)
+    const estraiCognomeCompleto = (pilota) => {
+      if (pilota.cognome_pilota) return pilota.cognome_pilota.toLowerCase();
+      const parti = pilota.nome.split(' ');
+      const particelle = ['van', 'de', 'di', 'von', 'der', 'den', 'le', 'la', 'del', 'della', 'da', 'dos'];
+      if (parti.length > 1 && particelle.includes(parti[parti.length - 2]?.toLowerCase())) {
+        return parti.slice(-2).join(' ').toLowerCase();
+      }
+      return parti.pop().toLowerCase();
+    };
+    const cognomeA = estraiCognomeCompleto(a);
+    const cognomeB = estraiCognomeCompleto(b);
+    return cognomeA.localeCompare(cognomeB);
+  })
+
+  // Funzione helper per mostrare cognome + nome
+  const formatNomePilota = (pilota) => {
+    // Se il pilota ha i campi separati, usali direttamente
+    if (pilota.nome_pilota && pilota.cognome_pilota) {
+      return `${pilota.cognome_pilota} ${pilota.nome_pilota}`;
+    }
+    // Altrimenti usa il campo nome esistente con la logica di inversione
+    const nome = pilota.nome;
+    const parti = nome.split(' ');
+    if (parti.length === 1) return nome;
+    // Particelle comuni che fanno parte del cognome
+    const particelle = ['van', 'de', 'di', 'von', 'der', 'den', 'le', 'la', 'del', 'della', 'da', 'dos'];
+    // Se l'ultima parte è una particella, prende anche la penultima
+    if (particelle.includes(parti[parti.length - 2]?.toLowerCase())) {
+      const cognome = parti.slice(-2).join(' ');
+      const nomeRestante = parti.slice(0, -2).join(' ');
+      return `${cognome} ${nomeRestante}`;
+    }
+    const cognome = parti.pop();
+    return `${cognome} ${parti.join(' ')}`;
+  }
 
   // Calcola le posizioni già assegnate (escludendo il pilota corrente)
   const posizioniAssegnate = Object.entries(risultati)
@@ -1770,7 +1814,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
               )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {(() => {
-            // Ordina piloti: prima quelli con posizione (ordine crescente), poi solo flag o vuoti
+            // Ordina piloti: prima quelli con posizione (ordine crescente), poi solo flag o vuoti, tutti ordinati per cognome
             const pilotiOrdinati = pilotiAttivi
               .filter(p => p.nome.toLowerCase().includes(searchTerm.toLowerCase()))
               .slice(); // copia
@@ -1780,7 +1824,10 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
               if (posA && posB) return posA - posB;
               if (posA) return -1;
               if (posB) return 1;
-              return 0;
+              // Se nessuno ha posizione, ordina per cognome (ultima parola del nome)
+              const cognomeA = a.nome.split(' ').pop().toLowerCase();
+              const cognomeB = b.nome.split(' ').pop().toLowerCase();
+              return cognomeA.localeCompare(cognomeB);
             });
             return pilotiOrdinati.map((pilota) => {
               const isSelezionato = pilotaSelezionato === pilota.id;
@@ -1806,7 +1853,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                   }}
                 >
                   <div style={{ flex: 1, fontWeight: isSelezionato ? '800' : '600', color: isSelezionato ? '#000' : '#333' }}>
-                    {pilota.nome}
+                    {formatNomePilota(pilota)}
                   </div>
                   <input 
                     type="number" 
@@ -1870,13 +1917,13 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       </div>
 
       {classifica.punti_pole_attivo && (
-        (classifica.formato === 'f2' ? garaAttuale && garaAttuale.tipo_gara === 'featureRace' : true)
+        gp.tipo_weekend !== 'f2' || (garaAttuale && garaAttuale.tipo_gara === 'featureRace')
       ) && (
         <div style={{ marginBottom: '20px' }}>
           <h3 style={{ marginBottom: '10px', fontWeight: '600' }}>Pole Position:</h3>
           <select value={poleId || ''} onChange={(e) => setPoleId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
             <option value="">Nessuno</option>
-            {pilotiAttivi.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            {pilotiAttivi.map(p => <option key={p.id} value={p.id}>{formatNomePilota(p)}</option>)}
           </select>
         </div>
       )}
@@ -1888,7 +1935,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           <h3 style={{ marginBottom: '10px', fontWeight: '600' }}>Giro Veloce:</h3>
           <select value={giroVeloceId || ''} onChange={(e) => setGiroVeloceId(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
             <option value="">Nessuno</option>
-            {pilotiAttivi.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            {pilotiAttivi.map(p => <option key={p.id} value={p.id}>{formatNomePilota(p)}</option>)}
           </select>
         </div>
       )}
@@ -2780,7 +2827,7 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                         if (classifica.punti_pole_attivo && String(gara.pole_id) === String(item.id)) {
                           puntiGara += classifica.punti_pole_valore || 3;
                         }
-                        if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(item.id)) {
+                        if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(item.id) && isInZonaPunti(posizione, gara.tipo_gara, classifica, gara)) {
                           puntiGara += classifica.giro_veloce_valore || 1;
                         }
                         puntiGP += puntiGara;
@@ -2802,7 +2849,7 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                           if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
                             puntiGara += classifica.punti_pole_valore || 3;
                           }
-                          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
+                          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && isInZonaPunti(posizione, gara.tipo_gara, classifica, gara)) {
                             puntiGara += classifica.giro_veloce_valore || 1;
                           }
                           puntiGP += puntiGara;
@@ -3086,6 +3133,7 @@ function SetupIniziale({ classifica, onSave, onBack }) {
   const [numeroSprint, setNumeroSprint] = useState(2)
   const [gp, setGp] = useState([])
   const [nomePilota, setNomePilota] = useState('')
+  const [cognomePilota, setCognomePilota] = useState('')
   const [teamPilota, setTeamPilota] = useState('')
   const [colorePilota, setColorePilota] = useState('#0066FF')
   const [fotoPilota, setFotoPilota] = useState(null)
@@ -3094,23 +3142,26 @@ function SetupIniziale({ classifica, onSave, onBack }) {
   const fileInputRef = React.useRef();
 
   const aggiungiPilota = async () => {
-    if (!nomePilota || !teamPilota) return
+    if (!nomePilota || !cognomePilota || !teamPilota) return
     let fotoUrl = null;
     if (fotoPilota) {
       // Upload su Supabase Storage (bucket: loghi-piloti)
-      const fileName = `piloti/${Date.now()}_${nomePilota.replace(/\s+/g, '_')}`;
+      const nomeCompleto = `${nomePilota} ${cognomePilota}`;
+      const fileName = `piloti/${Date.now()}_${nomeCompleto.replace(/\s+/g, '_')}`;
       const { data, error } = await supabase.storage.from('loghi-piloti').upload(fileName, fotoPilota, { upsert: true });
       if (!error) {
         const { data: urlData } = supabase.storage.from('loghi-piloti').getPublicUrl(fileName);
         fotoUrl = urlData.publicUrl;
       }
     }
-    const nuovoPilota = { id: Date.now(), nome: nomePilota, team: teamPilota, colore: colorePilota, punti: 0, distacco: 0, attivo: true, foto: fotoUrl };
+    const nomeCompleto = `${nomePilota} ${cognomePilota}`;
+    const nuovoPilota = { id: Date.now(), nome: nomeCompleto, nome_pilota: nomePilota, cognome_pilota: cognomePilota, team: teamPilota, colore: colorePilota, punti: 0, distacco: 0, attivo: true, foto: fotoUrl };
     setPiloti([...piloti, nuovoPilota]);
     if (!costruttori.find(c => c.nome === teamPilota)) {
       setCostruttori([...costruttori, { id: Date.now() + 1, nome: teamPilota, colore: colorePilota, punti: 0, distacco: 0 }]);
     }
     setNomePilota('');
+    setCognomePilota('');
     setTeamPilota('');
     setColorePilota('#0066FF');
     setFotoPilota(null);
@@ -3151,9 +3202,15 @@ function SetupIniziale({ classifica, onSave, onBack }) {
       <>
         <div>
           <h1 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>Inserisci i piloti e i team in {classifica.nome}</h1>
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome Pilota</label>
-            <input type="text" value={nomePilota} onChange={e => setNomePilota(e.target.value)} placeholder="es. Max Verstappen" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome</label>
+              <input type="text" value={nomePilota} onChange={e => setNomePilota(e.target.value)} placeholder="es. Max" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Cognome</label>
+              <input type="text" value={cognomePilota} onChange={e => setCognomePilota(e.target.value)} placeholder="es. Verstappen" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
+            </div>
           </div>
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Team</label>
