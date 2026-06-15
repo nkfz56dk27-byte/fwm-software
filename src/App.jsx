@@ -44,16 +44,6 @@ function calcolaPuntiPosizione(pos, tipoGara, classifica = null, gara = {}) {
   }
   return pos <= puntiStandard.length ? puntiStandard[pos - 1] : 0
 }
-// ===== CALCOLA SE IN ZONA PUNTI =====
-function isInZonaPunti(pos, tipoGara, classifica = null, gara = {}) {
-  // Per F2, il giro veloce è assegnato ai primi 10
-  if (classifica && (classifica.formato === 'f2' || classifica.tipo === 'f2')) {
-    return pos >= 1 && pos <= 10;
-  }
-  // Per altri formati, controlla se ci sono punti
-  const punti = calcolaPuntiPosizione(pos, tipoGara, classifica, gara);
-  return punti > 0;
-}
 // ===== CALCOLA COMBINAZIONI VITTORIA =====
 function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRimanenti) {
   const combinazioni = []
@@ -881,37 +871,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         console.log('📖 GP array:', classifica.gp)
         console.log('📖 GP length:', classifica.gp?.length)
         
-        // Ricalcola punti basandosi sui risultati delle gare
-        const nuoviPiloti = classifica.piloti.map(p => ({ ...p, punti: 0 }));
-        const nuoviCostruttori = classifica.costruttori ? classifica.costruttori.map(c => ({ ...c, punti: 0 })) : [];
-        classifica.gp.forEach(gpItem => {
-          gpItem.gare.forEach(gara => {
-            Object.entries(gara.risultati || {}).forEach(([pilotaId, info]) => {
-              const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId));
-              if (!pilota) return;
-              if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') return;
-              const pos = info.posizione;
-              let punti = 0;
-              if (typeof pos !== 'undefined' && gara) {
-                punti += calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
-              }
-              if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
-                punti += classifica.punti_pole_valore || 3;
-              }
-              if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
-                punti += classifica.giro_veloce_valore || 1;
-              }
-              pilota.punti = (pilota.punti || 0) + punti;
-              const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team);
-              if (costruttore) {
-                costruttore.punti = (costruttore.punti || 0) + punti;
-              }
-            });
-          });
-        });
-        
-        const classificaAggiornata = { ...classifica, piloti: nuoviPiloti, costruttori: nuoviCostruttori };
-        setClassifica(classificaAggiornata)
+        setClassifica(classifica)
         if (!classifica.piloti || classifica.piloti.length === 0) {
           console.warn('⚠️ Piloti vuoti o mancanti, mostro setup')
           setShowSetup(true)
@@ -930,37 +890,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         console.log('📖 Piloti array:', classifica.piloti)
         console.log('📖 Piloti length:', classifica.piloti?.length)
         
-        // Ricalcola punti basandosi sui risultati delle gare
-        const nuoviPiloti = classifica.piloti.map(p => ({ ...p, punti: 0 }));
-        const nuoviCostruttori = classifica.costruttori ? classifica.costruttori.map(c => ({ ...c, punti: 0 })) : [];
-        classifica.gp.forEach(gpItem => {
-          gpItem.gare.forEach(gara => {
-            Object.entries(gara.risultati || {}).forEach(([pilotaId, info]) => {
-              const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId));
-              if (!pilota) return;
-              if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') return;
-              const pos = info.posizione;
-              let punti = 0;
-              if (typeof pos !== 'undefined' && gara) {
-                punti += calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
-              }
-              if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
-                punti += classifica.punti_pole_valore || 3;
-              }
-              if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
-                punti += classifica.giro_veloce_valore || 1;
-              }
-              pilota.punti = (pilota.punti || 0) + punti;
-              const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team);
-              if (costruttore) {
-                costruttore.punti = (costruttore.punti || 0) + punti;
-              }
-            });
-          });
-        });
-        
-        const classificaAggiornata = { ...classifica, piloti: nuoviPiloti, costruttori: nuoviCostruttori };
-        setClassifica(classificaAggiornata)
+        setClassifica(classifica)
         if (!classifica.piloti || classifica.piloti.length === 0) {
           console.warn('⚠️ Piloti vuoti o mancanti, mostro setup')
           setShowSetup(true)
@@ -1393,21 +1323,54 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     // Importa solo le posizioni da una sessione Timing71, matchando per nome pilota
     function importaSoloPosizioni(sessione) {
       if (!sessione || !Array.isArray(sessione.data)) return;
+      
+      // Funzione per normalizzare il nome (rimuovi spazi, caratteri speciali, accenti, converti in minuscolo)
+      const normalizzaNome = (nome) => {
+        return nome.toLowerCase()
+          .normalize('NFD') // Normalizza in forma decomposta (separa accenti dalle lettere)
+          .replace(/[\u0300-\u036f]/g, '') // Rimuovi i diacritici (accenti)
+          .replace(/[^a-z0-9]/g, '') // Rimuovi tutti i caratteri non alfanumerici
+          .replace(/\s+/g, ''); // Rimuovi spazi
+      };
+      
       // Crea una mappa nome pilota -> posizione dalla sessione Timing71
       const posMap = {};
       sessione.data.forEach(row => {
         const nomePilota = row.Pilota || row.DRIVER || row.Driver || row.pilota || row["Nome"] || row["NOME"] || row["driver"] || '';
         const posizione = row.Posizione || row.POS || row.posizione || row["Pos"] || row["POSIZIONE"] || row["pos"] || '';
-        if (nomePilota && posizione) posMap[nomePilota.trim().toLowerCase()] = posizione;
+        if (nomePilota && posizione) {
+          const nomeNormalizzato = normalizzaNome(nomePilota);
+          posMap[nomeNormalizzato] = posizione;
+        }
       });
+      
       setRisultati(prev => {
         const nuovo = { ...prev };
+        let matchCount = 0;
         classifica.piloti.forEach(p => {
-          const nome = (p.nome || '').trim().toLowerCase();
-          if (nome && posMap[nome]) {
-            nuovo[p.id] = posMap[nome];
+          const nome = (p.nome || '').trim();
+          const nomeNormalizzato = normalizzaNome(nome);
+          
+          // Prova prima il match esatto normalizzato
+          if (nomeNormalizzato && posMap[nomeNormalizzato]) {
+            nuovo[p.id] = posMap[nomeNormalizzato];
+            matchCount++;
+          } else {
+            // Se non trova match esatto, prova il match sul cognome (ultima parola)
+            const cognome = nome.split(' ').pop();
+            const cognomeNormalizzato = normalizzaNome(cognome);
+            
+            // Cerca match parziale nel posMap
+            for (const [key, value] of Object.entries(posMap)) {
+              if (key.includes(cognomeNormalizzato) || cognomeNormalizzato.includes(key)) {
+                nuovo[p.id] = value;
+                matchCount++;
+                break;
+              }
+            }
           }
         });
+        console.log(`[DEBUG] Match trovati: ${matchCount}/${classifica.piloti.length}`);
         return nuovo;
       });
       setSyncStatus('success');
@@ -1540,10 +1503,10 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           if (!pilota) return;
           // Normalizza il flag per robustezza
           const flagNorm = (info.flag || '').trim().toUpperCase();
-          const pos = info.posizione;
           // Punti posizione SOLO se non DNS/DSQ/DNF
           let punti = 0;
           if (flagNorm !== 'DNS' && flagNorm !== 'DSQ' && flagNorm !== 'DNF') {
+            const pos = info.posizione;
             if (typeof pos !== 'undefined' && gara) {
               punti += calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
             }
@@ -1982,7 +1945,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       </div>
 
       {classifica.punti_pole_attivo && (
-        gp.tipo_weekend !== 'f2' || (garaAttuale && garaAttuale.tipo_gara === 'featureRace')
+        classifica.formato !== 'f2' || (garaAttuale && garaAttuale.tipo_gara === 'featureRace' && garaAttuale.tipo_gara !== 'f2sprint')
       ) && (
         <div style={{ marginBottom: '20px' }}>
           <h3 style={{ marginBottom: '10px', fontWeight: '600' }}>Pole Position:</h3>
@@ -4912,8 +4875,7 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
       piloti: nuovoCampionatoForm.piloti,
       costruttori: [],
       gp: [],
-      is_f1_or_fe: null,
-      formato: 'standard'
+      is_f1_or_fe: null
     }
 
     try {
