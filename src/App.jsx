@@ -193,6 +193,7 @@ import { supabase } from './supabaseClient'
 import CoppaSVG from "./assets/coppa.svg"
 import StatistichePNG from "./assets/Statistiche.png"
 import PenaltypointSVG from "./assets/Penalitypoint.svg"
+import ClassificaHTML from "./assets/ClassificaHTML.svg"
 import FotoSVG from "./assets/foto.svg"
 import DisponibilitàSVG from "./assets/disponibilità.svg"
 import PressPNG from "./assets/press.png"
@@ -1367,11 +1368,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           const nome = (p.nome || '').trim();
           const nomeNormalizzato = normalizzaNome(nome);
           
-          console.log(`[DEBUG] Pilota: "${nome}" -> Normalizzato: "${nomeNormalizzato}"`);
-          
           // Prova prima il match esatto normalizzato
           if (nomeNormalizzato && posMap[nomeNormalizzato]) {
-            console.log(`[DEBUG] Match esatto trovato per: "${nome}"`);
             nuovo[p.id] = posMap[nomeNormalizzato];
             matchCount++;
           } else {
@@ -1379,18 +1377,14 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
             const cognome = nome.split(' ').pop();
             const cognomeNormalizzato = normalizzaNome(cognome);
             
-            console.log(`[DEBUG] Cognome: "${cognome}" -> Normalizzato: "${cognomeNormalizzato}"`);
-            
             // Cerca match parziale nel posMap
             for (const [key, value] of Object.entries(posMap)) {
               if (key.includes(cognomeNormalizzato) || cognomeNormalizzato.includes(key)) {
-                console.log(`[DEBUG] Match cognome trovato per: "${nome}" con key: "${key}"`);
                 nuovo[p.id] = value;
                 matchCount++;
                 break;
               }
             }
-            console.log(`[DEBUG] Nessun match trovato per: "${nome}"`);
           }
         });
         console.log(`[DEBUG] Match trovati: ${matchCount}/${classifica.piloti.length}`);
@@ -1804,8 +1798,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
 
       <div style={{ marginBottom: '30px' }}>
         <div style={{ marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button onClick={() => { setShowSyncPanel(true); caricaSessioniTiming71(); }} style={{ alignSelf: 'flex-end', background: '#2563eb', color: 'white', border: 'none', padding: '8px 18px', borderRadius: '8px', fontWeight: 700, fontSize: '15px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(37,99,235,0.12)' }}>
-            Sincronizza posizioni da Timing71
+          <button onClick={() => { setShowSyncPanel(true); caricaSessioniTiming71(); }} style={{ alignSelf: 'flex-end', background: '#16a34a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: 600, fontSize: '14px', cursor: 'pointer', boxShadow: '0 2px 8px rgba(22, 163, 74, 0.3)', transition: 'all 0.2s ease' }}>
+            Importa posizioni
           </button>
         </div>
         
@@ -4517,7 +4511,7 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
         <div style={{ display: 'flex', justifyContent: 'center' }}>
           <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
             <div className="card-icon-wrapper">
-              <span style={{ fontSize: '48px', lineHeight: 1 }}>🏁</span>
+              <img src={ClassificaHTML} alt="Tabella HTML" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
             </div>
             <h3 className="card-title">TABELLA HTML</h3>
             <p className="card-subtitle">Ordina tabelle<br />classifiche HTML</p>
@@ -4573,7 +4567,7 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
           <div className="card-icon-wrapper">
-            <span style={{ fontSize: '48px', lineHeight: 1 }}>🏁</span>
+            <img src={ClassificaHTML} alt="Tabella HTML" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
           </div>
           <h3 className="card-title">ORDINA TABELLA</h3>
           <p className="card-subtitle">Ordina tabelle<br />classifiche HTML</p>
