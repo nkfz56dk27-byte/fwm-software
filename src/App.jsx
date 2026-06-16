@@ -1321,6 +1321,31 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       setSyncLoading(false);
     }
 
+    // Cancella una sessione Timing71
+    async function cancellaSessioneTiming71(sessioneId) {
+      try {
+        const u = JSON.parse(sessionStorage.getItem('user'));
+        if (!u?.id) return;
+        
+        const { error } = await supabase
+          .from('timing71_import')
+          .delete()
+          .eq('id', sessioneId)
+          .eq('user_id', u.id);
+        
+        if (error) {
+          setSyncStatus('error'); setSyncMessage('❌ Errore cancellazione: ' + error.message);
+          return;
+        }
+        
+        // Rimuovi la sessione dalla lista locale
+        setTiming71Sessions(prev => prev.filter(s => s.id !== sessioneId));
+        setSyncStatus('success'); setSyncMessage('✅ Sessione cancellata');
+      } catch(e) {
+        setSyncStatus('error'); setSyncMessage('❌ Errore cancellazione sessione');
+      }
+    }
+
     // Importa solo le posizioni da una sessione Timing71, matchando per nome pilota
     function importaSoloPosizioni(sessione) {
       if (!sessione || !Array.isArray(sessione.data)) return;
@@ -1844,7 +1869,10 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                               <div style={{ fontWeight: 700, color: '#111', fontSize: '15px' }}>{sessione.session_name}</div>
                               <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{Array.isArray(sessione.data) ? sessione.data.length : 0} piloti · {new Date(sessione.created_at).toLocaleString('it-IT')}</div>
                             </div>
-                            <button onClick={() => importaSoloPosizioni(sessione)} style={{ background: '#2563eb', color: 'white', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', marginLeft: 10 }}>Importa posizioni</button>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <button onClick={() => importaSoloPosizioni(sessione)} style={{ background: '#2563eb', color: 'white', border: 'none', padding: '6px 14px', borderRadius: '20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>Importa posizioni</button>
+                              <button onClick={() => cancellaSessioneTiming71(sessione.id)} style={{ background: '#dc2626', color: 'white', border: 'none', padding: '6px 10px', borderRadius: '20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}>✕</button>
+                            </div>
                           </div>
                         ))}
                       </div>
