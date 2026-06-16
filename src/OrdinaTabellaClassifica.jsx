@@ -1,26 +1,82 @@
   // Importa solo le posizioni da una sessione Timing71, matchando per nome pilota
   function handleImportaSoloPosizioni(sessione) {
     if (!sessione || !Array.isArray(sessione.data)) return;
+    
+    // Funzione per normalizzare il nome (rimuovi spazi, caratteri speciali, accenti, converti in minuscolo)
+    const normalizzaNomeRobusto = (nome) => {
+      const mappaCaratteriSpeciali = {
+        'ł': 'l', 'Ł': 'l',
+        'ø': 'o', 'Ø': 'o',
+        'ß': 'ss',
+        'æ': 'ae', 'Æ': 'ae',
+        'œ': 'oe', 'Œ': 'oe',
+        'đ': 'd', 'Đ': 'd',
+        'ħ': 'h', 'Ħ': 'h',
+        'ı': 'i',
+        'ĸ': 'k',
+        'ŋ': 'n', 'Ŋ': 'n',
+        'þ': 'th', 'Þ': 'th',
+        'ð': 'd', 'Ð': 'd'
+      };
+      
+      return nome.toLowerCase()
+        .split('').map(c => mappaCaratteriSpeciali[c] || c).join('')
+        .normalize('NFD') // Normalizza in forma decomposta (separa accenti dalle lettere)
+        .replace(/[\u0300-\u036f]/g, '') // Rimuovi i diacritici (accenti)
+        .replace(/[^a-z0-9]/g, '') // Rimuovi tutti i caratteri non alfanumerici
+        .replace(/\s+/g, ''); // Rimuovi spazi
+    };
+    
     // Crea una mappa nome pilota -> posizione dalla sessione Timing71
     const posMap = {};
     sessione.data.forEach(row => {
       const nomePilota = row.Pilota || row.DRIVER || row.Driver || row.pilota || row["Nome"] || row["NOME"] || row["driver"] || '';
       const posizione = row.Posizione || row.POS || row.posizione || row["Pos"] || row["POSIZIONE"] || row["pos"] || '';
-      const key = chiavePilota(nomePilota)
-      if (key && posizione) posMap[key] = posizione;
-    });
-    setTableData(prev => prev.map(r => {
-      const key = chiavePilota(r.Pilota || r.pilota || r.PilotaRaw || '')
-      if (key && posMap[key]) {
-        // Aggiorna solo posizione, non toccare mai la scuderia
-        return { 
-          ...r, 
-          posizione: posMap[key], 
-          Posizione: posMap[key]
-        };
+      if (nomePilota && posizione) {
+        const nomeNormalizzato = normalizzaNomeRobusto(nomePilota);
+        posMap[nomeNormalizzato] = posizione;
       }
-      return r;
-    }));
+    });
+    
+    setTableData(prev => {
+      const nuovo = prev.map(r => {
+        const nome = r.Pilota || r.pilota || r.PilotaRaw || '';
+        const nomeNormalizzato = normalizzaNomeRobusto(nome);
+        
+        console.log(`[DEBUG] Pilota: "${nome}" -> Normalizzato: "${nomeNormalizzato}"`);
+        
+        // Prova prima il match esatto normalizzato
+        if (nomeNormalizzato && posMap[nomeNormalizzato]) {
+          console.log(`[DEBUG] Match esatto trovato per: "${nome}"`);
+          return { 
+            ...r, 
+            posizione: posMap[nomeNormalizzato], 
+            Posizione: posMap[nomeNormalizzato]
+          };
+        } else {
+          // Se non trova match esatto, prova il match sul cognome (ultima parola)
+          const cognome = nome.split(' ').pop();
+          const cognomeNormalizzato = normalizzaNomeRobusto(cognome);
+          
+          console.log(`[DEBUG] Cognome: "${cognome}" -> Normalizzato: "${cognomeNormalizzato}"`);
+          
+          // Cerca match parziale nel posMap
+          for (const [key, value] of Object.entries(posMap)) {
+            if (key.includes(cognomeNormalizzato) || cognomeNormalizzato.includes(key)) {
+              console.log(`[DEBUG] Match cognome trovato per: "${nome}" con key: "${key}"`);
+              return { 
+                ...r, 
+                posizione: value, 
+                Posizione: value
+              };
+            }
+          }
+          console.log(`[DEBUG] Nessun match trovato per: "${nome}"`);
+        }
+        return r;
+      });
+      return nuovo;
+    });
     setSyncStatus('success');
     setSyncMessage('✅ Posizioni aggiornate solo per i piloti già presenti');
     setShowSyncPanel(false);
