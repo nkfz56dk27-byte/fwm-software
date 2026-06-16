@@ -1326,7 +1326,23 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       
       // Funzione per normalizzare il nome (rimuovi spazi, caratteri speciali, accenti, converti in minuscolo)
       const normalizzaNome = (nome) => {
+        const mappaCaratteriSpeciali = {
+          'ł': 'l', 'Ł': 'l',
+          'ø': 'o', 'Ø': 'o',
+          'ß': 'ss',
+          'æ': 'ae', 'Æ': 'ae',
+          'œ': 'oe', 'Œ': 'oe',
+          'đ': 'd', 'Đ': 'd',
+          'ħ': 'h', 'Ħ': 'h',
+          'ı': 'i',
+          'ĸ': 'k',
+          'ŋ': 'n', 'Ŋ': 'n',
+          'þ': 'th', 'Þ': 'th',
+          'ð': 'd', 'Ð': 'd'
+        };
+        
         return nome.toLowerCase()
+          .split('').map(c => mappaCaratteriSpeciali[c] || c).join('')
           .normalize('NFD') // Normalizza in forma decomposta (separa accenti dalle lettere)
           .replace(/[\u0300-\u036f]/g, '') // Rimuovi i diacritici (accenti)
           .replace(/[^a-z0-9]/g, '') // Rimuovi tutti i caratteri non alfanumerici
@@ -1351,8 +1367,11 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           const nome = (p.nome || '').trim();
           const nomeNormalizzato = normalizzaNome(nome);
           
+          console.log(`[DEBUG] Pilota: "${nome}" -> Normalizzato: "${nomeNormalizzato}"`);
+          
           // Prova prima il match esatto normalizzato
           if (nomeNormalizzato && posMap[nomeNormalizzato]) {
+            console.log(`[DEBUG] Match esatto trovato per: "${nome}"`);
             nuovo[p.id] = posMap[nomeNormalizzato];
             matchCount++;
           } else {
@@ -1360,14 +1379,18 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
             const cognome = nome.split(' ').pop();
             const cognomeNormalizzato = normalizzaNome(cognome);
             
+            console.log(`[DEBUG] Cognome: "${cognome}" -> Normalizzato: "${cognomeNormalizzato}"`);
+            
             // Cerca match parziale nel posMap
             for (const [key, value] of Object.entries(posMap)) {
               if (key.includes(cognomeNormalizzato) || cognomeNormalizzato.includes(key)) {
+                console.log(`[DEBUG] Match cognome trovato per: "${nome}" con key: "${key}"`);
                 nuovo[p.id] = value;
                 matchCount++;
                 break;
               }
             }
+            console.log(`[DEBUG] Nessun match trovato per: "${nome}"`);
           }
         });
         console.log(`[DEBUG] Match trovati: ${matchCount}/${classifica.piloti.length}`);
