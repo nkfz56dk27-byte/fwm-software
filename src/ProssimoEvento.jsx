@@ -114,6 +114,96 @@ export default function ProssimoEvento() {
           return true // Include gli eventi che sono già iniziati
         }
         return dataEvento.getTime() === dataProssimo.getTime()
+      }).map(evento => {
+        // Estrai tutte le sessioni dalla programmazione weekend raggruppate per giorno
+        let sessioniPerGiorno = []
+        let dataInizioEvento = null
+        let dataFineEvento = null
+        
+        if (evento.programmazione_weekend) {
+          let programmazionePerGiorno = null
+          if (typeof evento.programmazione_weekend === 'object' && evento.programmazione_weekend !== null && !Array.isArray(evento.programmazione_weekend)) {
+            programmazionePerGiorno = evento.programmazione_weekend
+          } else if (typeof evento.programmazione_weekend === 'string') {
+            try {
+              programmazionePerGiorno = JSON.parse(evento.programmazione_weekend)
+            } catch (e) {
+              programmazionePerGiorno = null
+            }
+          }
+          
+          if (programmazionePerGiorno && typeof programmazionePerGiorno === 'object') {
+            const ordineGiorni = { 'ven': 0, 'sab': 1, 'dom': 2, 'lun': 3, 'mar': 4, 'mer': 5, 'gio': 6 }
+            const giorniOffset = { 'ven': -1, 'sab': 0, 'dom': 1, 'lun': 2, 'mar': 3, 'mer': 4, 'gio': 5 }
+            
+            Object.entries(programmazionePerGiorno).forEach(([giorno, sessioni]) => {
+              if (Array.isArray(sessioni)) {
+                const offset = giorniOffset[giorno] ?? 0
+                const dataEvento = new Date(evento.data_inizio)
+                const dataGiorno = new Date(dataEvento)
+                dataGiorno.setDate(dataGiorno.getDate() + offset)
+                const dataGiornoStr = dataGiorno.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+                
+                // Calcola data inizio e fine evento
+                if (!dataInizioEvento || dataGiorno < dataInizioEvento) {
+                  dataInizioEvento = new Date(dataGiorno)
+                }
+                if (!dataFineEvento || dataGiorno > dataFineEvento) {
+                  dataFineEvento = new Date(dataGiorno)
+                }
+                
+                const sessioniGiorno = []
+                sessioni.forEach(s => {
+                  if (typeof s === 'string') {
+                    const match = s.match(/(.+?):\s*([0-9]{2}:[0-9]{2})/)
+                    if (match) {
+                      sessioniGiorno.push({ nome: match[1].trim(), orario: match[2].trim() })
+                    }
+                  } else if (typeof s === 'object' && s !== null && s.nome && s.orario) {
+                    sessioniGiorno.push({ nome: s.nome, orario: s.orario })
+                  }
+                })
+                
+                // Ordina sessioni del giorno per orario
+                sessioniGiorno.sort((a, b) => a.orario.localeCompare(b.orario))
+                
+                if (sessioniGiorno.length > 0) {
+                  sessioniPerGiorno.push({
+                    giorno,
+                    data: dataGiornoStr,
+                    sessioni: sessioniGiorno,
+                    ordine: ordineGiorni[giorno] ?? 999
+                  })
+                }
+              }
+            })
+            
+            // Ordina i giorni
+            sessioniPerGiorno.sort((a, b) => a.ordine - b.ordine)
+          }
+        }
+        
+        // Se non c'è programmazione_weekend, usa data_inizio e data_fine dell'evento
+        if (!dataInizioEvento && !dataFineEvento && evento.data_fine) {
+          dataInizioEvento = new Date(evento.data_inizio)
+          dataFineEvento = new Date(evento.data_fine)
+        }
+        
+        // Calcola intervallo date completo
+        const dataEvento = new Date(evento.data_inizio)
+        const dataBreve = dataEvento.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+        let dataBreveCompleta = dataBreve
+        if (dataInizioEvento && dataFineEvento && dataInizioEvento.getTime() !== dataFineEvento.getTime()) {
+          const dataInizioStr = dataInizioEvento.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+          const dataFineStr = dataFineEvento.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+          dataBreveCompleta = `${dataInizioStr} - ${dataFineStr}`
+        }
+        
+        return {
+          ...evento,
+          dataBreve: dataBreveCompleta,
+          sessioniPerGiorno
+        }
       })
       
       // Calcola le prenotazioni per tutti gli eventi dello stesso giorno
@@ -166,11 +256,93 @@ export default function ProssimoEvento() {
           const dataEvento = new Date(evento.data_inizio)
           const dataBreve = dataEvento.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
           
+          // Estrai tutte le sessioni dalla programmazione weekend raggruppate per giorno
+          let sessioniPerGiorno = []
+          let dataInizioEvento = null
+          let dataFineEvento = null
+          
+          if (evento.programmazione_weekend) {
+            let programmazionePerGiorno = null
+            if (typeof evento.programmazione_weekend === 'object' && evento.programmazione_weekend !== null && !Array.isArray(evento.programmazione_weekend)) {
+              programmazionePerGiorno = evento.programmazione_weekend
+            } else if (typeof evento.programmazione_weekend === 'string') {
+              try {
+                programmazionePerGiorno = JSON.parse(evento.programmazione_weekend)
+              } catch (e) {
+                programmazionePerGiorno = null
+              }
+            }
+            
+            if (programmazionePerGiorno && typeof programmazionePerGiorno === 'object') {
+              const ordineGiorni = { 'ven': 0, 'sab': 1, 'dom': 2, 'lun': 3, 'mar': 4, 'mer': 5, 'gio': 6 }
+              const giorniOffset = { 'ven': -1, 'sab': 0, 'dom': 1, 'lun': 2, 'mar': 3, 'mer': 4, 'gio': 5 }
+              
+              Object.entries(programmazionePerGiorno).forEach(([giorno, sessioni]) => {
+                if (Array.isArray(sessioni)) {
+                  const offset = giorniOffset[giorno] ?? 0
+                  const dataGiorno = new Date(dataEvento)
+                  dataGiorno.setDate(dataGiorno.getDate() + offset)
+                  const dataGiornoStr = dataGiorno.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+                  
+                  // Calcola data inizio e fine evento
+                  if (!dataInizioEvento || dataGiorno < dataInizioEvento) {
+                    dataInizioEvento = new Date(dataGiorno)
+                  }
+                  if (!dataFineEvento || dataGiorno > dataFineEvento) {
+                    dataFineEvento = new Date(dataGiorno)
+                  }
+                  
+                  const sessioniGiorno = []
+                  sessioni.forEach(s => {
+                    if (typeof s === 'string') {
+                      const match = s.match(/(.+?):\s*([0-9]{2}:[0-9]{2})/)
+                      if (match) {
+                        sessioniGiorno.push({ nome: match[1].trim(), orario: match[2].trim() })
+                      }
+                    } else if (typeof s === 'object' && s !== null && s.nome && s.orario) {
+                      sessioniGiorno.push({ nome: s.nome, orario: s.orario })
+                    }
+                  })
+                  
+                  // Ordina sessioni del giorno per orario
+                  sessioniGiorno.sort((a, b) => a.orario.localeCompare(b.orario))
+                  
+                  if (sessioniGiorno.length > 0) {
+                    sessioniPerGiorno.push({
+                      giorno,
+                      data: dataGiornoStr,
+                      sessioni: sessioniGiorno,
+                      ordine: ordineGiorni[giorno] ?? 999
+                    })
+                  }
+                }
+              })
+              
+              // Ordina i giorni
+              sessioniPerGiorno.sort((a, b) => a.ordine - b.ordine)
+            }
+          }
+          
+          // Se non c'è programmazione_weekend, usa data_inizio e data_fine dell'evento
+          if (!dataInizioEvento && !dataFineEvento && evento.data_fine) {
+            dataInizioEvento = new Date(evento.data_inizio)
+            dataFineEvento = new Date(evento.data_fine)
+          }
+          
+          // Calcola intervallo date completo
+          let dataBreveCompleta = dataBreve
+          if (dataInizioEvento && dataFineEvento && dataInizioEvento.getTime() !== dataFineEvento.getTime()) {
+            const dataInizioStr = dataInizioEvento.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+            const dataFineStr = dataFineEvento.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+            dataBreveCompleta = `${dataInizioStr} - ${dataFineStr}`
+          }
+          
           return {
             ...evento,
             giorniMancanti: giorni,
             emojiCampionato,
-            dataBreve,
+            dataBreve: dataBreveCompleta,
+            sessioniPerGiorno,
             ePrimoDelGiorno: index === 0,
             numeroEventi: eventiDelGiorno.length
           }
@@ -255,6 +427,8 @@ export default function ProssimoEvento() {
       padding: '12px',
       minWidth: '280px',
       maxWidth: '320px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
       marginTop: '-40px'
     }}>
       <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#FFF', marginBottom: '6px' }}>
@@ -274,14 +448,35 @@ export default function ProssimoEvento() {
             <span style={{ fontSize: '20px' }}>
               {CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.emoji || '📅'}
             </span>
-            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#FFF' }}>
-              {evento.titolo}
-              {evento.orario && <span style={{ marginLeft: '6px', color: '#00D9FF', fontSize: '12px' }}> {evento.orario.substring(0, 5)}</span>}
+            <div>
+              <div style={{ fontSize: '12px', color: '#FF4444', fontWeight: 'bold', marginTop: '2px' }}>
+                {CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.nome || 'Evento'}
+              </div>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#FFF', marginTop: '2px' }}>
+                {evento.titolo}
+                {evento.orario && typeof evento.orario === 'string' && <span style={{ marginLeft: '6px', color: '#00D9FF', fontSize: '12px' }}> {evento.orario.substring(0, 5)}</span>}
+              </div>
+              <div style={{ fontSize: '12px', color: '#00D9FF', fontWeight: 'bold', marginTop: '2px' }}>
+                {evento.dataBreve}
+              </div>
+              {evento.sessioniPerGiorno && evento.sessioniPerGiorno.length > 0 && (
+                <>
+                  <div style={{ height: '1px', backgroundColor: '#00D9FF', margin: '4px 0', opacity: '0.5' }}></div>
+                  <div style={{ fontSize: '10px', color: '#FFF', marginTop: '2px', lineHeight: '1.4' }}>
+                    {evento.sessioniPerGiorno.map((giorno, idx) => (
+                      <div key={idx} style={{ marginBottom: idx < evento.sessioniPerGiorno.length - 1 ? '4px' : '0' }}>
+                        <span style={{ fontWeight: 'bold', color: '#00D9FF' }}>{giorno.data}:</span>
+                        {giorno.sessioni.map((s, sIdx) => (
+                          <div key={sIdx} style={{ marginLeft: '4px' }}>
+                            {s.nome} {s.orario}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
-          </div>
-          
-          <div style={{ fontSize: '12px', color: '#FFF', marginBottom: '4px' }}>
-            {CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.nome || 'Evento'}
           </div>
           
           {/* FASCIA STATO ACCREDITO */}
@@ -410,13 +605,32 @@ export default function ProssimoEvento() {
               }}>
                 <span style={{ fontSize: '13px' }}>{evento.emojiCampionato}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '10px', color: '#FF4444', fontWeight: 'bold' }}>
+                    {CAMPIONATI_DEFAULT.find(c => c.id === evento.campionato_id)?.nome || 'Evento'}
+                  </div>
                   <div style={{ fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {evento.titolo}
-                    {evento.orario && <span style={{ marginLeft: '6px', color: '#00D9FF' }}> {evento.orario.substring(0, 5)}</span>}
                   </div>
                   <div style={{ fontSize: '9px', color: '#FFF' }}>
                     {evento.giorniMancanti === 1 ? 'DOMANI' : `+${evento.giorniMancanti} giorni`} • {evento.dataBreve}
                   </div>
+                  {evento.sessioniPerGiorno && evento.sessioniPerGiorno.length > 0 && (
+                    <>
+                      <div style={{ height: '1px', backgroundColor: '#00D9FF', margin: '2px 0', opacity: '0.5' }}></div>
+                      <div style={{ fontSize: '8px', color: '#FFF', marginTop: '1px', lineHeight: '1.2' }}>
+                        {evento.sessioniPerGiorno.map((giorno, idx) => (
+                          <div key={idx} style={{ marginBottom: idx < evento.sessioniPerGiorno.length - 1 ? '2px' : '0' }}>
+                            <span style={{ fontWeight: 'bold', color: '#00D9FF' }}>{giorno.data}:</span>
+                            {giorno.sessioni.map((s, sIdx) => (
+                              <div key={sIdx} style={{ marginLeft: '2px' }}>
+                                {s.nome} {s.orario}
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
