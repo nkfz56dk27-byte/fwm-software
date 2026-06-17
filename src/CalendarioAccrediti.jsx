@@ -153,7 +153,10 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
       
       try {
         // Prova a parsare come JSON (nuovo formato con giorni)
-        const programmazionePerGiorno = JSON.parse(programmazioneDaCaricare);
+        // Se è già un oggetto, usalo direttamente
+        const programmazionePerGiorno = typeof programmazioneDaCaricare === 'object' 
+          ? programmazioneDaCaricare 
+          : JSON.parse(programmazioneDaCaricare);
         console.log('Formato JSON rilevato:', programmazionePerGiorno);
         
         // Converti l'oggetto JSON in array di sessioni
