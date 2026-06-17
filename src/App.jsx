@@ -4504,7 +4504,7 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
         </button>
       </div>
       {/* Cards row */}
-      <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '40px' }}>
+      <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '40px', marginTop: '55px' }}>
         <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
           <div className="card-icon-wrapper">
             <img src={CoppaSVG} alt="Classifiche" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
