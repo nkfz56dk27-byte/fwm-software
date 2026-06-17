@@ -16,6 +16,7 @@ function calcolaPuntiAccorciati(pos, percentuale, customPuntiArr) {
 }
 import React, { useState, useEffect } from 'react';
 import VersusModal from './VersusModal';
+import Statistiche from './Statistiche';
 // Fix ReferenceError: calcolaPuntiAccorciati is not defined
 // (auto-import per uso interno in questo file)
 // (Se usato in altri file, esportare/importare correttamente)
@@ -192,6 +193,7 @@ if (typeof window !== 'undefined' && window.indexedDB) {
 import { supabase } from './supabaseClient'
 import CoppaSVG from "./assets/coppa.svg"
 import StatistichePNG from "./assets/Statistiche.png"
+import StatisticheSVG from "./assets/Statistiche.svg"
 import PenaltypointSVG from "./assets/Penalitypoint.svg"
 import ClassificaHTML from "./assets/ClassificaHTML.svg"
 import FotoSVG from "./assets/foto.svg"
@@ -274,6 +276,7 @@ function App() {
   const [showClassifica, setShowClassifica] = useState(false)
   const [classificaId, setClassificaId] = useState(null)
   const [showNuovaPagina, setShowNuovaPagina] = useState(false)
+  const [showStatistiche, setShowStatistiche] = useState(false)
   const [showOrdinaTabellaClassifica, setShowOrdinaTabellaClassifica] = useState(false)
   const [showPannelloFonti, setShowPannelloFonti] = useState(false)
   const [username, setUsername] = useState('')
@@ -726,7 +729,7 @@ function App() {
   }
 
   if (showClassificheMainMenu) {
-    return <ClassificheMainMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(false) }} onOpenClassificheMenu={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(true) }} onOpenNuovaPagina={() => { setShowClassificheMainMenu(false); setShowNuovaPagina(true) }} onOpenOrdinaTabellaClassifica={() => { setShowClassificheMainMenu(false); setShowOrdinaTabellaClassifica(true) }} />
+    return <ClassificheMainMenuView user={user} isMobile={isMobile} onBack={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(false) }} onOpenClassificheMenu={() => { setShowClassificheMainMenu(false); setShowClassificheMenu(true) }} onOpenNuovaPagina={() => { setShowClassificheMainMenu(false); setShowNuovaPagina(true) }} onOpenOrdinaTabellaClassifica={() => { setShowClassificheMainMenu(false); setShowOrdinaTabellaClassifica(true) }} onOpenStatistiche={() => { setShowClassificheMainMenu(false); setShowStatistiche(true) }} />
   }
 
   if (showClassificheMenu) {
@@ -743,6 +746,10 @@ function App() {
 
   if (showOrdinaTabellaClassifica) {
     return <OrdinaTabellaClassifica user={user} onClose={() => { setShowOrdinaTabellaClassifica(false); setShowClassificheMainMenu(true); }} />
+  }
+
+  if (showStatistiche) {
+    return <Statistiche user={user} isMobile={isMobile} onClose={() => { setShowStatistiche(false); setShowClassificheMainMenu(true); }} />
   }
 
   if (showClassifica) {
@@ -4039,7 +4046,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
       </div>
 
       <div className="home-footer">
-        <p className="version-text">Versione 3.0</p>
+        <p className="version-text">Versione 2.0</p>
       </div>
 
       {/* FLOATING ACTION BUTTON in basso a destra */}
@@ -4485,75 +4492,20 @@ function ModificaUtenteView({ utente, onClose, onSave }) {
 }
 
 // ===== CLASSIFICHE MAIN MENU =====
-function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu, onOpenNuovaPagina, onOpenOrdinaTabellaClassifica }) {
-    // ...existing code...
-    return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', minHeight: '100vh' }}>
-        <div style={{ position: 'absolute', top: isMobile ? '80px' : '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', zIndex: 100 }}>
-          <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
-            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            Indietro
-          </button>
-        </div>
-        {/* Cards row */}
-        <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '40px' }}>
-          <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: '300px' }}>
-            <div className="card-icon-wrapper">
-              <img src={CoppaSVG} alt="Classifiche" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
-            </div>
-            <h3 className="card-title">CLASSIFICHE</h3>
-            <p className="card-subtitle">
-              {user.ruolo === 'admin' ? 'Gestisci campionati\ne classifiche' : 'Visualizza\nclassifiche'}
-            </p>
-          </div>
-
-          {/* DESKTOP VERSION */}
-          <div className="home-card card-blue" onClick={onOpenNuovaPagina} style={{ cursor: 'pointer', width: '300px', display: !isMobile ? 'flex' : 'none' }}>
-            <div className="card-icon-wrapper">
-              <img
-                src={PenaltypointSVG}
-                alt="Penalty Points"
-                style={{ width: "94px", height: "74px", filter: "brightness(0) invert(1)" }}
-              />
-            </div>
-            <h3 className="card-title">PENALTY POINTS</h3>
-            <p className="card-subtitle">Gestisci i punti<br />penalità</p>
-          </div>
-
-          {/* MOBILE VERSION */}
-          <div className="home-card card-blue" onClick={onOpenNuovaPagina} style={{ cursor: 'pointer', width: '300px', display: isMobile ? 'flex' : 'none' }} onMouseEnter={() => console.log('📱 MOBILE CARD VISIBILE, isMobile=', isMobile)}>
-            <div className="card-icon-wrapper" style={{ width: "150px", height: "150px" }}>
-              <img
-                src={PenaltypointSVG}
-                alt="Penalty Points"
-                style={{ width: "150px", height: "130px", filter: "brightness(0) invert(1)" }}
-                onLoad={() => console.log('📱 MOBILE card renderizzata con dimensioni 150x130px, isMobile=', isMobile)}
-              />
-            </div>
-            <h3 className="card-title">PENALTY POINTS</h3>
-            <p className="card-subtitle">Gestisci i punti<br />penalità</p>
-          </div>
-        </div>
-
-        {/* Cards row 2 - Ordina Tabella centrata */}
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
-            <div className="card-icon-wrapper">
-              <img src={ClassificaHTML} alt="Tabella HTML" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
-            </div>
-            <h3 className="card-title">TABELLA HTML</h3>
-            <p className="card-subtitle">Ordina tabelle<br />classifiche HTML</p>
-          </div>
-        </div>
-      </div>
-    )
+function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu, onOpenNuovaPagina, onOpenOrdinaTabellaClassifica, onOpenStatistiche }) {
   console.log('📱 ClassificheMainMenuView - isMobile ricevuto:', isMobile)
   const backBtnTop = isMobile ? 40 : 20;
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', minHeight: '100vh' }}>
+      <div style={{ position: 'absolute', top: isMobile ? '80px' : '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', zIndex: 100 }}>
+        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
+          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          Indietro
+        </button>
+      </div>
       {/* Cards row */}
       <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '40px' }}>
-        <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: '300px' }}>
+        <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
           <div className="card-icon-wrapper">
             <img src={CoppaSVG} alt="Classifiche" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
           </div>
@@ -4577,7 +4529,7 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
         </div>
 
         {/* MOBILE VERSION */}
-        <div className="home-card card-blue" onClick={onOpenNuovaPagina} style={{ cursor: 'pointer', width: '300px', display: isMobile ? 'flex' : 'none' }} onMouseEnter={() => console.log('📱 MOBILE CARD VISIBILE, isMobile=', isMobile)}>
+        <div className="home-card card-blue" onClick={onOpenNuovaPagina} style={{ cursor: 'pointer', width: '296px', minWidth: '296px', display: isMobile ? 'flex' : 'none' }} onMouseEnter={() => console.log('📱 MOBILE CARD VISIBILE, isMobile=', isMobile)}>
           <div className="card-icon-wrapper" style={{ width: "150px", height: "150px" }}>
             <img
               src={PenaltypointSVG}
@@ -4591,14 +4543,22 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
         </div>
       </div>
 
-      {/* Cards row 2 - Ordina Tabella centrata */}
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
+      {/* Cards row 2 - Ordina Tabella e Statistiche */}
+      <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap' }}>
         <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
           <div className="card-icon-wrapper">
             <img src={ClassificaHTML} alt="Tabella HTML" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
           </div>
-          <h3 className="card-title">ORDINA TABELLA</h3>
+          <h3 className="card-title">TABELLA HTML</h3>
           <p className="card-subtitle">Ordina tabelle<br />classifiche HTML</p>
+        </div>
+
+        <div className="home-card card-blue" onClick={() => onOpenStatistiche()} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
+          <div className="card-icon-wrapper">
+            <img src={StatisticheSVG} alt="Statistiche" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)", strokeWidth: "8px" }} />
+          </div>
+          <h3 className="card-title">STATISTICHE</h3>
+          <p className="card-subtitle">Visualizza<br />statistiche</p>
         </div>
       </div>
     </div>
