@@ -297,6 +297,27 @@ function App() {
   const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Stato per mostrare il prompt notifiche
   const [notificheUnsubscribe, setNotificheUnsubscribe] = useState(null) // Funzione per stoppare l'ascolto notifiche
+  const [campionati, setCampionati] = useState([]) // Stato per i campionati F1
+
+  // Carica campionati quando si aprono le statistiche
+  useEffect(() => {
+    if (showStatistiche) {
+      console.log('🔍 DEBUG App.jsx: showStatistiche = true, caricamento campionati...')
+      const caricaCampionati = async () => {
+        try {
+          const { data, error } = await supabase.from('classifiche').select('*')
+          console.log('🔍 DEBUG App.jsx: campionati caricati =', data?.length)
+          if (!error && data) {
+            setCampionati(data)
+          }
+        } catch (err) {
+          console.error('Errore caricamento campionati:', err)
+        }
+      }
+      caricaCampionati()
+    }
+  }, [showStatistiche])
+
   const [toastNotification, setToastNotification] = useState(null) // Toast fallback per notifiche
   const [showNuovaSchermata, setShowNuovaSchermata] = useState(false) // Stato per la nuova schermata
   
@@ -749,7 +770,7 @@ function App() {
   }
 
   if (showStatistiche) {
-    return <Statistiche user={user} isMobile={isMobile} onClose={() => { setShowStatistiche(false); setShowClassificheMainMenu(true); }} />
+    return <Statistiche user={user} isMobile={isMobile} campionati={campionati} onClose={() => { setShowStatistiche(false); setShowClassificheMainMenu(true); }} />
   }
 
   if (showClassifica) {
