@@ -10,6 +10,10 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const [currentSeason, setCurrentSeason] = useState(null)
   const [error, setError] = useState(null)
   const [selectedRace, setSelectedRace] = useState(null)
+  const [selectedDriverId, setSelectedDriverId] = useState(null)
+  const [selectedConstructorId, setSelectedConstructorId] = useState(null)
+  const [archiviando, setArchiviando] = useState(false)
+  const [showArchiveButton, setShowArchiveButton] = useState(false)
 
   useEffect(() => {
     caricaStatistiche()
@@ -20,21 +24,49 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     if (campionati && campionati.length > 0) {
       const seasonYear = selectedSeason === 'current' ? parseInt(currentSeason) : parseInt(selectedSeason)
       if (seasonYear >= 2026) {
-        console.log('🔍 DEBUG: campionati caricati, ricaricando dati locali...')
         caricaDatiLocali(seasonYear)
       }
     }
   }, [campionati])
 
+  // Mostra bottone archivio da metà dicembre in poi
+  useEffect(() => {
+    const today = new Date()
+    const month = today.getMonth() // 0-11, dicembre=11
+    const day = today.getDate()
+    
+    // Mostra da 15 dicembre a 31 dicembre
+    if (month === 11 && day >= 15) {
+      setShowArchiveButton(true)
+      
+      // Auto-archivio il 31 dicembre
+      if (day === 31 && selectedSeason === 'current') {
+        console.log('[AUTO-ARCHIVE] 31 dicembre rilevato, archivio stagione in corso...')
+        archiviaSeasoneCorrente(true)
+      }
+    } else {
+      setShowArchiveButton(false)
+    }
+  }, [selectedSeason, statistiche])
+
   const fetchFromJolpica = async (endpoint) => {
     try {
       const response = await fetch(`${JOLPICA_BASE_URL}${endpoint}`)
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      if (!response.ok) {
+        // Jolpica returns 400 for some endpoints (e.g. laps/pitstops for 'current')
+        // Return an empty MRData structure for 400/404 to handle gracefully
+        if (response.status === 400 || response.status === 404) {
+          console.warn(`Jolpica ${endpoint} returned ${response.status}; returning empty MRData`)
+          return { MRData: { RaceTable: { Races: [] }, total: '0' } }
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
       const data = await response.json()
       return data
     } catch (error) {
       console.error(`Errore fetch da Jolpica (${endpoint}):`, error)
-      return null
+      // In case of network errors, return empty structure to keep UI stable
+      return { MRData: { RaceTable: { Races: [] } } }
     }
   }
 
@@ -42,6 +74,66 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     if (!dateString) return ''
     const [year, month, day] = dateString.split('-')
     return `${day}/${month}/${year}`
+  }
+
+  const archiviaSeasoneCorrente = async (isAuto = false) => {
+    try {
+      if (!currentSeason || !statistiche.driverStandings) {
+        setError('Dati insufficienti per archiviare la stagione')
+        return
+      }
+
+      setArchiviando(true)
+
+      const archiveData = {
+        season: parseInt(currentSeason),
+        data_archiviazione: new Date().toISOString(),
+        driver_standings_json: statistiche.driverStandings || [],
+        constructor_standings_json: statistiche.constructorStandings || [],
+        results_json: statistiche.results || [],
+        qualifying_json: statistiche.qualifying || [],
+        races_json: statistiche.races || [],
+        drivers_json: statistiche.drivers || [],
+        constructors_json: statistiche.constructors || []
+      }
+
+      // Salva in Supabase
+      const { data, error: insertError } = await supabase
+        .from('f1_seasons_archive')
+        .upsert([archiveData], { onConflict: 'season' })
+
+      if (insertError) throw insertError
+
+      // Genera download JSON se manuale
+      if (!isAuto) {
+        const jsonStr = JSON.stringify(archiveData, null, 2)
+        const blob = new Blob([jsonStr], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `f1_season_${currentSeason}_backup_${new Date().toISOString().split('T')[0]}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
+
+      console.log(`[ARCHIVE] Stagione ${currentSeason} archiviata${isAuto ? ' (auto)' : ' (manuale)'}`)
+      if (!isAuto) {
+        setError(null)
+      }
+    } catch (error) {
+      console.error('Errore archiviazione stagione:', error)
+      if (!isAuto) {
+        setError(`Errore archiviazione: ${error.message}`)
+      }
+    } finally {
+      setArchiviando(false)
+    }
+  }
+
+  const getResultsForRace = (race) => {
+    return race?.Results || race?.SprintResults || race?.Sprint || race?.RaceResults || []
   }
 
   const calculateDriverStats = (driverId, results, qualifying, status) => {
@@ -125,8 +217,6 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       const season = selectedSeason === 'current' ? 'current' : selectedSeason
       const seasonParam = season === 'current' ? 'current' : season
 
-      console.log('🔍 DEBUG: selectedSeason =', selectedSeason)
-
       // Recupera la stagione corrente
       const currentSeasonData = await fetchFromJolpica('/current.json')
       const currentSeasonYear = currentSeasonData?.MRData?.RaceTable?.Races?.[0]?.season
@@ -140,15 +230,22 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         seasonYear = parseInt(selectedSeason)
       }
 
-      console.log('🔍 DEBUG: seasonYear =', seasonYear)
+      const apiSeasonParam = seasonParam === 'current' && currentSeasonYear ? currentSeasonYear : seasonParam
 
-      // Sistema misto: API fino al 2025, dati locali dal 2026
-      if (seasonYear >= 2026) {
-        console.log('🔍 DEBUG: Usando dati locali per stagione', seasonYear)
+      // Strategie di caricamento:
+      // - Stagione corrente: classifiche dal locale (aggiornate), dettagli gara dall'API
+      // - Stagioni passate (< corrente): sempre API (anche se >=2026)
+      // - Stagioni esplicite >=2026 E uguali a corrente: tutto dal locale
+      // - Altre stagioni: tutto dall'API
+      if (selectedSeason === 'current' && campionati && campionati.length > 0) {
+        // Misto: classifiche locali + dettagli gara API
+        await caricaDatiMisti(parseInt(currentSeasonYear), apiSeasonParam)
+      } else if (seasonYear >= 2026 && seasonYear === parseInt(currentSeasonYear) && campionati && campionati.length > 0) {
+        // Stagione esplicita >=2026 E uguale alla stagione corrente: tutto dal locale
         await caricaDatiLocali(seasonYear)
       } else {
-        console.log('🔍 DEBUG: Usando API per stagione', seasonParam)
-        await caricaDatiAPI(seasonParam)
+        // Stagioni passate o <2026: tutto dall'API
+        await caricaDatiAPI(apiSeasonParam)
       }
     } catch (error) {
       console.error('Errore caricamento statistiche:', error)
@@ -263,22 +360,135 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     })
   }
 
+  const caricaDatiMisti = async (currentSeasonYear, apiSeasonParam) => {
+    // Carica le classifiche dal locale (aggiornate in tempo reale)
+    // ma i dettagli gara (risultati, qualifiche, gara) dall'API
+    
+    // Recupera i dati locali per le classifiche
+    const campionatoF1 = campionati?.find(c => c.nome.includes('Formula 1'))
+    if (!campionatoF1) {
+      // Nessun dato locale, usa solo API
+      await caricaDatiAPI(apiSeasonParam)
+      return
+    }
+
+    const piloti = campionatoF1.piloti || []
+    const costruttori = campionatoF1.costruttori || []
+
+    // Recupera dati dall'API per i dettagli gara
+    const fetchAllData = async (endpoint) => {
+      try {
+        let allData = []
+        let offset = 0
+        const limit = 100
+        let hasMore = true
+
+        while (hasMore) {
+          const data = await fetchFromJolpica(`${endpoint}?limit=${limit}&offset=${offset}`)
+          const items = data?.MRData?.RaceTable?.Races || []
+          allData = allData.concat(items)
+
+          const total = parseInt(data?.MRData?.total || '0')
+          hasMore = allData.length < total && items.length > 0
+          offset += limit
+        }
+
+        const uniqueData = allData.filter((race, index, self) =>
+          index === self.findIndex(r => r.season === race.season && r.round === race.round)
+        )
+
+        return { MRData: { RaceTable: { Races: uniqueData } } }
+      } catch (error) {
+        console.error('Errore in fetchAllData per', endpoint, error)
+        return { MRData: { RaceTable: { Races: [] } } }
+      }
+    }
+
+    // Fetch dati da API per dettagli gara e costruttori
+    const [
+      driversData,
+      constructorsData,
+      racesData,
+      seasonsData,
+      resultsData,
+      qualifyingData,
+      sprintData,
+      statusData
+    ] = await Promise.all([
+      fetchFromJolpica(`/${apiSeasonParam}/drivers.json`),
+      fetchFromJolpica(`/${apiSeasonParam}/constructors.json`),
+      fetchFromJolpica(`/${apiSeasonParam}/races.json`),
+      fetchFromJolpica(`/seasons.json?limit=1000`),
+      fetchAllData(`/${apiSeasonParam}/results.json`),
+      fetchAllData(`/${apiSeasonParam}/qualifying.json`),
+      fetchAllData(`/${apiSeasonParam}/sprint.json`),
+      fetchFromJolpica(`/${apiSeasonParam}/status.json`)
+    ])
+
+    // Estrai circuiti dalle gare API
+    const circuitsFromRaces = racesData?.MRData?.RaceTable?.Races?.map(race => race.Circuit) || []
+    const uniqueCircuits = circuitsFromRaces.filter((circuit, index, self) =>
+      index === self.findIndex(c => c.circuitId === circuit.circuitId)
+    )
+
+    const drivers = driversData?.MRData?.DriverTable?.Drivers || []
+    const results = resultsData?.MRData?.RaceTable?.Races || []
+    const qualifying = qualifyingData?.MRData?.RaceTable?.Races || []
+    const status = statusData?.MRData?.StatusTable?.Status || []
+
+    // Calcola statistiche per ogni pilota (dai dati API)
+    const driversWithStats = drivers.map(driver => ({
+      ...driver,
+      stats: calculateDriverStats(driver.driverId, results, qualifying, status)
+    }))
+
+    // Calcola le classifiche dai dati LOCALI (sempre aggiornate)
+    const driverStandings = piloti.map(pilota => ({
+      Driver: {
+        driverId: pilota.id?.toString() || pilota.nome?.toLowerCase().replace(/\s/g, '_'),
+        givenName: pilota.nome || '',
+        familyName: pilota.cognome || '',
+        permanentNumber: pilota.numero?.toString() || ''
+      },
+      points: pilota.punti || 0,
+      position: piloti.sort((a, b) => (b.punti || 0) - (a.punti || 0)).findIndex(p => p.id === pilota.id) + 1
+    })).sort((a, b) => b.points - a.points)
+
+    const constructorStandings = costruttori.map(costruttore => ({
+      Constructor: {
+        constructorId: costruttore.id?.toString() || costruttore.nome?.toLowerCase().replace(/\s/g, '_'),
+        name: costruttore.nome || ''
+      },
+      points: costruttore.punti || 0,
+      position: costruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).findIndex(c => c.id === costruttore.id) + 1
+    })).sort((a, b) => b.points - a.points)
+
+    setStatistiche({
+      drivers: driversWithStats,
+      constructors: constructorsData?.MRData?.ConstructorTable?.Constructors || [],
+      circuits: uniqueCircuits,
+      races: racesData?.MRData?.RaceTable?.Races || [],
+      driverStandings: driverStandings,
+      constructorStandings: constructorStandings,
+      seasons: seasonsData?.MRData?.SeasonTable?.Seasons || [],
+      results: results,
+      qualifying: qualifying,
+      laps: [],
+      pitstops: [],
+      sprint: sprintData?.MRData?.RaceTable?.Races || [],
+      status: status
+    })
+  }
+
   const caricaDatiLocali = async (seasonYear) => {
-    console.log('🔍 DEBUG: caricaDatiLocali chiamato per stagione', seasonYear)
-    console.log('🔍 DEBUG: campionati disponibili =', campionati?.length)
-    console.log('🔍 DEBUG: nomi campionati =', campionati?.map(c => c.nome))
-    console.log('🔍 DEBUG: dettagli campionati =', campionati?.map(c => ({ nome: c.nome, is_f1_or_fe: c.is_f1_or_fe })))
+    // loading local championship data for season
 
     // Trova il campionato F1 per la stagione specificata
     // Prima cerca solo "Formula 1" per vedere la struttura
     const campionatoF1 = campionati?.find(c => c.nome.includes('Formula 1'))
 
-    console.log('🔍 DEBUG: campionatoF1 trovato =', campionatoF1 ? 'SI' : 'NO')
-    if (campionatoF1) {
-      console.log('🔍 DEBUG: nome campionato =', campionatoF1.nome)
-      console.log('🔍 DEBUG: numero GP =', campionatoF1.gp?.length)
-    } else {
-      console.log('🔍 DEBUG: cercando campionato con nome che contiene "Formula 1"')
+    if (!campionatoF1) {
+      // no local F1 championship found
     }
 
     if (!campionatoF1) {
@@ -306,9 +516,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           apiCircuits[race.Circuit.circuitId] = race.Circuit
         }
       })
-      console.log('🔍 DEBUG: date gare recuperate dall\'API =', Object.keys(raceDates).length)
-      console.log('🔍 DEBUG: gare recuperate dall\'API =', apiRaces.length)
-      console.log('🔍 DEBUG: circuiti recuperati dall\'API =', Object.keys(apiCircuits).length)
+      // api races/circuits loaded
     } catch (error) {
       console.error('Errore recupero date gare dall\'API:', error)
     }
@@ -319,7 +527,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     try {
       const driversData = await fetchFromJolpica(`/${seasonYear}/drivers.json`)
       apiDrivers = driversData?.MRData?.DriverTable?.Drivers || []
-      console.log('🔍 DEBUG: piloti recuperati dall\'API =', apiDrivers.length)
+      // api drivers loaded
     } catch (error) {
       console.error('Errore recupero piloti dall\'API:', error)
     }
@@ -327,7 +535,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     try {
       const constructorsData = await fetchFromJolpica(`/${seasonYear}/constructors.json`)
       apiConstructors = constructorsData?.MRData?.ConstructorTable?.Constructors || []
-      console.log('🔍 DEBUG: costruttori recuperati dall\'API =', apiConstructors.length)
+      // api constructors loaded
     } catch (error) {
       console.error('Errore recupero costruttori dall\'API:', error)
     }
@@ -337,28 +545,138 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     try {
       const seasonsData = await fetchFromJolpica('/seasons.json?limit=100')
       seasons = seasonsData?.MRData?.SeasonTable?.Seasons || []
-      console.log('🔍 DEBUG: stagioni storiche recuperate dall\'API =', seasons.length)
+      // seasons loaded
     } catch (error) {
       console.error('Errore recupero stagioni storiche dall\'API:', error)
     }
 
     // Converti i dati locali nel formato atteso da Statistiche
     // Per il calendario, usa i dati dell'API se disponibili, altrimenti usa i dati locali
-    const races = apiRaces.length > 0 ? apiRaces : gp.map((gara, index) => ({
-      season: seasonYear.toString(),
-      round: (index + 1).toString(),
-      raceName: gara.nome || `GP ${index + 1}`,
-      date: gara.data || '',
-      circuitName: gara.circuito || 'Circuito',
+    const localRaceItems = gp.flatMap((gpItem, gpIndex) => {
+      if (gpItem.gare && Array.isArray(gpItem.gare) && gpItem.gare.length > 0) {
+        return gpItem.gare.map((gara, garaIndex) => ({
+          season: seasonYear.toString(),
+          round: (gpIndex + 1).toString(),
+          raceName: gara.nome || gpItem.nome || `GP ${gpIndex + 1}`,
+          date: gara.data || gpItem.data || '',
+          circuito: gpItem.circuito || gara.circuito || 'Circuito',
+          circuitoLocation: {
+            locality: gpItem.luogo || gara.luogo || '',
+            country: gpItem.paese || gara.paese || ''
+          },
+          tipiGara: gara.tipo_gara || gpItem.tipo_gara || 'principale',
+          localGpIndex: gpIndex,
+          localRaceIndex: garaIndex,
+          originalRace: gara,
+          originalGp: gpItem
+        }))
+      }
+      return [{
+        season: seasonYear.toString(),
+        round: (gpIndex + 1).toString(),
+        raceName: gpItem.nome || `GP ${gpIndex + 1}`,
+        date: gpItem.data || '',
+        circuito: gpItem.circuito || 'Circuito',
+        circuitoLocation: {
+          locality: gpItem.luogo || '',
+          country: gpItem.paese || ''
+        },
+        tipiGara: gpItem.tipo_gara || 'principale',
+        localGpIndex: gpIndex,
+        localRaceIndex: 0,
+        originalRace: gpItem,
+        originalGp: gpItem
+      }]
+    })
+
+    const races = apiRaces.length > 0 ? apiRaces : localRaceItems.map((item, index) => ({
+      season: item.season,
+      round: item.round,
+      raceName: item.raceName,
+      date: item.date,
+      circuitName: item.circuito,
       Circuit: {
-        circuitId: `circuit_${index}`,
-        circuitName: gara.circuito || 'Circuito',
+        circuitId: `circuit_${item.localGpIndex}`,
+        circuitName: item.circuito,
         Location: {
-          locality: gara.luogo || '',
-          country: gara.paese || ''
+          locality: item.circuitoLocation.locality,
+          country: item.circuitoLocation.country
         }
       }
     }))
+
+    // Estrai i risultati dalle gare
+    const results = localRaceItems.map((item, index) => {
+      const gara = item.originalRace
+      return {
+        season: item.season,
+        round: item.round,
+        raceName: item.raceName,
+        date: item.date,
+        Results: gara.risultati ? Object.entries(gara.risultati).map(([pilotaId, posizione]) => {
+          const pilota = piloti.find(p => String(p.id) === String(pilotaId))
+
+          // normalizza posizione che può essere numero o oggetto { posizione, flag, time, points }
+          let pos = ''
+          let status = undefined
+          let time = undefined
+          let points = 0
+
+          if (posizione && typeof posizione === 'object') {
+            // try common keys for position
+            const posKeys = ['posizione', 'position', 'pos', 'positionText', 'position_text']
+            let foundPos = undefined
+            for (const k of posKeys) {
+              if (posizione[k] !== undefined && posizione[k] !== null) {
+                foundPos = posizione[k]
+                break
+              }
+            }
+            if (foundPos !== undefined) {
+              pos = String(foundPos)
+            } else {
+              // fallback: if object serializes to meaningful string, skip; else leave empty
+              pos = ''
+            }
+
+            status = posizione.flag || posizione.status || posizione.stato || undefined
+            if (posizione.time) time = { time: posizione.time }
+            else if (posizione.tempo) time = { time: posizione.tempo }
+            else if (posizione.Time && posizione.Time.time) time = { time: posizione.Time.time }
+
+            const pts = posizione.points ?? posizione.punti
+            if (pts !== undefined && !isNaN(Number(pts))) points = Number(pts)
+          } else if (typeof posizione === 'string') {
+            // strings might be numeric positions or status codes like 'DNF'
+            const n = Number(posizione)
+            if (!isNaN(n)) pos = String(n)
+            else status = posizione
+          } else if (typeof posizione === 'number') {
+            pos = String(posizione)
+          }
+
+          const driverId = pilota?.id ? String(pilota.id) : String(pilotaId)
+
+          return {
+            position: pos,
+            positionText: pos,
+            number: pilota?.numero ? String(pilota.numero) : undefined,
+            points: points,
+            status: status,
+            Time: time,
+            Driver: {
+              driverId: driverId,
+              givenName: pilota?.nome || driverId,
+              familyName: pilota?.cognome || '',
+              permanentNumber: pilota?.numero ? String(pilota.numero) : ''
+            },
+            Constructor: {
+              name: pilota?.costruttore || (gara.costruttore || '')
+            }
+          }
+        }) : []
+      }
+    })
 
     // Calcola le classifiche dai dati locali
     const driverStandings = piloti.map(pilota => ({
@@ -380,27 +698,6 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       points: costruttore.punti || 0,
       position: costruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).findIndex(c => c.id === costruttore.id) + 1
     })).sort((a, b) => b.points - a.points)
-
-    // Estrai i risultati dalle gare
-    const results = gp.map((gara, index) => ({
-      season: seasonYear.toString(),
-      round: (index + 1).toString(),
-      raceName: gara.nome || `GP ${index + 1}`,
-      date: gara.data || '',
-      Results: gara.risultati ? Object.entries(gara.risultati).map(([pilotaId, posizione]) => {
-        const pilota = piloti.find(p => p.id === pilotaId)
-        return {
-          position: posizione?.toString() || '',
-          positionText: posizione?.toString() || '',
-          Driver: pilota ? {
-            driverId: pilota.id?.toString() || pilota.nome?.toLowerCase().replace(/\s/g, '_'),
-            givenName: pilota.nome || '',
-            familyName: pilota.cognome || '',
-            permanentNumber: pilota.numero?.toString() || ''
-          } : {}
-        }
-      }) : []
-    }))
 
     // Calcola statistiche per ogni pilota dai dati locali
     // Aggiungi nazionalità dall'API se disponibile
@@ -433,11 +730,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       const nationality = apiDriver?.nationality || ''
 
       if (!nationality) {
-        console.log('⚠️ DEBUG: Nazionalità pilota non trovata', {
-          localName: pilota.cognome ? `${pilota.nome} ${pilota.cognome}` : pilota.nome,
-          mappedName: mappedName,
-          apiDrivers: apiDrivers.map(d => `${d.givenName} ${d.familyName}`)
-        })
+          // nationality for pilot not found in API mapping
       }
 
       // Itera su tutti i GP per calcolare le statistiche
@@ -520,19 +813,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
 
       const nationality = apiConstructor?.nationality || ''
 
-      if (!nationality) {
-        console.log('⚠️ DEBUG: Nazionalità costruttore non trovata', {
-          localName: costruttore.nome,
-          mappedName: mappedName,
-          apiConstructors: apiConstructors.map(c => c.name)
-        })
-      } else {
-        console.log('✅ DEBUG: Nazionalità costruttore trovata', {
-          localName: costruttore.nome,
-          mappedName: mappedName,
-          nationality: nationality
-        })
-      }
+      // constructor nationality mapping attempted
 
       return {
         constructorId: costruttore.id?.toString() || costruttore.nome?.toLowerCase().replace(/\s/g, '_'),
@@ -559,13 +840,6 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       sprint: [],
       status: []
     }
-
-    console.log('🔍 DEBUG: statistiche calcolate =', {
-      numDrivers: statisticheData.drivers?.length,
-      numConstructors: statisticheData.constructors?.length,
-      numRaces: statisticheData.races?.length,
-      sampleDriver: statisticheData.drivers?.[0]
-    })
 
     setStatistiche(statisticheData)
   }
@@ -687,7 +961,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           display: 'flex',
           justifyContent: 'center',
           gap: '10px',
-          flexWrap: 'wrap'
+          flexWrap: 'wrap',
+          alignItems: 'center'
         }}>
           <button
             onClick={() => setSelectedSeason('current')}
@@ -720,6 +995,28 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               {season.season}
             </button>
           ))}
+          
+          {/* Archive Button - visible from Dec 15 onwards */}
+          {showArchiveButton && selectedSeason === 'current' && (
+            <button
+              onClick={() => archiviaSeasoneCorrente(false)}
+              disabled={archiviando}
+              style={{
+                padding: '10px 20px',
+                background: archiviando ? 'rgba(76, 175, 80, 0.5)' : '#4CAF50',
+                border: '2px solid rgba(76, 175, 80, 0.8)',
+                borderRadius: '8px',
+                color: '#FFF',
+                cursor: archiviando ? 'not-allowed' : 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                marginLeft: '15px',
+                opacity: archiviando ? 0.6 : 1
+              }}
+            >
+              {archiviando ? '⏳ Archiviando...' : '💾 Archivia Stagione'}
+            </button>
+          )}
         </div>
 
         {/* Statistics Grid */}
@@ -861,8 +1158,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               overflowY: 'auto',
               fontSize: '14px'
             }}>
-              {statistiche.races?.map(race => (
-                <div key={`${race.season}-${race.round}`} style={{
+              {statistiche.races?.map((race, index) => (
+                <div key={`${race.season}-${race.round}-${index}`} style={{
                   padding: '8px',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
                 }}>
@@ -897,13 +1194,19 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               fontSize: '14px'
             }}>
               {statistiche.driverStandings.map((standing, index) => (
-                <div key={standing.Driver?.driverId} style={{
-                  padding: '10px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
+                <div
+                  key={standing.Driver?.driverId}
+                  onClick={() => { console.log('FWM_LOG DRIVER_STANDING', standing); setSelectedDriverId(selectedDriverId === standing.Driver?.driverId ? null : standing.Driver?.driverId) }}
+                  style={{
+                    padding: '10px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: selectedDriverId === standing.Driver?.driverId ? 'rgba(0, 122, 255, 0.08)' : 'transparent'
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                     <span style={{
                       fontWeight: 'bold',
@@ -931,6 +1234,54 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           </div>
         )}
 
+        {/* Selected Driver Details */}
+        {selectedDriverId && statistiche.results && (() => {
+          const driverResults = statistiche.results.flatMap(race => 
+            getResultsForRace(race).filter(res => res.Driver?.driverId === selectedDriverId).map(res => ({ race, res }))
+          )
+          return (
+            <div style={{
+              marginTop: '10px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              borderRadius: '8px',
+              padding: '16px'
+            }}>
+              <h4 style={{ color: '#00A0FF', marginBottom: '10px' }}>Risultati Pilota</h4>
+              {driverResults.length > 0 ? (
+                <div style={{ fontSize: '13px', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Gara</th>
+                        <th style={{ textAlign: 'center', padding: '6px', fontSize: '12px' }}>Pos</th>
+                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Team</th>
+                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Risultato</th>
+                        <th style={{ textAlign: 'center', padding: '6px', fontSize: '12px' }}>Punti</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {driverResults.map(({ race, res }) => (
+                        <tr key={`${race.season}-${race.round}-${res.Driver.driverId}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <td style={{ padding: '6px', fontSize: '12px' }}>{race.raceName}</td>
+                          <td style={{ padding: '6px', fontSize: '12px', textAlign: 'center', fontWeight: 'bold', color: res.position === '1' ? '#FFD700' : '#FFF' }}>{res.position}</td>
+                          <td style={{ padding: '6px', fontSize: '12px' }}>{res.Constructor?.name}</td>
+                          <td style={{ padding: '6px', fontSize: '12px', color: '#AAA' }}>{res.Time?.time || res.status || '-'}</td>
+                          <td style={{ padding: '6px', fontSize: '12px', textAlign: 'center', color: res.points > 0 ? '#00FF00' : '#888' }}>{res.points || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ color: '#888', fontSize: '13px', padding: '10px' }}>
+                  ⚠️ Nessun risultato trovato per questo pilota (ID: {selectedDriverId})
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
         {/* Constructor Standings */}
         {statistiche.constructorStandings?.length > 0 && (
           <div style={{
@@ -954,13 +1305,19 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               fontSize: '14px'
             }}>
               {statistiche.constructorStandings.map((standing, index) => (
-                <div key={standing.Constructor?.constructorId} style={{
-                  padding: '10px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
+                <div
+                  key={standing.Constructor?.constructorId}
+                  onClick={() => { console.log('FWM_LOG CONSTRUCTOR_STANDING', standing); setSelectedConstructorId(selectedConstructorId === standing.Constructor?.constructorId ? null : standing.Constructor?.constructorId) }}
+                  style={{
+                    padding: '10px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: selectedConstructorId === standing.Constructor?.constructorId ? 'rgba(0, 122, 255, 0.08)' : 'transparent'
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                     <span style={{
                       fontWeight: 'bold',
@@ -985,6 +1342,55 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           </div>
         )}
 
+        {/* Selected Constructor Details */}
+        {selectedConstructorId && statistiche.results && (() => {
+          const constructorName = statistiche.constructorStandings.find(c => c.Constructor?.constructorId === selectedConstructorId)?.Constructor?.name
+          const constructorResults = statistiche.results.flatMap(race => 
+            getResultsForRace(race).filter(res => res.Constructor?.name?.toLowerCase() === constructorName?.toLowerCase()).map(res => ({ race, res }))
+          )
+          return (
+            <div style={{
+              marginTop: '10px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              borderRadius: '8px',
+              padding: '16px'
+            }}>
+              <h4 style={{ color: '#00A0FF', marginBottom: '10px' }}>Risultati Costruttore: {constructorName}</h4>
+              {constructorResults.length > 0 ? (
+                <div style={{ fontSize: '13px', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Gara</th>
+                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Pilota</th>
+                        <th style={{ textAlign: 'center', padding: '6px', fontSize: '12px' }}>Pos</th>
+                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Risultato</th>
+                        <th style={{ textAlign: 'center', padding: '6px', fontSize: '12px' }}>Punti</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {constructorResults.map(({ race, res }) => (
+                        <tr key={`${race.season}-${race.round}-${res.Driver.driverId}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <td style={{ padding: '6px', fontSize: '12px' }}>{race.raceName}</td>
+                          <td style={{ padding: '6px', fontSize: '12px' }}>{res.Driver?.givenName} {res.Driver?.familyName}</td>
+                          <td style={{ padding: '6px', fontSize: '12px', textAlign: 'center', fontWeight: 'bold', color: res.position === '1' ? '#FFD700' : '#FFF' }}>{res.position}</td>
+                          <td style={{ padding: '6px', fontSize: '12px', color: '#AAA' }}>{res.Time?.time || res.status || '-'}</td>
+                          <td style={{ padding: '6px', fontSize: '12px', textAlign: 'center', color: res.points > 0 ? '#00FF00' : '#888' }}>{res.points || 0}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ color: '#888', fontSize: '13px', padding: '10px' }}>
+                  ⚠️ Nessun risultato trovato per {constructorName}
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
         {/* Results */}
         {statistiche.results?.length > 0 && (
           <div style={{
@@ -1007,50 +1413,64 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               overflowY: 'auto',
               fontSize: '14px'
             }}>
-              {statistiche.results.map(race => (
+              {statistiche.results.map((race, index) => (
                 <div
-                  key={`results-${race.season}-${race.round}`}
-                  onClick={() => setSelectedRace(selectedRace?.season === race.season && selectedRace?.round === race.round ? null : race)}
+                  key={`results-${race.season}-${race.round}-${index}`}
+                  onClick={() => {
+                    console.log('FWM_LOG RACE_CLICK', race)
+                    try {
+                      // log JSON only for local seasons (>=2026) to help debugging
+                      if (race && race.season && Number(race.season) >= 2026) console.log('FWM_LOG RACE_CLICK_FULL', JSON.stringify(race))
+                    } catch (e) {
+                      console.warn('FWM_LOG JSON stringify failed', e)
+                    }
+                    setSelectedRace(selectedRace?.type === 'race' && selectedRace?.__idx === index ? null : { ...race, type: 'race', __idx: index })
+                  }}
                   style={{
                     padding: '8px',
                     borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
                     cursor: 'pointer',
-                    backgroundColor: selectedRace?.season === race.season && selectedRace?.round === race.round ? 'rgba(0, 122, 255, 0.2)' : 'transparent'
+                    backgroundColor: selectedRace?.type === 'race' && selectedRace?.__idx === index ? 'rgba(0, 122, 255, 0.2)' : 'transparent'
                   }}
                 >
                   <div>{race.raceName}</div>
                   <div style={{ color: '#AAA', fontSize: '12px' }}>{formatDateItalian(race.date)}</div>
-                  {selectedRace?.season === race.season && selectedRace?.round === race.round && race.Results && (
-                    <div style={{
-                      marginTop: '10px',
-                      padding: '10px',
-                      background: 'rgba(0, 0, 0, 0.3)',
-                      borderRadius: '4px'
-                    }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.2)' }}>
-                            <th style={{ padding: '4px', textAlign: 'left' }}>Pos</th>
-                            <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
-                            <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
-                            <th style={{ padding: '4px', textAlign: 'left' }}>Tempo</th>
-                            <th style={{ padding: '4px', textAlign: 'left' }}>Punti</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {race.Results.map(result => (
-                            <tr key={result.Driver.driverId} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                              <td style={{ padding: '4px' }}>{result.position}</td>
-                              <td style={{ padding: '4px' }}>{result.Driver.givenName} {result.Driver.familyName}</td>
-                              <td style={{ padding: '4px' }}>{result.Constructor.name}</td>
-                              <td style={{ padding: '4px' }}>{result.Time?.time || result.status}</td>
-                              <td style={{ padding: '4px' }}>{result.points}</td>
+                  {selectedRace?.type === 'race' && selectedRace?.__idx === index && (() => {
+                    const resultsForRace = getResultsForRace(race)
+                    return resultsForRace?.length > 0 ? (
+                      <div style={{
+                        marginTop: '10px',
+                        padding: '10px',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        borderRadius: '4px'
+                      }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.2)' }}>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Pos</th>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Tempo</th>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Punti</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                          </thead>
+                          <tbody>
+                            {resultsForRace.map(result => (
+                              <tr key={result.Driver?.driverId || result.number} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                                <td style={{ padding: '4px' }}>{result.position}</td>
+                                <td style={{ padding: '4px' }}>{result.Driver?.givenName} {result.Driver?.familyName}</td>
+                                <td style={{ padding: '4px' }}>{result.Constructor?.name}</td>
+                                <td style={{ padding: '4px' }}>{result.Time?.time || result.status}</td>
+                                <td style={{ padding: '4px' }}>{result.points}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ color: '#888', fontSize: '13px', padding: '10px' }}>Nessun risultato disponibile per questa gara</div>
+                    )
+                  })()}
                 </div>
               ))}
             </div>
@@ -1079,13 +1499,45 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               overflowY: 'auto',
               fontSize: '14px'
             }}>
-              {statistiche.qualifying.map(race => (
-                <div key={`qualifying-${race.season}-${race.round}`} style={{
-                  padding: '8px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
+              {statistiche.qualifying.map((race, index) => (
+                <div
+                  key={`qualifying-${race.season}-${race.round}-${index}`}
+                  onClick={() => { console.log('FWM_LOG QUALIFY_CLICK', race, race.QualifyingResults || race.Qualifying); setSelectedRace(selectedRace?.type === 'qualifying' && selectedRace?.__idx === index ? null : { ...race, type: 'qualifying', __idx: index }) }}
+                  style={{
+                    padding: '8px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                    cursor: 'pointer',
+                    backgroundColor: selectedRace?.type === 'qualifying' && selectedRace?.__idx === index ? 'rgba(0, 122, 255, 0.2)' : 'transparent'
+                  }}
+                >
                   <div>{race.raceName}</div>
                   <div style={{ color: '#AAA', fontSize: '12px' }}>{formatDateItalian(race.date)}</div>
+                  {selectedRace?.type === 'qualifying' && selectedRace?.__idx === index && (race.QualifyingResults || race.Qualifying) && (
+                    <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                            <th style={{ padding: '4px', textAlign: 'left' }}>Pos</th>
+                            <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
+                            <th style={{ padding: '4px', textAlign: 'left' }}>Q1</th>
+                            <th style={{ padding: '4px', textAlign: 'left' }}>Q2</th>
+                            <th style={{ padding: '4px', textAlign: 'left' }}>Q3</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(race.QualifyingResults || race.Qualifying || []).map(q => (
+                            <tr key={q.Driver?.driverId || q.number} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                              <td style={{ padding: '6px' }}>{q.position}</td>
+                              <td style={{ padding: '6px' }}>{q.Driver?.givenName} {q.Driver?.familyName}</td>
+                              <td style={{ padding: '6px' }}>{q.Q1 || q.q1 || '-'}</td>
+                              <td style={{ padding: '6px' }}>{q.Q2 || q.q2 || '-'}</td>
+                              <td style={{ padding: '6px' }}>{q.Q3 || q.q3 || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1114,8 +1566,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               overflowY: 'auto',
               fontSize: '14px'
             }}>
-              {statistiche.laps.map(race => (
-                <div key={`${race.season}-${race.round}`} style={{
+              {statistiche.laps.map((race, index) => (
+                <div key={`${race.season}-${race.round}-${index}`} style={{
                   padding: '8px',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
                 }}>
@@ -1149,8 +1601,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               overflowY: 'auto',
               fontSize: '14px'
             }}>
-              {statistiche.pitstops.map(race => (
-                <div key={`${race.season}-${race.round}`} style={{
+              {statistiche.pitstops.map((race, index) => (
+                <div key={`${race.season}-${race.round}-${index}`} style={{
                   padding: '8px',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
                 }}>
@@ -1184,13 +1636,50 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               overflowY: 'auto',
               fontSize: '14px'
             }}>
-              {statistiche.sprint.map(race => (
-                <div key={`${race.season}-${race.round}`} style={{
-                  padding: '8px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
+              {statistiche.sprint.map((race, index) => (
+                <div
+                  key={`sprint-${race.season}-${race.round}-${index}`}
+                  onClick={() => setSelectedRace(selectedRace?.type === 'sprint' && selectedRace?.__idx === index ? null : { ...race, type: 'sprint', __idx: index })}
+                  style={{
+                    padding: '8px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                    cursor: 'pointer',
+                    backgroundColor: selectedRace?.type === 'sprint' && selectedRace?.__idx === index ? 'rgba(0, 122, 255, 0.2)' : 'transparent'
+                  }}
+                >
                   <div>{race.raceName}</div>
                   <div style={{ color: '#AAA', fontSize: '12px' }}>{formatDateItalian(race.date)}</div>
+                  {selectedRace?.type === 'sprint' && selectedRace?.__idx === index && (() => {
+                    const resultsForRace = getResultsForRace(race)
+                    return resultsForRace?.length > 0 ? (
+                      <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Pos</th>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Tempo</th>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Punti</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {resultsForRace.map(result => (
+                              <tr key={result.Driver?.driverId || result.number} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                                <td style={{ padding: '6px' }}>{result.position}</td>
+                                <td style={{ padding: '6px' }}>{result.Driver?.givenName} {result.Driver?.familyName}</td>
+                                <td style={{ padding: '6px' }}>{result.Constructor?.name}</td>
+                                <td style={{ padding: '6px' }}>{result.Time?.time || result.status}</td>
+                                <td style={{ padding: '6px' }}>{result.points}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ color: '#888', fontSize: '13px', padding: '10px' }}>Nessun risultato disponibile per questa sprint</div>
+                    )
+                  })()}
                 </div>
               ))}
             </div>
