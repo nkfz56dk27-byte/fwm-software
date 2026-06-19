@@ -312,19 +312,9 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       fetchFromJolpica(`/${seasonParam}/status.json`)
     ])
 
-    // Fetch separati per laps e pitstops (possono fallire con 'current')
-    let lapsData = null
-    let pitstopsData = null
-    try {
-      lapsData = await fetchFromJolpica(`/${seasonParam}/laps.json`)
-    } catch (error) {
-      console.warn('Errore fetch laps.json:', error)
-    }
-    try {
-      pitstopsData = await fetchFromJolpica(`/${seasonParam}/pitstops.json`)
-    } catch (error) {
-      console.warn('Errore fetch pitstops.json:', error)
-    }
+    // Laps e pitstops rimossi - API Jolpica non supporta questi endpoint
+    const lapsData = { MRData: { RaceTable: { Races: [] } } }
+    const pitstopsData = { MRData: { RaceTable: { Races: [] } } }
 
     // Estrai circuiti dalle gare per ottenere dati location completi
     const circuitsFromRaces = racesData?.MRData?.RaceTable?.Races?.map(race => race.Circuit) || []
