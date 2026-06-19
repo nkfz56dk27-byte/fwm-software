@@ -1,0 +1,39 @@
+name: Process Push Notifications
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # ogni 15 minuti
+  workflow_dispatch:
+
+concurrency:
+  group: push-notifications
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - name: Clean npm cache
+        run: npm cache clean --force
+      - name: Remove node_modules and lockfile
+        run: rm -rf node_modules package-lock.json
+      - run: npm install
+      - name: Force reinstall firebase-admin
+        run: npm install firebase-admin@latest --save --force
+      - name: Create Firebase service account file
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > firebase-service-account.json
+      - name: Add OneSignal User Auth Key to environment
+        run: echo 'ONESIGNAL_USER_AUTH_KEY=${{ secrets.ONESIGNAL_USER_AUTH_KEY }}' >> $GITHUB_ENV
+      - name: Run push notification script
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ONESIGNAL_APP_ID: ${{ secrets.ONESIGNAL_APP_ID }}
+          ONESIGNAL_API_KEY: ${{ secrets.ONESIGNAL_API_KEY }}
+          ONESIGNAL_USER_AUTH_KEY: ${{ secrets.ONESIGNAL_USER_AUTH_KEY }}
+        run: node scripts/process-push-notifications.cjs
