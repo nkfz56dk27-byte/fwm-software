@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 
 const JOLPICA_BASE_URL = 'https://api.jolpi.ca/ergast/f1'
+const JOLPICA_PROXY_URL = '/api/jolpica-proxy'
 
 export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const [loading, setLoading] = useState(true)
@@ -521,11 +522,25 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
 
   const fetchFromJolpica = async (endpoint) => {
     try {
-      const response = await fetch(`${JOLPICA_BASE_URL}${endpoint}`)
+      const proxyUrl = `${JOLPICA_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`
+      const directUrl = `${JOLPICA_BASE_URL}${endpoint}`
+
+      const response = import.meta.env.PROD
+        ? await fetch(proxyUrl)
+        : await fetch(directUrl)
+
       if (!response.ok) {
+        // In sviluppo, prova fallback al proxy se chiamata diretta fallisce
+        if (!import.meta.env.PROD) {
+          const proxyFallback = await fetch(proxyUrl)
+          if (proxyFallback.ok) {
+            return await proxyFallback.json()
+          }
+        }
+
         // Jolpica returns 400 for some endpoints (e.g. laps/pitstops for 'current')
         // Return an empty MRData structure for 400/404 to handle gracefully
-        if (response.status === 400 || response.status === 404) {
+        if (response.status === 400 || response.status === 404 || response.status === 429) {
           console.warn(`Jolpica ${endpoint} returned ${response.status}; returning empty MRData`)
           return { MRData: { RaceTable: { Races: [] }, total: '0' } }
         }
