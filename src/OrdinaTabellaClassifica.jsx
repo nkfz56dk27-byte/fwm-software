@@ -85,6 +85,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import Timing71Setup from './Timing71Setup'
 
+const TIMING71_EXTENSION_URL = 'https://chromewebstore.google.com/detail/iaaeepalpcdjjbgghcjdjhclhdiamanp?utm_source=item-share-cb'
+
 export default function OrdinaTabellaClassifica({ onClose, user }) {
 
   function capitalizzaNomePilota(nome) {
@@ -659,6 +661,10 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
     return new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
+  function openTiming71ExtensionPage() {
+    window.open(TIMING71_EXTENSION_URL, '_blank', 'noopener,noreferrer')
+  }
+
   // ── Vista Setup Timing71 ──────────────────────────────────────────────────
   if (showTiming71Setup) {
     return <Timing71Setup onClose={() => setShowTiming71Setup(false)} user={user} />
@@ -671,9 +677,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '10px' }}>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}>← Indietro</button>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button onClick={() => setShowTiming71Setup(true)}
+            <button onClick={openTiming71ExtensionPage}
               style={{ background: '#16a34a', color: 'white', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold' }}>
-              📡 Setup Timing71
+            Installa estensione Timing71
             </button>
             <button onClick={() => setIsModificaMode(!isModificaMode)}
               style={{ background: isModificaMode ? '#10b981' : '#dc2626', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>
@@ -766,7 +772,7 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
                 <h3 style={{ margin: 0, color: '#166534', fontSize: '17px' }}>📡 Sessioni Timing71 salvate</h3>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <button onClick={caricaSessioniTiming71} style={{ background: 'none', border: '1px solid #86efac', color: '#166534', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>↺ Aggiorna</button>
-                  <button onClick={() => setShowTiming71Setup(true)} style={{ background: 'none', border: '1px solid #86efac', color: '#166534', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>⚙️ Setup</button>
+                  <button onClick={openTiming71ExtensionPage} style={{ background: 'none', border: '1px solid #86efac', color: '#166534', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>🧩 Installa estensione</button>
                   <button onClick={() => setShowSyncPanel(false)} style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: '20px', cursor: 'pointer', padding: '0 4px' }}>✕</button>
                 </div>
               </div>
@@ -776,9 +782,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
               ) : timing71Sessions.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
                   <p style={{ marginBottom: '8px' }}>Nessuna sessione salvata.</p>
-                  <p style={{ fontSize: '13px' }}>Usa il bookmarklet su timing71.org, poi aggiorna.</p>
-                  <button onClick={() => setShowTiming71Setup(true)} style={{ marginTop: '10px', background: '#16a34a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                    📡 Vai al Setup
+                  <p style={{ fontSize: '13px' }}>Installa/usa l'estensione privata Timing71, poi aggiorna.</p>
+                  <button onClick={openTiming71ExtensionPage} style={{ marginTop: '10px', background: '#16a34a', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    🧩 Installa estensione
                   </button>
                 </div>
               ) : (

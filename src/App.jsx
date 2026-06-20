@@ -14,7 +14,7 @@ function calcolaPuntiAccorciati(pos, percentuale, customPuntiArr) {
   }
   return 0;
 }
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import VersusModal from './VersusModal';
 import Statistiche from './Statistiche';
 // Fix ReferenceError: calcolaPuntiAccorciati is not defined
@@ -298,15 +298,15 @@ function App() {
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Stato per mostrare il prompt notifiche
   const [notificheUnsubscribe, setNotificheUnsubscribe] = useState(null) // Funzione per stoppare l'ascolto notifiche
   const [campionati, setCampionati] = useState([]) // Stato per i campionati F1
+  const notificheRefreshInFlightRef = useRef(false)
+  const notificheLastRefreshAtRef = useRef(0)
 
   // Carica campionati quando si aprono le statistiche
   useEffect(() => {
     if (showStatistiche) {
-      console.log('🔍 DEBUG App.jsx: showStatistiche = true, caricamento campionati...')
       const caricaCampionati = async () => {
         try {
           const { data, error } = await supabase.from('classifiche').select('*')
-          console.log('🔍 DEBUG App.jsx: campionati caricati =', data?.length)
           if (!error && data) {
             setCampionati(data)
           }
@@ -328,10 +328,8 @@ function App() {
     const handleResize = () => {
       const mobile = window.innerWidth <= 768
       setIsMobile(mobile)
-      console.log('📱 isMobile aggiornato:', mobile, 'width:', window.innerWidth)
     }
     window.addEventListener('resize', handleResize)
-    console.log('📱 isMobile iniziale:', isMobile, 'width:', window.innerWidth)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
@@ -347,9 +345,7 @@ function App() {
     }
 
     // Avvia l'ascolto delle notifiche realtime
-    console.log('🎧 Avvio ascolto notifiche realtime per:', user.username)
     const unsubscribe = ascolaNotificheRealtime(user.username, (notifica) => {
-      console.log('🔔 Notifica ricevuta in App.jsx:', notifica)
       // Mostra il toast fallback in-app
       setToastNotification(notifica)
     })
@@ -367,34 +363,23 @@ function App() {
 
   async function caricaNotificheCalendario(username) {
     try {
-      console.log('🔍 DEBUG HOME: Inizio caricaNotificheCalendario')
-      console.log('🔍 DEBUG HOME: username:', username)
-      
       const { data: notifiche } = await supabase.from('notifiche_calendario').select('*').order('created_at', { ascending: false }).limit(50)
-      console.log('🔍 DEBUG HOME: notifiche totali caricate:', notifiche?.length || 0)
-      
+
       const { data: lette } = await supabase.from('notifiche_lette').select('notifica_id').eq('username', username)
-      console.log('🔍 DEBUG HOME: notifiche lette caricate:', lette?.length || 0)
-      
+
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
-      console.log('🔍 DEBUG HOME: IDs lette:', Array.from(idsLette))
-      
+
       const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id))
-      console.log('🔍 DEBUG HOME: notifiche non lette calcolate:', nonLette.length)
-      
+
       setNotificheNonLetteCalendario(nonLette.length)
-      console.log('✅ DEBUG HOME: caricaNotificheCalendario completato')
     } catch (e) {
-      console.error('❌ Errore caricaNotificheCalendario (HOME):', e)
+      // evita spam console: errore già gestito da UI badge fallback
     }
   }
 
   async function caricaNotificheDisponibilita(username) {
     try {
-      console.log('🔍 DEBUG HOME: Inizio caricaNotificheDisponibilita')
-      console.log('🔍 DEBUG HOME: username:', username)
-      console.log('🔍 DEBUG HOME: isAdmin:', user?.ruolo === 'admin')
-      
+
       const isAdmin = user?.ruolo === 'admin'
       
       // 1. Carica tutte le notifiche (con limite e ordinamento come Disponibilità)
@@ -403,14 +388,12 @@ function App() {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
-      
-      console.log('🔍 DEBUG HOME: notifiche totali caricate:', tutteNotifiche?.length || 0)
+
       
       let notificheFiltrate = tutteNotifiche || []
       
       // 2. Se NON admin: filtra per categorie
       if (!isAdmin) {
-        console.log('🔍 DEBUG HOME: Filtro per categorie utente')
         // Carica categorie utente
         const { data: gruppiUtente } = await supabase
           .from('gruppi_redattori')
@@ -418,7 +401,6 @@ function App() {
           .eq('username', username)
         
         const categorieIds = (gruppiUtente || []).map(g => g.categoria_id).filter(Boolean)
-        console.log('🔍 DEBUG HOME: categorieIds:', categorieIds)
         
         // Carica weekend di quelle categorie
         let queryWeekend = supabase.from('weekend').select('id')
@@ -431,13 +413,11 @@ function App() {
         
         const { data: weekendConsentiti } = await queryWeekend
         const weekendIdsConsentiti = new Set((weekendConsentiti || []).map(w => w.id))
-        console.log('🔍 DEBUG HOME: weekendIdsConsentiti:', Array.from(weekendIdsConsentiti))
         
         // Filtra notifiche
         notificheFiltrate = notificheFiltrate.filter(n => 
           !n.weekend_id || weekendIdsConsentiti.has(n.weekend_id)
         )
-        console.log('🔍 DEBUG HOME: notifiche dopo filtro categorie:', notificheFiltrate.length)
       }
       
       // 3. Conta notifiche NON lette
@@ -445,27 +425,44 @@ function App() {
         .from('notifiche_disponibilita_lette')
         .select('notifica_id')
         .eq('username', username)
-      
-      console.log('🔍 DEBUG HOME: notifiche lette caricate:', lette?.length || 0)
+
       
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
-      console.log('🔍 DEBUG HOME: IDs lette:', Array.from(idsLette))
-      
+
       const nonLette = notificheFiltrate.filter(n => !idsLette.has(n.id))
-      console.log('🔍 DEBUG HOME: notifiche non lette calcolate:', nonLette.length)
-      
+
       setNotificheNonLetteDisponibilita(nonLette.length)
-      console.log('✅ DEBUG HOME: caricaNotificheDisponibilita completato')
     } catch (e) {
-      console.error('[HOME] Errore caricamento notifiche disponibilità:', e)
+      // evita spam console: errore già gestito da UI badge fallback
+    }
+  }
+
+  async function refreshNotificheHome(username, options = {}) {
+    const { force = false } = options
+    if (!username) return
+
+    const now = Date.now()
+    if (!force) {
+      if (notificheRefreshInFlightRef.current) return
+      if (now - notificheLastRefreshAtRef.current < 5000) return
+    }
+
+    notificheRefreshInFlightRef.current = true
+    notificheLastRefreshAtRef.current = now
+    try {
+      await Promise.all([
+        caricaNotificheCalendario(username),
+        caricaNotificheDisponibilita(username)
+      ])
+    } finally {
+      notificheRefreshInFlightRef.current = false
     }
   }
 
   useEffect(() => {
     if (user && user.username) {
       // Caricamento iniziale
-      caricaNotificheCalendario(user.username)
-      caricaNotificheDisponibilita(user.username)
+      refreshNotificheHome(user.username, { force: true })
       // Registra dispositivo e player_id OneSignal su push_devices
       // Forza la registrazione del dispositivo mobile e player_id OneSignal subito dopo login
 
@@ -563,16 +560,13 @@ function App() {
 
       // Polling notifiche ogni 30 secondi (come prima)
       const interval = setInterval(() => {
-        caricaNotificheCalendario(user.username)
-        caricaNotificheDisponibilita(user.username)
+        refreshNotificheHome(user.username)
       }, 30000)
       
       // AGGIUNTA: Ascolta eventi custom da Calendario/Disponibilità
       const handleNotificheAggiornate = (event) => {
-        console.log('🔄 HOME: Ricevuto evento notificheAggiornate', event.detail)
         // Forza ricaricamento immediato delle notifiche
-        caricaNotificheCalendario(user.username)
-        caricaNotificheDisponibilita(user.username)
+        refreshNotificheHome(user.username)
       }
       
       window.addEventListener('notificheAggiornate', handleNotificheAggiornate)
@@ -585,26 +579,22 @@ function App() {
           schema: 'public',
           table: 'notifiche_disponibilita'
         }, (payload) => {
-          console.log('[HOME] Notifica disponibilità ricevuta in realtime:', payload)
-          caricaNotificheDisponibilita(user.username)
+          refreshNotificheHome(user.username)
         })
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
           table: 'notifiche_disponibilita_lette'
         }, (payload) => {
-          console.log('[HOME] Notifica letta in realtime:', payload)
-          caricaNotificheDisponibilita(user.username)
+          refreshNotificheHome(user.username)
         })
         .subscribe()
-      
-      console.log('[HOME] Subscription realtime notifiche attivata')
+
       
       return () => {
         clearInterval(interval)
         supabase.removeChannel(channelDisponibilita)
         window.removeEventListener('notificheAggiornate', handleNotificheAggiornate)
-        console.log('[HOME] Subscription realtime notifiche rimossa')
       }
     }
   }, [user])
@@ -1887,7 +1877,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
                     ) : timing71Sessions.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
                         <p style={{ marginBottom: '8px' }}>Nessuna sessione salvata.</p>
-                        <p style={{ fontSize: '13px' }}>Usa il bookmarklet su timing71.org, poi aggiorna.</p>
+                        <p style={{ fontSize: '13px' }}>Installa/usa l'estensione privata Timing71, poi aggiorna.</p>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: 320, overflowY: 'auto' }}>
@@ -4118,7 +4108,6 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
 
 // ===== LOGIN =====
 function LoginView({ username, setUsername, password, setPassword, showPassword, setShowPassword, loginError, loading, handleLogin }) {
-  console.log('[DEBUG LOGIN] Render LoginView', { username, password, loginError, loading })
   return (
     <div className="login-container">
       <div className="login-card">
@@ -4130,12 +4119,12 @@ function LoginView({ username, setUsername, password, setPassword, showPassword,
         <form onSubmit={handleLogin} className="login-form">
           <div className="form-group">
             <label className="form-label"><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>Username</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="form-input" required />
+            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="form-input" autoComplete="username" required />
           </div>
           <div className="form-group">
             <label className="form-label"><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/></svg>Password</label>
             <div className="password-input-wrapper">
-              <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="form-input" required />
+              <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="form-input" autoComplete="current-password" required />
               <button type="button" className="toggle-password" onClick={() => setShowPassword(!showPassword)}>{showPassword ? '👁️' : '👁️‍🗨️'}</button>
             </div>
           </div>
