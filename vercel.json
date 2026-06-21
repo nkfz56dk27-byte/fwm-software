@@ -50,6 +50,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/dhl-pitstops",
+      "destination": "/api/jolpica-proxy?service=dhl"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
