@@ -215,8 +215,7 @@ import GuidaFunzioni from './GuidaFunzioni.jsx'
 import OrdinaTabellaClassifica from './OrdinaTabellaClassifica.jsx'
 import { initializeOneSignal } from './src/onesignal.js'
 import NotificationPrompt from './NotificationPrompt.jsx'
-import { ascolaNotificheRealtime } from './pushNotificationService'
-import { sendPushNotification } from './pushNotificationService'
+import { ascolaNotificheRealtime, sendPushNotification, registraDispositivoNotifiche, getDeviceId } from './pushNotificationService'
 import GestioneDispositiviNotifiche from './GestioneDispositiviNotifiche.jsx'
 import { ToastNotification } from './ToastNotification.jsx'
 // import { getFirebaseToken, setupForegroundMessaging } from './firebaseMessaging'
@@ -248,17 +247,13 @@ function App() {
               try {
                 const perm = await Notification.requestPermission();
                 if (perm === 'granted' && user && user.username) {
-                  import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
-                    registraDispositivoNotifiche(user.username);
-                  });
+                  registraDispositivoNotifiche(user.username)
                 }
               } catch (e) {
                 console.error('Errore richiesta permesso nativo:', e);
               }
             } else if (Notification.permission === 'granted' && user && user.username) {
-              import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
-                registraDispositivoNotifiche(user.username);
-              });
+              registraDispositivoNotifiche(user.username)
             }
           }
         });
@@ -467,94 +462,92 @@ function App() {
       // --- REGISTRAZIONE PLAYER_ID ONESIGNAL CON POLLING ---
       let playerIdPollingInterval = null;
       let playerIdRegistrato = false;
-      import('./pushNotificationService').then(async ({ registraDispositivoNotifiche, getDeviceId }) => {
-        const tryRegister = async () => {
-          // Attendi che OneSignal sia pronto (max 10s)
-          let ready = false;
-          for (let i = 0; i < 20; i++) {
-            if (window.OneSignal && (window.OneSignal.User || window.OneSignal.getUserId || window.OneSignal.getSubscriptionId)) {
-              ready = true;
-              break;
-            }
-            await new Promise(res => setTimeout(res, 500));
+      const tryRegister = async () => {
+        // Attendi che OneSignal sia pronto (max 10s)
+        let ready = false;
+        for (let i = 0; i < 20; i++) {
+          if (window.OneSignal && (window.OneSignal.User || window.OneSignal.getUserId || window.OneSignal.getSubscriptionId)) {
+            ready = true;
+            break;
           }
-          if (!ready) {
-            //alert('❌ OneSignal non inizializzato dopo il login!');
-            return;
+          await new Promise(res => setTimeout(res, 500));
+        }
+        if (!ready) {
+          //alert('❌ OneSignal non inizializzato dopo il login!');
+          return;
+        }
+        // Recupera playerId OneSignal
+        let playerId = null;
+        try {
+          if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
+            playerId = await window.OneSignal.User.PushSubscription.id;
           }
-          // Recupera playerId OneSignal
-          let playerId = null;
+          if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
+            playerId = await window.OneSignal.User.onesignalId;
+          }
+          if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
+            playerId = await window.OneSignal.getSubscriptionId();
+          }
+          if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
+            playerId = await window.OneSignal.getUserId();
+          }
+          if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
+            const subscription = await window.OneSignal.getSubscription();
+            playerId = subscription?.id || null;
+          }
+        } catch (e) {
+          // Silenzia errori qui
+        }
+        const deviceId = getDeviceId();
+        // Controlla su Supabase se esiste già la riga
+        if (playerId) {
+          let existing = null;
+          let checkError = null;
           try {
-            if (window.OneSignal && window.OneSignal.User && window.OneSignal.User.PushSubscription) {
-              playerId = await window.OneSignal.User.PushSubscription.id;
-            }
-            if (!playerId && window.OneSignal && window.OneSignal.User && window.OneSignal.User.onesignalId) {
-              playerId = await window.OneSignal.User.onesignalId;
-            }
-            if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscriptionId === 'function') {
-              playerId = await window.OneSignal.getSubscriptionId();
-            }
-            if (!playerId && window.OneSignal && typeof window.OneSignal.getUserId === 'function') {
-              playerId = await window.OneSignal.getUserId();
-            }
-            if (!playerId && window.OneSignal && typeof window.OneSignal.getSubscription === 'function') {
-              const subscription = await window.OneSignal.getSubscription();
-              playerId = subscription?.id || null;
-            }
-          } catch (e) {
-            // Silenzia errori qui
+            const res = await supabase
+              .from('push_devices')
+              .select('id')
+              .eq('username', user.username)
+              .eq('device_id', deviceId)
+              .eq('player_id', playerId)
+              .limit(1);
+            existing = res.data;
+            checkError = res.error;
+          } catch (err) {
+            checkError = err;
           }
-          const deviceId = getDeviceId();
-          // Controlla su Supabase se esiste già la riga
-          if (playerId) {
-            let existing = null;
-            let checkError = null;
-            try {
-              const res = await supabase
-                .from('push_devices')
-                .select('id')
-                .eq('username', user.username)
-                .eq('device_id', deviceId)
-                .eq('player_id', playerId)
-                .limit(1);
-              existing = res.data;
-              checkError = res.error;
-            } catch (err) {
-              checkError = err;
-            }
-            if (checkError) {
-              console.warn('[DEBUG LOGIN] Errore query push_devices:', checkError, { username: user.username, deviceId, playerId });
-              // Se errore 400, non tentare la registrazione
-              if (checkError.status === 400) {
-                playerIdRegistrato = true;
-                clearInterval(playerIdPollingInterval);
-                return;
-              }
-            }
-            if (existing && existing.length > 0) {
-              // Già registrato, non fare nulla
+          if (checkError) {
+            console.warn('[DEBUG LOGIN] Errore query push_devices:', checkError, { username: user.username, deviceId, playerId });
+            // Se errore 400, non tentare la registrazione
+            if (checkError.status === 400) {
               playerIdRegistrato = true;
               clearInterval(playerIdPollingInterval);
               return;
             }
           }
-          // Se non esiste, procedi con la registrazione
-          const esito = await registraDispositivoNotifiche(user.username);
-          if (esito) {
+          if (existing && existing.length > 0) {
+            // Già registrato, non fare nulla
             playerIdRegistrato = true;
             clearInterval(playerIdPollingInterval);
-            //console.log('✅ [POLLING] player_id OneSignal registrato con successo!');
-          } else {
-            //console.log('⏳ [POLLING] player_id OneSignal non ancora disponibile, riprovo...');
+            return;
           }
-        };
-        // Primo tentativo subito
-        tryRegister();
-        // Polling ogni 30 secondi finché non registrato
-        playerIdPollingInterval = setInterval(() => {
-          if (!playerIdRegistrato) tryRegister();
-        }, 30000);
-      });
+        }
+        // Se non esiste, procedi con la registrazione
+        const esito = await registraDispositivoNotifiche(user.username);
+        if (esito) {
+          playerIdRegistrato = true;
+          clearInterval(playerIdPollingInterval);
+          //console.log('✅ [POLLING] player_id OneSignal registrato con successo!');
+        } else {
+          //console.log('⏳ [POLLING] player_id OneSignal non ancora disponibile, riprovo...');
+        }
+      };
+      // Primo tentativo subito
+      tryRegister();
+      // Polling ogni 30 secondi finché non registrato
+      playerIdPollingInterval = setInterval(() => {
+        if (!playerIdRegistrato) tryRegister();
+      }, 30000);
 
       // Polling notifiche ogni 30 secondi (come prima)
       const interval = setInterval(() => {
@@ -658,7 +651,6 @@ function App() {
       console.log('[DEBUG LOGIN] Notifica cliccata - Navigazione:', event.url)
     })
     
-    const { getDeviceId } = await import('./pushNotificationService')
     const deviceId = getDeviceId()
     console.log('[DEBUG LOGIN] DeviceId:', deviceId)
     const { data: dispositivo } = await supabase
