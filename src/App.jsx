@@ -213,8 +213,6 @@ import ProssimoEvento from './ProssimoEvento.jsx'
 import EventiMobileMenu from './EventiMobileMenu.jsx'
 import GuidaFunzioni from './GuidaFunzioni.jsx'
 import OrdinaTabellaClassifica from './OrdinaTabellaClassifica.jsx'
-import { notificaClassificaAggiornata } from './src/pushNotifications.js'
-
 import { initializeOneSignal } from './src/onesignal.js'
 import NotificationPrompt from './NotificationPrompt.jsx'
 import { ascolaNotificheRealtime } from './pushNotificationService'
