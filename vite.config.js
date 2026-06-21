@@ -11,6 +11,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/rss-proxy/, '')
+      },
+      '/dhl-proxy': {
+        target: 'https://inmotion.dhl',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/dhl-proxy/, '')
       }
     }
   },

@@ -3,6 +3,66 @@ import { supabase } from './supabaseClient'
 
 const JOLPICA_BASE_URL = 'https://api.jolpi.ca/ergast/f1'
 const JOLPICA_PROXY_URL = '/api/jolpica-proxy'
+const DHL_PITSTOP_PROXY_URL = '/api/dhl-pitstops'
+const REMOTE_API_BASE_URL = 'https://fwm-software.vercel.app'
+const DHL_DEV_PROXY_BASE = '/dhl-proxy'
+const DHL_PITSTOP_REFRESH_MS = 5 * 60 * 1000
+
+const decodeHtmlEntities = (value) => String(value || '')
+  .replace(/&nbsp;/gi, ' ')
+  .replace(/&amp;/gi, '&')
+  .replace(/&quot;/gi, '"')
+  .replace(/&#39;|&apos;/gi, "'")
+  .replace(/&lt;/gi, '<')
+  .replace(/&gt;/gi, '>')
+
+const stripHtml = (value) => decodeHtmlEntities(String(value || '').replace(/<[^>]*>/g, ' '))
+  .replace(/\s+/g, ' ')
+  .trim()
+
+const parsePitRowsFromHtmlTable = (tableHtml) => {
+  if (!tableHtml || typeof tableHtml !== 'string') return []
+
+  const rowRegex = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi
+  const cellRegex = /<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi
+  const rows = []
+
+  for (const rowMatch of tableHtml.matchAll(rowRegex)) {
+    const rowContent = rowMatch?.[1] || ''
+    const cells = Array.from(rowContent.matchAll(cellRegex)).map((m) => stripHtml(m?.[1] || ''))
+    if (cells.length < 6) continue
+
+    const stop = cells[0]
+    const team = cells[1]
+    const driverName = cells[2]
+    const duration = cells[3]
+    const lap = cells[4]
+    const points = cells[5]
+
+    if (!/^\d+$/.test(stop)) continue
+
+    rows.push({
+      driverId: String(driverName || '-').toLowerCase().replace(/\s+/g, '_'),
+      driverName: String(driverName || '-'),
+      team: String(team || ''),
+      stop: String(stop),
+      lap: String(lap || ''),
+      time: '',
+      duration: String(duration || ''),
+      points: Number(points || 0),
+      irregular: false,
+      rawId: String(stop)
+    })
+  }
+
+  const seen = new Set()
+  return rows.filter((row) => {
+    const key = `${row.driverName}|${row.team}|${row.lap}|${row.duration}|${row.stop}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
 
 export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const [loading, setLoading] = useState(true)
@@ -22,6 +82,13 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const [careerConstructorStats, setCareerConstructorStats] = useState(null)
   const [expandedDriverMetric, setExpandedDriverMetric] = useState(null)
   const [expandedConstructorMetric, setExpandedConstructorMetric] = useState(null)
+  const [driverVsMode, setDriverVsMode] = useState(false)
+  const [compareDriverId, setCompareDriverId] = useState(null)
+  const [comparedCareerDriverStats, setComparedCareerDriverStats] = useState(null)
+  const [recentGpWindow, setRecentGpWindow] = useState(3)
+  const [recentGpSelectedDriverIds, setRecentGpSelectedDriverIds] = useState([])
+  const [recentGpPickerOpen, setRecentGpPickerOpen] = useState(false)
+  const [recentGpDriverQuery, setRecentGpDriverQuery] = useState('')
   const seasonsPerPage = isMobile ? 3 : 5
 
   useEffect(() => {
@@ -36,15 +103,66 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     setExpandedConstructorMetric(null)
   }, [selectedConstructorId, selectedSeason])
 
-  // Ricarica quando campionati cambia (per gestire il caricamento asincrono)
   useEffect(() => {
-    if (campionati && campionati.length > 0) {
-      const seasonYear = selectedSeason === 'current' ? parseInt(currentSeason) : parseInt(selectedSeason)
-      if (seasonYear >= 2026) {
-        caricaDatiLocali(seasonYear)
-      }
+    const intervalId = setInterval(() => {
+      refreshDhlPitStopsSilently()
+    }, DHL_PITSTOP_REFRESH_MS)
+
+    return () => clearInterval(intervalId)
+  }, [selectedSeason, currentSeason])
+
+  useEffect(() => {
+    const maxWindow = Math.max(1, (statistiche.results || []).length)
+    if (recentGpWindow > maxWindow) {
+      setRecentGpWindow(maxWindow)
     }
-  }, [campionati])
+  }, [recentGpWindow, statistiche.results])
+
+  useEffect(() => {
+    const validIds = new Set(
+      (statistiche.driverStandings || [])
+        .map(s => String(s?.Driver?.driverId || ''))
+        .filter(Boolean)
+    )
+
+    setRecentGpSelectedDriverIds(prev => prev.filter(id => validIds.has(String(id))))
+  }, [statistiche.driverStandings])
+
+  useEffect(() => {
+    const validDriverIds = new Set(
+      (statistiche.driverStandings || [])
+        .map(s => String(s?.Driver?.driverId || ''))
+        .filter(Boolean)
+    )
+
+    if (selectedDriverId && !validDriverIds.has(String(selectedDriverId))) {
+      setSelectedDriverId(null)
+      setDriverVsMode(false)
+      setCompareDriverId(null)
+    }
+
+    if (compareDriverId && !validDriverIds.has(String(compareDriverId))) {
+      setCompareDriverId(null)
+    }
+  }, [statistiche.driverStandings, selectedDriverId, compareDriverId])
+
+  // Ricarica da locale solo per la stagione corrente (evita override delle stagioni passate API)
+  useEffect(() => {
+    if (!campionati || campionati.length === 0) return
+
+    const selectedYear = selectedSeason === 'current' ? parseInt(currentSeason) : parseInt(selectedSeason)
+    const currentYear = parseInt(currentSeason)
+
+    const shouldUseLocal =
+      Number.isFinite(selectedYear) &&
+      Number.isFinite(currentYear) &&
+      selectedYear >= 2026 &&
+      selectedYear === currentYear
+
+    if (shouldUseLocal) {
+      caricaDatiLocali(selectedYear)
+    }
+  }, [campionati, selectedSeason, currentSeason])
 
   // Mostra bottone archivio da metà dicembre in poi
   useEffect(() => {
@@ -110,7 +228,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           dns: null,
           dsq: localDsq,
           points: null,
-          entries: []
+          entries: [],
+          qualifyingEntries: []
         })
       }
 
@@ -167,20 +286,68 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         }
       }
 
+      const fetchCareerQualifyingByDriver = async (driverId) => {
+        const limit = 100
+        let offset = 0
+        let total = null
+        let resolvedDriverId = null
+        let allRaces = []
+
+        while (offset < 5000) {
+          const pageData = await fetchFromJolpica(`/drivers/${driverId}/qualifying.json?limit=${limit}&offset=${offset}`)
+          const pageRaces = pageData?.MRData?.RaceTable?.Races || []
+          const pageTotal = Number(pageData?.MRData?.total || 0)
+          if (!resolvedDriverId) resolvedDriverId = pageData?.MRData?.RaceTable?.driverId || driverId
+          if (total == null) total = Number.isFinite(pageTotal) ? pageTotal : 0
+
+          if (!pageRaces.length) break
+          allRaces = allRaces.concat(pageRaces)
+          offset += limit
+
+          if (offset >= total) break
+        }
+
+        return {
+          races: allRaces,
+          total: Number.isFinite(total) ? total : allRaces.length,
+          resolvedDriverId: resolvedDriverId || driverId
+        }
+      }
+
       let allRaces = []
+      let allQualifyingRaces = []
       let resolvedApiDriverId = lookupDriverId
 
       for (const candidateId of candidateDriverIds) {
-        const result = await fetchCareerRacesByDriver(candidateId)
-        if (result.total > 0 || result.races.length > 0) {
-          allRaces = result.races
-          resolvedApiDriverId = result.resolvedDriverId
+        const [raceResult, qualifyingResult] = await Promise.all([
+          fetchCareerRacesByDriver(candidateId),
+          fetchCareerQualifyingByDriver(candidateId)
+        ])
+
+        if (
+          raceResult.total > 0 ||
+          raceResult.races.length > 0 ||
+          qualifyingResult.total > 0 ||
+          qualifyingResult.races.length > 0
+        ) {
+          allRaces = raceResult.races
+          allQualifyingRaces = qualifyingResult.races
+          resolvedApiDriverId = raceResult.resolvedDriverId || qualifyingResult.resolvedDriverId || candidateId
           break
         }
       }
 
       const allDriverResults = allRaces.flatMap(race =>
         (race.Results || [])
+          .filter(res => {
+            const apiId = String(res?.Driver?.driverId || '')
+            return !resolvedApiDriverId || apiId === String(resolvedApiDriverId)
+          })
+          .map(res => ({ race, res }))
+      )
+
+      const allDriverQualifyingResults = allQualifyingRaces.flatMap(race =>
+        ((race.QualifyingResults || race.Qualifying || []))
           .filter(res => {
             const apiId = String(res?.Driver?.driverId || '')
             return !resolvedApiDriverId || apiId === String(resolvedApiDriverId)
@@ -239,7 +406,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           dns: dnsCareer,
           dsq: dsqCareer,
           points: pointsCareer,
-          entries: allDriverResults
+          entries: allDriverResults,
+          qualifyingEntries: allDriverQualifyingResults
         })
       }
 
@@ -281,13 +449,11 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       const latestWinDate = new Date(latestWinRace.date)
       const today = new Date()
       const diffTime = Math.abs(today - latestWinDate)
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
 
       if (!cancelled) {
         if (Number.isFinite(diffDays)) {
-          // Se i dati locali mostrano una vittoria più recente, usa quelli.
-          const bestDays = localWins > 0 && hasLocalDays ? Math.min(diffDays, localDays) : diffDays
-          setCareerDaysWithoutWin(`${bestDays}`)
+          setCareerDaysWithoutWin(`${diffDays}`)
         } else {
           setCareerDaysWithoutWin('-')
         }
@@ -304,6 +470,181 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       cancelled = true
     }
   }, [selectedDriverId, statistiche.drivers])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadComparedCareerStats = async () => {
+      if (!driverVsMode || !compareDriverId) {
+        setComparedCareerDriverStats(null)
+        return
+      }
+
+      const driver = (statistiche.drivers || []).find(d => d.driverId === compareDriverId)
+      if (!driver) {
+        setComparedCareerDriverStats(null)
+        return
+      }
+
+      const normalizeDriverKey = (value) => String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+
+      const candidateDriverIds = Array.from(new Set([
+        driver.apiDriverId,
+        driver.driverId,
+        normalizeDriverKey(driver.familyName),
+        normalizeDriverKey(`${driver.givenName || ''}_${driver.familyName || ''}`),
+        normalizeDriverKey(driver.givenName)
+      ].filter(Boolean)))
+
+      const fetchCareerRacesByDriver = async (driverId) => {
+        const limit = 100
+        let offset = 0
+        let total = null
+        let resolvedDriverId = null
+        let allRaces = []
+
+        while (offset < 5000) {
+          const pageData = await fetchFromJolpica(`/drivers/${driverId}/results.json?limit=${limit}&offset=${offset}`)
+          const pageRaces = pageData?.MRData?.RaceTable?.Races || []
+          const pageTotal = Number(pageData?.MRData?.total || 0)
+          if (!resolvedDriverId) resolvedDriverId = pageData?.MRData?.RaceTable?.driverId || driverId
+          if (total == null) total = Number.isFinite(pageTotal) ? pageTotal : 0
+
+          if (!pageRaces.length) break
+          allRaces = allRaces.concat(pageRaces)
+          offset += limit
+          if (offset >= total) break
+        }
+
+        return {
+          races: allRaces,
+          total: Number.isFinite(total) ? total : allRaces.length,
+          resolvedDriverId: resolvedDriverId || driverId
+        }
+      }
+
+      const fetchCareerQualifyingByDriver = async (driverId) => {
+        const limit = 100
+        let offset = 0
+        let total = null
+        let resolvedDriverId = null
+        let allRaces = []
+
+        while (offset < 5000) {
+          const pageData = await fetchFromJolpica(`/drivers/${driverId}/qualifying.json?limit=${limit}&offset=${offset}`)
+          const pageRaces = pageData?.MRData?.RaceTable?.Races || []
+          const pageTotal = Number(pageData?.MRData?.total || 0)
+          if (!resolvedDriverId) resolvedDriverId = pageData?.MRData?.RaceTable?.driverId || driverId
+          if (total == null) total = Number.isFinite(pageTotal) ? pageTotal : 0
+
+          if (!pageRaces.length) break
+          allRaces = allRaces.concat(pageRaces)
+          offset += limit
+          if (offset >= total) break
+        }
+
+        return {
+          races: allRaces,
+          total: Number.isFinite(total) ? total : allRaces.length,
+          resolvedDriverId: resolvedDriverId || driverId
+        }
+      }
+
+      let allRaces = []
+      let allQualifyingRaces = []
+      let resolvedApiDriverId = driver.apiDriverId || driver.driverId
+
+      for (const candidateId of candidateDriverIds) {
+        const [raceResult, qualifyingResult] = await Promise.all([
+          fetchCareerRacesByDriver(candidateId),
+          fetchCareerQualifyingByDriver(candidateId)
+        ])
+
+        if (
+          raceResult.total > 0 ||
+          raceResult.races.length > 0 ||
+          qualifyingResult.total > 0 ||
+          qualifyingResult.races.length > 0
+        ) {
+          allRaces = raceResult.races
+          allQualifyingRaces = qualifyingResult.races
+          resolvedApiDriverId = raceResult.resolvedDriverId || qualifyingResult.resolvedDriverId || candidateId
+          break
+        }
+      }
+
+      const allDriverResults = allRaces.flatMap(race =>
+        (race.Results || [])
+          .filter(res => {
+            const apiId = String(res?.Driver?.driverId || '')
+            return !resolvedApiDriverId || apiId === String(resolvedApiDriverId)
+          })
+          .map(res => ({ race, res }))
+      )
+
+      const allDriverQualifyingResults = allQualifyingRaces.flatMap(race =>
+        ((race.QualifyingResults || race.Qualifying || []))
+          .filter(res => {
+            const apiId = String(res?.Driver?.driverId || '')
+            return !resolvedApiDriverId || apiId === String(resolvedApiDriverId)
+          })
+          .map(res => ({ race, res }))
+      )
+
+      const winsCareer = allDriverResults.filter(({ res }) => String(res?.position) === '1').length
+      const podiumsCareer = allDriverResults.filter(({ res }) => ['1', '2', '3'].includes(String(res?.position))).length
+      const fastestLapsCareer = allDriverResults.filter(({ res }) => {
+        const fastestLapRank = res?.FastestLap?.rank || res?.fastestLap?.rank || res?.fastestLapRank
+        return String(fastestLapRank || '') === '1'
+      }).length
+      const dnsCareer = allDriverResults.filter(({ res }) => isDnsStatus(res?.status)).length
+      const dsqCareer = allDriverResults.filter(({ res }) => isDsqStatus(res?.status)).length
+      const dnfCareer = allDriverResults.filter(({ res }) => isDnfStatus(res?.status)).length
+      const pointsCareer = allDriverResults.reduce((sum, { res }) => sum + Number(res?.points || 0), 0)
+
+      const avgFinishCareer = (() => {
+        const numericPositions = allDriverResults
+          .map(({ res }) => Number(res?.position))
+          .filter(pos => Number.isFinite(pos) && pos > 0)
+        if (!numericPositions.length) return '-'
+        return (numericPositions.reduce((sum, pos) => sum + pos, 0) / numericPositions.length).toFixed(2)
+      })()
+
+      const avgQualifyingCareer = (() => {
+        const numericPositions = allDriverQualifyingResults
+          .map(({ res }) => Number(res?.position))
+          .filter(pos => Number.isFinite(pos) && pos > 0)
+        if (!numericPositions.length) return '-'
+        return (numericPositions.reduce((sum, pos) => sum + pos, 0) / numericPositions.length).toFixed(2)
+      })()
+
+      if (!cancelled) {
+        setComparedCareerDriverStats({
+          races: allDriverResults.length,
+          wins: winsCareer,
+          podiums: podiumsCareer,
+          fastestLaps: fastestLapsCareer,
+          dnf: dnfCareer,
+          dns: dnsCareer,
+          dsq: dsqCareer,
+          points: pointsCareer,
+          averageFinish: avgFinishCareer,
+          averageQualifying: avgQualifyingCareer
+        })
+      }
+    }
+
+    loadComparedCareerStats()
+
+    return () => {
+      cancelled = true
+    }
+  }, [driverVsMode, compareDriverId, statistiche.drivers])
 
   useEffect(() => {
     let cancelled = false
@@ -525,28 +866,41 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       const proxyUrl = `${JOLPICA_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`
       const directUrl = `${JOLPICA_BASE_URL}${endpoint}`
 
+      const readJsonSafe = async (response, sourceLabel) => {
+        const raw = await response.text()
+        if (!raw) return { MRData: { RaceTable: { Races: [] }, total: '0' } }
+
+        try {
+          return JSON.parse(raw)
+        } catch (parseError) {
+          if (import.meta.env.PROD) {
+            console.warn(`Risposta non JSON da Jolpica (${sourceLabel}, ${endpoint})`)
+          }
+          return null
+        }
+      }
+
       const response = import.meta.env.PROD
         ? await fetch(proxyUrl)
         : await fetch(directUrl)
 
       if (!response.ok) {
-        // In sviluppo, prova fallback al proxy se chiamata diretta fallisce
-        if (!import.meta.env.PROD) {
-          const proxyFallback = await fetch(proxyUrl)
-          if (proxyFallback.ok) {
-            return await proxyFallback.json()
-          }
-        }
-
         // Jolpica returns 400 for some endpoints (e.g. laps/pitstops for 'current')
         // Return an empty MRData structure for 400/404 to handle gracefully
         if (response.status === 400 || response.status === 404 || response.status === 429) {
-          console.warn(`Jolpica ${endpoint} returned ${response.status}; returning empty MRData`)
+          if (import.meta.env.PROD) {
+            console.warn(`Jolpica ${endpoint} returned ${response.status}; returning empty MRData`)
+          }
           return { MRData: { RaceTable: { Races: [] }, total: '0' } }
         }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      const data = await response.json()
+
+      const data = await readJsonSafe(response, import.meta.env.PROD ? 'proxy' : 'direct')
+      if (!data) {
+        return { MRData: { RaceTable: { Races: [] }, total: '0' } }
+      }
+
       return data
     } catch (error) {
       console.error(`Errore fetch da Jolpica (${endpoint}):`, error)
@@ -555,10 +909,200 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     }
   }
 
+  const fetchPitStopsFromDhl = async (seasonParam) => {
+    const emptyPayload = { MRData: { RaceTable: { Races: [] }, total: '0' } }
+
+    const fetchDhlViaDevProxy = async (seasonValue) => {
+      const eventsResponse = await fetch(`${DHL_DEV_PROXY_BASE}/api/f1-award-element-data/7375`)
+      if (!eventsResponse.ok) return emptyPayload
+      const eventsJson = await eventsResponse.json()
+      const events = eventsJson?.data?.chart?.events || []
+      if (!Array.isArray(events) || !events.length) return emptyPayload
+
+      const payloads = await Promise.all(events.map(async (eventItem) => {
+        const eventId = Number(eventItem?.id)
+        if (!Number.isFinite(eventId)) return null
+
+        try {
+          const response = await fetch(`${DHL_DEV_PROXY_BASE}/api/f1-award-element-data/7373?event=${eventId}`)
+          if (!response.ok) return null
+          const json = await response.json()
+          return {
+            eventId,
+            eventItem,
+            data: json?.data || null,
+            tableHtml: json?.htmlList?.table || ''
+          }
+        } catch {
+          return null
+        }
+      }))
+
+      const races = payloads
+        .filter(Boolean)
+        .map(({ eventId, eventItem, data, tableHtml }) => {
+          const chart = Array.isArray(data?.chart) ? data.chart : []
+          const tableRows = parsePitRowsFromHtmlTable(tableHtml)
+          if (tableRows.length === 0 && chart.length === 0) return null
+
+          const raceName = String(
+            data?.list_item_title ||
+            eventItem?.short_title ||
+            eventItem?.title ||
+            eventItem?.abbr ||
+            `Evento ${eventId}`
+          ).trim()
+
+          const eventDate = String(eventItem?.date?.date || '').split(' ')[0] || ''
+
+          const pitRowsFromChart = chart.map((item, idx) => {
+            const driverName = `${item?.firstName || ''} ${item?.lastName || ''}`.trim()
+            const dateTime = String(item?.startTime?.date || '')
+            const parts = dateTime.split(' ')
+            const timePartRaw = parts[1] || ''
+            const timePart = timePartRaw.split('.')[0] || ''
+
+            return {
+              driverId: String(item?.tla || item?.lastName || item?.driverNr || idx + 1),
+              driverName: driverName || String(item?.tla || '-'),
+              team: String(item?.team || ''),
+              stop: String(item?.id || idx + 1),
+              lap: item?.lap != null ? String(item.lap) : '',
+              time: timePart,
+              duration: item?.duration != null ? String(item.duration) : '',
+              points: Number(item?.points || 0),
+              irregular: !!item?.irregular,
+              rawId: item?.id
+            }
+          })
+
+          const pitRows = (tableRows.length > 0 ? tableRows : pitRowsFromChart)
+            .sort((a, b) => {
+              const da = Number(a?.duration)
+              const db = Number(b?.duration)
+              if (Number.isFinite(da) && Number.isFinite(db) && da !== db) return da - db
+              return Number(a?.stop || 999) - Number(b?.stop || 999)
+            })
+
+          return {
+            season: String(seasonValue || ''),
+            round: '0',
+            raceName,
+            date: eventDate,
+            PitStops: pitRows,
+            sourceId: eventId,
+            event_id: eventId
+          }
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+          const dateA = a?.date ? new Date(a.date).getTime() : 0
+          const dateB = b?.date ? new Date(b.date).getTime() : 0
+          if (dateA !== dateB) return dateA - dateB
+          return Number(a?.sourceId || 0) - Number(b?.sourceId || 0)
+        })
+        .map((race, index) => ({ ...race, round: String(index + 1) }))
+
+      return { MRData: { RaceTable: { Races: races }, total: String(races.length) } }
+    }
+
+    if (!import.meta.env.PROD) {
+      try {
+        const devProxyData = await fetchDhlViaDevProxy(seasonParam)
+        if ((devProxyData?.MRData?.RaceTable?.Races || []).length > 0) {
+          return devProxyData
+        }
+      } catch {}
+    }
+
+    try {
+      const proxyResponse = await fetch(`${DHL_PITSTOP_PROXY_URL}?season=${encodeURIComponent(seasonParam)}`)
+      if (proxyResponse.ok) {
+        const proxyData = await proxyResponse.json()
+        return proxyData
+      }
+    } catch (error) {
+      if (import.meta.env.PROD) {
+        console.error('Errore fetch proxy DHL pit stop:', error)
+      }
+    }
+
+    // In locale Vite la route /api può non essere disponibile.
+    // Fallback alla API deployata per mantenere la sezione pit stop popolata.
+    if (!import.meta.env.PROD) {
+      try {
+        const remoteResponse = await fetch(`${REMOTE_API_BASE_URL}${DHL_PITSTOP_PROXY_URL}?season=${encodeURIComponent(seasonParam)}`)
+        if (remoteResponse.ok) {
+          const remoteData = await remoteResponse.json()
+          return remoteData
+        }
+      } catch {
+        return emptyPayload
+      }
+    }
+
+    return emptyPayload
+  }
+
   const formatDateItalian = (dateString) => {
     if (!dateString) return ''
     const [year, month, day] = dateString.split('-')
     return `${day}/${month}/${year}`
+  }
+
+  const toItalianRaceName = (raceName) => {
+    const name = String(raceName || '').trim()
+    if (!name) return '-'
+
+    const directMap = {
+      Australia: 'GP Australia',
+      China: 'GP Cina',
+      Japan: 'GP Giappone',
+      Miami: 'GP Miami',
+      Canada: 'GP Canada',
+      Monaco: 'GP Monaco',
+      Barcelona: 'GP Spagna',
+      Austria: 'GP Austria',
+      Britain: 'GP Gran Bretagna',
+      Belgium: 'GP Belgio',
+      Hungary: 'GP Ungheria',
+      Netherlands: 'GP Olanda',
+      Italy: 'GP Italia',
+      Spain: 'GP Spagna',
+      Azerbaijan: 'GP Azerbaigian',
+      Singapore: 'GP Singapore',
+      'United States': 'GP Stati Uniti',
+      Mexico: 'GP Messico',
+      Brazil: 'GP Brasile',
+      'Las Vegas': 'GP Las Vegas',
+      Qatar: 'GP Qatar',
+      'Abu Dhabi': 'GP Abu Dhabi',
+      'Albert Park Grand Prix Circuit': 'GP Australia',
+      'Shanghai International Circuit': 'GP Cina',
+      'Suzuka Circuit': 'GP Giappone',
+      'Miami International Autodrome': 'GP Miami',
+      'Circuit Gilles-Villeneuve': 'GP Canada',
+      'Circuit de Monaco': 'GP Monaco',
+      'Circuit de Barcelona-Catalunya': 'GP Spagna',
+      'Red Bull Ring': 'GP Austria',
+      'Silverstone Circuit': 'GP Gran Bretagna',
+      'Circuit de Spa-Francorchamps': 'GP Belgio',
+      Hungaroring: 'GP Ungheria',
+      'Circuit Zandvoort': 'GP Olanda',
+      'Autodromo Nazionale Monza': 'GP Italia',
+      Madring: 'GP Spagna',
+      'Baku City Circuit': 'GP Azerbaigian',
+      'Marina Bay Street Circuit': 'GP Singapore',
+      'Circuit of The Americas': 'GP Stati Uniti',
+      'Autódromo Hermanos Rodríguez': 'GP Messico',
+      'Autódromo José Carlos Pace': 'GP Brasile',
+      'Las Vegas Strip Circuit': 'GP Las Vegas',
+      'Lusail International Circuit': 'GP Qatar',
+      'Yas Marina Circuit': 'GP Abu Dhabi'
+    }
+
+    if (directMap[name]) return directMap[name]
+    return name.replace(/Grand Prix/gi, 'Gran Premio')
   }
 
   const getPodiumPositionColor = (position, defaultColor = '#FFF') =>
@@ -822,7 +1366,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         await caricaDatiLocali(seasonYear)
       } else {
         // Stagioni passate o <2026: tutto dall'API
-        await caricaDatiAPI(apiSeasonParam)
+        await caricaDatiAPI(apiSeasonParam, currentSeasonYear)
       }
     } catch (error) {
       console.error('Errore caricamento statistiche:', error)
@@ -832,7 +1376,40 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     }
   }
 
-  const caricaDatiAPI = async (seasonParam) => {
+  const refreshDhlPitStopsSilently = async () => {
+    try {
+      const selectedYear = Number(selectedSeason === 'current' ? currentSeason : selectedSeason)
+      const currentYear = Number(currentSeason)
+      const shouldRefreshDhl = selectedSeason === 'current' || (
+        Number.isFinite(selectedYear) &&
+        Number.isFinite(currentYear) &&
+        selectedYear === currentYear
+      )
+
+      if (!shouldRefreshDhl) {
+        return
+      }
+
+      const seasonParam = selectedSeason === 'current'
+        ? (currentSeason || 'current')
+        : selectedSeason
+
+      const apiSeasonParam = seasonParam === 'current' && currentSeason ? currentSeason : seasonParam
+      const pitstopsData = await fetchPitStopsFromDhl(apiSeasonParam)
+      const pitstops = pitstopsData?.MRData?.RaceTable?.Races || []
+
+      setStatistiche(prev => ({
+        ...prev,
+        pitstops
+      }))
+    } catch (error) {
+      if (import.meta.env.PROD) {
+        console.error('Errore aggiornamento automatico pit stop DHL:', error)
+      }
+    }
+  }
+
+  const caricaDatiAPI = async (seasonParam, currentSeasonYearParam = currentSeason) => {
     // Funzione helper per recuperare tutti i dati con paginazione
     const fetchAllData = async (endpoint) => {
       try {
@@ -844,9 +1421,19 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
 
         const mergeArrayUnique = (existing = [], incoming = []) => {
           const out = [...existing]
-          const seen = new Set(out.map(item => `${item?.Driver?.driverId || ''}-${item?.position || ''}-${item?.number || ''}`))
+          const toKey = (item) => {
+            const driverId = item?.Driver?.driverId || item?.driverId || ''
+            const position = item?.position || ''
+            const number = item?.number || ''
+            const stop = item?.stop || ''
+            const lap = item?.lap || ''
+            const time = item?.time || item?.Time?.time || ''
+            const duration = item?.duration || ''
+            return `${driverId}-${position}-${number}-${stop}-${lap}-${time}-${duration}`
+          }
+          const seen = new Set(out.map(toKey))
           incoming.forEach(item => {
-            const key = `${item?.Driver?.driverId || ''}-${item?.position || ''}-${item?.number || ''}`
+            const key = toKey(item)
             if (!seen.has(key)) {
               out.push(item)
               seen.add(key)
@@ -874,7 +1461,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               ...prev,
               ...race,
               Results: mergeArrayUnique(prev.Results || [], race.Results || []),
-              QualifyingResults: mergeArrayUnique(prev.QualifyingResults || [], race.QualifyingResults || [])
+              QualifyingResults: mergeArrayUnique(prev.QualifyingResults || [], race.QualifyingResults || []),
+              PitStops: mergeArrayUnique(prev.PitStops || [], race.PitStops || [])
             })
           })
 
@@ -891,6 +1479,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
 
     // Recupera TUTTI i dati disponibili dall'API Jolpica F1 senza limiti
     // Fetch dei dati principali
+    const shouldUseDhlPitStops = String(seasonParam) === String(currentSeasonYearParam)
     const [
       driversData,
       constructorsData,
@@ -901,6 +1490,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       resultsData,
       qualifyingData,
       sprintData,
+      pitstopsData,
       statusData
     ] = await Promise.all([
       fetchFromJolpica(`/${seasonParam}/drivers.json`),
@@ -912,12 +1502,14 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       fetchAllData(`/${seasonParam}/results.json`),
       fetchAllData(`/${seasonParam}/qualifying.json`),
       fetchAllData(`/${seasonParam}/sprint.json`),
+      shouldUseDhlPitStops
+        ? fetchPitStopsFromDhl(seasonParam)
+        : fetchAllData(`/${seasonParam}/pitstops.json`),
       fetchFromJolpica(`/${seasonParam}/status.json`)
     ])
 
-    // Laps e pitstops rimossi - API Jolpica non supporta questi endpoint
+    // Laps non disponibili via API in modo affidabile
     const lapsData = { MRData: { RaceTable: { Races: [] } } }
-    const pitstopsData = { MRData: { RaceTable: { Races: [] } } }
 
     // Estrai circuiti dalle gare per ottenere dati location completi
     const circuitsFromRaces = racesData?.MRData?.RaceTable?.Races?.map(race => race.Circuit) || []
@@ -987,9 +1579,19 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
 
         const mergeArrayUnique = (existing = [], incoming = []) => {
           const out = [...existing]
-          const seen = new Set(out.map(item => `${item?.Driver?.driverId || ''}-${item?.position || ''}-${item?.number || ''}`))
+          const toKey = (item) => {
+            const driverId = item?.Driver?.driverId || item?.driverId || ''
+            const position = item?.position || ''
+            const number = item?.number || ''
+            const stop = item?.stop || ''
+            const lap = item?.lap || ''
+            const time = item?.time || item?.Time?.time || ''
+            const duration = item?.duration || ''
+            return `${driverId}-${position}-${number}-${stop}-${lap}-${time}-${duration}`
+          }
+          const seen = new Set(out.map(toKey))
           incoming.forEach(item => {
-            const key = `${item?.Driver?.driverId || ''}-${item?.position || ''}-${item?.number || ''}`
+            const key = toKey(item)
             if (!seen.has(key)) {
               out.push(item)
               seen.add(key)
@@ -1017,7 +1619,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               ...prev,
               ...race,
               Results: mergeArrayUnique(prev.Results || [], race.Results || []),
-              QualifyingResults: mergeArrayUnique(prev.QualifyingResults || [], race.QualifyingResults || [])
+              QualifyingResults: mergeArrayUnique(prev.QualifyingResults || [], race.QualifyingResults || []),
+              PitStops: mergeArrayUnique(prev.PitStops || [], race.PitStops || [])
             })
           })
 
@@ -1041,6 +1644,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       resultsData,
       qualifyingData,
       sprintData,
+      pitstopsData,
       statusData
     ] = await Promise.all([
       fetchFromJolpica(`/${apiSeasonParam}/drivers.json`),
@@ -1050,6 +1654,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       fetchAllData(`/${apiSeasonParam}/results.json`),
       fetchAllData(`/${apiSeasonParam}/qualifying.json`),
       fetchAllData(`/${apiSeasonParam}/sprint.json`),
+      fetchPitStopsFromDhl(apiSeasonParam),
       fetchFromJolpica(`/${apiSeasonParam}/status.json`)
     ])
 
@@ -1110,7 +1715,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       results: results,
       qualifying: qualifying,
       laps: [],
-      pitstops: [],
+      pitstops: pitstopsData?.MRData?.RaceTable?.Races || [],
       sprint: sprintData?.MRData?.RaceTable?.Races || [],
       status: status
     })
@@ -1130,9 +1735,19 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
 
         const mergeArrayUnique = (existing = [], incoming = []) => {
           const out = [...existing]
-          const seen = new Set(out.map(item => `${item?.Driver?.driverId || ''}-${item?.position || ''}-${item?.number || ''}`))
+          const toKey = (item) => {
+            const driverId = item?.Driver?.driverId || item?.driverId || ''
+            const position = item?.position || ''
+            const number = item?.number || ''
+            const stop = item?.stop || ''
+            const lap = item?.lap || ''
+            const time = item?.time || item?.Time?.time || ''
+            const duration = item?.duration || ''
+            return `${driverId}-${position}-${number}-${stop}-${lap}-${time}-${duration}`
+          }
+          const seen = new Set(out.map(toKey))
           incoming.forEach(item => {
-            const key = `${item?.Driver?.driverId || ''}-${item?.position || ''}-${item?.number || ''}`
+            const key = toKey(item)
             if (!seen.has(key)) {
               out.push(item)
               seen.add(key)
@@ -1161,7 +1776,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               ...race,
               Results: mergeArrayUnique(prev.Results || [], race.Results || []),
               QualifyingResults: mergeArrayUnique(prev.QualifyingResults || [], race.QualifyingResults || []),
-              SprintResults: mergeArrayUnique(prev.SprintResults || [], race.SprintResults || [])
+              SprintResults: mergeArrayUnique(prev.SprintResults || [], race.SprintResults || []),
+              PitStops: mergeArrayUnique(prev.PitStops || [], race.PitStops || [])
             })
           })
 
@@ -1247,16 +1863,19 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     let apiResultsRaces = []
     let apiQualifyingRaces = []
     let apiSprintRaces = []
+    let apiPitstopsRaces = []
     try {
-      const [apiResultsData, apiQualifyingData, apiSprintData] = await Promise.all([
+      const [apiResultsData, apiQualifyingData, apiSprintData, apiPitstopsData] = await Promise.all([
         fetchAllData(`/${seasonYear}/results.json`),
         fetchAllData(`/${seasonYear}/qualifying.json`),
-        fetchAllData(`/${seasonYear}/sprint.json`)
+        fetchAllData(`/${seasonYear}/sprint.json`),
+        fetchPitStopsFromDhl(seasonYear)
       ])
 
       apiResultsRaces = apiResultsData?.MRData?.RaceTable?.Races || []
       apiQualifyingRaces = apiQualifyingData?.MRData?.RaceTable?.Races || []
       apiSprintRaces = apiSprintData?.MRData?.RaceTable?.Races || []
+      apiPitstopsRaces = apiPitstopsData?.MRData?.RaceTable?.Races || []
     } catch (error) {
       console.error('Errore recupero dettagli gara API in modalità locale:', error)
     }
@@ -1565,7 +2184,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       results: apiResultsRaces.length > 0 ? apiResultsRaces : results,
       qualifying: apiQualifyingRaces,
       laps: [],
-      pitstops: [],
+      pitstops: apiPitstopsRaces,
       sprint: apiSprintRaces,
       status: []
     }
@@ -1660,6 +2279,10 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       if (starterDiff !== 0) return starterDiff
       return `${a.familyName || ''} ${a.givenName || ''}`.localeCompare(`${b.familyName || ''} ${b.givenName || ''}`)
     })
+  const getDefaultCompareDriverId = (baseDriverId) => {
+    const base = String(baseDriverId || '')
+    return driversList.find(driver => String(driver?.driverId || '') !== base)?.driverId || null
+  }
   const constructorsList = (statistiche.constructors || [])
     .slice()
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
@@ -1717,6 +2340,122 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const seasonResultsList = mergeRaceRows(statistiche.results || [], 'Results')
   const seasonQualifyingList = mergeRaceRows(statistiche.qualifying || [], 'QualifyingResults', 'Qualifying')
   const seasonSprintList = mergeRaceRows(statistiche.sprint || [], 'Results')
+  const seasonPitStopsList = mergeRaceRows(statistiche.pitstops || [], 'PitStops')
+  const maxRecentGpWindow = Math.max(1, (seasonResultsList || []).length)
+  const recentGpRaceOptions = Array.from(new Set([1, 2, 3, 5, 10, maxRecentGpWindow]))
+    .filter(n => n <= maxRecentGpWindow)
+    .sort((a, b) => a - b)
+  const recentGpDriverChoices = (statistiche.driverStandings || [])
+    .map(standing => {
+      const driverId = String(standing?.Driver?.driverId || '')
+      const driverName = `${standing?.Driver?.givenName || ''} ${standing?.Driver?.familyName || ''}`.trim() || '-'
+      return { driverId, driverName }
+    })
+    .filter(item => !!item.driverId)
+    .sort((a, b) => a.driverName.localeCompare(b.driverName))
+  const recentGpDriverQueryKey = normalizeDriverListKey(recentGpDriverQuery)
+  const filteredRecentGpDriverChoices = !recentGpDriverQueryKey
+    ? recentGpDriverChoices
+    : recentGpDriverChoices.filter(item => normalizeDriverListKey(item.driverName).includes(recentGpDriverQueryKey))
+  const allRecentGpDriverIds = recentGpDriverChoices.map(item => item.driverId)
+  const areAllRecentGpDriversSelected = allRecentGpDriverIds.length > 0
+    && allRecentGpDriverIds.every(id => recentGpSelectedDriverIds.includes(id))
+
+  const driverRecentPointsRows = (() => {
+    const standings = statistiche.driverStandings || []
+    if (!standings.length) return []
+    const selectedSet = new Set((recentGpSelectedDriverIds || []).map(id => String(id)))
+
+    const recentRaces = (seasonResultsList || [])
+      .slice()
+      .sort((a, b) => Number(b?.round || 0) - Number(a?.round || 0))
+      .slice(0, Math.max(1, Number(recentGpWindow) || 1))
+
+    const parsePointsValue = (value) => {
+      if (value === null || value === undefined || value === '') return 0
+      if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+      const normalized = String(value).replace(',', '.').trim()
+      const parsed = Number(normalized)
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+
+    const pointsMap = new Map()
+    const aliasToResultId = new Map()
+
+    recentRaces.forEach(race => {
+      getResultsForRace(race).forEach(res => {
+        const resultDriverId = normalizeDriverListKey(res?.Driver?.driverId)
+        if (!resultDriverId) return
+
+        const pts = parsePointsValue(res?.points)
+        pointsMap.set(resultDriverId, (pointsMap.get(resultDriverId) || 0) + pts)
+
+        const familyKey = normalizeDriverListKey(res?.Driver?.familyName)
+        const fullKey = normalizeDriverListKey(`${res?.Driver?.givenName || ''}_${res?.Driver?.familyName || ''}`)
+        if (familyKey && !aliasToResultId.has(familyKey)) aliasToResultId.set(familyKey, resultDriverId)
+        if (fullKey && !aliasToResultId.has(fullKey)) aliasToResultId.set(fullKey, resultDriverId)
+      })
+    })
+
+    const rows = standings
+      .map((standing, idx) => {
+        const standingId = String(standing?.Driver?.driverId || '')
+        const standingIdKey = normalizeDriverListKey(standingId)
+        const standingFamilyKey = normalizeDriverListKey(standing?.Driver?.familyName)
+        const standingFullKey = normalizeDriverListKey(`${standing?.Driver?.givenName || ''}_${standing?.Driver?.familyName || ''}`)
+
+        const linkedDriver = (driversList || []).find(driver => {
+          const localId = normalizeDriverListKey(driver?.driverId)
+          const apiId = normalizeDriverListKey(driver?.apiDriverId)
+          return standingIdKey === localId || (apiId && standingIdKey === apiId)
+        }) || (driversList || []).find(driver => {
+          const familyKey = normalizeDriverListKey(driver?.familyName)
+          const fullKey = normalizeDriverListKey(`${driver?.givenName || ''}_${driver?.familyName || ''}`)
+          return (standingFullKey && standingFullKey === fullKey) || (standingFamilyKey && standingFamilyKey === familyKey)
+        })
+
+        const linkedLocalIdKey = normalizeDriverListKey(linkedDriver?.driverId)
+        const linkedApiIdKey = normalizeDriverListKey(linkedDriver?.apiDriverId)
+
+        const resolvedResultId =
+          (standingIdKey && pointsMap.has(standingIdKey) ? standingIdKey : '') ||
+          (linkedApiIdKey && pointsMap.has(linkedApiIdKey) ? linkedApiIdKey : '') ||
+          (linkedLocalIdKey && pointsMap.has(linkedLocalIdKey) ? linkedLocalIdKey : '') ||
+          aliasToResultId.get(standingFullKey) ||
+          aliasToResultId.get(standingFamilyKey) ||
+          ''
+
+        const driverName = `${standing?.Driver?.givenName || ''} ${standing?.Driver?.familyName || ''}`.trim() || '-'
+        return {
+          standing,
+          idx,
+          driverId: standingId,
+          driverName,
+          recentPoints: Number(pointsMap.get(resolvedResultId) || 0)
+        }
+      })
+      .sort((a, b) => {
+        if (b.recentPoints !== a.recentPoints) return b.recentPoints - a.recentPoints
+        return Number(a?.standing?.position || 999) - Number(b?.standing?.position || 999)
+      })
+
+    if (selectedSet.size > 0) {
+      return rows.filter(row => selectedSet.has(String(row?.driverId || '')))
+    }
+
+    return rows
+  })()
+
+  const parsePitDuration = (value) => {
+    const n = Number(value)
+    return Number.isFinite(n) && n > 0 ? n : Number.POSITIVE_INFINITY
+  }
+  const seasonPitStopsByCalendar = (seasonPitStopsList || [])
+    .slice()
+    .sort((a, b) => {
+      return Number(a?.round || 0) - Number(b?.round || 0)
+    })
+  const seasonPitStopsTotal = seasonPitStopsList.reduce((sum, race) => sum + ((race?.PitStops || []).length), 0)
   const resolveDriverTeamName = (driver) => {
     const directTeam = String(driver?.team || '').trim()
     if (directTeam) return directTeam
@@ -1742,6 +2481,49 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
 
     return resultMatch?.Constructor?.name || '-'
   }
+  const seasonCompletedLapsByDriver = (() => {
+    const lapsMap = new Map()
+
+    ;(seasonResultsList || []).forEach(race => {
+      getResultsForRace(race).forEach(res => {
+        const apiDriverId = String(res?.Driver?.driverId || '').toLowerCase()
+        if (!apiDriverId) return
+
+        const laps = Number(res?.laps || 0)
+        if (!Number.isFinite(laps) || laps < 0) return
+
+        const prev = lapsMap.get(apiDriverId) || { laps: 0, driver: null, team: '' }
+        lapsMap.set(apiDriverId, {
+          laps: prev.laps + laps,
+          driver: prev.driver || res?.Driver || null,
+          team: prev.team || res?.Constructor?.name || ''
+        })
+      })
+    })
+
+    return Array.from(lapsMap.entries())
+      .map(([apiDriverId, value]) => {
+        const localDriver = (driversList || []).find(driver => {
+          const localId = String(driver?.driverId || '').toLowerCase()
+          const localApiId = String(driver?.apiDriverId || '').toLowerCase()
+          return apiDriverId === localId || (localApiId && apiDriverId === localApiId)
+        })
+
+        const fallbackName = `${value?.driver?.givenName || ''} ${value?.driver?.familyName || ''}`.trim()
+        const localName = `${localDriver?.givenName || ''} ${localDriver?.familyName || ''}`.trim()
+
+        return {
+          key: apiDriverId,
+          driverName: localName || fallbackName || apiDriverId,
+          teamName: value?.team || (localDriver ? resolveDriverTeamName(localDriver) : '-') || '-',
+          laps: value?.laps || 0
+        }
+      })
+      .sort((a, b) => {
+        if (b.laps !== a.laps) return b.laps - a.laps
+        return a.driverName.localeCompare(b.driverName)
+      })
+  })()
   const seasonSprintQualifyingList = seasonSprintList.map(race => {
     const directSprintQualifyingRows = race?.SprintQualifyingResults || race?.SprintShootoutResults || []
     const fallbackSprintRows = getResultsForRace(race)
@@ -2043,7 +2825,6 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       })
   }
 
-  const selectedDriver = driversList.find(driver => driver.driverId === selectedDriverId)
   const normalizeDriverKey = (value) => String(value || '')
     .toLowerCase()
     .normalize('NFD')
@@ -2051,34 +2832,101 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
 
-  const selectedDriverCandidateIds = new Set([
-    String(selectedDriverId || '').toLowerCase(),
-    String(selectedDriver?.apiDriverId || '').toLowerCase(),
-    normalizeDriverKey(selectedDriver?.familyName),
-    normalizeDriverKey(`${selectedDriver?.givenName || ''}_${selectedDriver?.familyName || ''}`),
-    normalizeDriverKey(selectedDriver?.givenName)
-  ].filter(Boolean))
+  const selectedSeasonYearForMatching = Number(selectedSeason === 'current' ? currentSeason : selectedSeason)
+  const currentSeasonYearForMatching = Number(currentSeason)
+  const allowLooseDriverMatching =
+    Number.isFinite(selectedSeasonYearForMatching) &&
+    Number.isFinite(currentSeasonYearForMatching) &&
+    selectedSeasonYearForMatching >= 2026 &&
+    selectedSeasonYearForMatching === currentSeasonYearForMatching
 
-  const matchesSelectedDriverResult = (res) => {
+  const buildDriverCandidateIds = (driver, driverId, allowLoose = false) => {
+    const ids = [
+      String(driverId || '').toLowerCase(),
+      String(driver?.apiDriverId || '').toLowerCase()
+    ]
+
+    if (allowLoose) {
+      ids.push(
+        normalizeDriverKey(driver?.familyName),
+        normalizeDriverKey(`${driver?.givenName || ''}_${driver?.familyName || ''}`),
+        normalizeDriverKey(driver?.givenName)
+      )
+    }
+
+    return new Set(ids.filter(Boolean))
+  }
+
+  const matchesDriverResultByIds = (res, candidateIds, allowLoose = false) => {
     const apiId = String(res?.Driver?.driverId || '').toLowerCase()
     const apiGiven = String(res?.Driver?.givenName || '')
     const apiFamily = String(res?.Driver?.familyName || '')
     const apiFullNorm = normalizeDriverKey(`${apiGiven}_${apiFamily}`)
     const apiFamilyNorm = normalizeDriverKey(apiFamily)
 
-    if (selectedDriverCandidateIds.has(apiId)) return true
-    if (selectedDriverCandidateIds.has(apiFullNorm)) return true
-    if (selectedDriverCandidateIds.has(apiFamilyNorm)) return true
+    if (candidateIds.has(apiId)) return true
+    if (!allowLoose) return false
+    if (candidateIds.has(apiFullNorm)) return true
+    if (candidateIds.has(apiFamilyNorm)) return true
     return false
   }
 
-  const selectedDriverStanding = statistiche.driverStandings?.find(
-    standing => standing.Driver?.driverId === selectedDriverId
+  const selectedDriverStrict = driversList.find(driver => String(driver?.driverId || '') === String(selectedDriverId || ''))
+  const selectedStandingStrict = (statistiche.driverStandings || []).find(
+    standing => String(standing?.Driver?.driverId || '') === String(selectedDriverId || '')
+  )
+
+  const selectedDriverCandidateIds = new Set([
+    String(selectedDriverId || '').toLowerCase(),
+    String(selectedDriverStrict?.apiDriverId || '').toLowerCase(),
+    String(selectedStandingStrict?.Driver?.driverId || '').toLowerCase(),
+    ...(allowLooseDriverMatching ? [
+      normalizeDriverKey(selectedDriverStrict?.familyName),
+      normalizeDriverKey(`${selectedDriverStrict?.givenName || ''}_${selectedDriverStrict?.familyName || ''}`),
+      normalizeDriverKey(selectedDriverStrict?.givenName),
+      normalizeDriverKey(selectedStandingStrict?.Driver?.familyName),
+      normalizeDriverKey(`${selectedStandingStrict?.Driver?.givenName || ''}_${selectedStandingStrict?.Driver?.familyName || ''}`),
+      normalizeDriverKey(selectedStandingStrict?.Driver?.givenName)
+    ] : [])
+  ].filter(Boolean))
+
+  const selectedDriver = selectedDriverStrict || (driversList || []).find(driver => {
+    const localId = String(driver?.driverId || '').toLowerCase()
+    const apiId = String(driver?.apiDriverId || '').toLowerCase()
+    const familyKey = normalizeDriverKey(driver?.familyName)
+    const fullKey = normalizeDriverKey(`${driver?.givenName || ''}_${driver?.familyName || ''}`)
+    return (
+      selectedDriverCandidateIds.has(localId) ||
+      (apiId && selectedDriverCandidateIds.has(apiId)) ||
+      (familyKey && selectedDriverCandidateIds.has(familyKey)) ||
+      (fullKey && selectedDriverCandidateIds.has(fullKey))
+    )
+  })
+
+  const selectedDriverResolvedCandidateIds = buildDriverCandidateIds(selectedDriver, selectedDriverId, allowLooseDriverMatching)
+  selectedDriverCandidateIds.forEach(id => selectedDriverResolvedCandidateIds.add(id))
+
+  const matchesSelectedDriverResult = (res) => {
+    return matchesDriverResultByIds(res, selectedDriverResolvedCandidateIds, allowLooseDriverMatching)
+  }
+
+  const selectedDriverStanding = (statistiche.driverStandings || []).find(standing =>
+    matchesDriverResultByIds({ Driver: standing?.Driver }, selectedDriverResolvedCandidateIds, allowLooseDriverMatching)
   )
   const selectedDriverResults = selectedDriverId
     ? (seasonResultsList || [])
         .flatMap(race =>
           getResultsForRace(race)
+            .filter(res => matchesSelectedDriverResult(res))
+            .map(res => ({ race, res }))
+        )
+        .sort((a, b) => Number(a.race?.round || 0) - Number(b.race?.round || 0))
+    : []
+
+  const selectedDriverQualifyingResults = selectedDriverId
+    ? (seasonQualifyingList || [])
+        .flatMap(race =>
+          (race?.QualifyingResults || race?.Qualifying || [])
             .filter(res => matchesSelectedDriverResult(res))
             .map(res => ({ race, res }))
         )
@@ -2135,11 +2983,32 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const selectedDriverGeneralPodiums = careerDriverStats?.podiums ?? selectedDriver?.stats?.podiums ?? 0
   const selectedDriverGeneralRaces = careerDriverStats?.races ?? '-'
   const selectedDriverGeneralFastestLaps = careerDriverStats?.fastestLaps ?? '-'
+  const selectedDriverGeneralEntries = careerDriverStats?.entries || []
+  const selectedDriverGeneralQualifyingEntries = careerDriverStats?.qualifyingEntries || []
+  const selectedDriverGeneralAverageFinish = (() => {
+    const entries = Array.isArray(selectedDriverGeneralEntries) ? selectedDriverGeneralEntries : []
+    const numericPositions = entries
+      .map(({ res }) => Number(res?.position))
+      .filter(pos => Number.isFinite(pos) && pos > 0)
+
+    if (numericPositions.length === 0) return '-'
+    const avg = numericPositions.reduce((sum, pos) => sum + pos, 0) / numericPositions.length
+    return avg.toFixed(2)
+  })()
+  const selectedDriverGeneralAverageQualifying = (() => {
+    const entries = Array.isArray(selectedDriverGeneralQualifyingEntries) ? selectedDriverGeneralQualifyingEntries : []
+    const numericPositions = entries
+      .map(({ res }) => Number(res?.position))
+      .filter(pos => Number.isFinite(pos) && pos > 0)
+
+    if (numericPositions.length === 0) return '-'
+    const avg = numericPositions.reduce((sum, pos) => sum + pos, 0) / numericPositions.length
+    return avg.toFixed(2)
+  })()
   const selectedDriverGeneralDnf = careerDriverStats?.dnf ?? selectedDriver?.stats?.dnf ?? 0
   const selectedDriverGeneralDns = careerDriverStats?.dns ?? '-'
   const selectedDriverGeneralDsq = careerDriverStats?.dsq ?? '-'
   const selectedDriverGeneralPoints = careerDriverStats?.points ?? '-'
-  const selectedDriverGeneralEntries = careerDriverStats?.entries || []
   const selectedDriverSeasonWins = selectedDriverResults.length > 0
     ? selectedDriverResults.filter(({ res }) => String(res?.position) === '1').length
     : (selectedDriver?.stats?.wins ?? 0)
@@ -2153,6 +3022,24 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const selectedDriverSeasonDsq = selectedDriverResults.length > 0
     ? selectedDriverResults.filter(({ res }) => isDsqStatus(res?.status)).length
     : (selectedDriver?.stats?.dsq ?? 0)
+  const selectedDriverSeasonAverageFinish = (() => {
+    const numericPositions = selectedDriverResults
+      .map(({ res }) => Number(res?.position))
+      .filter(pos => Number.isFinite(pos) && pos > 0)
+
+    if (numericPositions.length === 0) return '-'
+    const avg = numericPositions.reduce((sum, pos) => sum + pos, 0) / numericPositions.length
+    return avg.toFixed(2)
+  })()
+  const selectedDriverSeasonAverageQualifying = (() => {
+    const numericPositions = selectedDriverQualifyingResults
+      .map(({ res }) => Number(res?.position))
+      .filter(pos => Number.isFinite(pos) && pos > 0)
+
+    if (numericPositions.length === 0) return '-'
+    const avg = numericPositions.reduce((sum, pos) => sum + pos, 0) / numericPositions.length
+    return avg.toFixed(2)
+  })()
 
   const selectedDriverSeasonLastWinName = selectedDriverLastWinEntry?.race?.raceName || 'Mai vinta'
   const selectedDriverSeasonLastWinDate = selectedDriverLastWinEntry?.race?.date || null
@@ -2167,9 +3054,107 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     selectedDriverSeasonDaysWithoutWin = 'Mai vinto'
   }
 
+  const comparedDriver = driversList.find(driver => driver.driverId === compareDriverId && driver.driverId !== selectedDriverId)
+  const comparedDriverCandidateIds = buildDriverCandidateIds(comparedDriver, compareDriverId, allowLooseDriverMatching)
+
+  const comparedDriverResults = comparedDriver
+    ? (seasonResultsList || [])
+        .flatMap(race =>
+          getResultsForRace(race)
+            .filter(res => matchesDriverResultByIds(res, comparedDriverCandidateIds, allowLooseDriverMatching))
+            .map(res => ({ race, res }))
+        )
+        .sort((a, b) => Number(a.race?.round || 0) - Number(b.race?.round || 0))
+    : []
+
+  const comparedDriverQualifyingResults = comparedDriver
+    ? (seasonQualifyingList || [])
+        .flatMap(race =>
+          (race?.QualifyingResults || race?.Qualifying || [])
+            .filter(res => matchesDriverResultByIds(res, comparedDriverCandidateIds, allowLooseDriverMatching))
+            .map(res => ({ race, res }))
+        )
+        .sort((a, b) => Number(a.race?.round || 0) - Number(b.race?.round || 0))
+    : []
+
+  const comparedDriverStanding = (statistiche.driverStandings || []).find((standing) => {
+    const standingId = String(standing?.Driver?.driverId || '').toLowerCase()
+    return comparedDriverCandidateIds.has(standingId)
+  })
+
+  const comparedDriverSeasonWins = comparedDriverResults.filter(({ res }) => String(res?.position) === '1').length
+  const comparedDriverSeasonPodiums = comparedDriverResults.filter(({ res }) => ['1', '2', '3'].includes(String(res?.position))).length
+  const comparedDriverSeasonDnf = comparedDriverResults.filter(({ res }) => isDnfStatus(res?.status)).length
+  const comparedDriverSeasonDns = comparedDriverResults.filter(({ res }) => isDnsStatus(res?.status)).length
+  const comparedDriverSeasonDsq = comparedDriverResults.filter(({ res }) => isDsqStatus(res?.status)).length
+  const selectedDriverSeasonRaces = selectedDriverResults.length
+  const comparedDriverSeasonRaces = comparedDriverResults.length
+  const selectedDriverSeasonFastestLaps = selectedDriverResults.filter(({ res }) => {
+    const fastestLapRank = res?.FastestLap?.rank || res?.fastestLap?.rank || res?.fastestLapRank
+    return String(fastestLapRank || '') === '1'
+  }).length
+  const comparedDriverSeasonFastestLaps = comparedDriverResults.filter(({ res }) => {
+    const fastestLapRank = res?.FastestLap?.rank || res?.fastestLap?.rank || res?.fastestLapRank
+    return String(fastestLapRank || '') === '1'
+  }).length
+  const comparedDriverSeasonAverageFinish = (() => {
+    const numericPositions = comparedDriverResults
+      .map(({ res }) => Number(res?.position))
+      .filter(pos => Number.isFinite(pos) && pos > 0)
+
+    if (numericPositions.length === 0) return '-'
+    const avg = numericPositions.reduce((sum, pos) => sum + pos, 0) / numericPositions.length
+    return avg.toFixed(2)
+  })()
+  const comparedDriverSeasonAverageQualifying = (() => {
+    const numericPositions = comparedDriverQualifyingResults
+      .map(({ res }) => Number(res?.position))
+      .filter(pos => Number.isFinite(pos) && pos > 0)
+
+    if (numericPositions.length === 0) return '-'
+    const avg = numericPositions.reduce((sum, pos) => sum + pos, 0) / numericPositions.length
+    return avg.toFixed(2)
+  })()
+  const comparedDriverPointsFromResults = comparedDriverResults.reduce((sum, { res }) => sum + Number(res?.points || 0), 0)
+  const comparedDriverSeasonPoints = comparedDriverStanding?.points ?? comparedDriverPointsFromResults
+  const comparedDriverFullName = comparedDriver
+    ? `${comparedDriver?.givenName || ''} ${comparedDriver?.familyName || ''}`.trim() || '-'
+    : '-'
+  const comparedGeneralStats = comparedCareerDriverStats || comparedDriver?.stats || {}
+
+  const driverVsSeasonItems = comparedDriver ? [
+    { label: 'Gare disputate', a: selectedDriverSeasonRaces, b: comparedDriverSeasonRaces },
+    { label: 'Giri veloci', a: selectedDriverSeasonFastestLaps, b: comparedDriverSeasonFastestLaps },
+    { label: 'Vittorie', a: selectedDriverSeasonWins, b: comparedDriverSeasonWins },
+    { label: 'Podi', a: selectedDriverSeasonPodiums, b: comparedDriverSeasonPodiums },
+    { label: 'Piazz. medio qualifica', a: selectedDriverSeasonAverageQualifying, b: comparedDriverSeasonAverageQualifying },
+    { label: 'Piazz. medio gara', a: selectedDriverSeasonAverageFinish, b: comparedDriverSeasonAverageFinish },
+    { label: 'DNF', a: selectedDriverSeasonDnf, b: comparedDriverSeasonDnf },
+    { label: 'DNS', a: selectedDriverSeasonDns, b: comparedDriverSeasonDns },
+    { label: 'DSQ', a: selectedDriverSeasonDsq, b: comparedDriverSeasonDsq },
+    { label: 'Punti', a: selectedDriverPoints, b: comparedDriverSeasonPoints }
+  ] : []
+
+  const driverVsGeneralItems = comparedDriver ? [
+    { label: 'Gare disputate', a: selectedDriverGeneralRaces, b: comparedGeneralStats?.races ?? '-' },
+    { label: 'Giri veloci', a: selectedDriverGeneralFastestLaps, b: comparedGeneralStats?.fastestLaps ?? '-' },
+    { label: 'Vittorie', a: selectedDriverGeneralWins, b: comparedGeneralStats?.wins ?? 0 },
+    { label: 'Podi', a: selectedDriverGeneralPodiums, b: comparedGeneralStats?.podiums ?? 0 },
+    { label: 'Piazz. medio qualifica', a: selectedDriverGeneralAverageQualifying, b: comparedGeneralStats?.averageQualifying ?? '-' },
+    { label: 'Piazz. medio gara', a: selectedDriverGeneralAverageFinish, b: comparedGeneralStats?.averageFinish ?? '-' },
+    { label: 'DNF', a: selectedDriverGeneralDnf, b: comparedGeneralStats?.dnf ?? 0 },
+    { label: 'DNS', a: selectedDriverGeneralDns, b: comparedGeneralStats?.dns ?? '-' },
+    { label: 'DSQ', a: selectedDriverGeneralDsq, b: comparedGeneralStats?.dsq ?? 0 },
+    { label: 'Punti', a: selectedDriverGeneralPoints, b: comparedGeneralStats?.points ?? '-' }
+  ] : []
+
   const selectedDriverSeasonInfoItems = selectedDriver ? [
+    { label: 'Gare disputate', value: selectedDriverSeasonRaces },
+    { label: 'Giri veloci', value: selectedDriverSeasonFastestLaps },
     { label: 'Vittorie', value: selectedDriverSeasonWins, metricType: 'wins', detailEntries: getMetricEntriesForDetails(selectedDriverResults, 'wins') },
     { label: 'Podi', value: selectedDriverSeasonPodiums, metricType: 'podiums', detailEntries: getMetricEntriesForDetails(selectedDriverResults, 'podiums') },
+    { label: 'Piazz. medio qualifica', value: selectedDriverSeasonAverageQualifying },
+    { label: 'Piazz. medio gara', value: selectedDriverSeasonAverageFinish },
     { label: 'DNF', value: selectedDriverSeasonDnf, metricType: 'dnf', detailEntries: getMetricEntriesForDetails(selectedDriverResults, 'dnf') },
     { label: 'DNS', value: selectedDriverSeasonDns, metricType: 'dns', detailEntries: getMetricEntriesForDetails(selectedDriverResults, 'dns') },
     { label: 'DSQ', value: selectedDriverSeasonDsq, metricType: 'dsq', detailEntries: getMetricEntriesForDetails(selectedDriverResults, 'dsq') },
@@ -2181,6 +3166,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     { label: 'Giri veloci', value: selectedDriverGeneralFastestLaps },
     { label: 'Vittorie', value: selectedDriverGeneralWins, metricType: 'wins', detailEntries: getMetricEntriesForDetails(selectedDriverGeneralEntries, 'wins') },
     { label: 'Podi', value: selectedDriverGeneralPodiums, metricType: 'podiums', detailEntries: getMetricEntriesForDetails(selectedDriverGeneralEntries, 'podiums') },
+    { label: 'Piazz. medio qualifica', value: selectedDriverGeneralAverageQualifying },
+    { label: 'Piazz. medio gara', value: selectedDriverGeneralAverageFinish },
     { label: 'DNF', value: selectedDriverGeneralDnf, metricType: 'dnf', detailEntries: getMetricEntriesForDetails(selectedDriverGeneralEntries, 'dnf') },
     { label: 'DNS', value: selectedDriverGeneralDns, metricType: 'dns', detailEntries: getMetricEntriesForDetails(selectedDriverGeneralEntries, 'dns') },
     { label: 'DSQ', value: selectedDriverGeneralDsq, metricType: 'dsq', detailEntries: getMetricEntriesForDetails(selectedDriverGeneralEntries, 'dsq') },
@@ -2191,6 +3178,14 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const selectedDriverAgeLabel = selectedDriverAge !== '-' ? `${selectedDriverAge} anni` : '-'
   const selectedDriverAgeWithBirthDate =
     selectedDriverBirthDate !== '-' ? `${selectedDriverAgeLabel} • ${selectedDriverBirthDate}` : selectedDriverAgeLabel
+  const compareDriverOptions = driversList
+    .filter(driver => driver.driverId !== selectedDriverId)
+    .slice()
+    .sort((a, b) => {
+      const nameA = `${a.familyName || ''} ${a.givenName || ''}`.trim()
+      const nameB = `${b.familyName || ''} ${b.givenName || ''}`.trim()
+      return nameA.localeCompare(nameB, 'it', { sensitivity: 'base' })
+    })
 
   if (selectedDriver) {
     return (
@@ -2270,13 +3265,58 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               Scheda pilota
             </div>
             <div style={{
-              fontSize: isMobile ? '22px' : '28px',
-              fontWeight: '800',
-              color: '#FFF',
-              lineHeight: 1.1,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '10px',
               marginBottom: '10px'
             }}>
-              {selectedDriverFullName}
+              <div style={{
+                fontSize: isMobile ? '22px' : '28px',
+                fontWeight: '800',
+                color: '#FFF',
+                lineHeight: 1.1
+              }}>
+                {selectedDriverFullName}
+              </div>
+              <button
+                onClick={() => {
+                  setDriverVsMode(true)
+                  setCompareDriverId(current => current || getDefaultCompareDriverId(selectedDriverId))
+                }}
+                style={{
+                  border: driverVsMode ? '1px solid rgba(98, 188, 255, 0.95)' : '1px solid rgba(125, 151, 193, 0.55)',
+                  background: driverVsMode
+                    ? 'linear-gradient(145deg, rgba(7,116,255,0.52) 0%, rgba(0,170,255,0.4) 100%)'
+                    : 'linear-gradient(145deg, rgba(20,28,42,0.95) 0%, rgba(34,45,64,0.92) 100%)',
+                  borderRadius: '14px',
+                  width: isMobile ? '56px' : '64px',
+                  height: isMobile ? '44px' : '50px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backdropFilter: 'blur(3px)',
+                  boxShadow: driverVsMode
+                    ? '0 8px 20px rgba(0,122,255,0.38), inset 0 1px 0 rgba(255,255,255,0.2), inset 0 -1px 0 rgba(0,0,0,0.18)'
+                    : '0 5px 14px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 0 rgba(0,0,0,0.35)'
+                }}
+                title="Attiva/disattiva confronto"
+                aria-label="Modalità VS"
+              >
+                <img
+                  src="/assets/versus.svg"
+                  alt="VS"
+                  style={{
+                    width: isMobile ? '32px' : '38px',
+                    height: 'auto',
+                    display: 'block',
+                    filter: driverVsMode
+                      ? 'brightness(0) invert(1) drop-shadow(0 1px 2px rgba(0,0,0,0.35))'
+                      : 'brightness(0) invert(1)'
+                  }}
+                />
+              </button>
             </div>
             <div style={{
               display: 'flex',
@@ -2491,6 +3531,167 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
             </div>
           </div>
         </div>
+
+        {driverVsMode && (
+          <div
+            onClick={() => setDriverVsMode(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.65)',
+              backdropFilter: 'blur(2px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: isMobile ? '14px' : '24px',
+              zIndex: 250
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: '820px',
+                maxHeight: '82vh',
+                overflowY: 'auto',
+                background: 'linear-gradient(170deg, rgba(16,24,39,0.96) 0%, rgba(10,16,30,0.96) 100%)',
+                border: '1px solid rgba(85, 146, 255, 0.45)',
+                borderRadius: '14px',
+                padding: isMobile ? '14px' : '18px',
+                boxShadow: '0 20px 48px rgba(0,0,0,0.45)'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <div style={{ fontSize: isMobile ? '15px' : '17px', color: '#8CC6FF', fontWeight: '900', letterSpacing: '0.35px' }}>
+                  Confronto VS
+                </div>
+                <button
+                  onClick={() => setDriverVsMode(false)}
+                  aria-label="Chiudi"
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#FF3B30',
+                    cursor: 'pointer',
+                    fontWeight: '800',
+                    fontSize: isMobile ? '34px' : '38px',
+                    lineHeight: 1
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr auto', gap: '10px', marginBottom: '12px', alignItems: 'center' }}>
+                <div style={{ color: '#D8E8FF', fontSize: '13px', fontWeight: '700' }}>{selectedDriverFullName}</div>
+                <select
+                  value={compareDriverId || ''}
+                  onChange={(e) => setCompareDriverId(e.target.value || null)}
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(8,14,24,0.95) 0%, rgba(14,23,38,0.92) 100%)',
+                    color: '#FFF',
+                    border: '1px solid rgba(127, 170, 255, 0.55)',
+                    borderRadius: '10px',
+                    padding: isMobile ? '9px 12px' : '10px 14px',
+                    fontSize: '13px',
+                    minWidth: isMobile ? '100%' : '300px',
+                    boxShadow: '0 6px 16px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.1)',
+                    fontWeight: '600'
+                  }}
+                >
+                  {compareDriverOptions.map(driver => (
+                    <option key={`vs-option-${driver.driverId}`} value={driver.driverId}>
+                      {driver.givenName} {driver.familyName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {driverVsSeasonItems.length > 0 ? (
+                <div style={{ display: 'grid', gap: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
+                    <div style={{
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.14)',
+                      borderRadius: '10px',
+                      padding: '8px 10px',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      color: '#FFF'
+                    }}>
+                      {selectedDriverFullName}
+                    </div>
+                    <div style={{
+                      background: 'rgba(0,122,255,0.14)',
+                      border: '1px solid rgba(140,198,255,0.35)',
+                      borderRadius: '10px',
+                      padding: '8px 10px',
+                      fontSize: '12px',
+                      fontWeight: '800',
+                      color: '#8CC6FF'
+                    }}>
+                      {comparedDriverFullName}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.16)',
+                    borderRadius: '12px',
+                    padding: '10px'
+                  }}>
+                    <div style={{ fontSize: '13px', color: '#9EC5FF', fontWeight: '800', marginBottom: '8px', letterSpacing: '0.3px' }}>Stagione attuale</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
+                      {driverVsSeasonItems.map((item) => (
+                        <div key={`vs-season-${item.label}`} style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.14)',
+                          borderRadius: '10px',
+                          padding: '10px'
+                        }}>
+                          <div style={{ fontSize: '12px', color: '#BDBDBD', marginBottom: '6px' }}>{item.label}</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', alignItems: 'center' }}>
+                            <div style={{ color: '#FFF', fontSize: '15px', fontWeight: '800' }}>{item.a}</div>
+                            <div style={{ color: '#8CC6FF', fontSize: '15px', fontWeight: '800', textAlign: 'right' }}>{item.b}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.16)',
+                    borderRadius: '12px',
+                    padding: '10px'
+                  }}>
+                    <div style={{ fontSize: '13px', color: '#9EC5FF', fontWeight: '800', marginBottom: '8px', letterSpacing: '0.3px' }}>Dati generali</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
+                      {driverVsGeneralItems.map((item) => (
+                        <div key={`vs-general-${item.label}`} style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.14)',
+                          borderRadius: '10px',
+                          padding: '10px'
+                        }}>
+                          <div style={{ fontSize: '12px', color: '#BDBDBD', marginBottom: '6px' }}>{item.label}</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', alignItems: 'center' }}>
+                            <div style={{ color: '#FFF', fontSize: '15px', fontWeight: '800' }}>{item.a}</div>
+                            <div style={{ color: '#8CC6FF', fontSize: '15px', fontWeight: '800', textAlign: 'right' }}>{item.b}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: '#BDBDBD', fontSize: '12px' }}>
+                  Nessun secondo pilota disponibile per il confronto.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -2942,6 +4143,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                   onClick={() => {
                     setSelectedDriverId(driver.driverId)
                     setSelectedConstructorId(null)
+                    setDriverVsMode(false)
+                    setCompareDriverId(null)
                   }}
                   style={{
                     width: '100%',
@@ -3133,6 +4336,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         width: '100%',
         display: 'grid',
         gridTemplateColumns: '1fr',
+        gridAutoFlow: 'row',
         gap: '16px',
         marginBottom: '20px'
       }}>
@@ -3141,7 +4345,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           border: '2px solid rgba(51, 51, 51, 0.8)',
           borderRadius: '12px',
           padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
+          color: '#FFF',
+          order: 2
         }}>
           <h3 style={{
             fontSize: isMobile ? '16px' : '18px',
@@ -3212,7 +4417,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           border: '2px solid rgba(51, 51, 51, 0.8)',
           borderRadius: '12px',
           padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
+          color: '#FFF',
+          order: 1
         }}>
           <h3 style={{
             fontSize: isMobile ? '16px' : '18px',
@@ -3278,6 +4484,153 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           </div>
         </div>
 
+      </div>
+
+      <div style={{
+        maxWidth: '1200px',
+        width: '100%',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.85)',
+          border: '2px solid rgba(51, 51, 51, 0.8)',
+          borderRadius: '12px',
+          padding: isMobile ? '14px' : '16px',
+          color: '#FFF'
+        }}>
+          <h3 style={{
+            fontSize: isMobile ? '16px' : '18px',
+            fontWeight: '700',
+            color: '#007AFF',
+            margin: '0 0 12px 0'
+          }}>
+            Giri completati per pilota ({seasonCompletedLapsByDriver.length})
+          </h3>
+
+          <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                  <th style={{ padding: '4px', textAlign: 'left' }}>#</th>
+                  <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
+                  <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
+                  <th style={{ padding: '4px', textAlign: 'right' }}>Giri</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seasonCompletedLapsByDriver.map((row, idx) => (
+                  <tr key={row.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <td style={{ padding: '4px' }}>{idx + 1}</td>
+                    <td style={{ padding: '4px' }}>{row.driverName}</td>
+                    <td style={{ padding: '4px' }}>{row.teamName || '-'}</td>
+                    <td style={{ padding: '4px', textAlign: 'right' }}>{row.laps}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div style={{
+        maxWidth: '1200px',
+        width: '100%',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.85)',
+          border: '2px solid rgba(51, 51, 51, 0.8)',
+          borderRadius: '12px',
+          padding: isMobile ? '14px' : '16px',
+          color: '#FFF'
+        }}>
+          <h3 style={{
+            fontSize: isMobile ? '16px' : '18px',
+            fontWeight: '700',
+            color: '#007AFF',
+            margin: '0 0 12px 0'
+          }}>
+            Pit stop DHL
+          </h3>
+
+          <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {seasonPitStopsList.length === 0 && (
+              <div style={{ color: '#BDBDBD', fontSize: '13px' }}>
+                Nessun dato pit stop DHL disponibile per questa stagione.
+              </div>
+            )}
+
+            {seasonPitStopsByCalendar.map((race, idx) => {
+              const raceKey = `main-pitstops-${race.season || selectedSeason}-${race.round || idx}-${idx}`
+              const isOpen = selectedRace?.type === 'main-pitstops' && selectedRace?.key === raceKey
+              const pitRows = (race?.PitStops || [])
+                .slice()
+                .sort((a, b) => {
+                  const durationDiff = parsePitDuration(a?.duration) - parsePitDuration(b?.duration)
+                  if (durationDiff !== 0) return durationDiff
+                  const lapDiff = Number(a?.lap || 0) - Number(b?.lap || 0)
+                  if (lapDiff !== 0) return lapDiff
+                  return Number(a?.stop || 0) - Number(b?.stop || 0)
+                })
+
+              return (
+                <div
+                  key={raceKey}
+                  onClick={() => setSelectedRace(isOpen ? null : { type: 'main-pitstops', key: raceKey })}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    background: isOpen ? 'rgba(0, 122, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                    border: isOpen ? '1px solid rgba(0, 122, 255, 0.45)' : '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '10px',
+                    padding: isMobile ? '10px' : '11px',
+                    color: '#FFF',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ fontWeight: '600' }}>{toItalianRaceName(race.raceName)}</span>
+                    <span style={{ color: '#BDBDBD', whiteSpace: 'nowrap' }}>{pitRows.length} soste</span>
+                  </div>
+                  <div style={{ color: '#BDBDBD', fontSize: '13px', marginTop: '2px' }}>{formatDateItalian(race.date)}</div>
+
+                  {isOpen && (
+                    <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>
+                      {pitRows.length > 0 ? (
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
+                              <th style={{ padding: '4px', textAlign: 'left' }}>Giro</th>
+                              <th style={{ padding: '4px', textAlign: 'right' }}>Durata</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pitRows.map((stop, i) => (
+                              <tr key={`${raceKey}-pit-${stop.driverId || i}-${stop.stop || i}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                <td style={{ padding: '4px' }}>{stop.driverName || stop.driverId || '-'}</td>
+                                <td style={{ padding: '4px' }}>{stop.lap || '-'}</td>
+                                <td style={{ padding: '4px', textAlign: 'right' }}>{stop.duration ? `${stop.duration}s` : '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div style={{ color: '#BDBDBD', fontSize: '12px' }}>Nessun pit stop disponibile per questa gara.</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
       <div style={{
@@ -3460,6 +4813,255 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                 )
               })}
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{
+        maxWidth: '1200px',
+        width: '100%',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.85)',
+          border: '2px solid rgba(51, 51, 51, 0.8)',
+          borderRadius: '12px',
+          padding: isMobile ? '14px' : '16px',
+          color: '#FFF'
+        }}>
+          <h3 style={{
+            fontSize: isMobile ? '16px' : '18px',
+            fontWeight: '700',
+            color: '#007AFF',
+            margin: '0 0 12px 0'
+          }}>
+            Punti piloti negli ultimi GP
+          </h3>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+            <select
+              value={recentGpWindow}
+              onChange={(e) => setRecentGpWindow(Number(e.target.value) || 3)}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                color: '#FFF',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: '8px',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: '700'
+              }}
+            >
+              {recentGpRaceOptions.map(n => (
+                <option key={`recent-gp-${n}`} value={n}>Ultimi {n} GP</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+              <span style={{ fontSize: '12px', color: '#BFD8FF', fontWeight: '700' }}>
+                Seleziona piloti {recentGpSelectedDriverIds.length > 0 ? `(${recentGpSelectedDriverIds.length})` : '(opzionale)'}
+              </span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {recentGpSelectedDriverIds.length > 0 && (
+                  <button
+                    onClick={() => setRecentGpSelectedDriverIds([])}
+                    style={{
+                      background: 'transparent',
+                      color: '#FF8A8A',
+                      border: '1px solid rgba(255,138,138,0.5)',
+                      borderRadius: '8px',
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      fontWeight: '700'
+                    }}
+                  >
+                    Azzera
+                  </button>
+                )}
+                <button
+                  onClick={() => setRecentGpPickerOpen(prev => !prev)}
+                  style={{
+                    background: recentGpPickerOpen ? 'rgba(0,122,255,0.2)' : 'rgba(255,255,255,0.08)',
+                    color: '#FFF',
+                    border: recentGpPickerOpen ? '1px solid rgba(0,122,255,0.8)' : '1px solid rgba(255,255,255,0.25)',
+                    borderRadius: '8px',
+                    padding: '4px 10px',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    fontWeight: '700'
+                  }}
+                >
+                  {recentGpPickerOpen ? 'Chiudi' : 'Scegli piloti'}
+                </button>
+              </div>
+            </div>
+
+            {recentGpPickerOpen && (
+              <div style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '10px',
+                padding: '10px'
+              }}>
+                <input
+                  type="text"
+                  value={recentGpDriverQuery}
+                  onChange={(e) => setRecentGpDriverQuery(e.target.value)}
+                  placeholder="Cerca pilota..."
+                  style={{
+                    width: '100%',
+                    background: 'rgba(0,0,0,0.35)',
+                    color: '#FFF',
+                    border: '1px solid rgba(255,255,255,0.22)',
+                    borderRadius: '8px',
+                    padding: '8px 10px',
+                    fontSize: '12px',
+                    marginBottom: '8px'
+                  }}
+                />
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                  gap: '6px',
+                  maxHeight: isMobile ? '160px' : '190px',
+                  overflowY: 'auto'
+                }}>
+                  <button
+                    onClick={() => setRecentGpSelectedDriverIds(allRecentGpDriverIds)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      width: '100%',
+                      textAlign: 'left',
+                      gridColumn: '1 / -1',
+                      border: areAllRecentGpDriversSelected ? '1px solid rgba(0,122,255,0.8)' : '1px solid rgba(255,255,255,0.2)',
+                      background: areAllRecentGpDriversSelected ? 'rgba(0,122,255,0.18)' : 'rgba(255,255,255,0.06)',
+                      color: '#FFF',
+                      borderRadius: '8px',
+                      padding: '7px 9px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span style={{
+                      width: '16px',
+                      height: '16px',
+                      borderRadius: '4px',
+                      border: areAllRecentGpDriversSelected ? '1px solid rgba(0,122,255,0.9)' : '1px solid rgba(255,255,255,0.35)',
+                      background: areAllRecentGpDriversSelected ? 'rgba(0,122,255,0.85)' : 'transparent',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      fontWeight: '800'
+                    }}>
+                      {areAllRecentGpDriversSelected ? '✓' : ''}
+                    </span>
+                    <span>Tutti i piloti</span>
+                  </button>
+
+                  {filteredRecentGpDriverChoices.map(item => {
+                    const isSelected = recentGpSelectedDriverIds.includes(item.driverId)
+                    return (
+                      <button
+                        key={`recent-pilot-${item.driverId}`}
+                        onClick={() => {
+                          setRecentGpSelectedDriverIds(prev => (
+                            prev.includes(item.driverId)
+                              ? prev.filter(id => id !== item.driverId)
+                              : [...prev, item.driverId]
+                          ))
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          width: '100%',
+                          textAlign: 'left',
+                          border: isSelected ? '1px solid rgba(0,122,255,0.8)' : '1px solid rgba(255,255,255,0.2)',
+                          background: isSelected ? 'rgba(0,122,255,0.18)' : 'rgba(255,255,255,0.06)',
+                          color: '#FFF',
+                          borderRadius: '8px',
+                          padding: '7px 9px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span style={{
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '4px',
+                          border: isSelected ? '1px solid rgba(0,122,255,0.9)' : '1px solid rgba(255,255,255,0.35)',
+                          background: isSelected ? 'rgba(0,122,255,0.85)' : 'transparent',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '11px',
+                          fontWeight: '800'
+                        }}>
+                          {isSelected ? '✓' : ''}
+                        </span>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.driverName}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{
+            maxHeight: isMobile ? '300px' : '360px',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
+          }}>
+            {driverRecentPointsRows.map((row, idx) => {
+              const standingDriverId = row?.driverId
+              const standingDriverName = row?.driverName
+              const standing = row?.standing
+
+              return (
+                <button
+                  key={`recent-points-driver-${standingDriverId || idx}`}
+                  onClick={() => {
+                    if (standingDriverId) {
+                      setSelectedDriverId(standingDriverId)
+                      setSelectedConstructorId(null)
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    background: selectedDriverId === standingDriverId ? 'rgba(0, 122, 255, 0.18)' : 'rgba(255, 255, 255, 0.04)',
+                    border: selectedDriverId === standingDriverId ? '1px solid rgba(0, 122, 255, 0.7)' : '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '10px',
+                    padding: isMobile ? '10px' : '11px',
+                    color: '#FFF',
+                    cursor: standingDriverId ? 'pointer' : 'default',
+                    display: 'grid',
+                    gridTemplateColumns: '50px 1fr auto',
+                    gap: '8px',
+                    alignItems: 'center'
+                  }}
+                >
+                  <span style={{ fontWeight: '700', color: standing?.position ? getPodiumPositionColor(standing.position, '#9EC5FF') : '#9EC5FF' }}>{idx + 1}</span>
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: '600' }}>{standingDriverName}</span>
+                  <span style={{ color: '#D8E8FF', fontWeight: '700' }}>{Number(row?.recentPoints || 0)} pt</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
