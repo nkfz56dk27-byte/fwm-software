@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 
-const JOLPICA_BASE_URL = 'https://api.jolpi.ca/ergast/f1'
 const JOLPICA_PROXY_URL = '/api/jolpica-proxy'
 const DHL_PITSTOP_PROXY_URL = '/api/dhl-pitstops'
 const REMOTE_API_BASE_URL = 'https://fwm-software.vercel.app'
@@ -89,6 +88,11 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const [recentGpSelectedDriverIds, setRecentGpSelectedDriverIds] = useState([])
   const [recentGpPickerOpen, setRecentGpPickerOpen] = useState(false)
   const [recentGpDriverQuery, setRecentGpDriverQuery] = useState('')
+  const [currentSeasonCalendar, setCurrentSeasonCalendar] = useState([])
+  const [hallOfFameSelectedRaceKey, setHallOfFameSelectedRaceKey] = useState('')
+  const [hallOfFameWinners, setHallOfFameWinners] = useState([])
+  const [hallOfFameLoading, setHallOfFameLoading] = useState(false)
+  const [hallOfFameError, setHallOfFameError] = useState('')
   const seasonsPerPage = isMobile ? 3 : 5
 
   useEffect(() => {
@@ -197,6 +201,155 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     const targetPage = Math.floor(selectedIndex / seasonsPerPage)
     setSeasonCarouselPage(prev => (prev === targetPage ? prev : targetPage))
   }, [selectedSeason, statistiche.seasons, currentSeason, seasonsPerPage])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadCurrentSeasonCalendar = async () => {
+      if (!currentSeason) {
+        setCurrentSeasonCalendar([])
+        return
+      }
+
+      const calendarData = await fetchFromJolpica(`/${currentSeason}/races.json`)
+      if (cancelled) return
+
+      const races = (calendarData?.MRData?.RaceTable?.Races || [])
+        .slice()
+        .sort((a, b) => Number(a?.round || 0) - Number(b?.round || 0))
+
+      setCurrentSeasonCalendar(races)
+    }
+
+    loadCurrentSeasonCalendar()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentSeason])
+
+  useEffect(() => {
+    const options = (currentSeasonCalendar || [])
+      .map((race, idx) => ({
+        key: `${race?.Circuit?.circuitId || 'unknown'}-${race?.round || idx}`,
+        circuitId: race?.Circuit?.circuitId || ''
+      }))
+      .filter(item => !!item.circuitId)
+
+    if (options.length === 0) {
+      setHallOfFameSelectedRaceKey('')
+      return
+    }
+
+    setHallOfFameSelectedRaceKey(prev => (
+      options.some(item => item.key === prev)
+        ? prev
+        : options[0].key
+    ))
+  }, [currentSeasonCalendar])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadHallOfFame = async () => {
+      const options = (currentSeasonCalendar || [])
+        .map((race, idx) => ({
+          key: `${race?.Circuit?.circuitId || 'unknown'}-${race?.round || idx}`,
+          circuitId: race?.Circuit?.circuitId || '',
+          raceName: race?.raceName || ''
+        }))
+        .filter(item => !!item.circuitId)
+
+      const selected = options.find(item => item.key === hallOfFameSelectedRaceKey) || null
+
+      if (!selected?.circuitId) {
+        setHallOfFameLoading(false)
+        setHallOfFameWinners([])
+        setHallOfFameError('')
+        return
+      }
+
+      setHallOfFameLoading(true)
+      setHallOfFameError('')
+
+      try {
+        const currentSeasonYear = Number(currentSeason)
+        const endYear = Number.isFinite(currentSeasonYear) ? currentSeasonYear - 1 : (new Date().getFullYear() - 1)
+        const years = Array.from({ length: 20 }, (_, idx) => endYear - idx)
+
+        const normalizeGpName = (value) => String(value || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\b(grand prix|gp)\b/g, ' ')
+          .replace(/[^a-z0-9]+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+
+        const selectedRaceNameNorm = normalizeGpName(selected?.raceName || '')
+
+        const winners = []
+        for (const year of years) {
+          if (cancelled) return
+
+          const data = await fetchFromJolpica(`/${year}/results/1.json?limit=100`)
+          const races = data?.MRData?.RaceTable?.Races || []
+
+          const raceByName = races.find(race => {
+            const raceNameNorm = normalizeGpName(race?.raceName || '')
+            if (!selectedRaceNameNorm || !raceNameNorm) return false
+            return (
+              raceNameNorm === selectedRaceNameNorm ||
+              raceNameNorm.includes(selectedRaceNameNorm) ||
+              selectedRaceNameNorm.includes(raceNameNorm)
+            )
+          })
+
+          const raceByCircuit = races.find(race => String(race?.Circuit?.circuitId || '') === String(selected.circuitId || ''))
+          const race = raceByName || raceByCircuit || null
+          const winner = race ? (getResultsForRace(race)?.[0] || null) : null
+
+          if (!winner?.Driver) {
+            winners.push({
+              key: `${year}-no-race`,
+              season: year,
+              raceName: '-',
+              date: '',
+              driverName: '-',
+              constructorName: '-'
+            })
+            continue
+          }
+
+          const driverName = `${winner?.Driver?.givenName || ''} ${winner?.Driver?.familyName || ''}`.trim() || '-'
+          winners.push({
+            key: `${race?.season || year}-${race?.round || ''}-${winner?.Driver?.driverId || ''}`,
+            season: Number(race?.season || year),
+            raceName: race?.raceName || '-',
+            date: race?.date || '',
+            driverName,
+            constructorName: winner?.Constructor?.name || '-'
+          })
+        }
+
+        if (cancelled) return
+
+        setHallOfFameWinners(winners)
+      } catch (e) {
+        if (cancelled) return
+        setHallOfFameWinners([])
+        setHallOfFameError('Impossibile caricare l\'albo d\'oro.')
+      } finally {
+        if (!cancelled) setHallOfFameLoading(false)
+      }
+    }
+
+    loadHallOfFame()
+
+    return () => {
+      cancelled = true
+    }
+  }, [hallOfFameSelectedRaceKey, currentSeasonCalendar, currentSeason])
 
   useEffect(() => {
     let cancelled = false
@@ -864,7 +1017,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const fetchFromJolpica = async (endpoint) => {
     try {
       const proxyUrl = `${JOLPICA_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`
-      const directUrl = `${JOLPICA_BASE_URL}${endpoint}`
+      const remoteProxyUrl = `${REMOTE_API_BASE_URL}${JOLPICA_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`
 
       const readJsonSafe = async (response, sourceLabel) => {
         const raw = await response.text()
@@ -880,28 +1033,37 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         }
       }
 
-      const response = import.meta.env.PROD
-        ? await fetch(proxyUrl)
-        : await fetch(directUrl)
+      const candidateUrls = import.meta.env.PROD
+        ? [proxyUrl]
+        : [proxyUrl, remoteProxyUrl]
 
-      if (!response.ok) {
-        // Jolpica returns 400 for some endpoints (e.g. laps/pitstops for 'current')
-        // Return an empty MRData structure for 400/404 to handle gracefully
-        if (response.status === 400 || response.status === 404 || response.status === 429) {
-          if (import.meta.env.PROD) {
-            console.warn(`Jolpica ${endpoint} returned ${response.status}; returning empty MRData`)
+      for (const candidateUrl of candidateUrls) {
+        try {
+          const response = await fetch(candidateUrl)
+
+          if (!response.ok) {
+            // Jolpica returns 400 for some endpoints (e.g. laps/pitstops for 'current')
+            // Return an empty MRData structure for 400/404 to handle gracefully
+            if (response.status === 400 || response.status === 404) {
+              return { MRData: { RaceTable: { Races: [] }, total: '0' } }
+            }
+
+            // 429 can happen with rate limits. Try the next candidate in dev.
+            if (response.status === 429) {
+              continue
+            }
+
+            continue
           }
-          return { MRData: { RaceTable: { Races: [] }, total: '0' } }
+
+          const data = await readJsonSafe(response, candidateUrl.includes(REMOTE_API_BASE_URL) ? 'remote-proxy' : 'proxy')
+          if (data) return data
+        } catch {
+          // Try next candidate URL
         }
-        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data = await readJsonSafe(response, import.meta.env.PROD ? 'proxy' : 'direct')
-      if (!data) {
-        return { MRData: { RaceTable: { Races: [] }, total: '0' } }
-      }
-
-      return data
+      return { MRData: { RaceTable: { Races: [] }, total: '0' } }
     } catch (error) {
       console.error(`Errore fetch da Jolpica (${endpoint}):`, error)
       // In case of network errors, return empty structure to keep UI stable
@@ -2292,6 +2454,19 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const seasonCalendarList = (statistiche.races || [])
     .slice()
     .sort((a, b) => Number(a.round || 0) - Number(b.round || 0))
+  const hallOfFameRaceOptions = (currentSeasonCalendar || [])
+    .map((race, idx) => ({
+      key: `${race?.Circuit?.circuitId || 'unknown'}-${race?.round || idx}`,
+      raceName: race?.raceName || `GP ${race?.round || idx + 1}`,
+      round: Number(race?.round || idx + 1),
+      date: race?.date || '',
+      circuitId: race?.Circuit?.circuitId || '',
+      circuitName: race?.Circuit?.circuitName || ''
+    }))
+    .filter(item => !!item.circuitId)
+
+  const selectedHallOfFameRace = hallOfFameRaceOptions.find(item => item.key === hallOfFameSelectedRaceKey) || null
+
   const mergeRaceRows = (races, primaryKey, fallbackKey = null) => {
     const list = Array.isArray(races) ? races : []
     const map = new Map()
@@ -4328,6 +4503,104 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div style={{
+        maxWidth: '1200px',
+        width: '100%',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.85)',
+          border: '2px solid rgba(51, 51, 51, 0.8)',
+          borderRadius: '12px',
+          padding: isMobile ? '14px' : '16px',
+          color: '#FFF'
+        }}>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            marginBottom: '12px'
+          }}>
+            <h3 style={{
+              fontSize: isMobile ? '16px' : '18px',
+              fontWeight: '700',
+              color: '#007AFF',
+              margin: 0
+            }}>
+              Albo d'oro (ultimi 20 anni)
+            </h3>
+
+            <select
+              value={hallOfFameSelectedRaceKey}
+              onChange={(e) => setHallOfFameSelectedRaceKey(e.target.value)}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                color: '#FFF',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: '8px',
+                padding: '7px 10px',
+                fontSize: '12px',
+                fontWeight: '700',
+                minWidth: isMobile ? '100%' : '320px'
+              }}
+            >
+              {hallOfFameRaceOptions.map((item) => (
+                <option key={`hof-opt-${item.key}`} value={item.key}>
+                  R{item.round} • {toItalianRaceName(item.raceName)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ color: '#BDBDBD', fontSize: '12px', marginBottom: '10px' }}>
+            Calendario stagione attuale {currentSeason ? `(${currentSeason})` : ''}
+            {selectedHallOfFameRace ? ` • ${selectedHallOfFameRace.circuitName || '-'}` : ''}
+          </div>
+
+          {hallOfFameLoading && (
+            <div style={{ color: '#BDBDBD', fontSize: '13px' }}>Caricamento albo d'oro...</div>
+          )}
+
+          {!hallOfFameLoading && hallOfFameError && (
+            <div style={{ color: '#FF8A8A', fontSize: '13px' }}>{hallOfFameError}</div>
+          )}
+
+          {!hallOfFameLoading && !hallOfFameError && hallOfFameWinners.length === 0 && (
+            <div style={{ color: '#BDBDBD', fontSize: '13px' }}>Nessun dato disponibile per questo tracciato.</div>
+          )}
+
+          {!hallOfFameLoading && !hallOfFameError && hallOfFameWinners.length > 0 && (
+            <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                    <th style={{ padding: '4px', textAlign: 'left' }}>Anno</th>
+                    <th style={{ padding: '4px', textAlign: 'left' }}>Vincitore</th>
+                    <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
+                    <th style={{ padding: '4px', textAlign: 'left' }}>Gara</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {hallOfFameWinners.map((item) => (
+                    <tr key={item.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      <td style={{ padding: '4px', fontWeight: '700', color: '#9EC5FF' }}>{item.season || '-'}</td>
+                      <td style={{ padding: '4px' }}>{item.driverName}</td>
+                      <td style={{ padding: '4px' }}>{item.constructorName}</td>
+                      <td style={{ padding: '4px' }}>{toItalianRaceName(item.raceName)}{item.date ? ` • ${formatDateItalian(item.date)}` : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
