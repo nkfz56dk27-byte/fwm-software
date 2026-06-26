@@ -93,6 +93,10 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const [hallOfFameWinners, setHallOfFameWinners] = useState([])
   const [hallOfFameLoading, setHallOfFameLoading] = useState(false)
   const [hallOfFameError, setHallOfFameError] = useState('')
+  const [lastTeamWinSelectedRaceKey, setLastTeamWinSelectedRaceKey] = useState('')
+  const [lastTeamWinsRows, setLastTeamWinsRows] = useState([])
+  const [lastTeamWinLoading, setLastTeamWinLoading] = useState(false)
+  const [lastTeamWinError, setLastTeamWinError] = useState('')
   const seasonsPerPage = isMobile ? 3 : 5
 
   useEffect(() => {
@@ -249,6 +253,26 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   }, [currentSeasonCalendar])
 
   useEffect(() => {
+    const options = (currentSeasonCalendar || [])
+      .map((race, idx) => ({
+        key: `${race?.Circuit?.circuitId || 'unknown'}-${race?.round || idx}`,
+        circuitId: race?.Circuit?.circuitId || ''
+      }))
+      .filter(item => !!item.circuitId)
+
+    if (options.length === 0) {
+      setLastTeamWinSelectedRaceKey('')
+      return
+    }
+
+    setLastTeamWinSelectedRaceKey(prev => (
+      options.some(item => item.key === prev)
+        ? prev
+        : options[0].key
+    ))
+  }, [currentSeasonCalendar])
+
+  useEffect(() => {
     let cancelled = false
 
     const loadHallOfFame = async () => {
@@ -350,6 +374,266 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       cancelled = true
     }
   }, [hallOfFameSelectedRaceKey, currentSeasonCalendar, currentSeason])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadLastTeamWinsOnCircuit = async () => {
+      const raceOptions = (currentSeasonCalendar || [])
+        .map((race, idx) => ({
+          key: `${race?.Circuit?.circuitId || 'unknown'}-${race?.round || idx}`,
+          circuitId: race?.Circuit?.circuitId || '',
+          raceName: race?.raceName || ''
+        }))
+        .filter(item => !!item.circuitId)
+
+      const selectedRace = raceOptions.find(item => item.key === lastTeamWinSelectedRaceKey) || null
+
+      const normalizeConstructorName = (value) => String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\b(f1|team|scuderia|formula|one)\b/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+      const teamsFromStandings = (statistiche.constructorStandings || [])
+        .map((standing, idx) => ({
+          sortIndex: idx,
+          constructorName: String(standing?.Constructor?.name || '').trim(),
+          apiConstructorId: String(standing?.Constructor?.constructorId || '').trim(),
+          localConstructorId: ''
+        }))
+        .filter(team => !!team.constructorName)
+
+      const teamsFromConstructors = (statistiche.constructors || [])
+        .map((constructor, idx) => ({
+          sortIndex: idx,
+          constructorName: String(constructor?.name || '').trim(),
+          apiConstructorId: String(constructor?.apiConstructorId || '').trim(),
+          localConstructorId: String(constructor?.constructorId || '').trim()
+        }))
+        .filter(team => !!team.constructorName)
+
+      const gridTeamsRaw = teamsFromStandings.length > 0 ? teamsFromStandings : teamsFromConstructors
+      const seenTeams = new Set()
+      const gridTeams = gridTeamsRaw.filter(team => {
+        const key = normalizeConstructorName(team?.apiConstructorId || team?.constructorName || team?.localConstructorId)
+        if (!key || seenTeams.has(key)) return false
+        seenTeams.add(key)
+        return true
+      })
+
+      if (!selectedRace?.circuitId || gridTeams.length === 0) {
+        setLastTeamWinsRows([])
+        setLastTeamWinError('')
+        setLastTeamWinLoading(false)
+        return
+      }
+
+      setLastTeamWinLoading(true)
+      setLastTeamWinError('')
+
+      try {
+        const normalizeGpName = (value) => String(value || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\b(grand prix|gp)\b/g, ' ')
+          .replace(/[^a-z0-9]+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+
+        const selectedRaceNameNorm = normalizeGpName(selectedRace?.raceName || '')
+
+        const fetchWinnerRacesPaged = async (endpointBase) => {
+          const limit = 100
+          let offset = 0
+          let total = Number.POSITIVE_INFINITY
+          const out = []
+
+          while (offset < total) {
+            const page = await fetchFromJolpica(`${endpointBase}?limit=${limit}&offset=${offset}`)
+            const races = page?.MRData?.RaceTable?.Races || []
+            const totalRaw = Number(page?.MRData?.total || 0)
+            if (Number.isFinite(totalRaw) && totalRaw > 0) total = totalRaw
+
+            if (!Array.isArray(races) || races.length === 0) break
+            out.push(...races)
+
+            if (races.length < limit) break
+            offset += limit
+
+            if (cancelled) break
+          }
+
+          return out
+        }
+
+        const circuitWinnerRaces = await fetchWinnerRacesPaged(`/circuits/${selectedRace.circuitId}/results/1.json`)
+        let gpWinnerRaces = circuitWinnerRaces
+
+        if (gpWinnerRaces.length === 0) {
+          const allWinnerRaces = await fetchWinnerRacesPaged('/results/1.json')
+          gpWinnerRaces = allWinnerRaces.filter(race => {
+            const raceNameNorm = normalizeGpName(race?.raceName || '')
+            if (!selectedRaceNameNorm || !raceNameNorm) return false
+            return (
+              raceNameNorm === selectedRaceNameNorm ||
+              raceNameNorm.includes(selectedRaceNameNorm) ||
+              selectedRaceNameNorm.includes(raceNameNorm)
+            )
+          })
+        }
+
+        const constructorAliasMap = {
+          'red bull racing': 'red bull',
+          'red bull racing honda': 'red bull',
+          'red bull racing rbpt': 'red bull',
+          'mercedes amg': 'mercedes',
+          'mercedes amg petronas': 'mercedes',
+          'mclaren mercedes': 'mclaren',
+          'sauber': 'kick sauber',
+          'alfa romeo': 'kick sauber',
+          'alfa romeo sauber': 'kick sauber',
+          'rb': 'racing bulls',
+          'rb honda rbpt': 'racing bulls',
+          'visa cash app rb': 'racing bulls',
+          'visa cash app racing bulls': 'racing bulls',
+          'rb f1 team': 'racing bulls',
+          'scuderia alphatauri': 'racing bulls',
+          'alphatauri': 'racing bulls',
+          'scuderia toro rosso': 'racing bulls',
+          'toro_rosso': 'racing bulls',
+          'toro rosso': 'racing bulls'
+        }
+
+        const constructorFamilyById = {
+          rb: 'racing_bulls_family',
+          racing_bulls: 'racing_bulls_family',
+          alphatauri: 'racing_bulls_family',
+          toro_rosso: 'racing_bulls_family',
+          minardi: 'racing_bulls_family'
+        }
+
+        const constructorFamilyByKey = {
+          'racing bulls': 'racing_bulls_family',
+          rb: 'racing_bulls_family',
+          'rb f1 team': 'racing_bulls_family',
+          'visa cash app rb': 'racing_bulls_family',
+          'visa cash app racing bulls': 'racing_bulls_family',
+          alphatauri: 'racing_bulls_family',
+          'scuderia alphatauri': 'racing_bulls_family',
+          'toro rosso': 'racing_bulls_family',
+          'scuderia toro rosso': 'racing_bulls_family',
+          minardi: 'racing_bulls_family'
+        }
+
+        const normalizeConstructorKey = (value) => {
+          const base = normalizeConstructorName(value)
+          return constructorAliasMap[base] || base
+        }
+
+        const getConstructorFamily = (nameValue, idValue) => {
+          const idNorm = String(idValue || '').toLowerCase().trim()
+          if (idNorm && constructorFamilyById[idNorm]) return constructorFamilyById[idNorm]
+
+          const keyNorm = normalizeConstructorKey(nameValue || idValue || '')
+          if (keyNorm && constructorFamilyByKey[keyNorm]) return constructorFamilyByKey[keyNorm]
+
+          return keyNorm
+        }
+
+        gpWinnerRaces = gpWinnerRaces
+          .sort((a, b) => {
+            const dateA = a?.date ? new Date(a.date).getTime() : 0
+            const dateB = b?.date ? new Date(b.date).getTime() : 0
+            if (dateA !== dateB) return dateB - dateA
+            return Number(b?.season || 0) - Number(a?.season || 0)
+          })
+
+        const rows = []
+        for (const team of gridTeams) {
+          if (cancelled) return
+
+          const teamKey = normalizeConstructorKey(team?.constructorName || team?.apiConstructorId || '')
+          const teamId = String(team?.apiConstructorId || '').toLowerCase()
+          const teamFamily = getConstructorFamily(team?.constructorName, team?.apiConstructorId)
+          const latestRace = gpWinnerRaces.find(race => {
+            const winner = getResultsForRace(race)?.[0] || null
+            const winnerId = String(winner?.Constructor?.constructorId || '').toLowerCase()
+            const winnerKey = normalizeConstructorKey(winner?.Constructor?.name || winner?.Constructor?.constructorId || '')
+            const winnerFamily = getConstructorFamily(winner?.Constructor?.name, winner?.Constructor?.constructorId)
+
+            if (teamId && winnerId && teamId === winnerId) return true
+            if (teamFamily && winnerFamily && teamFamily === winnerFamily) return true
+            if (!teamKey || !winnerKey) return false
+            return winnerKey === teamKey || winnerKey.includes(teamKey) || teamKey.includes(winnerKey)
+          }) || null
+
+          if (!latestRace) {
+            rows.push({
+              key: `team-last-win-${team?.apiConstructorId || team?.constructorName}`,
+              teamName: team?.constructorName || '-',
+              season: '-',
+              raceName: '-',
+              date: '',
+              driverName: '-'
+            })
+            continue
+          }
+
+          const winner = getResultsForRace(latestRace)?.[0] || null
+          const driverName = winner?.Driver
+            ? `${winner.Driver.givenName || ''} ${winner.Driver.familyName || ''}`.trim()
+            : '-'
+          const currentTeamName = team?.constructorName || '-'
+          const winnerTeamName = winner?.Constructor?.name || ''
+          const currentTeamFamily = getConstructorFamily(currentTeamName, team?.apiConstructorId)
+          const winnerTeamFamily = getConstructorFamily(winnerTeamName, winner?.Constructor?.constructorId)
+
+          const displayTeamName = (() => {
+            if (!winnerTeamName) return currentTeamName
+            const sameName = normalizeConstructorName(currentTeamName) === normalizeConstructorName(winnerTeamName)
+            if (sameName) return currentTeamName
+
+            if (currentTeamFamily && winnerTeamFamily && currentTeamFamily === winnerTeamFamily) {
+              return `${currentTeamName} (${winnerTeamName})`
+            }
+
+            return winnerTeamName
+          })()
+
+          rows.push({
+            key: `team-last-win-${team?.apiConstructorId || team?.constructorName}`,
+            teamName: displayTeamName,
+            season: Number(latestRace?.season || 0) || '-',
+            raceName: latestRace?.raceName || '-',
+            date: latestRace?.date || '',
+            driverName: driverName || '-'
+          })
+        }
+
+        if (!cancelled) {
+          setLastTeamWinsRows(rows.sort((a, b) => String(a?.teamName || '').localeCompare(String(b?.teamName || ''))))
+        }
+      } catch {
+        if (!cancelled) {
+          setLastTeamWinsRows([])
+          setLastTeamWinError('Impossibile calcolare l\'ultima vittoria del team su questo circuito.')
+        }
+      } finally {
+        if (!cancelled) setLastTeamWinLoading(false)
+      }
+    }
+
+    loadLastTeamWinsOnCircuit()
+
+    return () => {
+      cancelled = true
+    }
+  }, [lastTeamWinSelectedRaceKey, currentSeasonCalendar, statistiche.constructorStandings, statistiche.constructors])
 
   useEffect(() => {
     let cancelled = false
@@ -2466,6 +2750,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     .filter(item => !!item.circuitId)
 
   const selectedHallOfFameRace = hallOfFameRaceOptions.find(item => item.key === hallOfFameSelectedRaceKey) || null
+  const selectedLastTeamWinRace = hallOfFameRaceOptions.find(item => item.key === lastTeamWinSelectedRaceKey) || null
 
   const mergeRaceRows = (races, primaryKey, fallbackKey = null) => {
     const list = Array.isArray(races) ? races : []
@@ -4595,6 +4880,103 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                       <td style={{ padding: '4px' }}>{item.driverName}</td>
                       <td style={{ padding: '4px' }}>{item.constructorName}</td>
                       <td style={{ padding: '4px' }}>{toItalianRaceName(item.raceName)}{item.date ? ` • ${formatDateItalian(item.date)}` : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{
+        maxWidth: '1200px',
+        width: '100%',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.85)',
+          border: '2px solid rgba(51, 51, 51, 0.8)',
+          borderRadius: '12px',
+          padding: isMobile ? '14px' : '16px',
+          color: '#FFF'
+        }}>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            marginBottom: '12px'
+          }}>
+            <h3 style={{
+              fontSize: isMobile ? '16px' : '18px',
+              fontWeight: '700',
+              color: '#007AFF',
+              margin: 0
+            }}>
+              Ultima vittoria di ogni team (griglia attuale)
+            </h3>
+
+            <select
+              value={lastTeamWinSelectedRaceKey}
+              onChange={(e) => setLastTeamWinSelectedRaceKey(e.target.value)}
+              style={{
+                background: 'rgba(255,255,255,0.08)',
+                color: '#FFF',
+                border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: '8px',
+                padding: '7px 10px',
+                fontSize: '12px',
+                fontWeight: '700',
+                minWidth: isMobile ? '100%' : '320px'
+              }}
+            >
+              {hallOfFameRaceOptions.map((item) => (
+                <option key={`last-team-win-race-${item.key}`} value={item.key}>
+                  R{item.round} • {toItalianRaceName(item.raceName)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ color: '#BDBDBD', fontSize: '12px', marginBottom: '10px' }}>
+            Circuito: {selectedLastTeamWinRace ? `${toItalianRaceName(selectedLastTeamWinRace.raceName)} (${selectedLastTeamWinRace.circuitName || '-'})` : '-'}
+          </div>
+
+          {lastTeamWinLoading && (
+            <div style={{ color: '#BDBDBD', fontSize: '13px' }}>Caricamento ultima vittoria...</div>
+          )}
+
+          {!lastTeamWinLoading && lastTeamWinError && (
+            <div style={{ color: '#FF8A8A', fontSize: '13px' }}>{lastTeamWinError}</div>
+          )}
+
+          {!lastTeamWinLoading && !lastTeamWinError && lastTeamWinsRows.length === 0 && (
+            <div style={{ color: '#BDBDBD', fontSize: '13px' }}>Nessun dato disponibile per la griglia corrente.</div>
+          )}
+
+          {!lastTeamWinLoading && !lastTeamWinError && lastTeamWinsRows.length > 0 && (
+            <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                    <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
+                    <th style={{ padding: '4px', textAlign: 'left' }}>Anno ultima vittoria</th>
+                    <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
+                    <th style={{ padding: '4px', textAlign: 'left' }}>Gara</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lastTeamWinsRows.map((row) => (
+                    <tr key={row.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      <td style={{ padding: '4px', fontWeight: '700' }}>{row.teamName}</td>
+                      <td style={{ padding: '4px', color: '#9EC5FF', fontWeight: '700' }}>{row.season}</td>
+                      <td style={{ padding: '4px' }}>{row.driverName}</td>
+                      <td style={{ padding: '4px' }}>{toItalianRaceName(row.raceName)}{row.date ? ` • ${formatDateItalian(row.date)}` : ''}</td>
                     </tr>
                   ))}
                 </tbody>

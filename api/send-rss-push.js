@@ -35,6 +35,20 @@ function decodeHtmlEntities(str) {
   return decoded;
 }
 
+function getDomainLabel(url) {
+  if (!url || typeof url !== 'string') return 'Fonte sconosciuta';
+
+  try {
+    const hostname = new URL(url).hostname || '';
+    return hostname
+      .toLowerCase()
+      .replace(/^www\./, '')
+      .replace(/^m\./, '') || 'Fonte sconosciuta';
+  } catch {
+    return 'Fonte sconosciuta';
+  }
+}
+
 export default async function handler(req, res) {
   const start = Date.now();
   const lockId = `rss-push-${Date.now()}-${Math.random()}`;
@@ -190,17 +204,20 @@ export default async function handler(req, res) {
         // Decodifica titolo e descrizione
         const titoloDecodificato = decodeHtmlEntities(article.title || 'Nuovo articolo RSS');
         const descrizioneDecodificata = decodeHtmlEntities(article.description || article.title || 'Nuovo articolo RSS');
+        const domainLabel = getDomainLabel(article.link);
+        const titoloConFonte = `[${domainLabel}] ${titoloDecodificato}`;
         
         // Prepara payload notifica
         const oneSignalPayload = {
           app_id: ONESIGNAL_APP_ID,
           include_player_ids: playerIds,
-          headings: { en: titoloDecodificato },
+          headings: { en: titoloConFonte },
           contents: { en: descrizioneDecodificata },
           data: {
             link: article.link || null,
             feed_id: article.feed_id,
-            guid: notifica.article_guid
+            guid: notifica.article_guid,
+            source_domain: domainLabel
           },
           url: article.link || null
         };
