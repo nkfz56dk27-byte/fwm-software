@@ -1114,10 +1114,79 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
   }
   
   // Notifiche interne stile DisponibilitaWeekend
+  async function pulisciNotificheEventiScaduti() {
+    try {
+      // Prendi solo notifiche collegate a un evento
+      const { data: notificheConEvento, error: errNotifiche } = await supabase
+        .from('notifiche_calendario')
+        .select('id, evento_id')
+        .not('evento_id', 'is', null)
+
+      if (errNotifiche || !notificheConEvento?.length) return
+
+      const eventoIds = [...new Set(notificheConEvento.map(n => n.evento_id).filter(Boolean))]
+      if (!eventoIds.length) return
+
+      const { data: eventiDb, error: errEventi } = await supabase
+        .from('eventi_calendario')
+        .select('id, data_inizio, data_fine')
+        .in('id', eventoIds)
+
+      if (errEventi || !eventiDb?.length) return
+
+      const unaSettimanaFa = new Date()
+      unaSettimanaFa.setDate(unaSettimanaFa.getDate() - 7)
+
+      const parseDataFineEvento = (ev) => {
+        const raw = ev?.data_fine || ev?.data_inizio
+        if (!raw) return null
+        const s = String(raw)
+        const isSoloData = /^\d{4}-\d{2}-\d{2}$/.test(s)
+        const d = new Date(isSoloData ? `${s}T23:59:59` : s)
+        return Number.isNaN(d.getTime()) ? null : d
+      }
+
+      const eventiScadutiIds = new Set(
+        eventiDb
+          .filter(ev => {
+            const fineEvento = parseDataFineEvento(ev)
+            return fineEvento && fineEvento <= unaSettimanaFa
+          })
+          .map(ev => String(ev.id))
+      )
+
+      if (!eventiScadutiIds.size) return
+
+      const notificaIdsDaEliminare = notificheConEvento
+        .filter(n => eventiScadutiIds.has(String(n.evento_id)))
+        .map(n => n.id)
+
+      if (!notificaIdsDaEliminare.length) return
+
+      // Rimuovi stati lettura legati alle notifiche che stiamo cancellando
+      await supabase
+        .from('notifiche_lette')
+        .delete()
+        .in('notifica_id', notificaIdsDaEliminare)
+
+      // Rimuovi notifiche interne solo se evento collegato è scaduto da almeno 7 giorni
+      await supabase
+        .from('notifiche_calendario')
+        .delete()
+        .in('id', notificaIdsDaEliminare)
+    } catch (err) {
+      console.error('Errore pulizia notifiche eventi scaduti:', err)
+    }
+  }
+
   async function caricaNotifiche() {
     try {
       const username = utenteCorrente?.username;
       if (!username) return;
+
+      // Pulizia automatica: elimina notifiche collegate a eventi scaduti da almeno 1 settimana
+      await pulisciNotificheEventiScaduti();
+
       // Carica tutte le notifiche calendario (UUID)
       const { data: tutteNotifiche } = await supabase
         .from('notifiche_calendario')
@@ -1150,9 +1219,9 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
   // Inserisce una notifica interna calendario (solo tabella, nessun push)
   async function creaNotificaCalendario(messaggio, evento_id = null) {
     try {
-      // Se evento_id non è un numero, passa null (evita errore BIGINT)
+      // Supporta sia ID numerico legacy che UUID stringa
       let eventoIdCompatibile = null;
-      if (evento_id && typeof evento_id === 'number') {
+      if (evento_id !== null && evento_id !== undefined && String(evento_id).trim() !== '') {
         eventoIdCompatibile = evento_id;
       }
       // Campo obbligatorio tipo: imposto sempre 'evento'
@@ -1395,6 +1464,18 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
         }
       }
       await creaNotificaCalendario(messaggio, eventoId);
+
+      // Notifica interna dedicata anche per stato accredito impostato in creazione
+      if (accreditoStatusSafe !== 'nessuno') {
+        const statoLabelMap = {
+          da_richiedere: 'DA RICHIEDERE',
+          richiesto: 'RICHIESTO',
+          accettato: 'ACCETTATO'
+        }
+        const statoLabel = statoLabelMap[accreditoStatusSafe] || String(accreditoStatusSafe || '').toUpperCase()
+        await creaNotificaCalendario(`Stato richiesta accredito ${titolo}: ${statoLabel}`, eventoId)
+      }
+
       caricaDati();
     }}
     utenteCorrente={utenteCorrente}
@@ -1449,6 +1530,7 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
       {showNotifiche && (
         <NotificheModal
           notifiche={notifiche}
+          eventi={eventi}
           onClose={() => setShowNotifiche(false)}
           onSegnaLetta={segnaComeLettaCalendario}
           onSegnaTutteLette={segnaTutteComeLette}
@@ -2585,6 +2667,17 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
         });
         console.log('[PUSH] Risposta inserisciNotificaPush:', pushRes);
       }
+
+      // Notifica interna (campanella rossa) per cambio stato accredito
+      const statoLabelMap = {
+        da_richiedere: 'DA RICHIEDERE',
+        richiesto: 'RICHIESTO',
+        accettato: 'ACCETTATO',
+        nessuno: 'NESSUNO'
+      }
+      const statoPrecedenteLabel = statoLabelMap[evento.accredito_status] || String(evento.accredito_status || '').toUpperCase()
+      const statoLabel = statoLabelMap[edit.accredito_status] || String(edit.accredito_status || '').toUpperCase()
+      await onUpdate(`Stato richiesta accredito ${edit.titolo}: ${statoPrecedenteLabel} → ${statoLabel}`, 'accredito')
     }
 
     // Se la nota è stata modificata/aggiunta, crea una notifica rossa
@@ -2873,12 +2966,152 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
     </div>
   )
 }
-function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, onApriDettaglioEvento }) {
-  // Handler click notifica: segna come letta e, se evento_id presente, apre dettaglio evento
+function NotificheModal({ notifiche, eventi = [], onClose, onSegnaLetta, onSegnaTutteLette, onApriDettaglioEvento }) {
+  const [expandedNotificaId, setExpandedNotificaId] = useState(null)
+  const [noteCacheByNotificaId, setNoteCacheByNotificaId] = useState({})
+  const [loadingNoteByNotificaId, setLoadingNoteByNotificaId] = useState({})
+
+  const normalizeText = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+
+  const isNotaNotification = (notifica) => {
+    const msg = normalizeText(notifica?.messaggio)
+    return msg.includes('aggiunta nota') || msg.includes('aggiunto una nota') || msg.includes('ha aggiunto una nota')
+  }
+
+  const getEventoById = (eventoId) => {
+    if (!eventoId) return null
+    return (eventi || []).find(ev => String(ev?.id || '') === String(eventoId || '')) || null
+  }
+
+  const extractEventTitleFromNoteMessage = (msg) => {
+    const text = String(msg || '').trim()
+    if (!text) return ''
+
+    // Formato storico interno:
+    // "aggiunta nota a {titolo} in programma giorno {data} da {utente}"
+    const lower = text.toLowerCase()
+    const startToken = 'aggiunta nota a '
+    const endToken = ' in programma giorno '
+    const start = lower.indexOf(startToken)
+    const end = lower.indexOf(endToken)
+    if (start !== -1 && end !== -1 && end > start + startToken.length) {
+      return text.slice(start + startToken.length, end).trim()
+    }
+
+    // Formato push/template:
+    // "{utente} ha aggiunto una nota all'evento: {titolo} del {data}"
+    const matchTemplate = text.match(/all['’]evento:\s*(.+?)\s+del\s+/i)
+    if (matchTemplate?.[1]) return matchTemplate[1].trim()
+
+    // Fallback permissivo
+    const generic = text.match(/nota(?:\s+all['’]evento|\s+a)?[:\s]+(.+)/i)
+    return generic?.[1]?.trim() || ''
+  }
+
+  const resolveEventoIdForNotifica = (notifica) => {
+    if (notifica?.evento_id) return notifica.evento_id
+    if (!isNotaNotification(notifica)) return null
+
+    const titleFromMsg = extractEventTitleFromNoteMessage(notifica?.messaggio)
+    if (!titleFromMsg) return null
+
+    const target = normalizeText(titleFromMsg)
+    const match = (eventi || []).find(ev => normalizeText(ev?.titolo) === target)
+      || (eventi || []).find(ev => normalizeText(ev?.titolo).includes(target))
+      || (eventi || []).find(ev => target.includes(normalizeText(ev?.titolo)))
+
+    return match?.id || null
+  }
+
+  const parseLatestNote = (rawNoteValue) => {
+    if (!rawNoteValue) return null
+
+    const toNoteObject = (entry) => {
+      if (entry === null || entry === undefined) return null
+      if (typeof entry === 'string') {
+        const t = entry.trim()
+        return t ? { testo: t, autore: '', data: null } : null
+      }
+      if (typeof entry !== 'object') return null
+
+      const testo = String(
+        entry.testo
+        ?? entry.text
+        ?? entry.nota
+        ?? entry.contenuto
+        ?? ''
+      ).trim()
+
+      if (!testo) return null
+
+      return {
+        testo,
+        autore: String(entry.autore ?? entry.author ?? entry.utente ?? '').trim(),
+        data: entry.data || entry.date || entry.created_at || null
+      }
+    }
+
+    try {
+      const parsed = JSON.parse(rawNoteValue)
+      const notes = Array.isArray(parsed)
+        ? parsed
+        : (parsed && typeof parsed === 'object' ? [parsed] : [])
+      if (!notes.length) return null
+      const last = notes[notes.length - 1]
+      return toNoteObject(last)
+    } catch {
+      return toNoteObject(rawNoteValue)
+    }
+  }
+
+  const getLatestNoteForEvento = (evento) => parseLatestNote(evento?.note)
+
+  const loadLatestNoteForNotifica = async (notifica) => {
+    const resolvedEventoId = resolveEventoIdForNotifica(notifica)
+    if (!notifica?.id || !resolvedEventoId) return
+    if (noteCacheByNotificaId[notifica.id] !== undefined) return
+
+    setLoadingNoteByNotificaId(prev => ({ ...prev, [notifica.id]: true }))
+
+    try {
+      const { data, error } = await supabase
+        .from('eventi_calendario')
+        .select('note')
+        .eq('id', resolvedEventoId)
+        .maybeSingle()
+
+      if (error) {
+        setNoteCacheByNotificaId(prev => ({ ...prev, [notifica.id]: null }))
+      } else {
+        setNoteCacheByNotificaId(prev => ({ ...prev, [notifica.id]: parseLatestNote(data?.note) }))
+      }
+    } catch {
+      setNoteCacheByNotificaId(prev => ({ ...prev, [notifica.id]: null }))
+    } finally {
+      setLoadingNoteByNotificaId(prev => ({ ...prev, [notifica.id]: false }))
+    }
+  }
+
+  // Handler click notifica: segna come letta e, per notifiche nota, espande il testo nota
   const handleClickNotifica = (n) => {
     if (!n.letta) onSegnaLetta(n.id);
-    if (n.evento_id) onApriDettaglioEvento && onApriDettaglioEvento(n.evento_id);
+
+    if (isNotaNotification(n)) {
+      setExpandedNotificaId(prev => (prev === n.id ? null : n.id))
+      if (expandedNotificaId !== n.id) {
+        loadLatestNoteForNotifica(n)
+      }
+      return
+    }
+
+    const resolvedEventoId = resolveEventoIdForNotifica(n)
+    if (resolvedEventoId) onApriDettaglioEvento && onApriDettaglioEvento(resolvedEventoId);
   };
+
   return (
     <div style={{ 
       position: 'fixed', 
@@ -2928,32 +3161,73 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette, o
               Nessuna notifica
             </div>
           ) : (
-            notifiche.map(n => (
-              <div
-                key={n.id}
-                onClick={() => handleClickNotifica(n)}
-                style={{
-                  padding: '15px',
-                  background: n.letta ? '#f5f5f7' : '#007AFF15',
-                  borderRadius: '10px',
-                  marginBottom: '10px',
-                  cursor: n.letta ? (n.evento_id ? 'pointer' : 'default') : 'pointer',
-                  borderLeft: `4px solid ${n.letta ? '#ccc' : '#007AFF'}`
-                }}
-                title={n.evento_id ? 'Apri dettaglio evento' : ''}
-              >
-                <div style={{
-                  fontSize: '14px',
-                  fontWeight: n.letta ? 'normal' : 'bold',
-                  marginBottom: '5px'
-                }}>
-                  {n.messaggio}
+            notifiche.map(n => {
+              const resolvedEventoId = resolveEventoIdForNotifica(n)
+              const evento = getEventoById(resolvedEventoId)
+              const latestNoteFromEvento = getLatestNoteForEvento(evento)
+              const latestNoteFromCache = noteCacheByNotificaId[n.id]
+              const latestNote = latestNoteFromEvento || latestNoteFromCache || null
+              const isExpanded = expandedNotificaId === n.id
+              const isNota = isNotaNotification(n)
+              const isActionable = isNota || !!resolvedEventoId
+              const isLoadingNote = !!loadingNoteByNotificaId[n.id]
+
+              return (
+                <div
+                  key={n.id}
+                  onClick={() => handleClickNotifica(n)}
+                  style={{
+                    padding: '15px',
+                    background: n.letta ? '#f5f5f7' : '#007AFF15',
+                    borderRadius: '10px',
+                    marginBottom: '10px',
+                    cursor: isActionable ? 'pointer' : 'default',
+                    borderLeft: `4px solid ${n.letta ? '#ccc' : '#007AFF'}`
+                  }}
+                  title={isActionable ? (isNota ? 'Leggi nota' : 'Apri dettaglio evento') : ''}
+                >
+                  <div style={{
+                    fontSize: '14px',
+                    fontWeight: n.letta ? 'normal' : 'bold',
+                    marginBottom: '5px'
+                  }}>
+                    {n.messaggio}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>
+                    {new Date(n.created_at).toLocaleString('it-IT')}
+                  </div>
+
+                  {isNota && isExpanded && (
+                    <div style={{
+                      marginTop: '10px',
+                      padding: '10px',
+                      background: '#fff',
+                      border: '1px solid #d9e8ff',
+                      borderRadius: '8px'
+                    }}>
+                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#007AFF', marginBottom: '6px' }}>
+                        Nota evento
+                      </div>
+                      {isLoadingNote ? (
+                        <div style={{ fontSize: '12px', color: '#666' }}>Caricamento nota...</div>
+                      ) : latestNote?.testo ? (
+                        <>
+                          <div style={{ fontSize: '13px', color: '#222', marginBottom: '6px', whiteSpace: 'pre-wrap' }}>
+                            {latestNote.testo}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#666', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                            <span>{latestNote.autore ? `👤 ${latestNote.autore}` : ''}</span>
+                            <span>{latestNote.data ? new Date(latestNote.data).toLocaleString('it-IT') : ''}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: '#666' }}>Nessun testo nota disponibile.</div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: '11px', color: '#666' }}>
-                  {new Date(n.created_at).toLocaleString('it-IT')}
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 
