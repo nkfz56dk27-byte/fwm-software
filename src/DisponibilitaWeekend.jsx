@@ -907,6 +907,11 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   const [salvando, setSalvando] = useState(false)
   const [selezioniCollaborative, setSelezioniCollaborative] = useState({}) // { [articoloId]: username }
   const channelRef = useRef(null)
+  const articoliRef = useRef([])
+
+  useEffect(() => {
+    articoliRef.current = articoli
+  }, [articoli])
 
       // All'avvio, rimuovi tutte le selezioni temporanee (occhi) dell'utente SOLO quando il canale è pronto
       const puliziaEffettuataRef = useRef(false);
@@ -944,7 +949,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
           selezioneTemporanea = [];
         }
         selezioneTemporanea.forEach(id => {
-          const art = articoli.find(a => a.id === id);
+          const art = (articoliRef.current || []).find(a => a.id === id);
           if (art && art.assegnato_a !== nomeRedattore) {
             channelRef.current.send({
               type: 'broadcast',
@@ -970,7 +975,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         // Pulizia anche su unmount (navigazione interna)
         pulisciSelezioniTemporanee();
       };
-    }, [weekend.id, nomeRedattore, articoli]);
+    }, [weekend.id, nomeRedattore]);
   // Setup realtime channel per selezione collaborativa e aggiornamento articoli
   useEffect(() => {
     const channel = supabase.channel('selezione_articoli_'+weekend.id)
