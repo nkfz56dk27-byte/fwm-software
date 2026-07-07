@@ -4047,7 +4047,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
       </div>
 
       <div className="home-footer">
-        <p className="version-text">Versione 2.0</p>
+        <p className="version-text">Versione 1.0</p>
       </div>
 
       {/* FLOATING ACTION BUTTON in basso a destra */}
