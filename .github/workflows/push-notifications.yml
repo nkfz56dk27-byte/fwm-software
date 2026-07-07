@@ -17,14 +17,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
-      - name: Clean npm cache
-        run: npm cache clean --force
-      - name: Remove node_modules and lockfile
-        run: rm -rf node_modules package-lock.json
-      - run: npm install
-      - name: Force reinstall firebase-admin
-        run: npm install firebase-admin@latest --save --force
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
       - name: Create Firebase service account file
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > firebase-service-account.json
       - name: Add OneSignal User Auth Key to environment
