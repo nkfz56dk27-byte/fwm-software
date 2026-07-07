@@ -527,7 +527,12 @@ function App() {
       // --- REGISTRAZIONE PLAYER_ID ONESIGNAL CON POLLING ---
       let playerIdPollingInterval = null;
       let playerIdRegistrato = false;
+      let playerIdPollingAttempts = 0;
+      const MAX_PLAYER_ID_POLLING_ATTEMPTS = 10;
       const tryRegister = async () => {
+        if (playerIdRegistrato) return;
+        playerIdPollingAttempts += 1;
+
         // Attendi che OneSignal sia pronto (max 10s)
         let ready = false;
         for (let i = 0; i < 20; i++) {
@@ -538,7 +543,11 @@ function App() {
           await new Promise(res => setTimeout(res, 500));
         }
         if (!ready) {
-          //alert('❌ OneSignal non inizializzato dopo il login!');
+          if (playerIdPollingAttempts >= MAX_PLAYER_ID_POLLING_ATTEMPTS) {
+            console.warn('[DEBUG LOGIN] OneSignal playerId polling fermato dopo troppe prove');
+            playerIdRegistrato = true;
+            clearInterval(playerIdPollingInterval);
+          }
           return;
         }
         // Recupera playerId OneSignal
@@ -619,6 +628,14 @@ function App() {
         refreshNotificheHome(user.username)
       }, 30000)
       
+      // Cleanup polling playerId se l'effetto si disconnette
+      const cleanupPlayerIdPolling = () => {
+        if (playerIdPollingInterval) {
+          clearInterval(playerIdPollingInterval)
+          playerIdPollingInterval = null
+        }
+      }
+      
       // AGGIUNTA: Ascolta eventi custom da Calendario/Disponibilità
       const handleNotificheAggiornate = (event) => {
         // Forza ricaricamento immediato delle notifiche
@@ -649,6 +666,7 @@ function App() {
       
       return () => {
         clearInterval(interval)
+        cleanupPlayerIdPolling()
         supabase.removeChannel(channelDisponibilita)
         window.removeEventListener('notificheAggiornate', handleNotificheAggiornate)
       }
