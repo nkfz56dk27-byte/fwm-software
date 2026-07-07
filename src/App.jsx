@@ -45,6 +45,67 @@ function calcolaPuntiPosizione(pos, tipoGara, classifica = null, gara = {}) {
   }
   return pos <= puntiStandard.length ? puntiStandard[pos - 1] : 0
 }
+
+function ordinaGP(classifica) {
+  return (classifica.gp || []).slice().sort((a, b) => {
+    const aId = Number(a.id)
+    const bId = Number(b.id)
+    if (!isNaN(aId) && !isNaN(bId)) return aId - bId
+    return String(a.nome || '').localeCompare(String(b.nome || ''), undefined, { numeric: true })
+  })
+}
+
+function calcolaPuntiMassimiRimanentiPilota(classifica, startAfterGpId = null) {
+  const gpOrdinati = ordinaGP(classifica)
+  const startIndex = startAfterGpId !== null ? gpOrdinati.findIndex(g => String(g.id) === String(startAfterGpId)) : -1
+  const futureGp = gpOrdinati.filter((gp, idx) => idx > startIndex && !gp.completato)
+  const bonusPole = classifica.punti_pole_attivo ? (classifica.punti_pole_valore || 3) * futureGp.length : 0
+  const bonusGiro = classifica.giro_veloce_attivo ? (classifica.giro_veloce_valore || 1) * futureGp.length : 0
+  const puntiGare = futureGp.reduce((total, gp) => {
+    const gare = gp.gare || []
+    return total + gare.reduce((acc, gara) => {
+      if (gara.completata || gara.non_disputata) return acc
+      return acc + calcolaPuntiPosizione(1, gara.tipo_gara, classifica, gara)
+    }, 0)
+  }, 0)
+
+  const totale = puntiGare + bonusPole + bonusGiro
+  if (totale === 0 && futureGp.length > 0) {
+    const puntiSprint = classifica.formato === 'f2' ? 10 : 8
+    const sprintGp = futureGp.filter(gp => gp.tipo_weekend === 'sprintF1').length
+    return futureGp.length * 25 + sprintGp * puntiSprint + bonusPole + bonusGiro
+  }
+
+  return totale
+}
+
+function calcolaPuntiMassimiRimanentiCostruttori(classifica, startAfterGpId = null) {
+  const gpOrdinati = ordinaGP(classifica)
+  const startIndex = startAfterGpId !== null ? gpOrdinati.findIndex(g => String(g.id) === String(startAfterGpId)) : -1
+  const futureGp = gpOrdinati.filter((gp, idx) => idx > startIndex && !gp.completato)
+  const bonusPole = classifica.punti_pole_attivo ? (classifica.punti_pole_valore || 3) * futureGp.length : 0
+  const bonusGiro = classifica.giro_veloce_attivo ? (classifica.giro_veloce_valore || 1) * futureGp.length : 0
+  const puntiGare = futureGp.reduce((total, gp) => {
+    const gare = gp.gare || []
+    return total + gare.reduce((acc, gara) => {
+      if (gara.completata || gara.non_disputata) return acc
+      const punti1 = calcolaPuntiPosizione(1, gara.tipo_gara, classifica, gara)
+      const punti2 = calcolaPuntiPosizione(2, gara.tipo_gara, classifica, gara)
+      return acc + punti1 + punti2
+    }, 0)
+  }, 0)
+
+  const totale = puntiGare + bonusPole + bonusGiro
+  if (totale === 0 && futureGp.length > 0) {
+    const puntiSprint = classifica.formato === 'f2' ? 10 : 8
+    const puntiSprintTeam = classifica.formato === 'f2' ? 8 : 7
+    const sprintGp = futureGp.filter(gp => gp.tipo_weekend === 'sprintF1').length
+    return futureGp.length * (25 + 18) + sprintGp * (puntiSprint + puntiSprintTeam) + bonusPole + bonusGiro
+  }
+
+  return totale
+}
+
 // ===== CALCOLA COMBINAZIONI VITTORIA =====
 function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRimanenti) {
   const combinazioni = []
@@ -54,21 +115,19 @@ function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRima
   const leader = pilotiOrdinati[0]
   const secondo = pilotiOrdinati[1]
 
-  // Calcola punti massimi
-  const puntiDaGP = gpRimanenti * 25
-  const puntiDaSprint = sprintRimanenti * 8
-  let bonusPossibili = 0
-  if (classifica.punti_pole_attivo) bonusPossibili += gpRimanenti * (classifica.punti_pole_valore || 3)
-  if (classifica.giro_veloce_attivo) bonusPossibili += gpRimanenti * (classifica.giro_veloce_valore || 1)
-  const puntiMassimi = (pilota.punti || 0) + puntiDaGP + puntiDaSprint + bonusPossibili
+  // Calcola punti massimi basati su tutti i GP rimanenti
+  const puntiMassimiRimanenti = calcolaPuntiMassimiRimanentiPilota(classifica)
+  const puntiMassimi = (pilota.punti || 0) + puntiMassimiRimanenti
 
   // Se fuori matematicamente
-  if (puntiMassimi < (leader.punti || 0) && String(pilota.id) !== String(leader.id)) {
+  const maxPuntiAvversari = pilotiOrdinati.slice(1).reduce((max, other) => Math.max(max, (other.punti || 0)), 0)
+  if (puntiMassimi < maxPuntiAvversari && String(pilota.id) !== String(leader.id)) {
     return []
   }
 
   // Se già campione
-  if (String(pilota.id) === String(leader.id) && (pilota.punti || 0) > (secondo.punti || 0) + puntiDaGP + puntiDaSprint + bonusPossibili) {
+  const maxRimastiAvversari = pilotiOrdinati.slice(1).reduce((max, other) => Math.max(max, (other.punti || 0) + puntiMassimiRimanenti), 0)
+  if (String(pilota.id) === String(leader.id) && (pilota.punti || 0) > maxRimastiAvversari) {
     combinazioni.push('🏆 Già campione matematico!')
     return combinazioni
   }
@@ -84,7 +143,7 @@ function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRima
   if (gpRimanenti > 0) {
     const vittorieNecessarie = Math.max(1, Math.ceil(differenzaPunti / 25))
     if (vittorieNecessarie <= gpRimanenti) {
-      combinazioni.push(`${pilota.nome} vince ${vittorieNecessarie} gare + ${rivale.nome} fuori dal podio`)
+      combinazioni.push(`${pilota.nome} vince ${vittorieNecessarie} gare mentre ${rivale.nome} non guadagna punti`)
     }
   }
 
@@ -104,18 +163,24 @@ function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRima
           const posizione = `${posPilota}°`
           const posizioneRivale = posRivale > 10 ? 'fuori dai punti' : `${posRivale}° o peggio`
 
-          combinazioni.push(`${pilota.nome} ${posizione} + ${rivale.nome} ${posizioneRivale} per ${gareNecessarie} gare`)
+          combinazioni.push(`${pilota.nome} ${posizione} e ${rivale.nome} ${posizioneRivale} per ${gareNecessarie} gare`)
           contatore++
         }
       }
     }
   }
 
-  // Scenario prossimo GP: usa il primo GP non completato (in ordine nell'array), robusto verso tipi diversi di flag
+  // Scenario prossimo GP: usa il primo GP non completato (in ordine cronologico dell'array)
   if (gpRimanenti > 0 && Array.isArray(classifica.gp)) {
-    const prossimoIndex = classifica.gp.findIndex(g => !Boolean(g.completato))
-    const gpCompletatiCount = classifica.gp.filter(g => Boolean(g.completato)).length
-    const nomeGP = prossimoIndex !== -1 ? classifica.gp[prossimoIndex].nome : `GP #${gpCompletatiCount + 1}`
+    const gpOrdinati = [...classifica.gp].sort((a, b) => {
+      const aId = Number(a.id)
+      const bId = Number(b.id)
+      if (!isNaN(aId) && !isNaN(bId)) return aId - bId
+      return String(a.nome || '').localeCompare(String(b.nome || ''), undefined, { numeric: true })
+    })
+    const prossimoIndex = gpOrdinati.findIndex(g => !Boolean(g.completato))
+    const gpCompletatiCount = gpOrdinati.filter(g => Boolean(g.completato)).length
+    const nomeGP = prossimoIndex !== -1 ? gpOrdinati[prossimoIndex].nome : `GP #${gpCompletatiCount + 1}`
 
     for (let posPilota = 1; posPilota <= 5; posPilota++) {
       const puntiPilota = puntiPerPosizione[posPilota - 1]
@@ -125,8 +190,8 @@ function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRima
         const puntiDopoGara = (pilota.punti || 0) + puntiPilota
         const puntiRivaleDopoGara = (rivale.punti || 0) + puntiRivale
 
-        const gareDopoQuesta = gpRimanenti - 1
-        const puntiMassimiRivaleFinali = puntiRivaleDopoGara + (gareDopoQuesta * 25)
+        const puntiMassimiDopoProssimoGP = calcolaPuntiMassimiRimanentiPilota(classifica, gpOrdinati[prossimoIndex]?.id)
+        const puntiMassimiRivaleFinali = puntiRivaleDopoGara + puntiMassimiDopoProssimoGP
 
         if (puntiDopoGara > puntiMassimiRivaleFinali) {
           const posizione = `${posPilota}°`
@@ -2771,6 +2836,21 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
     const [dragging, setDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [btnStart, setBtnStart] = useState({ x: 0, y: 0 });
+    const svgContainerRef = useRef(null);
+    const [containerWidth, setContainerWidth] = useState(window.innerWidth);
+
+    useEffect(() => {
+      function updateContainerWidth() {
+        if (svgContainerRef.current) {
+          setContainerWidth(svgContainerRef.current.clientWidth);
+        } else {
+          setContainerWidth(window.innerWidth);
+        }
+      }
+      updateContainerWidth();
+      window.addEventListener('resize', updateContainerWidth);
+      return () => window.removeEventListener('resize', updateContainerWidth);
+    }, []);
 
     // Gestori drag mouse
     function handleMouseDown(e) {
@@ -2813,11 +2893,131 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
   const pilotiOrdinati = classifica.piloti ? classifica.piloti.filter(p => p.attivo).sort((a, b) => (b.punti || 0) - (a.punti || 0)) : []
   const costruttoriOrdinati = classifica.costruttori ? classifica.costruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)) : []
   
-  const gpRimanenti = classifica.gp ? classifica.gp.filter(g => !g.completato).length : 0
-  const sprintRimanenti = classifica.gp ? classifica.gp.filter(g => !g.completato && g.tipo_weekend === 'sprintF1').length : 0
-  
-  const puntiMassimiRimanenti = gpRimanenti * 25 + sprintRimanenti * 8
+  const gpOrdinati = classifica.gp ? [...classifica.gp].sort((a, b) => {
+    const aId = Number(a.id)
+    const bId = Number(b.id)
+    if (!isNaN(aId) && !isNaN(bId)) return aId - bId
+    return String(a.nome || '').localeCompare(String(b.nome || ''), undefined, { numeric: true })
+  }) : []
 
+  const abbreviateLabel = (text) => {
+    const stopWords = new Set(['gran','premio','di','del','della','dello','dell','d','la','le','il','lo','i','e','a','al','ai','con','per','sul','sulla','sulle','su','grand','prix'])
+    const words = String(text || '')
+      .replace(/[^a-zA-Z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .map(w => w.toLowerCase())
+      .filter(Boolean)
+    const significant = words.filter(w => !stopWords.has(w))
+    const source = significant.length > 0 ? significant : words
+    if (source.length === 0) return String(text || '').slice(0, 3).toUpperCase()
+    if (source.length === 1) return source[0].slice(0, 3).toUpperCase()
+    return source.slice(0, Math.min(3, source.length)).map(w => w[0].toUpperCase()).join('')
+  }
+
+  const raceEvents = []
+  gpOrdinati.forEach((gp, gpIdx) => {
+    ;(gp.gare || []).forEach((gara, garaIdx) => {
+      if (gara.non_disputata) return
+      let label = gp.nome || `GP ${gpIdx + 1}`
+      let shortLabel = abbreviateLabel(label)
+      if (gara.tipo_gara === 'sprint' || gara.tipo_gara === 'f2sprint') {
+        label += ' Sprint'
+        shortLabel += ' S'
+      } else if (gara.tipo_gara === 'featureRace') {
+        label += ' Feature'
+        shortLabel += ' F'
+      }
+      raceEvents.push({ gp, gara, label, shortLabel, gpIdx, garaIdx })
+    })
+  })
+
+  const gpRimanenti = gpOrdinati.filter(g => !g.completato).length
+  const sprintRimanenti = gpOrdinati.filter(g => !g.completato && g.tipo_weekend === 'sprintF1').length
+  
+  const puntiMassimiRimanenti = calcolaPuntiMassimiRimanentiPilota(classifica)
+  const puntiMassimiRimanentiCostruttori = calcolaPuntiMassimiRimanentiCostruttori(classifica)
+  const chartPadding = 50
+  const minXStep = isMobile ? 24 : 50
+  const maxXStep = isMobile ? 55 : 90
+  const availableWidth = Math.max(containerWidth - 40, 320)
+  const baseMobileWidth = chartPadding * 2 + minXStep * Math.max(1, raceEvents.length - 1)
+  const computedWidth = Math.max(availableWidth, baseMobileWidth)
+  const xStep = raceEvents.length > 1
+    ? Math.max(minXStep, Math.min(maxXStep, (computedWidth - chartPadding * 2) / (raceEvents.length - 1)))
+    : 100
+  const svgWidth = chartPadding * 2 + xStep * Math.max(1, raceEvents.length - 1)
+  const svgRenderWidth = '100%'
+  const labelFontSize = isMobile ? 8 : 10
+  const labelY = isMobile ? 395 : 405
+  const labelStep = 1
+
+  const wrapLabelText = (text, maxCharsPerLine) => {
+    const words = String(text || '').split(' ').filter(Boolean)
+    if (words.length <= 1) return [text]
+    const lines = []
+    let currentLine = ''
+
+    words.forEach(word => {
+      const candidate = currentLine ? `${currentLine} ${word}` : word
+      if (currentLine && candidate.length > maxCharsPerLine) {
+        lines.push(currentLine)
+        currentLine = word
+      } else {
+        currentLine = candidate
+      }
+    })
+
+    if (currentLine) lines.push(currentLine)
+    if (lines.length > 2) {
+      const first = `${lines[0]} ${lines[1]}`.trim()
+      const second = lines.slice(2).join(' ')
+      return [first, second]
+    }
+    return lines
+  }
+
+  const getMobilePuntiGara = (pilotaId, gara) => {
+    const risultato = gara.risultati?.[pilotaId]
+    if (!risultato) return 0
+    let posizione = risultato
+    if (typeof risultato === 'object' && risultato !== null && typeof risultato.posizione !== 'undefined') {
+      posizione = risultato.posizione
+    }
+    let puntiGara = gara.accorciata
+      ? calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti)
+      : calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara)
+    if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
+      puntiGara += classifica.punti_pole_valore || 3
+    }
+    if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
+      puntiGara += classifica.giro_veloce_valore || 1
+    }
+    return puntiGara
+  }
+
+  const mobilePiloti = pilotiOrdinati
+  const mobilePilotiProgress = mobilePiloti.map(pilota => {
+    let cumulato = 0
+    const results = raceEvents.map(event => {
+      const punti = getMobilePuntiGara(pilota.id, event.gara)
+      cumulato += punti
+      const shortGp = event.gp.nome ? String(event.gp.nome).split(' ')[0] : 'GP'
+      const suffix = event.gara.tipo_gara === 'sprint' || event.gara.tipo_gara === 'f2sprint'
+        ? ' S'
+        : event.gara.tipo_gara === 'featureRace'
+          ? ' F'
+          : ''
+      const label = `${shortGp}${suffix}`
+      return { label, punti, cumulato }
+    })
+    return {
+      id: pilota.id,
+      nome: pilota.nome,
+      team: pilota.team,
+      punti: pilota.punti || 0,
+      results,
+    }
+  })
 
   return (
     <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
@@ -2865,39 +3065,58 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
             handleTouchEnd={handleTouchEnd}
             backBtnPos={backBtnPos}
           />
-          {classifica.gp && classifica.gp.length > 0 ? (
-            <div style={{ width: '100%', overflowX: 'auto' }}>
-              <svg width={Math.max(800, classifica.gp.filter(g => g.completato).length * 100)} height="400" style={{ display: 'block' }}>
+          {raceEvents.length > 0 ? (
+            <div ref={svgContainerRef} style={{ width: '100%', overflowX: 'hidden' }}>
+              <svg width={svgRenderWidth} height="420" viewBox={`0 0 ${svgWidth} 420`} preserveAspectRatio="xMidYMin meet" style={{ display: 'block', overflow: 'visible' }}>
                 {/* Griglia */}
                 {[0, 25, 50, 75, 100, 125, 150, 175, 200].map(y => (
                   <g key={y}>
-                    <line x1="50" y1={350 - y * 1.5} x2={Math.max(800, classifica.gp.filter(g => g.completato).length * 100)} y2={350 - y * 1.5} stroke="#e0e0e0" strokeWidth="1" />
+                    <line x1="50" y1={350 - y * 1.5} x2={svgWidth} y2={350 - y * 1.5} stroke="#e0e0e0" strokeWidth="1" />
                     <text x="10" y={355 - y * 1.5} fontSize="12" fill="#999">{y}</text>
                   </g>
                 ))}
                 
                 {/* Linee piloti/costruttori */}
                 {(tab === 0 ? pilotiOrdinati : costruttoriOrdinati).map((item, idx) => {
-                  const gpCompletati = classifica.gp.filter(g => g.completato)
-                  if (gpCompletati.length === 0) return null
+                  if (raceEvents.length === 0) return null
                   
                   let puntiAccumulati = 0
                   const punti = [{ x: 50, y: 350, punti: 0 }]
                   
-                  gpCompletati.forEach((gp, gpIdx) => {
+                  raceEvents.forEach((event, eventIdx) => {
                     let puntiGP = 0
-                    
-                    gp.gare?.forEach(gara => {
-                      if (!gara.completata || gara.non_disputata) return
-                      
-                      if (tab === 0) {
-                        // PILOTI: calcolo normale
-                        const risultato = gara.risultati?.[item.id];
-                        if (!risultato) return;
-                        let posizione = risultato;
-                        // Se risultato è oggetto con posizione, estrai la posizione
-                        if (typeof risultato === 'object' && risultato !== null && typeof risultato.posizione !== 'undefined') {
-                          posizione = risultato.posizione;
+                    const gara = event.gara
+
+                    if (tab === 0) {
+                      // PILOTI: calcolo normale
+                      const risultato = gara.risultati?.[item.id];
+                      if (!risultato) return;
+                      let posizione = risultato;
+                      // Se risultato è oggetto con posizione, estrai la posizione
+                      if (typeof risultato === 'object' && risultato !== null && typeof risultato.posizione !== 'undefined') {
+                        posizione = risultato.posizione;
+                      }
+                      let puntiGara;
+                      if (gara.accorciata) {
+                        puntiGara = calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti);
+                      } else {
+                        puntiGara = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
+                      }
+                      if (classifica.punti_pole_attivo && String(gara.pole_id) === String(item.id)) {
+                        puntiGara += classifica.punti_pole_valore || 3;
+                      }
+                      if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(item.id)) {
+                        puntiGara += classifica.giro_veloce_valore || 1;
+                      }
+                      puntiGP += puntiGara;
+                    } else {
+                      // COSTRUTTORI: somma punti di tutti i piloti del team
+                      Object.entries(gara.risultati || {}).forEach(([pilotaId, pos]) => {
+                        const pilota = classifica.piloti.find(p => String(p.id) === String(pilotaId))
+                        if (!pilota || pilota.team !== item.nome) return
+                        let posizione = pos;
+                        if (typeof pos === 'object' && pos !== null && typeof pos.posizione !== 'undefined') {
+                          posizione = pos.posizione;
                         }
                         let puntiGara;
                         if (gara.accorciata) {
@@ -2905,41 +3124,18 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                         } else {
                           puntiGara = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                         }
-                        if (classifica.punti_pole_attivo && String(gara.pole_id) === String(item.id)) {
+                        if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
                           puntiGara += classifica.punti_pole_valore || 3;
                         }
-                        if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(item.id)) {
+                        if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
                           puntiGara += classifica.giro_veloce_valore || 1;
                         }
                         puntiGP += puntiGara;
-                      } else {
-                        // COSTRUTTORI: somma punti di tutti i piloti del team
-                        Object.entries(gara.risultati || {}).forEach(([pilotaId, pos]) => {
-                          const pilota = classifica.piloti.find(p => String(p.id) === String(pilotaId))
-                          if (!pilota || pilota.team !== item.nome) return
-                          let posizione = pos;
-                          if (typeof pos === 'object' && pos !== null && typeof pos.posizione !== 'undefined') {
-                            posizione = pos.posizione;
-                          }
-                          let puntiGara;
-                          if (gara.accorciata) {
-                            puntiGara = calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti);
-                          } else {
-                            puntiGara = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
-                          }
-                          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
-                            puntiGara += classifica.punti_pole_valore || 3;
-                          }
-                          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
-                            puntiGara += classifica.giro_veloce_valore || 1;
-                          }
-                          puntiGP += puntiGara;
-                        })
-                      }
-                    })
-                    
+                      })
+                    }
+
                     puntiAccumulati += puntiGP
-                    const x = 50 + (gpIdx + 1) * 100
+                    const x = chartPadding + eventIdx * xStep
                     const y = 350 - puntiAccumulati * 1.5
                     punti.push({ x, y, punti: puntiAccumulati })
                   })
@@ -2975,12 +3171,18 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                   )
                 })}
                 
-                {/* Etichette GP */}
-                {classifica.gp.filter(g => g.completato).map((gp, idx) => (
-                  <text key={gp.id} x={50 + (idx + 1) * 100} y="380" fontSize="10" fill="#666" textAnchor="middle" transform={`rotate(-45, ${50 + (idx + 1) * 100}, 380)`}>
-                    {gp.nome}
-                  </text>
-                ))}
+                {/* Etichette gare */}
+                {!isMobile && raceEvents.map((event, idx) => {
+                  const x = chartPadding + idx * xStep
+                  const labelText = event.label
+                  return (
+                    <g key={`${event.gp.id}-${event.gara.id || idx}`} transform={`translate(${x}, ${labelY}) rotate(-45)`}>
+                      <text x={0} y={0} fontSize={labelFontSize} fill="#666" textAnchor="middle" dominantBaseline="middle">
+                        {labelText}
+                      </text>
+                    </g>
+                  )
+                })}
               </svg>
               
               {/* Legenda */}
@@ -3029,8 +3231,8 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
             pilotiOrdinati.map((p, i) => {
               const puntiRimanenti = puntiMassimiRimanenti
               const distacco = i === 0 ? 0 : (pilotiOrdinati[0]?.punti || 0) - (p.punti || 0)
-              const possibile = distacco <= puntiRimanenti
-              const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiRimanenti) * 100)) : 0
+              const possibile = i === 0 || ((p.punti || 0) + puntiRimanenti >= (pilotiOrdinati[0]?.punti || 0))
+              const percentuale = i === 0 ? 100 : (possibile && puntiRimanenti > 0 ? Math.min(100, Math.round((puntiRimanenti - distacco) / puntiRimanenti * 100)) : 0)
               const combinazioni = calcolaCombinazioniVittoria(p, classifica, gpRimanenti, sprintRimanenti)
               
               return (
@@ -3059,7 +3261,10 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                   {combinazioni.length > 0 && (
                     <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500' }}>
                       <div style={{ fontWeight: 'bold', color: '#FF9500', marginBottom: '10px' }}>
-                      Combinazioni per vincere il campionato:
+                        Scenari base per vincere il campionato:
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+                        Questi esempi mostrano scenari semplificati basati sul confronto con il primo rivale diretto.
                       </div>
                       {combinazioni.map((combo, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '6px', fontSize: '13px' }}>
@@ -3074,10 +3279,10 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
             })
           ) : (
             costruttoriOrdinati.map((c, i) => {
-              const puntiRimanenti = puntiMassimiRimanenti * 2
+              const puntiRimanenti = puntiMassimiRimanentiCostruttori
               const distacco = i === 0 ? 0 : (costruttoriOrdinati[0]?.punti || 0) - (c.punti || 0)
-              const possibile = distacco <= puntiRimanenti
-              const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiRimanenti) * 100)) : 0
+              const possibile = i === 0 || ((c.punti || 0) + puntiRimanenti >= (costruttoriOrdinati[0]?.punti || 0))
+              const percentuale = possibile && i !== 0 && puntiRimanenti > 0 ? Math.min(100, Math.round((puntiRimanenti - distacco) / puntiRimanenti * 100)) : 0
               
               // Combinazioni costruttori (simili a piloti ma con 2 piloti per team)
               const combinazioniCostruttori = []
