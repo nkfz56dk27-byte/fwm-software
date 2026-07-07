@@ -43,6 +43,8 @@ async function processNotifications() {
       console.log(`[DEBUG] Notifica inviata tramite OneSignal: ${notif.title}`, onesignalRes);
       // Aggiorna lo status a 'sent'
       const { error: updateError } = await supabase
+        .from('push_disponibilita_weekend')
+        .from('push_calendario_accrediti')
         .from('push_notifications')
         .update({ status: 'sent' })
         .eq('id', notif.id);
