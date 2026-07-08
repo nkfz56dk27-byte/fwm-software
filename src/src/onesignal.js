@@ -19,9 +19,13 @@ export async function initializeOneSignal() {
     console.warn('[OneSignal] Inizializzazione bloccata su localhost');
     return false;
   }
-    // Abilita log dettagliati OneSignal per debug mobile
+    // Abilita log dettagliati OneSignal solo in sviluppo o su localhost
+    const isDebugOneSignalLogs = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV
+      || window.location.hostname.includes('localhost')
     if (window.OneSignal && window.OneSignal.log && typeof window.OneSignal.log.setLevel === 'function') {
-      window.OneSignal.log.setLevel('trace');
+      if (isDebugOneSignalLogs) {
+        window.OneSignal.log.setLevel('trace');
+      }
     }
   // Permetti l'inizializzazione anche su localhost per test
   if (oneSignalInitialized) {

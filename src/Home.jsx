@@ -150,31 +150,6 @@ function App() {
       try {
         const { initializeOneSignal } = await import('./src/onesignal.js')
         await initializeOneSignal()
-        if (window.OneSignal && typeof window.OneSignal.showSlidedownPrompt === 'function') {
-          window.OneSignal.showSlidedownPrompt()
-          await new Promise((resolve) => {
-            const handler = async (isSubscribed) => {
-              if (isSubscribed) {
-                window.OneSignal.off && typeof window.OneSignal.off === 'function' && window.OneSignal.off('subscriptionChange', handler)
-                resolve()
-              }
-            }
-            const waitForOn = async () => {
-              let tentativi = 0
-              while (!(window.OneSignal && typeof window.OneSignal.on === 'function') && tentativi < 30) {
-                await new Promise(r => setTimeout(r, 100))
-                tentativi++
-              }
-              if (window.OneSignal && typeof window.OneSignal.on === 'function') {
-                window.OneSignal.on('subscriptionChange', handler)
-              } else {
-                console.error('OneSignal.on non disponibile dopo 3 secondi!')
-                resolve()
-              }
-            }
-            waitForOn()
-          })
-        }
         import('./pushNotificationService').then(({ registraDispositivoNotifiche }) => {
           if (user && user.username) {
             registraDispositivoNotifiche(user.username)
