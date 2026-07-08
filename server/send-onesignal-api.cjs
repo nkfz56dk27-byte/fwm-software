@@ -23,7 +23,7 @@ async function sendOneSignalNotification({ title, body, url = '/', data = {} }) 
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Basic ${ONESIGNAL_API_KEY}`
+      'Authorization': `Key ${ONESIGNAL_API_KEY}`
     },
     body: JSON.stringify(payload)
   });
