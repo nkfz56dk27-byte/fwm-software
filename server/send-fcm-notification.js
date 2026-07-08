@@ -1,16 +1,16 @@
 
 const express = require('express');
 const admin = require('firebase-admin');
-const path = require('path');
-const fs = require('fs');
 const router = express.Router();
 
-// Carica le credenziali di servizio Firebase
-const credentialsPath = path.join(__dirname, '../firebase-service-account.json');
-if (!fs.existsSync(credentialsPath)) {
-  throw new Error('❌ File firebase-service-account.json non trovato!');
+// Carica le credenziali di servizio Firebase dalle variabili d'ambiente
+const firebaseServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+
+if (!firebaseServiceAccount) {
+  throw new Error('❌ Variabile d\'ambiente FIREBASE_SERVICE_ACCOUNT non trovata!');
 }
-const serviceAccount = require(credentialsPath);
+
+const serviceAccount = JSON.parse(firebaseServiceAccount);
 
 if (!admin.apps.length) {
   admin.initializeApp({

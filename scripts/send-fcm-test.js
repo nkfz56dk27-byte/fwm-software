@@ -1,18 +1,16 @@
 #!/usr/bin/env node
 const admin = require('firebase-admin');
-const path = require('path');
-const fs = require('fs');
 
-// Carica le credenziali di servizio
-const credentialsPath = path.join(__dirname, '../firebase-service-account.json');
+// Carica le credenziali di servizio dalle variabili d'ambiente
+const firebaseServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
 
-if (!fs.existsSync(credentialsPath)) {
-  console.error('❌ File firebase-service-account.json non trovato!');
-  console.error('📝 Scaricalo da: Firebase Console → ⚙️ Impostazioni → Account di servizio → "Genera nuova chiave privata"');
+if (!firebaseServiceAccount) {
+  console.error('❌ Variabile d\'ambiente FIREBASE_SERVICE_ACCOUNT non trovata!');
+  console.error('📝 Imposta la variabile d\'ambiente con il contenuto JSON del service account Firebase');
   process.exit(1);
 }
 
-const serviceAccount = require(credentialsPath);
+const serviceAccount = JSON.parse(firebaseServiceAccount);
 
 // Inizializza Firebase Admin
 admin.initializeApp({
@@ -48,10 +46,10 @@ async function sendTestNotification() {
     // Invia al topic (tutti gli utenti iscritti)
     const response = await messaging.sendToTopic('all-users', message);
     
-    console.log('✅ Notifica inviata con successo!');
-    console.log('📱 Topic: all-users');
-    console.log('🆔 Message ID:', response);
-    console.log('\n💡 Controlla il Notification Center di macOS (anche se il browser è chiuso)');
+    // ...log notifica inviata rimosso...
+    // ...log topic all-users rimosso...
+    // ...log message id rimosso...
+    // ...log notification center rimosso...
     
   } catch (error) {
     console.error('❌ Errore nell\'invio:', error.message);
