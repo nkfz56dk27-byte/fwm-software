@@ -3,7 +3,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const { sendOneSignalNotification } = require('./send-onesignal.cjs');
 
-// Configura Supabase
 const supabaseUrl = process.env.SUPABASE_URL || 'https://vfflpwrneminmnzmmwtu.supabase.co';
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'INSERISCI_LA_SERVICE_ROLE_KEY_SUPABASE';
 
@@ -17,7 +16,6 @@ console.log('[DEBUG] Service Role Key (inizio):', supabaseServiceRoleKey.substri
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-// Funzione generica per processare una tabella di notifiche pending
 async function processTable(tableName) {
   const { data: notifications, error } = await supabase
     .from(tableName)
@@ -40,7 +38,10 @@ async function processTable(tableName) {
         title: notif.title,
         body: notif.body,
         url: notif.url || '/',
-        data: notif.data || {}
+        data: notif.data || {},
+        targetUsers: notif.target_users || [],
+        targetAll: notif.target_all !== undefined ? notif.target_all : true,
+        notificationType: notif.notification_type || 'info'
       });
       console.log(`[DEBUG] Notifica inviata tramite OneSignal (${tableName}): ${notif.title}`, onesignalRes);
 
@@ -77,10 +78,10 @@ async function processTable(tableName) {
 async function processNotifications() {
   let totalSent = 0;
 
-  // Processa tutte e tre le tabelle di notifiche
-  totalSent += await processTable('push_disponibilita_weekend');
+  totalSent += await processTable('push_notifications_disponibilita_weekend');
   totalSent += await processTable('push_calendario_accrediti');
   totalSent += await processTable('push_notifications');
+  totalSent += await processTable('push_notifications_monitored_urls');
 
   console.log(`✅ Notifiche processate! Totale inviate: ${totalSent}`);
 }
