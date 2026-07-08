@@ -3,8 +3,8 @@ const fetch = require('node-fetch');
 const router = express.Router();
 
 // Inserisci qui le tue chiavi OneSignal
-const ONESIGNAL_APP_ID = '32bc9e36-a2ac-449c-a07c-70168b9b3e37';
-const ONESIGNAL_REST_API_KEY = 'os_v2_app_skpw6vu2gvff7eamjz36rapithmhbxuxj3oed2uosta3aqfgyr45gwu6jq4r4dwxh2o3ahtlndft7lz42mvqlqb6ek2nstrnpd5o7ba';
+const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID || '32bc9e36-a2ac-449c-a07c-70168b9b3e37';
+const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_API_KEY;
 
 router.post('/', async (req, res) => {
   const { titolo, messaggio, tipo, targetUsers = [] } = req.body;
