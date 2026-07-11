@@ -833,6 +833,45 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       const dnfCareer = allDriverResults.filter(({ res }) => isDnfStatus(res?.status)).length
       const pointsCareer = allDriverResults.reduce((sum, { res }) => sum + Number(res?.points || 0), 0)
 
+      // Calcola esclusioni Q1/Q2 per carriera
+      // I dati dell'ultima qualifica diventano "definitivi" solo 2 ore dopo l'orario
+      // della sessione: fino ad allora vengono ignorati e restano i valori precedenti.
+      const qualifyingWithPositions = allDriverQualifyingResults
+        .filter(({ race }) => isQualifyingDataUnlocked(race))
+        .map(({ res, race }) => ({
+          position: Number(res?.position),
+          date: race?.date
+        }))
+
+      const q1EliminationsCareer = qualifyingWithPositions.filter(q => q.position >= 16 && q.position <= 20).length
+      const q2EliminationsCareer = qualifyingWithPositions.filter(q => q.position >= 11 && q.position <= 15).length
+
+      const q1EliminationsWithDates = qualifyingWithPositions.filter(q => q.position >= 16 && q.position <= 20)
+      const lastQ1EliminationCareer = q1EliminationsWithDates.length > 0
+        ? q1EliminationsWithDates.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+        : null
+
+      const q2EliminationsWithDates = qualifyingWithPositions.filter(q => q.position >= 11 && q.position <= 15)
+      const lastQ2EliminationCareer = q2EliminationsWithDates.length > 0
+        ? q2EliminationsWithDates.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+        : null
+
+      let daysSinceLastQ1EliminationCareer = null
+      if (lastQ1EliminationCareer) {
+        const eliminationDate = new Date(lastQ1EliminationCareer.date)
+        const today = new Date()
+        const diffTime = Math.abs(today - eliminationDate)
+        daysSinceLastQ1EliminationCareer = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      }
+
+      let daysSinceLastQ2EliminationCareer = null
+      if (lastQ2EliminationCareer) {
+        const eliminationDate = new Date(lastQ2EliminationCareer.date)
+        const today = new Date()
+        const diffTime = Math.abs(today - eliminationDate)
+        daysSinceLastQ2EliminationCareer = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      }
+
       if (!cancelled) {
         setCareerDriverStats({
           races: allDriverResults.length,
@@ -844,7 +883,13 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           dsq: dsqCareer,
           points: pointsCareer,
           entries: allDriverResults,
-          qualifyingEntries: allDriverQualifyingResults
+          qualifyingEntries: allDriverQualifyingResults,
+          q1Eliminations: q1EliminationsCareer,
+          lastQ1Elimination: lastQ1EliminationCareer,
+          daysSinceLastQ1Elimination: daysSinceLastQ1EliminationCareer,
+          q2Eliminations: q2EliminationsCareer,
+          lastQ2Elimination: lastQ2EliminationCareer,
+          daysSinceLastQ2Elimination: daysSinceLastQ2EliminationCareer
         })
       }
 
@@ -1729,6 +1774,57 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     // Calcola DSQ (Disqualified)
     const dsq = driverResults.filter(r => r.status === 'Disqualified').length
 
+    // Calcola esclusioni in qualifica
+    const qualifyingWithRaces = qualifying
+      ?.filter(race => race.QualifyingResults?.some(q => q.Driver?.driverId === driverId))
+      .map(race => {
+        const qResult = race.QualifyingResults?.find(q => q.Driver?.driverId === driverId)
+        return {
+          race: race,
+          position: Number(qResult?.position),
+          date: race.date
+        }
+      }) || []
+
+    // Esclusioni Q1: posizione 16-20 (non passano a Q2)
+    const q1Eliminations = qualifyingWithRaces.filter(q => q.position >= 16 && q.position <= 20)
+    const q1EliminationsCount = q1Eliminations.length
+
+    // Esclusioni Q2: posizione 11-15 (non passano a Q3)
+    const q2Eliminations = qualifyingWithRaces.filter(q => q.position >= 11 && q.position <= 15)
+    const q2EliminationsCount = q2Eliminations.length
+
+    // Esclusioni Q3: non esiste, Q3 è per i primi 10
+    const q3EliminationsCount = 0
+
+    // Data ultima eliminazione Q1
+    const lastQ1Elimination = q1Eliminations.length > 0
+      ? q1Eliminations.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+      : null
+
+    // Data ultima eliminazione Q2
+    const lastQ2Elimination = q2Eliminations.length > 0
+      ? q2Eliminations.sort((a, b) => new Date(b.date) - new Date(a.date))[0]
+      : null
+
+    // Giorni passati dall'ultima eliminazione Q1
+    let daysSinceLastQ1Elimination = null
+    if (lastQ1Elimination) {
+      const eliminationDate = new Date(lastQ1Elimination.date)
+      const today = new Date()
+      const diffTime = Math.abs(today - eliminationDate)
+      daysSinceLastQ1Elimination = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    }
+
+    // Giorni passati dall'ultima eliminazione Q2
+    let daysSinceLastQ2Elimination = null
+    if (lastQ2Elimination) {
+      const eliminationDate = new Date(lastQ2Elimination.date)
+      const today = new Date()
+      const diffTime = Math.abs(today - eliminationDate)
+      daysSinceLastQ2Elimination = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    }
+
     // Calcola ultima vittoria - la data viene dalla race, non dal result
     const winsWithDates = results
       ?.filter(race =>
@@ -1772,7 +1868,14 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       dnf,
       dsq,
       lastWin,
-      daysSinceLastWin
+      daysSinceLastWin,
+      q1Eliminations: q1EliminationsCount,
+      q2Eliminations: q2EliminationsCount,
+      q3Eliminations: q3EliminationsCount,
+      lastQ1Elimination,
+      lastQ2Elimination,
+      daysSinceLastQ1Elimination,
+      daysSinceLastQ2Elimination
     }
   }
 
@@ -3608,6 +3711,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     { label: 'Punti', a: selectedDriverGeneralPoints, b: comparedGeneralStats?.points ?? '-' }
   ] : []
 
+
   const selectedDriverSeasonInfoItems = selectedDriver ? [
     { label: 'Gare disputate', value: selectedDriverSeasonRaces },
     { label: 'Giri veloci', value: selectedDriverSeasonFastestLaps },
@@ -3619,6 +3723,22 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     { label: 'DNS', value: selectedDriverSeasonDns, metricType: 'dns', detailEntries: getMetricEntriesForDetails(selectedDriverResults, 'dns') },
     { label: 'DSQ', value: selectedDriverSeasonDsq, metricType: 'dsq', detailEntries: getMetricEntriesForDetails(selectedDriverResults, 'dsq') },
     { label: 'Punti', value: selectedDriverPoints }
+  ] : []
+
+  const selectedDriverGeneralQ1Eliminations = careerDriverStats?.q1Eliminations ?? 0
+  const selectedDriverGeneralQ2Eliminations = careerDriverStats?.q2Eliminations ?? 0
+  const selectedDriverGeneralLastQ1Elimination = careerDriverStats?.lastQ1Elimination
+  const selectedDriverGeneralLastQ2Elimination = careerDriverStats?.lastQ2Elimination
+  const selectedDriverGeneralDaysSinceLastQ1Elimination = careerDriverStats?.daysSinceLastQ1Elimination
+  const selectedDriverGeneralDaysSinceLastQ2Elimination = careerDriverStats?.daysSinceLastQ2Elimination
+
+  const selectedDriverQualifyingInfoItems = selectedDriver ? [
+    { label: 'Numero esclusioni in Q1', value: selectedDriverGeneralQ1Eliminations },
+    { label: 'Ultima esclusione in Q1', value: selectedDriverGeneralLastQ1Elimination ? formatDateItalian(selectedDriverGeneralLastQ1Elimination.date) : '-' },
+    { label: 'Giorni da ultima esclusione in Q1', value: selectedDriverGeneralDaysSinceLastQ1Elimination ?? '-' },
+    { label: 'Numero esclusioni in Q2', value: selectedDriverGeneralQ2Eliminations },
+    { label: 'Ultima esclusione in Q2', value: selectedDriverGeneralLastQ2Elimination ? formatDateItalian(selectedDriverGeneralLastQ2Elimination.date) : '-' },
+    { label: 'Giorni da ultima esclusione in Q2', value: selectedDriverGeneralDaysSinceLastQ2Elimination ?? '-' }
   ] : []
 
   const selectedDriverGeneralInfoItems = selectedDriver ? [
@@ -3988,6 +4108,38 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                   )
                 })}
               </div>
+            </div>
+          </div>
+
+          <div style={{
+            marginTop: '14px',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.16)',
+            borderRadius: '12px',
+            padding: '10px'
+          }}>
+            <div style={{ fontSize: '13px', color: '#9EC5FF', fontWeight: '800', marginBottom: '8px', letterSpacing: '0.3px' }}>
+              Qualifiche • Esclusioni Q1/Q2
+            </div>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)',
+              gap: '10px'
+            }}>
+              {selectedDriverQualifyingInfoItems.map((item, idx) => (
+                <div
+                  key={`driver-qualifying-${item.label}-${idx}`}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.14)',
+                    borderRadius: '10px',
+                    padding: '10px'
+                  }}
+                >
+                  <div style={{ fontSize: '12px', color: '#BDBDBD', marginBottom: '4px' }}>{item.label}</div>
+                  <div style={{ fontSize: '15px', fontWeight: '700', color: '#FFF', wordBreak: 'break-word' }}>{item.value}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
