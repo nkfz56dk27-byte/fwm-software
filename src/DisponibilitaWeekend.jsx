@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
-import alertSvg from './assets/alert.svg'
+import AlertSVG from './assets/alert.svg'
 import { inserisciNotificaPush } from './pushNotificationService'
 import html2canvas from 'html2canvas'
 
@@ -559,7 +559,7 @@ function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {articoliCriticiLiberi.length > 0 && (
-              <img src={alertSvg} alt="⚠️" style={{ width: '24px', height: '24px' }} />
+              <img src={AlertSVG} alt="⚠️" style={{ width: '24px', height: '24px' }} />
             )}
             <div>
               <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
