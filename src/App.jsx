@@ -286,6 +286,7 @@ function App() {
   const [showDisponibilita, setShowDisponibilita] = useState(null) // null o { categoria }
   const [notificheNonLetteCalendario, setNotificheNonLetteCalendario] = useState(0)
   const [notificheNonLetteDisponibilita, setNotificheNonLetteDisponibilita] = useState(0)
+  const [mostraAvvisoArticoliCritici, setMostraAvvisoArticoliCritici] = useState(false)
   const [showVidaMenu, setShowVidaMenu] = useState(false) // NUOVO STATO PER MENU VIDA
   const [showEventiMobile, setShowEventiMobile] = useState(false) // NUOVO STATO PER MENU EVENTI MOBILE
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false) // Stato per mostrare il prompt notifiche
@@ -452,10 +453,47 @@ function App() {
     }
   }
 
+  async function verificaAvvisoArticoliCritici() {
+    try {
+      // 1. Carica weekend aperti (con articoli)
+      const { data: weekend } = await supabase
+        .from('weekend')
+        .select('id')
+        .order('data_creazione', { ascending: false })
+        .limit(1)
+
+      if (!weekend || weekend.length === 0) {
+        setMostraAvvisoArticoliCritici(false)
+        return
+      }
+
+      const weekendId = weekend[0].id
+
+      // 2. Verifica se almeno un articolo critico è ancora libero
+      const { data: articoli } = await supabase
+        .from('articoli')
+        .select('*')
+        .eq('weekend_id', weekendId)
+        .eq('critico', true)
+        .eq('stato', 'libero')
+
+      if (!articoli || articoli.length === 0) {
+        setMostraAvvisoArticoliCritici(false)
+        return
+      }
+
+      setMostraAvvisoArticoliCritici(true)
+    } catch (err) {
+      console.error('Errore verifica avviso articoli critici:', err)
+      setMostraAvvisoArticoliCritici(false)
+    }
+  }
+
   useEffect(() => {
     if (user && user.username) {
       // Caricamento iniziale
       refreshNotificheHome(user.username, { force: true })
+      verificaAvvisoArticoliCritici()
       // Registra dispositivo e player_id OneSignal su push_devices
       // Forza la registrazione del dispositivo mobile e player_id OneSignal subito dopo login
 
@@ -581,10 +619,30 @@ function App() {
         })
         .subscribe()
 
+      // REALTIME SUBSCRIPTION per articoli (aggiorna avviso critici)
+      const channelArticoli = supabase
+        .channel('home_articoli_critici')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'articoli'
+        }, (payload) => {
+          verificaAvvisoArticoliCritici()
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'articoli_critici'
+        }, (payload) => {
+          verificaAvvisoArticoliCritici()
+        })
+        .subscribe()
+
       
       return () => {
         clearInterval(interval)
         supabase.removeChannel(channelDisponibilita)
+        supabase.removeChannel(channelArticoli)
         window.removeEventListener('notificheAggiornate', handleNotificheAggiornate)
       }
     }
@@ -828,6 +886,7 @@ function App() {
         onOpenEventiMobile={() => setShowEventiMobile(true)}
         notificheNonLetteCalendario={notificheNonLetteCalendario}
         notificheNonLetteDisponibilita={notificheNonLetteDisponibilita}
+        mostraAvvisoArticoliCritici={mostraAvvisoArticoliCritici}
         onOpenPannelloFonti={() => setShowPannelloFonti(true)}
         onOpenNuovaSchermata={() => setShowNuovaSchermata(true)}
       />
@@ -3778,7 +3837,7 @@ function NuovaClassificaModal({ onClose, onSave }) {
 }
 
 /// ===== HOME VIEW =====
-function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheMainMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, onOpenVidaMenu, onOpenEventiMobile, notificheNonLetteCalendario, notificheNonLetteDisponibilita, onOpenPannelloFonti, onOpenNuovaSchermata }) {
+function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheMainMenu, onOpenRitaglio, onOpenCalendario, onOpenDisponibilita, onOpenVidaMenu, onOpenEventiMobile, notificheNonLetteCalendario, notificheNonLetteDisponibilita, mostraAvvisoArticoliCritici, onOpenPannelloFonti, onOpenNuovaSchermata }) {
   const [prossimoEvento, setProssimoEvento] = useState(null)
   
   useEffect(() => {
@@ -3960,6 +4019,20 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
                 zIndex: 10
               }}>
                 {notificheNonLetteDisponibilita}
+              </div>
+            )}
+            {mostraAvvisoArticoliCritici && (
+              <div style={{
+                position: 'absolute',
+                top: '15px',
+                left: '15px',
+                zIndex: 10
+              }}>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2L1 21H23L12 2Z" fill="#FF3B30" stroke="#FF3B30" strokeWidth="2" strokeLinejoin="round"/>
+                  <path d="M12 8V14" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                  <circle cx="12" cy="17" r="1.5" fill="white"/>
+                </svg>
               </div>
             )}
             <div className="card-icon-wrapper">
