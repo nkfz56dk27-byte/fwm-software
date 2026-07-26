@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
+import alertSvg from './assets/alert.svg'
 
 const GIORNI = ['giovedi', 'venerdi', 'sabato', 'domenica']
 
@@ -400,7 +401,7 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
                       return a.categoria.localeCompare(b.categoria)
                     })
                     .map((art, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f8f8f8', borderRadius: '8px' }}>
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: art.critico ? '#FF3B3015' : '#f8f8f8', borderRadius: '8px', border: art.critico ? '1px solid #FF3B30' : 'none' }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
                             {renderTextWithBold(art.titolo, art.range_grassetto || [])}
@@ -409,7 +410,29 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
                             {CATEGORIE.find(c => c.id === art.categoria)?.nome || art.categoria} • {art.giorno}
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button
+                            onClick={() => {
+                              const newArticoli = [...articoli]
+                              newArticoli[articoli.indexOf(art)] = { ...art, critico: !art.critico }
+                              setArticoli(newArticoli)
+                            }}
+                            style={{
+                              padding: '6px 10px',
+                              background: art.critico ? '#FF3B30' : '#f0f0f0',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px'
+                            }}
+                            title={art.critico ? 'Rimuovi da critici' : 'Aggiungi a critici'}
+                          >
+                            <img src={alertSvg} alt="⚠️" style={{ width: '20px', height: '20px' }} />
+                          </button>
                           <button onClick={() => modificaArticolo(articoli.indexOf(art))} style={{ padding: '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✏️</button>
                           <button onClick={() => rimuoviArticolo(articoli.indexOf(art))} style={{ padding: '6px 12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
                         </div>
