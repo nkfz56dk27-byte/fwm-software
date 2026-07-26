@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
+import alertSvg from './assets/alert.svg'
 import { inserisciNotificaPush } from './pushNotificationService'
 import html2canvas from 'html2canvas'
 
@@ -202,6 +203,22 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         window.alert('[DEBUG] Listener realtime notifiche SCATTATO! (vedi console)')
         caricaNotifiche()
         if (onNotificheChange) onNotificheChange()
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'articoli'
+      }, (payload) => {
+        console.log('%c[ARTICOLI][REALTIME] Cambiamento articoli ricevuto:', 'background: #FF9500; color: white; font-size: 16px', payload)
+        caricaWeekends()
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'weekend'
+      }, (payload) => {
+        console.log('%c[WEEKEND][REALTIME] Cambiamento weekend ricevuto:', 'background: #5856D6; color: white; font-size: 16px', payload)
+        caricaWeekends()
       })
       .subscribe()
     return () => {
@@ -517,6 +534,9 @@ function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica
   const percentuale = totale > 0 ? Math.round((assegnati / totale) * 100) : 0
   const mieiArticoli = articoli.filter(a => a.assegnato_a === nomeUtente).length
   
+  // Articoli critici ancora liberi
+  const articoliCriticiLiberi = articoli.filter(a => a.critico && a.stato === 'libero')
+  
   // Trova la categoria del weekend
   const categoriaWeekend = categorie.find(c => c.id === weekend.categoria_id)
   const colore = categoriaWeekend?.colore || '#8E8E93'
@@ -537,11 +557,16 @@ function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-          <div>
-            <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
-            <div style={{ fontSize: '14px', color: '#666' }}>
-              {weekend.data}
-              {categoriaWeekend && <span style={{ marginLeft: '10px', color: colore, fontWeight: 'bold' }}>• {categoriaWeekend.nome}</span>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {articoliCriticiLiberi.length > 0 && (
+              <img src={alertSvg} alt="⚠️" style={{ width: '24px', height: '24px' }} />
+            )}
+            <div>
+              <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
+              <div style={{ fontSize: '14px', color: '#666' }}>
+                {weekend.data}
+                {categoriaWeekend && <span style={{ marginLeft: '10px', color: colore, fontWeight: 'bold' }}>• {categoriaWeekend.nome}</span>}
+              </div>
             </div>
           </div>
           <div style={{ textAlign: 'right', marginRight: isAdmin ? '35px' : '0' }}>
@@ -584,7 +609,8 @@ function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica
 
 function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
   const [nomeGP, setNomeGP] = useState('')
-  const [date, setDate] = useState('')
+  const [dataInizio, setDataInizio] = useState('')
+  const [dataFine, setDataFine] = useState('')
   const [usaTemplate, setUsaTemplate] = useState(true)
   const [redattori, setRedattori] = useState(new Set(REDATTORI_DEFAULT))
   const [nuovoRedattore, setNuovoRedattore] = useState('')
@@ -653,20 +679,28 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
   }
 
   async function creaWeekend() {
-    if (!nomeGP || !date) return
+    if (!nomeGP || !dataInizio || !dataFine) return
     setSalvando(true)
-    
+
+    // Calcola la data per la notifica (giorno prima alle 9:00 fuso Roma)
+    const dataNotifica = new Date(dataInizio)
+    dataNotifica.setDate(dataNotifica.getDate() - 1)
+    dataNotifica.setHours(9, 0, 0, 0) // 9:00 AM fuso locale (Roma)
+
     const { data: weekend, error: errorWeekend } = await supabase
       .from('weekend')
-      .insert({ 
-        nome_gp: nomeGP, 
-        data: date, 
+      .insert({
+        nome_gp: nomeGP,
+        data: `${dataInizio} - ${dataFine}`,
+        data_inizio: dataInizio,
+        data_fine: dataFine,
+        data_notifica_articoli_critici: dataNotifica.toISOString(),
         redattori: Array.from(redattori).sort(),
         categoria_id: categoriaSelezionata
       })
       .select()
       .single()
-    
+
     if (errorWeekend) {
       console.error('Errore creazione weekend:', errorWeekend)
       alert('Errore nella creazione del weekend')
@@ -691,7 +725,8 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
             categoria: t.categoria, 
             giorno: t.giorno, 
             stato: 'libero', 
-            range_grassetto: t.range_grassetto || [] 
+            range_grassetto: t.range_grassetto || [],
+            critico: t.critico || false
           }))
         const { error: errorArticoli } = await supabase.from('articoli').insert(articoli)
         if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
@@ -704,7 +739,8 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
         categoria: t.categoria, 
         giorno: t.giorno, 
         stato: 'libero', 
-        range_grassetto: [] 
+        range_grassetto: [],
+        critico: false
       }))
       const { error: errorArticoli } = await supabase.from('articoli').insert(articoli)
       if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
@@ -713,10 +749,26 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
     // Crea notifica interna (non blocca se fallisce)
     try {
       if (onCreaNotifica) {
-        await onCreaNotifica(`Nuovo weekend aperto: ${nomeGP} (${date})`, weekend.id)
+        await onCreaNotifica(`Nuovo weekend aperto: ${nomeGP} (${dataInizio} - ${dataFine})`, weekend.id)
       }
     } catch (err) {
       console.error('Errore creazione notifica:', err)
+    }
+
+    // Programma notifica per articoli critici (giorno prima alle 9:00)
+    try {
+      const { inserisciNotificaPush } = await import('./pushNotificationService')
+      await inserisciNotificaPush({
+        title: '⚠️ Articoli critici ancora liberi',
+        body: `Ci sono ancora articoli critici non selezionati per il weekend ${nomeGP}`,
+        notification_type: 'articoli_critici',
+        target_all: true,
+        scheduled_for: dataNotifica.toISOString(),
+        data: { weekend_id: weekend.id }
+      })
+      console.log('[DEBUG] Notifica articoli critici programmata per:', dataNotifica.toISOString())
+    } catch (err) {
+      console.error('Errore programmazione notifica articoli critici:', err)
     }
 
     // INVIO NOTIFICA PUSH (PLUS, SEPARATA)
@@ -727,7 +779,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
       for (const redattore of redattori) {
         await inviaNotificaAUtente(redattore, {
           titolo: 'Nuovo weekend disponibile',
-          messaggio: `È stato aperto il weekend: ${nomeGP} (${date})`,
+          messaggio: `È stato aperto il weekend: ${nomeGP} (${dataInizio} - ${dataFine})`,
           url: '/',
           data: { weekend_id: weekend.id }
         })
@@ -735,7 +787,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
       // Notifica push OneSignal (tabella dedicata)
       const pushParams = {
         title: 'Nuovo weekend disponibile',
-        body: `È stato aperto il weekend: ${nomeGP} (${date})`,
+        body: `È stato aperto il weekend: ${nomeGP} (${dataInizio} - ${dataFine})`,
         notification_type: 'disponibilita_weekend',
         target_all: true,
         data: { weekend_id: weekend.id }
@@ -748,7 +800,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
           // Inserisci anche nella tabella push_disponibilita_weekend per pipeline OneSignal
           await supabase.from('push_disponibilita_weekend').insert({
             title: 'Nuovo weekend disponibile',
-            body: `È stato aperto il weekend: ${nomeGP} (${date})`,
+            body: `È stato aperto il weekend: ${nomeGP} (${dataInizio} - ${dataFine})`,
             notification_type: 'disponibilita_weekend',
             target_all: true,
             data: { weekend_id: weekend.id }
@@ -765,20 +817,6 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
     }
 
     setSalvando(false)
-    // Inserisci anche nella tabella push_disponibilita_weekend per pipeline OneSignal
-    try {
-      await supabase.from('push_disponibilita_weekend').insert({
-        title: 'Nuovo weekend disponibile',
-        body: `È stato aperto il weekend: ${nomeGP} (${date})`,
-        notification_type: 'disponibilita_weekend',
-        target_all: true,
-        data: { weekend_id: weekend.id }
-      });
-      await fetch('https://fwm-software.vercel.app/api/processPushNotifications', { method: 'POST' });
-    } catch (err) {
-      console.error('[ERRORE NOTIFICA CREAZIONE WEEKEND]', err);
-    }
-    setSalvando(false);
     onCreated();
   }
 
@@ -796,8 +834,25 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
               <input type="text" placeholder="es: GP Abu Dhabi" value={nomeGP} onChange={e => setNomeGP(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
             </div>
             <div>
-              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Date</div>
-              <input type="text" placeholder="es: 5-7 Dicembre 2024" value={date} onChange={e => setDate(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Data Inizio Weekend</div>
+              <input 
+                type="date" 
+                value={dataInizio} 
+                onChange={e => setDataInizio(e.target.value)} 
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} 
+              />
+            </div>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Data Fine Weekend</div>
+              <input 
+                type="date" 
+                value={dataFine} 
+                onChange={e => setDataFine(e.target.value)} 
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} 
+              />
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                La notifica per articoli critici verrà inviata il giorno prima alle 9:00 (fuso Roma)
+              </div>
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Categoria</div>
@@ -902,6 +957,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   const [articoli, setArticoli] = useState([])
   const [articoliSelezionati, setArticoliSelezionati] = useState(new Set())
   const [expandedDays, setExpandedDays] = useState(new Set())
+  const [showArticoliCritici, setShowArticoliCritici] = useState(false)
   const [showAdminView, setShowAdminView] = useState(false)
   const [showTabella, setShowTabella] = useState(false)
   const [salvando, setSalvando] = useState(false)
@@ -1149,6 +1205,9 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   }
 
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ ...g, articoli: articoli.filter(a => a.giorno === g.id) }))
+  
+  // Articoli critici ancora liberi
+  const articoliCriticiLiberi = articoli.filter(a => a.critico && a.stato === 'libero')
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
@@ -1170,6 +1229,58 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
           <div style={{ fontSize: '14px', color: '#666' }}>Seleziona gli articoli di cui ti occuperai:</div>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
+          {/* Avviso articoli critici mancanti */}
+          {articoliCriticiLiberi.length > 0 && (
+            <div style={{ marginBottom: '20px', border: '2px solid #FF3B30', borderRadius: '10px', overflow: 'hidden' }}>
+              <button 
+                onClick={() => setShowArticoliCritici(!showArticoliCritici)}
+                style={{ 
+                  width: '100%', 
+                  padding: '15px', 
+                  background: '#FF3B3015', 
+                  border: 'none', 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  fontSize: '16px', 
+                  fontWeight: 'bold',
+                  color: '#FF3B30'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '24px' }}>⚠️</span>
+                  <span>Articoli critici ancora liberi ({articoliCriticiLiberi.length})</span>
+                </div>
+                <span>{showArticoliCritici ? '▲' : '▼'}</span>
+              </button>
+              {showArticoliCritici && (
+                <div style={{ padding: '15px', background: 'white' }}>
+                  <div style={{ fontSize: '13px', color: '#666', marginBottom: '10px' }}>
+                    Questi articoli sono importanti e devono essere assegnati:
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {articoliCriticiLiberi.map(articolo => (
+                      <div key={articolo.id} style={{ padding: '10px 12px', background: '#f8f8f8', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{articolo.titolo}</div>
+                          <div style={{ fontSize: '12px', color: '#666' }}>
+                            {CATEGORIE.find(c => c.id === articolo.categoria)?.nome || articolo.categoria} • {GIORNI_WEEKEND.find(g => g.id === articolo.giorno)?.nome || articolo.giorno}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => toggleArticolo(articolo.id, articolo)}
+                          style={{ padding: '6px 12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                        >
+                          {articoliSelezionati.has(articolo.id) ? '✓ Selezionato' : 'Seleziona'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {articoliPerGiorno.map(giorno => (
               <GiornoAccordion
@@ -1817,7 +1928,7 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
     setSalvando(true)
     
     // Aggiungi articolo al weekend
-    const { error: errorArticolo } = await supabase.from('articoli').insert({ weekend_id: weekend.id, titolo: titolo.trim(), categoria, giorno, stato: 'libero', range_grassetto: rangeGrassetto })
+    const { error: errorArticolo } = await supabase.from('articoli').insert({ weekend_id: weekend.id, titolo: titolo.trim(), categoria, giorno, stato: 'libero', range_grassetto: rangeGrassetto, critico: false })
     
     if (!errorArticolo && weekend.categoria_id) {
       // Sincronizza al template della categoria
@@ -1834,7 +1945,7 @@ function ModificaArticoliSection({ weekend, articoli, onUpdate }) {
           const articoliTemplate = template.articoli || []
           
           // Aggiungi al template (duplicati inclusi)
-          const articoliAggiornati = [...articoliTemplate, { titolo: titolo.trim(), categoria, giorno, range_grassetto: rangeGrassetto }]
+          const articoliAggiornati = [...articoliTemplate, { titolo: titolo.trim(), categoria, giorno, range_grassetto: rangeGrassetto, critico: false }]
           await supabase.from('template_articoli').update({ articoli: articoliAggiornati }).eq('id', template.id)
         }
       } catch (err) {
