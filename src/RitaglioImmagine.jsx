@@ -15,6 +15,9 @@ export default function RitaglioImmagine({ user, onClose }) {
   const [recentProjects, setRecentProjects] = useState([])
   const [selectedImage, setSelectedImage] = useState(null)
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 })
+  const [imageScale, setImageScale] = useState(1) // Zoom immagine (modalità NORMALE), 1 = riempie il frame
+const [isResizing, setIsResizing] = useState(false) // true mentre si trascina un angolo per zoomare
+const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, centerX: 0, centerY: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [conLogo, setConLogo] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -242,8 +245,9 @@ export default function RitaglioImmagine({ user, onClose }) {
         }))
         setSelectedImage(e.target.result)
         
-        // Reset offset e style mobile
+        // Reset offset, zoom e style mobile
         setImageOffset({ x: 0, y: 0 })
+        setImageScale(1)
         setMobileImgStyle({ width: '100%', height: 'auto' })
         
         setView('editor')
@@ -258,6 +262,7 @@ export default function RitaglioImmagine({ user, onClose }) {
     setProjectMode(newMode)
     setSelectedImage(null) // Pulisce l'immagine corrente
     setImageOffset({ x: 0, y: 0 })
+    setImageScale(1)
   }
 
   // Gestisce i preferiti su Supabase con controllo tipi e feedback
@@ -302,42 +307,82 @@ export default function RitaglioImmagine({ user, onClose }) {
     console.log('[DEBUG] toggleFavorite FINE', { favoriteProjects });
   }
 
-  // Applica bounds per NORMALE (drag X/Y)
-  const applyBounds = (newX, newY) => {
+  // Applica bounds per NORMALE (drag X/Y). "scale" = zoom corrente (default: quello in stato)
+  const applyBounds = (newX, newY, scale = imageScale) => {
     if (!containerRef.current) return { x: newX, y: newY }
     const imgElement = containerRef.current.querySelector('img')
     if (!imgElement) return { x: newX, y: newY }
-    
-    // Se è un progetto cover, usa logica diversa
+
     if (projectMode === 'cover') {
-      // In cover, l'immagine riempie tutto il canvas, quindi niente scroll
       return { x: 0, y: 0 }
     }
-    
-    // Calcola dimensioni effettive dell'immagine in modalità cover
+
     const imgAspect = imgElement.naturalWidth / imgElement.naturalHeight
     const containerAspect = containerWidth / containerHeight
-    
+
     let actualImgHeight, actualImgWidth
-    
+
     if (imgAspect > containerAspect) {
-      // Foto ORIZZONTALE → scala per HEIGHT
-      actualImgHeight = containerHeight
+      actualImgHeight = containerHeight * scale
       actualImgWidth = actualImgHeight * imgAspect
     } else {
-      // Foto VERTICALE → scala per WIDTH
-      actualImgWidth = containerWidth
+      actualImgWidth = containerWidth * scale
       actualImgHeight = actualImgWidth / imgAspect
     }
-    
+
     const maxOffsetX = Math.max(0, (actualImgWidth - containerWidth) / 2)
     const maxOffsetY = Math.max(0, (actualImgHeight - containerHeight) / 2)
-    
+
     const boundedX = Math.min(maxOffsetX, Math.max(-maxOffsetX, newX))
     const boundedY = Math.min(maxOffsetY, Math.max(-maxOffsetY, newY))
-    
+
     return { x: boundedX, y: boundedY }
   }
+
+  // --- Zoom trascinando gli angoli (stile Canva) ---
+  const startCornerResize = (e, corner) => {
+    e.stopPropagation()
+    e.preventDefault()
+    if (!containerRef.current) return
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    const rect = containerRef.current.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    const startDist = Math.hypot(clientX - centerX, clientY - centerY) || 1
+    resizeStateRef.current = { corner, startScale: imageScale, startDist, centerX, centerY }
+    setIsResizing(true)
+  }
+
+  useEffect(() => {
+    if (!isResizing) return
+
+    const handleMove = (e) => {
+      e.preventDefault()
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY
+      const { startScale, startDist, centerX, centerY } = resizeStateRef.current
+      const newDist = Math.hypot(clientX - centerX, clientY - centerY)
+      const ratio = newDist / startDist
+      const newScale = Math.min(5, Math.max(1, startScale * ratio))
+      setImageScale(newScale)
+      setImageOffset(prev => applyBounds(prev.x, prev.y, newScale))
+    }
+
+    const stopResize = () => setIsResizing(false)
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', stopResize)
+    window.addEventListener('touchmove', handleMove, { passive: false })
+    window.addEventListener('touchend', stopResize)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', stopResize)
+      window.removeEventListener('touchmove', handleMove)
+      window.removeEventListener('touchend', stopResize)
+    }
+  }, [isResizing])
 
   const handleDrop = (e) => {
     e.preventDefault()
@@ -403,13 +448,13 @@ export default function RitaglioImmagine({ user, onClose }) {
 
         let drawW, drawH, scaleToCanvas
         if (imgAspect > canvasAspect) {
-          // Immagine più larga: scala per altezza
-          drawH = canvas.height
+          // Immagine più larga: scala per altezza (+ zoom)
+          drawH = canvas.height * imageScale
           drawW = drawH * imgAspect
           scaleToCanvas = canvas.height / containerHeight
         } else {
-          // Immagine più alta: scala per larghezza
-          drawW = canvas.width
+          // Immagine più alta: scala per larghezza (+ zoom)
+          drawW = canvas.width * imageScale
           drawH = drawW / imgAspect
           scaleToCanvas = canvas.width / containerWidth
         }
@@ -794,172 +839,211 @@ export default function RitaglioImmagine({ user, onClose }) {
                     <div style={{ marginBottom: '20px', marginLeft: '47px' }}><span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span></div>
                   )}
                   <div 
-                    ref={containerRef}
-                    onMouseDown={() => setIsDragging(true)}
-                    onMouseMove={(e) => {
-                      if (!isDragging) return
-                      const next = applyBounds(imageOffset.x + e.movementX, imageOffset.y + e.movementY)
-                      setImageOffset(next)
-                    }}
-                    onMouseUp={() => setIsDragging(false)}
-                    onMouseLeave={() => setIsDragging(false)}
-                    onTouchStart={(e) => {
-                      setIsDragging(true)
-                      e.currentTarget.dataset.startX = e.touches[0].clientX
-                      e.currentTarget.dataset.startY = e.touches[0].clientY
-                    }}
-                    onTouchMove={(e) => {
-                      if (!isDragging) return
-                      const x = e.touches[0].clientX
-                      const y = e.touches[0].clientY
-                      const diffX = x - parseFloat(e.currentTarget.dataset.startX)
-                      const diffY = y - parseFloat(e.currentTarget.dataset.startY)
-                      const next = applyBounds(imageOffset.x + diffX, imageOffset.y + diffY)
-                      setImageOffset(next)
-                      e.currentTarget.dataset.startX = x
-                      e.currentTarget.dataset.startY = y
-                    }}
-                    onTouchEnd={() => setIsDragging(false)}
-                    style={{ 
-                      width: `${containerWidth}px`, 
-                      height: `${containerHeight}px`, 
-                      background: canvasBackground, 
-                      position: 'relative', 
-                      overflow: 'hidden', 
-                      boxShadow: '0 25px 60px rgba(0,0,0,0.4)', 
-                      cursor: isDragging ? 'grabbing' : 'grab',
-                      touchAction: 'none',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      margin: '0 auto'
-                    }}
-                  >
-                    {/* Immagine normale */}
-                    <img 
-                      src={selectedImage} 
-                      draggable={false}
-                      onLoad={(e) => {
-                        if (projectMode === 'normale') {
-                          // Calcola dimensioni per riempire TUTTO (object-fit: cover)
-                          const img = e.target
-                          const imgAspect = img.naturalWidth / img.naturalHeight
-                          const containerAspect = containerWidth / containerHeight
-                          
-                          console.log('📐 Image loaded:', {
-                            imgAspect: imgAspect.toFixed(2),
-                            containerAspect: containerAspect.toFixed(2),
-                            imgNatural: `${img.naturalWidth}×${img.naturalHeight}`,
-                            container: `${containerWidth}×${containerHeight}`
-                          })
-                          
-                          if (imgAspect > containerAspect) {
-                            // ORIZZONTALE → scala per HEIGHT
-                            console.log('✅ ORIZZONTALE → scala per HEIGHT')
-                            setMobileImgStyle({ width: 'auto', height: '100%' })
-                          } else {
-                            // VERTICALE → scala per WIDTH
-                            console.log('✅ VERTICALE → scala per WIDTH')
-                            setMobileImgStyle({ width: '100%', height: 'auto' })
-                          }
-                        }
+                  style={{ position: 'relative', width: `${containerWidth}px`, height: `${containerHeight}px`, margin: '0 auto' }}>
+                      <div 
+                        ref={containerRef}
+                      onMouseDown={() => setIsDragging(true)}
+                      onMouseMove={(e) => {
+                        if (!isDragging) return
+                        const next = applyBounds(imageOffset.x + e.movementX, imageOffset.y + e.movementY)
+                        setImageOffset(next)
                       }}
+                      onMouseUp={() => setIsDragging(false)}
+                      onMouseLeave={() => setIsDragging(false)}
+                      onTouchStart={(e) => {
+                        setIsDragging(true)
+                        e.currentTarget.dataset.startX = e.touches[0].clientX
+                        e.currentTarget.dataset.startY = e.touches[0].clientY
+                      }}
+                      onTouchMove={(e) => {
+                        if (!isDragging) return
+                        const x = e.touches[0].clientX
+                        const y = e.touches[0].clientY
+                        const diffX = x - parseFloat(e.currentTarget.dataset.startX)
+                        const diffY = y - parseFloat(e.currentTarget.dataset.startY)
+                        const next = applyBounds(imageOffset.x + diffX, imageOffset.y + diffY)
+                        setImageOffset(next)
+                        e.currentTarget.dataset.startX = x
+                        e.currentTarget.dataset.startY = y
+                      }}
+                      onTouchEnd={() => setIsDragging(false)}
                       style={{ 
-                        position: 'absolute', 
-                        ...(projectMode === 'normale' ? {
-                          // NORMALE: cover e drag X/Y
-                          ...mobileImgStyle,
-                          left: '50%',
-                          top: '50%',
-                          transform: `translate(calc(-50% + ${imageOffset.x}px), calc(-50% + ${imageOffset.y}px))`
-                        } : {
-                          width: '100%',
-                          height: 'auto',
-                          top: 0,
-                          left: 0,
-                          transform: `translateY(${imageOffset.y}px)`
-                        }),
-                        pointerEvents: 'none',
-                        display: projectMode === 'cover' ? 'none' : 'block'
-                      }} 
-                    />
-                    
-                    {/* Immagine cover - solo per cover */}
-                    {projectMode === 'cover' && (
-                      <img src={selectedImage} draggable={false} style={{ 
-                        position: 'absolute', 
-                        width: '100%', 
-                        height: '100%', 
-                        top: 0, 
-                        left: 0, 
-                        objectFit: 'cover',
-                        objectPosition: 'center',
-                        pointerEvents: 'none',
-                        display: 'block',
-                        margin: 0,
-                        padding: 0,
-                        border: 'none',
-                        boxSizing: 'border-box',
-                        transform: 'scale(1.05)',
-                        transformOrigin: 'center'
-                      }} />
-                    )}
-                    {conLogo && (
-                      <div style={{ position: 'absolute', bottom: `${logoConfig[selectedLogo].offsetYPercent * 100}%`, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
-                        <img 
-                          src={`/Logo_${selectedLogo === 'formula1it' ? 'Formula1it' : 'Blogformulae'}.png`} 
-                          style={{ 
-                            width: `${logoConfig[selectedLogo].widthPercent * 100}%`, 
-                            marginLeft: `${logoConfig[selectedLogo].offsetX}px`, 
-                            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
-                          }} 
-                        />
-                      </div>
-                    )}
-                    
-                    {/* Croce di centratura */}
-                    {showCenterCross && (
-                      <div style={{ 
-                        position: 'absolute', 
-                        top: 0, 
-                        left: 0, 
-                        right: 0, 
-                        bottom: 0, 
-                        pointerEvents: 'none',
-                        zIndex: 10
-                      }}>
-                        {/* Linea orizzontale */}
+                        width: `${containerWidth}px`, 
+                        height: `${containerHeight}px`, 
+                        background: canvasBackground, 
+                        position: 'relative', 
+                        overflow: 'hidden', 
+                        boxShadow: '0 25px 60px rgba(0,0,0,0.4)', 
+                        cursor: isDragging ? 'grabbing' : 'grab',
+                        touchAction: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        margin: '0 auto'
+                      }}
+                    >
+                      {/* Immagine normale */}
+                      <img 
+                        src={selectedImage} 
+                        draggable={false}
+                        onLoad={(e) => {
+                          if (projectMode === 'normale') {
+                            const img = e.target
+                            const imgAspect = img.naturalWidth / img.naturalHeight
+                            const containerAspect = containerWidth / containerHeight
+                            
+                            if (imgAspect > containerAspect) {
+                              setMobileImgStyle({ width: 'auto', height: '100%' })
+                            } else {
+                              setMobileImgStyle({ width: '100%', height: 'auto' })
+                            }
+                          }
+                        }}
+                        style={{ 
+                          position: 'absolute', 
+                          ...(projectMode === 'normale' ? {
+                            ...mobileImgStyle,
+                            left: '50%',
+                            top: '50%',
+                            transform: `translate(calc(-50% + ${imageOffset.x}px), calc(-50% + ${imageOffset.y}px)) scale(${imageScale})`
+                          } : {
+                            width: '100%',
+                            height: 'auto',
+                            top: 0,
+                            left: 0,
+                            transform: `translateY(${imageOffset.y}px)`
+                          }),
+                          pointerEvents: 'none',
+                          display: projectMode === 'cover' ? 'none' : 'block'
+                        }} 
+                      />
+                      
+                      {/* Immagine cover - solo per cover */}
+                      {projectMode === 'cover' && (
+                        <img src={selectedImage} draggable={false} style={{ 
+                          position: 'absolute', 
+                          width: '100%', 
+                          height: '100%', 
+                          top: 0, 
+                          left: 0, 
+                          objectFit: 'cover',
+                          objectPosition: 'center',
+                          pointerEvents: 'none',
+                          display: 'block',
+                          margin: 0,
+                          padding: 0,
+                          border: 'none',
+                          boxSizing: 'border-box',
+                          transform: 'scale(1.05)',
+                          transformOrigin: 'center'
+                        }} />
+                      )}
+                      {conLogo && (
+                        <div style={{ position: 'absolute', bottom: `${logoConfig[selectedLogo].offsetYPercent * 100}%`, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
+                          <img 
+                            src={`/Logo_${selectedLogo === 'formula1it' ? 'Formula1it' : 'Blogformulae'}.png`} 
+                            style={{ 
+                              width: `${logoConfig[selectedLogo].widthPercent * 100}%`, 
+                              marginLeft: `${logoConfig[selectedLogo].offsetX}px`, 
+                              filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
+                            }} 
+                          />
+                        </div>
+                      )}
+                      
+                      {/* Croce di centratura */}
+                      {showCenterCross && (
+                        <div style={{ 
+                          position: 'absolute', 
+                          top: 0, 
+                          left: 0, 
+                          right: 0, 
+                          bottom: 0, 
+                          pointerEvents: 'none',
+                          zIndex: 10
+                        }}>
+                          <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: 0,
+                            right: 0,
+                            height: '1px',
+                            background: 'rgba(255, 0, 0, 0.8)',
+                            transform: 'translateY(-0.5px)'
+                          }} />
+                          <div style={{
+                            position: 'absolute',
+                            left: '50%',
+                            top: 0,
+                            bottom: 0,
+                            width: '1px',
+                            background: 'rgba(255, 0, 0, 0.8)',
+                            transform: 'translateX(-0.5px)'
+                          }} />
+                          <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            width: '20px',
+                            height: '20px',
+                            border: '2px solid rgba(255, 0, 0, 0.8)',
+                            borderRadius: '50%',
+                            transform: 'translate(-50%, -50%)'
+                          }} />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cornice di selezione + maniglie agli angoli, FUORI dal frame con overflow:hidden così i cerchi restano interi */}
+                    {projectMode === 'normale' && (
+                      <>
                         <div style={{
                           position: 'absolute',
-                          top: '50%',
-                          left: 0,
-                          right: 0,
-                          height: '1px',
-                          background: 'rgba(255, 0, 0, 0.8)',
-                          transform: 'translateY(-0.5px)'
+                          inset: 0,
+                          border: '2px solid #007AFF',
+                          pointerEvents: 'none',
+                          zIndex: 19
                         }} />
-                        {/* Linea verticale */}
-                        <div style={{
-                          position: 'absolute',
-                          left: '50%',
-                          top: 0,
-                          bottom: 0,
-                          width: '1px',
-                          background: 'rgba(255, 0, 0, 0.8)',
-                          transform: 'translateX(-0.5px)'
-                        }} />
-                        {/* Cerchio centrale */}
-                        <div style={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          width: '20px',
-                          height: '20px',
-                          border: '2px solid rgba(255, 0, 0, 0.8)',
-                          borderRadius: '50%',
-                          transform: 'translate(-50%, -50%)'
-                        }} />
-                      </div>
+
+                        {[
+                          { corner: 'tl', top: 0, left: 0, translate: '-50%, -50%', cursor: 'nwse-resize' },
+                          { corner: 'tr', top: 0, right: 0, translate: '50%, -50%', cursor: 'nesw-resize' },
+                          { corner: 'bl', bottom: 0, left: 0, translate: '-50%, 50%', cursor: 'nesw-resize' },
+                          { corner: 'br', bottom: 0, right: 0, translate: '50%, 50%', cursor: 'nwse-resize' }
+                        ].map((h) => (
+                          <div
+                            key={h.corner}
+                            onMouseDown={(e) => startCornerResize(e, h.corner)}
+                            onTouchStart={(e) => startCornerResize(e, h.corner)}
+                            style={{
+                              position: 'absolute',
+                              top: h.top,
+                              bottom: h.bottom,
+                              left: h.left,
+                              right: h.right,
+                              transform: `translate(${h.translate})`,
+                              width: '44px',
+                              height: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: h.cursor,
+                              touchAction: 'none',
+                              zIndex: 20
+                            }}
+                          >
+                            <div style={{
+                              width: '16px',
+                              height: '16px',
+                              borderRadius: '50%',
+                              background: '#fff',
+                              border: '3px solid #007AFF',
+                              boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                              pointerEvents: 'none'
+                            }} />
+                          </div>
+                        ))}
+                      </>
                     )}
                   </div>
                   {/* Layout responsive SOLO per mobile */}
