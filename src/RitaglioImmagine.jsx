@@ -19,6 +19,16 @@ export default function RitaglioImmagine({ user, onClose }) {
 const [isResizing, setIsResizing] = useState(false) // true mentre si trascina un angolo per zoomare
 const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, centerX: 0, centerY: 0 })
   const [isDragging, setIsDragging] = useState(false)
+  const [gridLayout, setGridLayout] = useState('strips') // 'strips' | 'grid2x2'
+  const [gridCount, setGridCount] = useState(3) // 2, 3 o 4 (solo per 'strips')
+  const [gridImages, setGridImages] = useState([]) // [{ src, offset:{x,y}, scale }, ...]
+  const [isGridDragging, setIsGridDragging] = useState(false)
+  const [isGridResizing, setIsGridResizing] = useState(false)
+  const gridFileInputRef = useRef(null)
+  const gridActiveCellRef = useRef(0)
+  const gridDragCellRef = useRef(null)
+  const gridResizeStateRef = useRef({ cellIndex: 0, startScale: 1, startDist: 0, centerX: 0, centerY: 0 })
+  const gridCellContainerRefs = useRef([])
   const [conLogo, setConLogo] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [feedback, setFeedback] = useState('')
@@ -192,7 +202,11 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
   }
 
   const startNewProject = async (width, height, nome) => {
-    setProjectMode('normale')
+    if (projectMode !== 'griglia') {
+      setProjectMode('normale')
+    } else {
+      setGridImages([])
+    }
     width = parseInt(width)
     height = parseInt(height)
     if (!width || !height || width < 100 || height < 100) {
@@ -202,10 +216,12 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
     }
     const projectName = nome.trim() || `${width}x${height}`
     
-    // Aggiunge "COVER" al nome se la modalità è cover
+    // Aggiunge "COVER" o "GRIGLIA" al nome in base alla modalità
     const finalProjectName = projectMode === 'cover' && !projectName.toLowerCase().includes('cover') 
       ? `${projectName} - COVER` 
-      : projectName
+      : projectMode === 'griglia' && !projectName.toLowerCase().includes('griglia')
+        ? `${projectName} - GRIGLIA-${gridLayout === 'grid2x2' ? '2X2' : gridCount}`
+        : projectName
     
     setDimensions({ width, height })
     
@@ -234,6 +250,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
 
   const processFile = (file) => {
     if (!file) return
+    if (projectMode === 'griglia') return // In GRIGLIA si carica dalle singole celle, non da qui
     const reader = new FileReader()
     reader.onload = (e) => {
       const img = new Image()
@@ -263,7 +280,115 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
     setSelectedImage(null) // Pulisce l'immagine corrente
     setImageOffset({ x: 0, y: 0 })
     setImageScale(1)
+    setGridImages([])
   }
+
+  // --- GRIGLIA: caricamento foto per singola cella ---
+  const processGridFile = (file, cellIndex) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setGridImages(prev => {
+        const next = [...prev]
+        next[cellIndex] = { src: e.target.result, offset: { x: 0, y: 0 }, scale: 1, fitStyle: { width: '100%', height: 'auto' } }
+        return next
+      })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // --- GRIGLIA: taglio diagonale per le strisce (stile magazine/Canva), con spessore fisso in px come la 2x2 ---
+  const getStripClipPath = (i, total, cellWidthPx, slantPct = 0.6, gapPx = 0.6) => {
+    const isFirst = i === 0
+    const isLast = i === total - 1
+    const gapPct = cellWidthPx > 0 ? (gapPx / cellWidthPx) * 100 : 0
+    const leftTop = isFirst ? 0 : slantPct + gapPct / 2
+    const leftBottom = isFirst ? 0 : gapPct / 2
+    const rightTop = isLast ? 100 : 100 - gapPct / 2
+    const rightBottom = isLast ? 100 : (100 - slantPct) - gapPct / 2
+    return `polygon(${leftTop}% 0%, ${rightTop}% 0%, ${rightBottom}% 100%, ${leftBottom}% 100%)`
+  }
+
+  // --- GRIGLIA: bounds di trascinamento per singola cella ---
+  const applyGridBounds = (cellIndex, newX, newY, scale) => {
+    const cellEl = gridCellContainerRefs.current[cellIndex]
+    if (!cellEl) return { x: newX, y: newY }
+    const imgEl = cellEl.querySelector('img')
+    if (!imgEl) return { x: newX, y: newY }
+    const cellW = cellEl.clientWidth
+    const cellH = cellEl.clientHeight
+    const imgAspect = imgEl.naturalWidth / imgEl.naturalHeight
+    const cellAspect = cellW / cellH
+    let actualW, actualH
+    if (imgAspect > cellAspect) {
+      actualH = cellH * scale
+      actualW = actualH * imgAspect
+    } else {
+      actualW = cellW * scale
+      actualH = actualW / imgAspect
+    }
+    const maxX = Math.max(0, (actualW - cellW) / 2)
+    const maxY = Math.max(0, (actualH - cellH) / 2)
+    return { x: Math.min(maxX, Math.max(-maxX, newX)), y: Math.min(maxY, Math.max(-maxY, newY)) }
+  }
+
+  const startGridDrag = (i) => {
+    gridDragCellRef.current = i
+    setIsGridDragging(true)
+  }
+  const stopGridDrag = () => {
+    gridDragCellRef.current = null
+    setIsGridDragging(false)
+  }
+
+  // --- GRIGLIA: zoom trascinando l'angolo della cella ---
+  const startGridCornerResize = (e, cellIndex) => {
+    e.stopPropagation()
+    e.preventDefault()
+    const cellEl = gridCellContainerRefs.current[cellIndex]
+    if (!cellEl) return
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    const rect = cellEl.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    const startDist = Math.hypot(clientX - centerX, clientY - centerY) || 1
+    const startScale = gridImages[cellIndex]?.scale || 1
+    gridResizeStateRef.current = { cellIndex, startScale, startDist, centerX, centerY }
+    setIsGridResizing(true)
+  }
+
+  useEffect(() => {
+    if (!isGridResizing) return
+    const handleMove = (e) => {
+      e.preventDefault()
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY
+      const { cellIndex, startScale, startDist, centerX, centerY } = gridResizeStateRef.current
+      const newDist = Math.hypot(clientX - centerX, clientY - centerY)
+      const ratio = newDist / startDist
+      const newScale = Math.min(5, Math.max(1, startScale * ratio))
+      setGridImages(prev => {
+        const next = [...prev]
+        const g = next[cellIndex]
+        if (!g) return prev
+        const bounded = applyGridBounds(cellIndex, g.offset.x, g.offset.y, newScale)
+        next[cellIndex] = { ...g, scale: newScale, offset: bounded }
+        return next
+      })
+    }
+    const stop = () => setIsGridResizing(false)
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', stop)
+    window.addEventListener('touchmove', handleMove, { passive: false })
+    window.addEventListener('touchend', stop)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', stop)
+      window.removeEventListener('touchmove', handleMove)
+      window.removeEventListener('touchend', stop)
+    }
+  }, [isGridResizing])
 
   // Gestisce i preferiti su Supabase con controllo tipi e feedback
   const toggleFavorite = async (projectId) => {
@@ -390,7 +515,145 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
     processFile(file)
   }
 
+  // --- GRIGLIA: export ad alta risoluzione ---
+  const handleSaveGrid = () => {
+    const cellsCount = gridLayout === 'grid2x2' ? 4 : gridCount
+    const filled = gridImages.slice(0, cellsCount).filter(Boolean).length
+    if (filled < cellsCount) {
+      setFeedback('⚠️ Carica tutte le foto della griglia prima di salvare')
+      setTimeout(() => setFeedback(''), 4000)
+      return
+    }
+    setIsSaving(true)
+
+    const cols = gridLayout === 'grid2x2' ? 2 : cellsCount
+    const rows = gridLayout === 'grid2x2' ? 2 : 1
+    const gapPx = 6
+
+    const loadImg = (src) => new Promise((resolve, reject) => {
+      const im = new Image()
+      im.onload = () => resolve(im)
+      im.onerror = reject
+      im.src = src
+    })
+
+    Promise.all(gridImages.slice(0, cellsCount).map(g => loadImg(g.src)))
+      .then((loadedImages) => {
+        const canvas = document.createElement('canvas')
+        canvas.width = dimensions.width
+        canvas.height = dimensions.height
+        const ctx = canvas.getContext('2d')
+        ctx.imageSmoothingEnabled = true
+        ctx.imageSmoothingQuality = 'high'
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+        const cellW = (canvas.width - gapPx * (cols - 1)) / cols
+        const cellH = (canvas.height - gapPx * (rows - 1)) / rows
+        const screenCellW = (containerWidth - gapPx * (cols - 1)) / cols
+        const screenCellH = (containerHeight - gapPx * (rows - 1)) / rows
+
+        loadedImages.forEach((im, i) => {
+          const col = i % cols
+          const row = Math.floor(i / cols)
+          const cellX = col * (cellW + gapPx)
+          const cellY = row * (cellH + gapPx)
+
+          const g = gridImages[i]
+          const imgAspect = im.width / im.height
+          const cellAspect = cellW / cellH
+
+          let drawW, drawH, scaleToCanvas
+          if (imgAspect > cellAspect) {
+            drawH = cellH * g.scale
+            drawW = drawH * imgAspect
+            scaleToCanvas = cellH / screenCellH
+          } else {
+            drawW = cellW * g.scale
+            drawH = drawW / imgAspect
+            scaleToCanvas = cellW / screenCellW
+          }
+
+          const baseX = cellX + (cellW - drawW) / 2
+          const baseY = cellY + (cellH - drawH) / 2
+          const offsetX = g.offset.x * scaleToCanvas
+          const offsetY = g.offset.y * scaleToCanvas
+
+          ctx.save()
+          ctx.beginPath()
+          ctx.rect(cellX, cellY, cellW, cellH)
+          ctx.clip()
+          ctx.drawImage(im, baseX + offsetX, baseY + offsetY, drawW, drawH)
+          ctx.restore()
+        })
+
+        if (conLogo && logosRef.current[selectedLogo]) {
+          const logoImg = logosRef.current[selectedLogo]
+          const config = logoConfig[selectedLogo]
+          const lW = dimensions.width * config.widthPercent
+          const lH = (logoImg.height / logoImg.width) * lW
+          const lX = (dimensions.width - lW) / 2 + config.offsetX
+          const lY = dimensions.height - lH - Math.round(dimensions.height * config.offsetYPercent)
+          ctx.drawImage(logoImg, lX, lY, lW, lH)
+        }
+
+        const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
+        const fileName = conLogo ? `Foto con logo_${counterWithLogo}.${ext}` : `Foto senza logo_${counterWithoutLogo}.${ext}`
+
+        const exportWithDpi = async () => {
+          const dpi = 600
+          const quality = 1.0
+          let blob
+          if (exportFormat === 'image/webp') {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+            const webpBuffer = await encodeWebp(imageData, { quality: 100, lossless: true })
+            blob = new Blob([webpBuffer], { type: 'image/webp' })
+          } else {
+            let dataUrl = canvas.toDataURL(exportFormat, quality)
+            if (exportFormat === 'image/jpeg') {
+              const exifObj = {
+                '0th': {
+                  [piexif.ImageIFD.XResolution]: [dpi, 1],
+                  [piexif.ImageIFD.YResolution]: [dpi, 1],
+                  [piexif.ImageIFD.ResolutionUnit]: 2
+                }
+              }
+              const exifBytes = piexif.dump(exifObj)
+              dataUrl = piexif.insert(exifBytes, dataUrl)
+            }
+            blob = await (await fetch(dataUrl)).blob()
+          }
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url; a.download = fileName; a.click()
+          URL.revokeObjectURL(url)
+          if (conLogo) setCounterWithLogo(counterWithLogo + 1)
+          else setCounterWithoutLogo(counterWithoutLogo + 1)
+          setFeedback(`✅ Esportato: ${ext.toUpperCase()}`)
+          setIsSaving(false)
+          setTimeout(() => setFeedback(''), 4000)
+        }
+
+        exportWithDpi().catch((err) => {
+          console.error('Errore export griglia:', err)
+          setFeedback('❌ Errore export')
+          setIsSaving(false)
+          setTimeout(() => setFeedback(''), 4000)
+        })
+      })
+      .catch((err) => {
+        console.error('Errore caricamento immagini griglia:', err)
+        setFeedback('❌ Errore caricamento immagini')
+        setIsSaving(false)
+        setTimeout(() => setFeedback(''), 4000)
+      })
+  }
+
   const handleSave = () => {
+    if (projectMode === 'griglia') {
+      handleSaveGrid()
+      return
+    }
     if (!selectedImage) return
     setIsSaving(true)
     const img = new Image()
@@ -615,8 +878,25 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                     >
                       COVER
                     </button>
+                    <button 
+                      onClick={() => handleModeChange('griglia')}
+                      style={{ 
+                        flex: 1, 
+                        padding: '10px 8px', 
+                        borderRadius: '7px', 
+                        border: 'none', 
+                        background: projectMode === 'griglia' ? '#007AFF' : 'transparent', 
+                        color: projectMode === 'griglia' ? '#fff' : '#8E8E93', 
+                        fontWeight: '600', 
+                        fontSize: '11px', 
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      GRIGLIA
+                    </button>
                   </div>
-                  
+
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>NOME PROGETTO</label>
                   <input id="proj_name" type="text" placeholder="Es: Post Facebook" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', marginBottom: '20px' }} />
                   <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>LARGHEZZA (PX)</label>
@@ -644,7 +924,20 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                           <div key={i} onClick={() => { 
                             setDimensions({width: p.width, height: p.height}); 
                             setView('editor'); 
-                            setProjectMode(p.nome && p.nome.toLowerCase().includes('cover') ? 'cover' : 'normale');
+                            const nomeLower = (p.nome || '').toLowerCase();
+                            if (nomeLower.includes('griglia')) {
+                              setProjectMode('griglia');
+                              setGridImages([]);
+                              if (nomeLower.includes('2x2')) {
+                                setGridLayout('grid2x2');
+                              } else {
+                                setGridLayout('strips');
+                                const match = nomeLower.match(/griglia/);
+                                setGridCount(match ? parseInt(match[1]) : 3);
+                              }
+                            } else {
+                              setProjectMode(nomeLower.includes('cover') ? 'cover' : 'normale');
+                            }
                           }} 
                                style={{ 
                                  cursor: 'pointer', 
@@ -694,7 +987,20 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                           <div key={i} onClick={() => { 
                             setDimensions({width: p.width, height: p.height}); 
                             setView('editor'); 
-                            setProjectMode(p.nome && p.nome.toLowerCase().includes('cover') ? 'cover' : 'normale');
+                            const nomeLower = (p.nome || '').toLowerCase();
+                            if (nomeLower.includes('griglia')) {
+                              setProjectMode('griglia');
+                              setGridImages([]);
+                              if (nomeLower.includes('2x2')) {
+                                setGridLayout('grid2x2');
+                              } else {
+                                setGridLayout('strips');
+                                const match = nomeLower.match(/griglia/);
+                                setGridCount(match ? parseInt(match[1]) : 3);
+                              }
+                            } else {
+                              setProjectMode(nomeLower.includes('cover') ? 'cover' : 'normale');
+                            }
                           }} 
                                style={{ 
                                  cursor: 'pointer',
@@ -742,7 +1048,250 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <input ref={fileInputRef} type="file" hidden onChange={handleFileSelect} accept="image/*" />
-              {!selectedImage ? (
+              {projectMode === 'griglia' ? (
+                <>
+                  <input
+                    ref={gridFileInputRef}
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) processGridFile(file, gridActiveCellRef.current)
+                      e.target.value = ''
+                    }}
+                  />
+                  <div style={{ marginBottom: '20px' }}>
+                    <span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>
+                      {dimensions.width} × {dimensions.height} PX — GRIGLIA {gridLayout === 'grid2x2' ? '2×2' : `${gridCount} FOTO`}
+                    </span>
+                  </div>
+
+                  <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
+                    <button
+                      onClick={() => { setGridLayout('strips'); setGridImages([]) }}
+                      style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: '800', cursor: 'pointer', background: gridLayout === 'strips' ? '#007AFF' : '#E5E5EA', color: gridLayout === 'strips' ? '#fff' : '#1c1c1e' }}
+                    >
+                      Strisce
+                    </button>
+                    <button
+                      onClick={() => { setGridLayout('grid2x2'); setGridImages([]) }}
+                      style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: '800', cursor: 'pointer', background: gridLayout === 'grid2x2' ? '#007AFF' : '#E5E5EA', color: gridLayout === 'grid2x2' ? '#fff' : '#1c1c1e' }}
+                    >
+                      2×2
+                    </button>
+                    {gridLayout === 'strips' && [2, 3, 4].map(n => (
+                      <button
+                        key={n}
+                        onClick={() => { setGridCount(n); setGridImages([]) }}
+                        style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: '800', cursor: 'pointer', background: gridCount === n ? '#007AFF' : '#E5E5EA', color: gridCount === n ? '#fff' : '#1c1c1e' }}
+                      >
+                        {n} foto
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ position: 'relative', width: `${containerWidth}px`, height: `${containerHeight}px`, margin: '0 auto' }}>
+                  <div style={{
+                    width: `${containerWidth}px`,
+                    height: `${containerHeight}px`,
+                    background: '#fff',
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${gridLayout === 'grid2x2' ? 2 : gridCount}, 1fr)`,
+                    gridTemplateRows: `repeat(${gridLayout === 'grid2x2' ? 2 : 1}, 1fr)`,
+                    gap: gridLayout === 'strips' ? '0px' : '4px',
+                    boxShadow: '0 25px 60px rgba(0,0,0,0.4)'
+                  }}>
+                    {Array.from({ length: gridLayout === 'grid2x2' ? 4 : gridCount }).map((_, i) => {
+                      const cell = gridImages[i]
+                      const cellsTotal = gridLayout === 'grid2x2' ? 4 : gridCount
+                      const cellPixelWidth = gridLayout === 'strips' ? containerWidth / cellsTotal : containerWidth / 2
+                      const clipPath = gridLayout === 'strips' ? getStripClipPath(i, cellsTotal, cellPixelWidth) : 'none'
+                      return (
+                        <div
+                          key={i}
+                          ref={(el) => (gridCellContainerRefs.current[i] = el)}
+                          onMouseDown={() => cell && startGridDrag(i)}
+                          onMouseMove={(e) => {
+                            if (!isGridDragging || gridDragCellRef.current !== i) return
+                            setGridImages(prev => {
+                              const next = [...prev]
+                              const g = next[i]
+                              if (!g) return prev
+                              const bounded = applyGridBounds(i, g.offset.x + e.movementX, g.offset.y + e.movementY, g.scale)
+                              next[i] = { ...g, offset: bounded }
+                              return next
+                            })
+                          }}
+                          onMouseUp={stopGridDrag}
+                          onMouseLeave={stopGridDrag}
+                          onTouchStart={(e) => {
+                            if (!cell) return
+                            gridDragCellRef.current = i
+                            setIsGridDragging(true)
+                            e.currentTarget.dataset.startX = e.touches[0].clientX
+                            e.currentTarget.dataset.startY = e.touches[0].clientY
+                          }}
+                          onTouchMove={(e) => {
+                            if (!isGridDragging || gridDragCellRef.current !== i) return
+                            const x = e.touches[0].clientX
+                            const y = e.touches[0].clientY
+                            const diffX = x - parseFloat(e.currentTarget.dataset.startX)
+                            const diffY = y - parseFloat(e.currentTarget.dataset.startY)
+                            setGridImages(prev => {
+                              const next = [...prev]
+                              const g = next[i]
+                              if (!g) return prev
+                              const bounded = applyGridBounds(i, g.offset.x + diffX, g.offset.y + diffY, g.scale)
+                              next[i] = { ...g, offset: bounded }
+                              return next
+                            })
+                            e.currentTarget.dataset.startX = x
+                            e.currentTarget.dataset.startY = y
+                          }}
+                          onTouchEnd={stopGridDrag}
+                          onClick={() => { if (!cell) { gridActiveCellRef.current = i; gridFileInputRef.current?.click() } }}
+                          onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            const file = e.dataTransfer.files?.[0]
+                            if (file) processGridFile(file, i)
+                          }}
+                          style={{
+                            position: 'relative',
+                            overflow: 'hidden',
+                            background: canvasBackground,
+                            cursor: cell ? (isGridDragging && gridDragCellRef.current === i ? 'grabbing' : 'grab') : 'pointer',
+                            touchAction: 'none',
+                            clipPath: clipPath,
+                            WebkitClipPath: clipPath
+                          }}
+                        >
+                          {cell ? (
+                            <>
+                              <img
+                                src={cell.src}
+                                draggable={false}
+                                onLoad={(e) => {
+                                  const cellEl = gridCellContainerRefs.current[i]
+                                  if (!cellEl) return
+                                  const im = e.target
+                                  const imgAspect = im.naturalWidth / im.naturalHeight
+                                  const cellAspect = cellEl.clientWidth / cellEl.clientHeight
+                                  const nextFitStyle = imgAspect > cellAspect
+                                    ? { width: 'auto', height: '100%' }
+                                    : { width: '100%', height: 'auto' }
+                                  setGridImages(prev => {
+                                    const next = [...prev]
+                                    const g = next[i]
+                                    if (!g) return prev
+                                    next[i] = { ...g, fitStyle: nextFitStyle }
+                                    return next
+                                  })
+                                }}
+                                style={{
+                                  position: 'absolute',
+                                  top: '50%',
+                                  left: '50%',
+                                  ...(cell.fitStyle || { width: '100%', height: 'auto' }),
+                                  transform: `translate(calc(-50% + ${cell.offset.x}px), calc(-50% + ${cell.offset.y}px)) scale(${cell.scale})`,
+                                  pointerEvents: 'none'
+                                }}
+                              />
+                              <div
+                                onMouseDown={(e) => startGridCornerResize(e, i)}
+                                onTouchStart={(e) => startGridCornerResize(e, i)}
+                                style={{
+                                  position: 'absolute',
+                                  bottom: 0,
+                                  right: 0,
+                                  width: '36px',
+                                  height: '36px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'nwse-resize',
+                                  touchAction: 'none',
+                                  zIndex: 20
+                                }}
+                              >
+                                <div style={{
+                                  width: '14px',
+                                  height: '14px',
+                                  borderRadius: '50%',
+                                  background: '#fff',
+                                  border: '3px solid #007AFF',
+                                  boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                                  pointerEvents: 'none'
+                                }} />
+                              </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); gridActiveCellRef.current = i; gridFileInputRef.current?.click() }}
+                                style={{
+                                  position: 'absolute',
+                                  top: '6px',
+                                  right: '6px',
+                                  width: '26px',
+                                  height: '26px',
+                                  borderRadius: '50%',
+                                  border: 'none',
+                                  background: 'rgba(0,0,0,0.55)',
+                                  color: '#fff',
+                                  fontSize: '13px',
+                                  fontWeight: '800',
+                                  cursor: 'pointer',
+                                  zIndex: 21
+                                }}
+                              >
+                                ⟳
+                              </button>
+                            </>
+                          ) : (
+                            <div
+                              onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                const file = e.dataTransfer.files?.[0]
+                                if (file) processGridFile(file, i)
+                              }}
+                              style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', background: '#F2F2F7' }}
+                            >
+                              <div style={{ fontSize: '28px' }}>📷</div>
+                              <span style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', marginTop: '6px' }}>Carica o trascina</span>
+                            </div>
+                          )}
+                        </div>
+                      )
+                   })}
+                  </div>
+
+                    {/* Anteprima logo sovrapposta a tutta la griglia, FUORI dal contenitore grid così è sempre sopra */}
+                    {conLogo && (
+                      <div style={{ position: 'absolute', bottom: `${logoConfig[selectedLogo].offsetYPercent * 100}%`, left: 0, right: 0, display: 'flex', justifyContent: 'center', pointerEvents: 'none', zIndex: 999 }}>
+                        <img
+                          src={`/Logo_${selectedLogo === 'formula1it' ? 'Formula1it' : 'Blogformulae'}.png`}
+                          style={{
+                            width: `${logoConfig[selectedLogo].widthPercent * 100}%`,
+                            marginLeft: `${logoConfig[selectedLogo].offsetX}px`,
+                            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '40px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
+                    <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} style={{ padding: '12px', borderRadius: '14px', border: '1px solid #d1d1d6', fontWeight: '800', background: '#fff', height: '45px' }}>
+                      <option value="image/webp">WEBP</option>
+                      <option value="image/jpeg">JPEG</option>
+                    </select>
+                    <StyledButton variant={conLogo ? 'success' : 'secondary'} onClick={() => setConLogo(!conLogo)}>➕ Logo</StyledButton>
+                    <StyledButton variant="primary" onClick={handleSave} disabled={isSaving}>{isSaving ? '⏳...' : 'Salva'}</StyledButton>
+                  </div>
+                </>
+              ) : !selectedImage ? (
                 <div 
                   onClick={() => fileInputRef.current.click()} 
                   onDragOver={(e) => e.preventDefault()}
