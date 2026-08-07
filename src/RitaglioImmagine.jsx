@@ -275,6 +275,16 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
   }
 
   // Pulisce le foto quando si cambia modalità progetto
+  // Nome "pulito" da mostrare all'utente (nasconde i suffissi tecnici -COVER/-GRIGLIA-N usati per il riconoscimento)
+  const getDisplayName = (nome) => {
+    if (!nome) return 'Senza Nome'
+    const cleaned = nome
+      .replace(/\s*-\s*GRIGLIA-(2X2|\d)\s*$/i, '')
+      .replace(/\s*-\s*COVER\s*$/i, '')
+      .trim()
+    return cleaned || nome
+  }
+
   const handleModeChange = (newMode) => {
     setProjectMode(newMode)
     setSelectedImage(null) // Pulisce l'immagine corrente
@@ -964,7 +974,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                               >
                                 ⭐
                               </span>
-                              <div style={{ fontWeight: '800', fontSize: '13px', color: '#FF3B30' }}>{p.nome || 'Senza Nome'}</div>
+                              <div style={{ fontWeight: '800', fontSize: '13px', color: '#FF3B30' }}>{getDisplayName(p.nome)}</div>
                             </div>
                           </div>
                         ))}
@@ -1031,7 +1041,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                                 >
                                   {favoriteProjects.includes(p.id) ? '⭐' : '☆'}
                                 </span>
-                                <div style={{ fontWeight: '800', fontSize: '13px', color: p.nome && p.nome.toLowerCase().includes('cover') ? '#FF3B30' : '#007AFF' }}>{p.nome || 'Senza Nome'}</div>
+                                <div style={{ fontWeight: '800', fontSize: '13px', color: p.nome && p.nome.toLowerCase().includes('cover') ? '#FF3B30' : '#007AFF' }}>{getDisplayName(p.nome)}</div>
                               </div>
                               <span onClick={(e) => deleteProject(e, p.id)} style={{ fontSize: '18px', color: '#FF3B30', fontWeight: 'bold', cursor: 'pointer', padding: '5px' }}>✕</span>
                             </>
@@ -1061,13 +1071,48 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                       e.target.value = ''
                     }}
                   />
-                  <div style={{ marginBottom: '20px' }}>
+                  <div style={{ marginBottom: '14px', display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', alignItems: 'center' }}>
+                    {userCategorie.length > 0 && userCategorie.some(cat => cat.toLowerCase() === 'formula e') && (
+                      <button
+                        onClick={() => setSelectedLogo('formula1it')}
+                        style={{
+                          padding: '10px 16px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          fontSize: '13px',
+                          fontWeight: '800',
+                          background: selectedLogo === 'formula1it' ? '#007AFF' : '#E5E5EA',
+                          color: selectedLogo === 'formula1it' ? '#fff' : '#1c1c1e',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Formula1.it
+                      </button>
+                    )}
                     <span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>
                       {dimensions.width} × {dimensions.height} PX — GRIGLIA {gridLayout === 'grid2x2' ? '2×2' : `${gridCount} FOTO`}
                     </span>
+                    {userCategorie.length > 0 && userCategorie.some(cat => cat.toLowerCase() === 'formula e') && (
+                      <button
+                        onClick={() => setSelectedLogo('blogformulae')}
+                        style={{
+                          padding: '10px 16px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          fontSize: '13px',
+                          fontWeight: '800',
+                          background: selectedLogo === 'blogformulae' ? '#007AFF' : '#E5E5EA',
+                          color: selectedLogo === 'blogformulae' ? '#fff' : '#1c1c1e',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        BlogFormulae.it
+                      </button>
+                    )}
                   </div>
 
-                  <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
+                  <div style={{ marginBottom: '14px', display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93' }}>TIPO</span>
                     <button
                       onClick={() => { setGridLayout('strips'); setGridImages([]) }}
                       style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: '800', cursor: 'pointer', background: gridLayout === 'strips' ? '#007AFF' : '#E5E5EA', color: gridLayout === 'strips' ? '#fff' : '#1c1c1e' }}
@@ -1080,15 +1125,20 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                     >
                       2×2
                     </button>
-                    {gridLayout === 'strips' && [2, 3, 4].map(n => (
-                      <button
-                        key={n}
-                        onClick={() => { setGridCount(n); setGridImages([]) }}
-                        style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: '800', cursor: 'pointer', background: gridCount === n ? '#007AFF' : '#E5E5EA', color: gridCount === n ? '#fff' : '#1c1c1e' }}
-                      >
-                        {n} foto
-                      </button>
-                    ))}
+                    {gridLayout === 'strips' && (
+                      <>
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', marginLeft: '8px' }}>N° FOTO</span>
+                        {[2, 3, 4].map(n => (
+                          <button
+                            key={n}
+                            onClick={() => { setGridCount(n); setGridImages([]) }}
+                            style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', fontSize: '12px', fontWeight: '800', cursor: 'pointer', background: gridCount === n ? '#007AFF' : '#E5E5EA', color: gridCount === n ? '#fff' : '#1c1c1e' }}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </>
+                    )}
                   </div>
 
                   <div style={{ position: 'relative', width: `${containerWidth}px`, height: `${containerHeight}px`, margin: '0 auto' }}>
