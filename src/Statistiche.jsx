@@ -63,7 +63,103 @@ const parsePitRowsFromHtmlTable = (tableHtml) => {
   })
 }
 
+// I dati dell'ultima sessione di qualifica diventano "definitivi" solo 2 ore
+// dopo l'orario della sessione stessa: prima di allora vengono ignorati nel
+// conteggio delle esclusioni Q1/Q2 (vedi utilizzo più sotto). L'endpoint
+// qualifiche di Jolpica-F1 restituisce race.date e race.time con data/ora
+// (UTC) della sessione di qualifica di quella gara specifica.
+// NOTA: questa funzione era richiamata ma non definita nel file originale
+// (bug preesistente, non introdotto da questa riorganizzazione) — le
+// esclusioni Q1/Q2 risultavano quindi sempre vuote. Aggiunta ora su
+// richiesta esplicita per ripristinare il funzionamento descritto dal
+// commento accanto al punto in cui viene usata.
+const isQualifyingDataUnlocked = (race) => {
+  const dateStr = race?.date
+  if (!dateStr) return true
+
+  const timeStr = race?.time || '00:00:00Z'
+  const sessionDate = new Date(`${dateStr}T${timeStr}`)
+  if (Number.isNaN(sessionDate.getTime())) return true
+
+  const TWO_HOURS_MS = 2 * 60 * 60 * 1000
+  return (Date.now() - sessionDate.getTime()) >= TWO_HOURS_MS
+}
+
+// Scarica tutte le pagine di un endpoint Jolpica paginato (100 risultati a
+// pagina, come già faceva il codice originale) ma in PARALLELO invece che
+// in sequenza: prima chiede la pagina 0 per sapere quante pagine servono
+// in totale, poi lancia contemporaneamente tutte le richieste restanti.
+// Il risultato finale (stesse gare, stesso totale) è identico alla verifica
+// sequenziale precedente: cambia solo il tempo di attesa.
+const fetchAllJolpicaPagesParallel = async (fetchFromJolpica, endpointPrefix) => {
+  const limit = 100
+  const MAX_OFFSET = 5000
+
+  const firstPage = await fetchFromJolpica(`${endpointPrefix}?limit=${limit}&offset=0`)
+  const firstRaces = firstPage?.MRData?.RaceTable?.Races || []
+  const rawTotal = Number(firstPage?.MRData?.total || 0)
+  const total = Number.isFinite(rawTotal) ? rawTotal : firstRaces.length
+  const resolvedDriverId = firstPage?.MRData?.RaceTable?.driverId || null
+
+  if (firstRaces.length === 0 || total <= limit) {
+    return { races: firstRaces, total, resolvedDriverId }
+  }
+
+  const remainingOffsets = []
+  for (let offset = limit; offset < Math.min(total, MAX_OFFSET); offset += limit) {
+    remainingOffsets.push(offset)
+  }
+
+  const remainingPages = await Promise.all(
+    remainingOffsets.map(offset => fetchFromJolpica(`${endpointPrefix}?limit=${limit}&offset=${offset}`))
+  )
+
+  const allRaces = [...firstRaces]
+  remainingPages.forEach(pageData => {
+    const pageRaces = pageData?.MRData?.RaceTable?.Races || []
+    if (pageRaces.length) allRaces.push(...pageRaces)
+  })
+
+  return { races: allRaces, total, resolvedDriverId }
+}
+
+// ============================================================================
+// STILI CONDIVISI
+// Frammenti di stile ripetuti identici in più punti dell'interfaccia,
+// centralizzati qui per evitare duplicazione. Nessuna logica applicativa:
+// solo aspetto grafico. Cambiare un valore qui aggiorna tutti i punti in
+// cui è usato lo stile corrispondente.
+// ============================================================================
+
+// Titolo di sezione (es. "Piloti (20)", "Team (10)", ecc.)
+const sectionTitleStyle = (isMobile) => ({
+  fontSize: isMobile ? '16px' : '18px',
+  fontWeight: '700',
+  color: '#007AFF',
+  margin: '0 0 12px 0'
+})
+
+// Contenitore "pannello scuro" usato per la maggior parte delle card/liste
+// della vista statistiche (Piloti, Team, Calendario, Circuiti, ecc.)
+const darkPanelStyle = (isMobile) => ({
+  background: 'rgba(0, 0, 0, 0.85)',
+  border: '2px solid rgba(51, 51, 51, 0.8)',
+  borderRadius: '12px',
+  padding: isMobile ? '14px' : '16px',
+  color: '#FFF'
+})
+
+// Righe di intestazione (thead) e di corpo (tbody) delle tabelle di dettaglio
+const tableHeaderRowStyle = { borderBottom: '1px solid rgba(255,255,255,0.2)' }
+const tableRowStyle = { borderBottom: '1px solid rgba(255,255,255,0.08)' }
+
+// ============================================================================
+// COMPONENTE STATISTICHE
+// ============================================================================
 export default function Statistiche({ onClose, user, isMobile, campionati }) {
+  // --------------------------------------------------------------------
+  // STATO DEL COMPONENTE
+  // --------------------------------------------------------------------
   const [loading, setLoading] = useState(true)
   const [statistiche, setStatistiche] = useState({})
   const [selectedSeason, setSelectedSeason] = useState('current')
@@ -99,6 +195,10 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const [lastTeamWinError, setLastTeamWinError] = useState('')
   const seasonsPerPage = isMobile ? 3 : 5
 
+  // --------------------------------------------------------------------
+  // EFFETTI (SIDE EFFECTS)
+  // Caricamento dati, sincronizzazione stato derivato, polling, ecc.
+  // --------------------------------------------------------------------
   useEffect(() => {
     caricaStatistiche()
   }, [selectedSeason])
@@ -696,71 +796,35 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       ].filter(Boolean)))
 
       const fetchCareerRacesByDriver = async (driverId) => {
-        const limit = 100
-        let offset = 0
-        let total = null
-        let resolvedDriverId = null
-        let allRaces = []
-
-        while (offset < 5000) {
-          const pageData = await fetchFromJolpica(`/drivers/${driverId}/results.json?limit=${limit}&offset=${offset}`)
-          const pageRaces = pageData?.MRData?.RaceTable?.Races || []
-          const pageTotal = Number(pageData?.MRData?.total || 0)
-          if (!resolvedDriverId) resolvedDriverId = pageData?.MRData?.RaceTable?.driverId || driverId
-          if (total == null) total = Number.isFinite(pageTotal) ? pageTotal : 0
-
-          if (!pageRaces.length) break
-          allRaces = allRaces.concat(pageRaces)
-          offset += limit
-
-          if (offset >= total) break
-        }
-
-        return {
-          races: allRaces,
-          total: Number.isFinite(total) ? total : allRaces.length,
-          resolvedDriverId: resolvedDriverId || driverId
-        }
+        const result = await fetchAllJolpicaPagesParallel(fetchFromJolpica, `/drivers/${driverId}/results.json`)
+        return { ...result, resolvedDriverId: result.resolvedDriverId || driverId }
       }
 
       const fetchCareerQualifyingByDriver = async (driverId) => {
-        const limit = 100
-        let offset = 0
-        let total = null
-        let resolvedDriverId = null
-        let allRaces = []
-
-        while (offset < 5000) {
-          const pageData = await fetchFromJolpica(`/drivers/${driverId}/qualifying.json?limit=${limit}&offset=${offset}`)
-          const pageRaces = pageData?.MRData?.RaceTable?.Races || []
-          const pageTotal = Number(pageData?.MRData?.total || 0)
-          if (!resolvedDriverId) resolvedDriverId = pageData?.MRData?.RaceTable?.driverId || driverId
-          if (total == null) total = Number.isFinite(pageTotal) ? pageTotal : 0
-
-          if (!pageRaces.length) break
-          allRaces = allRaces.concat(pageRaces)
-          offset += limit
-
-          if (offset >= total) break
-        }
-
-        return {
-          races: allRaces,
-          total: Number.isFinite(total) ? total : allRaces.length,
-          resolvedDriverId: resolvedDriverId || driverId
-        }
+        const result = await fetchAllJolpicaPagesParallel(fetchFromJolpica, `/drivers/${driverId}/qualifying.json`)
+        return { ...result, resolvedDriverId: result.resolvedDriverId || driverId }
       }
 
       let allRaces = []
       let allQualifyingRaces = []
       let resolvedApiDriverId = lookupDriverId
 
-      for (const candidateId of candidateDriverIds) {
-        const [raceResult, qualifyingResult] = await Promise.all([
-          fetchCareerRacesByDriver(candidateId),
-          fetchCareerQualifyingByDriver(candidateId)
-        ])
+      // Prova tutte le varianti dell'ID pilota IN PARALLELO (prima erano
+      // provate una alla volta, aspettando ciascuna prima di passare alla
+      // successiva). Alla fine si sceglie comunque il primo candidato con
+      // dati seguendo lo stesso ordine di priorità di prima: cambia solo
+      // che le richieste partono tutte insieme invece che in sequenza.
+      const candidateResultsList = await Promise.all(
+        candidateDriverIds.map(async (candidateId) => {
+          const [raceResult, qualifyingResult] = await Promise.all([
+            fetchCareerRacesByDriver(candidateId),
+            fetchCareerQualifyingByDriver(candidateId)
+          ])
+          return { candidateId, raceResult, qualifyingResult }
+        })
+      )
 
+      for (const { candidateId, raceResult, qualifyingResult } of candidateResultsList) {
         if (
           raceResult.total > 0 ||
           raceResult.races.length > 0 ||
@@ -984,69 +1048,30 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       ].filter(Boolean)))
 
       const fetchCareerRacesByDriver = async (driverId) => {
-        const limit = 100
-        let offset = 0
-        let total = null
-        let resolvedDriverId = null
-        let allRaces = []
-
-        while (offset < 5000) {
-          const pageData = await fetchFromJolpica(`/drivers/${driverId}/results.json?limit=${limit}&offset=${offset}`)
-          const pageRaces = pageData?.MRData?.RaceTable?.Races || []
-          const pageTotal = Number(pageData?.MRData?.total || 0)
-          if (!resolvedDriverId) resolvedDriverId = pageData?.MRData?.RaceTable?.driverId || driverId
-          if (total == null) total = Number.isFinite(pageTotal) ? pageTotal : 0
-
-          if (!pageRaces.length) break
-          allRaces = allRaces.concat(pageRaces)
-          offset += limit
-          if (offset >= total) break
-        }
-
-        return {
-          races: allRaces,
-          total: Number.isFinite(total) ? total : allRaces.length,
-          resolvedDriverId: resolvedDriverId || driverId
-        }
+        const result = await fetchAllJolpicaPagesParallel(fetchFromJolpica, `/drivers/${driverId}/results.json`)
+        return { ...result, resolvedDriverId: result.resolvedDriverId || driverId }
       }
 
       const fetchCareerQualifyingByDriver = async (driverId) => {
-        const limit = 100
-        let offset = 0
-        let total = null
-        let resolvedDriverId = null
-        let allRaces = []
-
-        while (offset < 5000) {
-          const pageData = await fetchFromJolpica(`/drivers/${driverId}/qualifying.json?limit=${limit}&offset=${offset}`)
-          const pageRaces = pageData?.MRData?.RaceTable?.Races || []
-          const pageTotal = Number(pageData?.MRData?.total || 0)
-          if (!resolvedDriverId) resolvedDriverId = pageData?.MRData?.RaceTable?.driverId || driverId
-          if (total == null) total = Number.isFinite(pageTotal) ? pageTotal : 0
-
-          if (!pageRaces.length) break
-          allRaces = allRaces.concat(pageRaces)
-          offset += limit
-          if (offset >= total) break
-        }
-
-        return {
-          races: allRaces,
-          total: Number.isFinite(total) ? total : allRaces.length,
-          resolvedDriverId: resolvedDriverId || driverId
-        }
+        const result = await fetchAllJolpicaPagesParallel(fetchFromJolpica, `/drivers/${driverId}/qualifying.json`)
+        return { ...result, resolvedDriverId: result.resolvedDriverId || driverId }
       }
 
       let allRaces = []
       let allQualifyingRaces = []
       let resolvedApiDriverId = driver.apiDriverId || driver.driverId
 
-      for (const candidateId of candidateDriverIds) {
-        const [raceResult, qualifyingResult] = await Promise.all([
-          fetchCareerRacesByDriver(candidateId),
-          fetchCareerQualifyingByDriver(candidateId)
-        ])
+      const candidateResultsList = await Promise.all(
+        candidateDriverIds.map(async (candidateId) => {
+          const [raceResult, qualifyingResult] = await Promise.all([
+            fetchCareerRacesByDriver(candidateId),
+            fetchCareerQualifyingByDriver(candidateId)
+          ])
+          return { candidateId, raceResult, qualifyingResult }
+        })
+      )
 
+      for (const { candidateId, raceResult, qualifyingResult } of candidateResultsList) {
         if (
           raceResult.total > 0 ||
           raceResult.races.length > 0 ||
@@ -1196,24 +1221,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       const constructorNameNorm = normalizeConstructorName(constructorName)
 
       const fetchCareerByConstructor = async (constructorId) => {
-        const limit = 100
-        let offset = 0
-        let total = null
-        let allRaces = []
-
-        while (offset < 5000) {
-          const pageData = await fetchFromJolpica(`/constructors/${constructorId}/results.json?limit=${limit}&offset=${offset}`)
-          const pageRaces = pageData?.MRData?.RaceTable?.Races || []
-          const pageTotal = Number(pageData?.MRData?.total || 0)
-          if (total == null) total = Number.isFinite(pageTotal) ? pageTotal : 0
-
-          if (!pageRaces.length) break
-          allRaces = allRaces.concat(pageRaces)
-          offset += limit
-          if (offset >= total) break
-        }
-
-        return allRaces
+        const result = await fetchAllJolpicaPagesParallel(fetchFromJolpica, `/constructors/${constructorId}/results.json`)
+        return result.races
       }
 
       const normalizeConstructorId = (value) => String(value || '').toLowerCase().replace(/\s+/g, '_').trim()
@@ -1252,8 +1261,16 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
 
       const careerEntriesMap = new Map()
 
-      for (const constructorId of candidateIds) {
-        const allRaces = await fetchCareerByConstructor(constructorId)
+      // Scarica i dati di tutti i candidati costruttore IN PARALLELO (prima
+      // erano scaricati uno alla volta in sequenza). Il merge nella mappa
+      // avviene comunque nello stesso ordine di prima (candidateIds), quindi
+      // in caso di duplicati vince sempre lo stesso candidato di prima.
+      const constructorRacesByCandidate = await Promise.all(
+        candidateIds.map(constructorId => fetchCareerByConstructor(constructorId))
+      )
+
+      candidateIds.forEach((constructorId, idx) => {
+        const allRaces = constructorRacesByCandidate[idx]
         const entries = allRaces.flatMap(race =>
           (race?.Results || [])
             .filter(res => {
@@ -1281,7 +1298,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
             careerEntriesMap.set(key, entry)
           }
         })
-      }
+      })
 
       const careerEntries = Array.from(careerEntriesMap.values())
 
@@ -1343,6 +1360,9 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     }
   }, [selectedConstructorId, statistiche.constructors])
 
+  // --------------------------------------------------------------------
+  // FUNZIONI DI FETCH DATI (API esterne: Jolpica, DHL pit stop)
+  // --------------------------------------------------------------------
   const fetchFromJolpica = async (endpoint) => {
     try {
       const proxyUrl = `${JOLPICA_PROXY_URL}?endpoint=${encodeURIComponent(endpoint)}`
@@ -1535,6 +1555,9 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     return emptyPayload
   }
 
+  // --------------------------------------------------------------------
+  // FORMATTAZIONE E TRADUZIONE (date, nomi gara, nazionalità, colori)
+  // --------------------------------------------------------------------
   const formatDateItalian = (dateString) => {
     if (!dateString) return ''
     const [year, month, day] = dateString.split('-')
@@ -1688,6 +1711,9 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     return map[key] || map[normalized] || value
   }
 
+  // --------------------------------------------------------------------
+  // ARCHIVIAZIONE STAGIONE
+  // --------------------------------------------------------------------
   const archiviaSeasoneCorrente = async (isAuto = false) => {
     try {
       if (!currentSeason || !statistiche.driverStandings) {
@@ -1744,6 +1770,9 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     }
   }
 
+  // --------------------------------------------------------------------
+  // CALCOLO STATISTICHE (piloti, costruttori)
+  // --------------------------------------------------------------------
   const getResultsForRace = (race) => {
     return race?.Results || race?.SprintResults || race?.Sprint || race?.RaceResults || []
   }
@@ -1879,6 +1908,10 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     }
   }
 
+  // --------------------------------------------------------------------
+  // ORCHESTRAZIONE CARICAMENTO DATI STAGIONE
+  // (sceglie tra dati locali, dati API o combinazione dei due)
+  // --------------------------------------------------------------------
   const caricaStatistiche = async () => {
     try {
       setLoading(true)
@@ -2741,6 +2774,11 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     setStatistiche(statisticheData)
   }
 
+  // ========================================================================
+  // RENDER
+  // ========================================================================
+
+  // --- Stato di caricamento -------------------------------------------
   if (loading) {
     return (
       <div style={{
@@ -2772,6 +2810,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     )
   }
 
+  // --- Derivazione dati per il render (liste, filtri, ordinamenti) ----
   const pastSeasons = (statistiche.seasons || [])
     .filter(season => season.season !== currentSeason)
     .sort((a, b) => b.season - a.season)
@@ -3767,6 +3806,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       return nameA.localeCompare(nameB, 'it', { sensitivity: 'base' })
     })
 
+  // --- Vista dettaglio: scheda pilota ----------------------------------
   if (selectedDriver) {
     return (
       <div style={{
@@ -4308,6 +4348,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     )
   }
 
+  // --- Vista dettaglio: scheda costruttore -----------------------------
   if (selectedConstructor) {
     return (
       <div style={{
@@ -4556,6 +4597,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     )
   }
 
+  // --- Vista principale: elenco piloti/team, calendario, classifiche --
   // Modalità semplificata: manteniamo solo il selettore stagione in alto
   return (
     <div style={{
@@ -4716,6 +4758,19 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         </div>
       </div>
 
+      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '4px' }}>
+        <h2 style={{
+          fontSize: isMobile ? '17px' : '19px',
+          fontWeight: '800',
+          color: '#66B2FF',
+          margin: '0 0 4px 0',
+          paddingBottom: '6px',
+          borderBottom: '2px solid rgba(0, 122, 255, 0.28)'
+        }}>
+          Piloti & Team
+        </h2>
+      </div>
+
       <div style={{
         maxWidth: '1200px',
         width: '100%',
@@ -4724,19 +4779,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         gap: '16px',
         marginBottom: '20px'
       }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Piloti ({driversList.length})
           </h3>
 
@@ -4786,19 +4830,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           </div>
         </div>
 
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Team ({constructorsList.length})
           </h3>
 
@@ -4849,19 +4882,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         gap: '16px',
         marginBottom: '20px'
       }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Calendario stagione ({seasonCalendarList.length})
           </h3>
 
@@ -4897,19 +4919,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           </div>
         </div>
 
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Circuiti stagione ({seasonCircuitsList.length})
           </h3>
 
@@ -4943,6 +4954,20 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         </div>
       </div>
 
+
+      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '4px' }}>
+        <h2 style={{
+          fontSize: isMobile ? '17px' : '19px',
+          fontWeight: '800',
+          color: '#66B2FF',
+          margin: '0 0 4px 0',
+          paddingBottom: '6px',
+          borderBottom: '2px solid rgba(0, 122, 255, 0.28)'
+        }}>
+          Storia
+        </h2>
+      </div>
+
       <div style={{
         maxWidth: '1200px',
         width: '100%',
@@ -4951,13 +4976,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         gap: '16px',
         marginBottom: '20px'
       }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
+        <div style={darkPanelStyle(isMobile)}>
           <div style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -5018,7 +5037,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
             <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                  <tr style={tableHeaderRowStyle}>
                     <th style={{ padding: '4px', textAlign: 'left' }}>Anno</th>
                     <th style={{ padding: '4px', textAlign: 'left' }}>Vincitore</th>
                     <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
@@ -5027,7 +5046,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                 </thead>
                 <tbody>
                   {hallOfFameWinners.map((item) => (
-                    <tr key={item.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <tr key={item.key} style={tableRowStyle}>
                       <td style={{ padding: '4px', fontWeight: '700', color: '#9EC5FF' }}>{item.season || '-'}</td>
                       <td style={{ padding: '4px' }}>{item.driverName}</td>
                       <td style={{ padding: '4px' }}>{item.constructorName}</td>
@@ -5049,13 +5068,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         gap: '16px',
         marginBottom: '20px'
       }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
+        <div style={darkPanelStyle(isMobile)}>
           <div style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -5115,7 +5128,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
             <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                  <tr style={tableHeaderRowStyle}>
                     <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
                     <th style={{ padding: '4px', textAlign: 'left' }}>Anno ultima vittoria</th>
                     <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
@@ -5124,7 +5137,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                 </thead>
                 <tbody>
                   {lastTeamWinsRows.map((row) => (
-                    <tr key={row.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <tr key={row.key} style={tableRowStyle}>
                       <td style={{ padding: '4px', fontWeight: '700' }}>{row.teamName}</td>
                       <td style={{ padding: '4px', color: '#9EC5FF', fontWeight: '700' }}>{row.season}</td>
                       <td style={{ padding: '4px' }}>{row.driverName}</td>
@@ -5138,6 +5151,20 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         </div>
       </div>
 
+
+      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '4px' }}>
+        <h2 style={{
+          fontSize: isMobile ? '17px' : '19px',
+          fontWeight: '800',
+          color: '#66B2FF',
+          margin: '0 0 4px 0',
+          paddingBottom: '6px',
+          borderBottom: '2px solid rgba(0, 122, 255, 0.28)'
+        }}>
+          Gara
+        </h2>
+      </div>
+
       <div style={{
         maxWidth: '1200px',
         width: '100%',
@@ -5147,20 +5174,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         gap: '16px',
         marginBottom: '20px'
       }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF',
-          order: 2
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={{ ...darkPanelStyle(isMobile), order: 2 }}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Risultati gare ({seasonResultsList.length})
           </h3>
           <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -5191,7 +5206,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                     <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                         <thead>
-                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                          <tr style={tableHeaderRowStyle}>
                             <th style={{ padding: '4px', textAlign: 'left' }}>Pos</th>
                             <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
                             <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
@@ -5201,7 +5216,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                         </thead>
                         <tbody>
                           {raceResults.map((res, i) => (
-                            <tr key={`${raceKey}-res-${res.Driver?.driverId || i}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                            <tr key={`${raceKey}-res-${res.Driver?.driverId || i}`} style={tableRowStyle}>
                               <td style={{ padding: '4px', color: getPodiumPositionColor(res.position) }}>{res.position || '-'}</td>
                               <td style={{ padding: '4px' }}>{res.Driver?.givenName} {res.Driver?.familyName}</td>
                               <td style={{ padding: '4px' }}>{res.Constructor?.name || '-'}</td>
@@ -5219,20 +5234,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           </div>
         </div>
 
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF',
-          order: 1
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={{ ...darkPanelStyle(isMobile), order: 1 }}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Qualifiche ({seasonQualifyingList.length})
           </h3>
           <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -5263,7 +5266,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                     <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                         <thead>
-                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                          <tr style={tableHeaderRowStyle}>
                             <th style={{ padding: '4px', textAlign: 'left' }}>Pos</th>
                             <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
                             <th style={{ padding: '4px', textAlign: 'left' }}>Q1</th>
@@ -5273,7 +5276,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                         </thead>
                         <tbody>
                           {qualifyingRows.map((q, i) => (
-                            <tr key={`${raceKey}-q-${q.Driver?.driverId || i}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                            <tr key={`${raceKey}-q-${q.Driver?.driverId || i}`} style={tableRowStyle}>
                               <td style={{ padding: '4px', color: getPodiumPositionColor(q.position) }}>{q.position || '-'}</td>
                               <td style={{ padding: '4px' }}>{q.Driver?.givenName} {q.Driver?.familyName}</td>
                               <td style={{ padding: '4px' }}>{q.Q1 || q.q1 || '-'}</td>
@@ -5301,26 +5304,15 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         gap: '16px',
         marginBottom: '20px'
       }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Giri completati per pilota ({seasonCompletedLapsByDriver.length})
           </h3>
 
           <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                <tr style={tableHeaderRowStyle}>
                   <th style={{ padding: '4px', textAlign: 'left' }}>#</th>
                   <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
                   <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
@@ -5329,7 +5321,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
               </thead>
               <tbody>
                 {seasonCompletedLapsByDriver.map((row, idx) => (
-                  <tr key={row.key} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <tr key={row.key} style={tableRowStyle}>
                     <td style={{ padding: '4px' }}>{idx + 1}</td>
                     <td style={{ padding: '4px' }}>{row.driverName}</td>
                     <td style={{ padding: '4px' }}>{row.teamName || '-'}</td>
@@ -5350,19 +5342,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         gap: '16px',
         marginBottom: '20px'
       }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Pit stop DHL
           </h3>
 
@@ -5412,7 +5393,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                       {pitRows.length > 0 ? (
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                           <thead>
-                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                            <tr style={tableHeaderRowStyle}>
                               <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
                               <th style={{ padding: '4px', textAlign: 'left' }}>Giro</th>
                               <th style={{ padding: '4px', textAlign: 'right' }}>Durata</th>
@@ -5420,7 +5401,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                           </thead>
                           <tbody>
                             {pitRows.map((stop, i) => (
-                              <tr key={`${raceKey}-pit-${stop.driverId || i}-${stop.stop || i}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <tr key={`${raceKey}-pit-${stop.driverId || i}-${stop.stop || i}`} style={tableRowStyle}>
                                 <td style={{ padding: '4px' }}>{stop.driverName || stop.driverId || '-'}</td>
                                 <td style={{ padding: '4px' }}>{stop.lap || '-'}</td>
                                 <td style={{ padding: '4px', textAlign: 'right' }}>{stop.duration ? `${stop.duration}s` : '-'}</td>
@@ -5439,6 +5420,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           </div>
         </div>
       </div>
+
 
       <div style={{
         maxWidth: '1200px',
@@ -5475,12 +5457,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
             padding: isMobile ? '12px' : '14px',
             color: '#FFF'
           }}>
-            <h3 style={{
-              fontSize: isMobile ? '16px' : '18px',
-              fontWeight: '700',
-              color: '#007AFF',
-              margin: '0 0 12px 0'
-            }}>
+            <h3 style={sectionTitleStyle(isMobile)}>
               Qualifiche sprint ({seasonSprintQualifyingList.length})
             </h3>
             <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -5518,7 +5495,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                         {sprintQualifyingRows.length > 0 ? (
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                             <thead>
-                              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                              <tr style={tableHeaderRowStyle}>
                                 <th style={{ padding: '4px', textAlign: 'left' }}>Grid</th>
                                 <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
                                 <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
@@ -5529,7 +5506,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                             </thead>
                             <tbody>
                               {sprintQualifyingRows.map((q, i) => (
-                                <tr key={`${raceKey}-sq-${q.Driver?.driverId || i}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                                <tr key={`${raceKey}-sq-${q.Driver?.driverId || i}`} style={tableRowStyle}>
                                   <td style={{ padding: '4px', color: getPodiumPositionColor(q.grid || q.position) }}>{q.grid || q.position || '-'}</td>
                                   <td style={{ padding: '4px' }}>{q.Driver?.givenName} {q.Driver?.familyName}</td>
                                   <td style={{ padding: '4px' }}>{q.Constructor?.name || '-'}</td>
@@ -5558,12 +5535,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
             padding: isMobile ? '12px' : '14px',
             color: '#FFF'
           }}>
-            <h3 style={{
-              fontSize: isMobile ? '16px' : '18px',
-              fontWeight: '700',
-              color: '#007AFF',
-              margin: '0 0 12px 0'
-            }}>
+            <h3 style={sectionTitleStyle(isMobile)}>
               Sprint race ({seasonSprintList.length})
             </h3>
             <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -5594,7 +5566,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                       <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                           <thead>
-                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
+                            <tr style={tableHeaderRowStyle}>
                               <th style={{ padding: '4px', textAlign: 'left' }}>Pos</th>
                               <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
                               <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
@@ -5604,7 +5576,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
                           </thead>
                           <tbody>
                             {sprintResults.map((res, i) => (
-                              <tr key={`${raceKey}-s-${res.Driver?.driverId || i}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                              <tr key={`${raceKey}-s-${res.Driver?.driverId || i}`} style={tableRowStyle}>
                                 <td style={{ padding: '4px', color: getPodiumPositionColor(res.position) }}>{res.position || '-'}</td>
                                 <td style={{ padding: '4px' }}>{res.Driver?.givenName} {res.Driver?.familyName}</td>
                                 <td style={{ padding: '4px' }}>{res.Constructor?.name || '-'}</td>
@@ -5624,6 +5596,20 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         </div>
       </div>
 
+
+      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '4px' }}>
+        <h2 style={{
+          fontSize: isMobile ? '17px' : '19px',
+          fontWeight: '800',
+          color: '#66B2FF',
+          margin: '0 0 4px 0',
+          paddingBottom: '6px',
+          borderBottom: '2px solid rgba(0, 122, 255, 0.28)'
+        }}>
+          Classifiche
+        </h2>
+      </div>
+
       <div style={{
         maxWidth: '1200px',
         width: '100%',
@@ -5632,19 +5618,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         gap: '16px',
         marginBottom: '20px'
       }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Punti piloti negli ultimi GP
           </h3>
 
@@ -5881,19 +5856,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         gap: '16px',
         marginBottom: '20px'
       }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Classifica Piloti ({statistiche.driverStandings?.length || 0})
           </h3>
 
@@ -5941,19 +5905,8 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           </div>
         </div>
 
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: isMobile ? '14px' : '16px',
-          color: '#FFF'
-        }}>
-          <h3 style={{
-            fontSize: isMobile ? '16px' : '18px',
-            fontWeight: '700',
-            color: '#007AFF',
-            margin: '0 0 12px 0'
-          }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
             Classifica Costruttori ({statistiche.constructorStandings?.length || 0})
           </h3>
 
@@ -6002,857 +5955,6 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         </div>
       </div>
 
-
-    </div>
-  )
-
-  return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundImage: 'url(/sfondo-fwm.jpg)',
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      padding: '20px',
-      overflowY: 'auto'
-    }}>
-      <div style={{
-        position: 'absolute',
-        top: isMobile ? '80px' : '20px',
-        left: '20px',
-        display: 'flex',
-        justifyContent: 'flex-start',
-        alignItems: 'center',
-        zIndex: 100
-      }}>
-        <button
-          onClick={onClose}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'none',
-            border: 'none',
-            color: '#007AFF',
-            fontSize: '18px',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}>
-            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-          </svg>
-          Indietro
-        </button>
-      </div>
-
-      <div style={{
-        background: 'rgba(0, 0, 0, 0.85)',
-        border: '2px solid rgba(51, 51, 51, 0.8)',
-        borderRadius: '12px',
-        padding: '30px',
-        maxWidth: '1200px',
-        width: '100%',
-        color: '#FFF',
-        marginTop: isMobile ? '100px' : '60px',
-        marginBottom: '20px'
-      }}>
-        <h2 style={{
-          fontSize: isMobile ? '24px' : '32px',
-          fontWeight: 'bold',
-          marginBottom: '20px',
-          textAlign: 'center'
-        }}>
-          STATISTICHE F1
-        </h2>
-
-        {error && (
-          <div style={{
-            background: 'rgba(255, 0, 0, 0.2)',
-            border: '1px solid rgba(255, 0, 0, 0.5)',
-            borderRadius: '8px',
-            padding: '15px',
-            marginBottom: '20px',
-            textAlign: 'center',
-            color: '#FF6B6B'
-          }}>
-            {error}
-          </div>
-        )}
-
-        {/* Season Selector */}
-        <div style={{
-          marginBottom: '30px',
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '10px',
-          flexWrap: 'wrap',
-          alignItems: 'center'
-        }}>
-          <button
-            onClick={() => setSelectedSeason('current')}
-            style={{
-              padding: '10px 20px',
-              background: selectedSeason === 'current' ? '#007AFF' : 'rgba(255, 255, 255, 0.1)',
-              border: selectedSeason === 'current' ? '2px solid #007AFF' : '1px solid rgba(255, 255, 255, 0.3)',
-              borderRadius: '8px',
-              color: '#FFF',
-              cursor: 'pointer',
-              fontSize: '14px'
-            }}
-          >
-            Stagione Corrente
-          </button>
-          {statistiche.seasons?.filter(season => season.season !== currentSeason).sort((a, b) => b.season - a.season).map(season => (
-            <button
-              key={season.season}
-              onClick={() => setSelectedSeason(season.season)}
-              style={{
-                padding: '10px 20px',
-                background: selectedSeason === season.season ? '#007AFF' : 'rgba(255, 255, 255, 0.1)',
-                border: selectedSeason === season.season ? '2px solid #007AFF' : '1px solid rgba(255, 255, 255, 0.3)',
-                borderRadius: '8px',
-                color: '#FFF',
-                cursor: 'pointer',
-                fontSize: '14px'
-              }}
-            >
-              {season.season}
-            </button>
-          ))}
-          
-          {/* Archive Button - visible from Dec 15 onwards */}
-          {showArchiveButton && selectedSeason === 'current' && (
-            <button
-              onClick={() => archiviaSeasoneCorrente(false)}
-              disabled={archiviando}
-              style={{
-                padding: '10px 20px',
-                background: archiviando ? 'rgba(76, 175, 80, 0.5)' : '#4CAF50',
-                border: '2px solid rgba(76, 175, 80, 0.8)',
-                borderRadius: '8px',
-                color: '#FFF',
-                cursor: archiviando ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                marginLeft: '15px',
-                opacity: archiviando ? 0.6 : 1
-              }}
-            >
-              {archiviando ? '⏳ Archiviando...' : '💾 Archivia Stagione'}
-            </button>
-          )}
-        </div>
-
-        {/* Statistics Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
-          gap: '20px'
-        }}>
-          {/* Drivers */}
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Piloti ({statistiche.drivers?.length || 0})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.drivers?.map(driver => (
-                <div key={driver.driverId} style={{
-                  padding: '8px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span>{driver.givenName} {driver.familyName}</span>
-                    <span style={{ color: '#AAA' }}>{driver.nationality}</span>
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#888', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <span>Vittorie: {driver.stats?.wins || 0}</span>
-                    <span>Podi: {driver.stats?.podiums || 0}</span>
-                    <span>Pole: {driver.stats?.polePositions || 0}</span>
-                    <span>DNF: {driver.stats?.dnf || 0}</span>
-                    <span>DSQ: {driver.stats?.dsq || 0}</span>
-                    {driver.stats?.lastWin && (
-                      <span>Ultima vittoria: {formatDateItalian(driver.stats.lastWin.date)}</span>
-                    )}
-                    {driver.stats?.daysSinceLastWin !== null && (
-                      <span>Giorni senza vittoria: {driver.stats.daysSinceLastWin}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Constructors */}
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Costruttori ({statistiche.constructors?.length || 0})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.constructors?.map(constructor => (
-                <div key={constructor.constructorId} style={{
-                  padding: '8px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                  display: 'flex',
-                  justifyContent: 'space-between'
-                }}>
-                  <span>{constructor.name}</span>
-                  <span style={{ color: '#AAA' }}>{constructor.nationality}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Circuits */}
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Circuiti ({statistiche.circuits?.length || 0})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.circuits?.slice(0, 20).map(circuit => (
-                <div key={circuit.circuitId} style={{
-                  padding: '8px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div>{circuit.circuitName}</div>
-                  <div style={{ color: '#AAA', fontSize: '12px' }}>{circuit.Location?.locality}, {circuit.Location?.country}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Races */}
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Calendario stagione ({statistiche.races?.length || 0})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.races?.map((race, index) => (
-                <div key={`${race.season}-${race.round}-${index}`} style={{
-                  padding: '8px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div>{race.raceName}</div>
-                  <div style={{ color: '#AAA', fontSize: '12px' }}>{formatDateItalian(race.date)} {race.circuitName}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Driver Standings */}
-        {statistiche.driverStandings?.length > 0 && (
-          <div style={{
-            marginTop: '20px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Classifica Piloti
-            </h3>
-            <div style={{
-              maxHeight: '400px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.driverStandings.map((standing, index) => (
-                <div
-                  key={standing.Driver?.driverId}
-                  onClick={() => { console.log('FWM_LOG DRIVER_STANDING', standing); setSelectedDriverId(selectedDriverId === standing.Driver?.driverId ? null : standing.Driver?.driverId) }}
-                  style={{
-                    padding: '10px',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    backgroundColor: selectedDriverId === standing.Driver?.driverId ? 'rgba(0, 122, 255, 0.08)' : 'transparent'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <span style={{
-                      fontWeight: 'bold',
-                      color: index < 3 ? '#FFD700' : '#FFF',
-                      minWidth: '30px'
-                    }}>
-                      {standing.position}
-                    </span>
-                    <span>{standing.Driver?.givenName} {standing.Driver?.familyName}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <span style={{ color: '#AAA' }}>{standing.Constructors?.[0]?.name}</span>
-                    <span style={{
-                      fontWeight: 'bold',
-                      color: '#007AFF',
-                      minWidth: '50px',
-                      textAlign: 'right'
-                    }}>
-                      {standing.points}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Selected Driver Details */}
-        {selectedDriverId && statistiche.results && (() => {
-          const driverResults = statistiche.results.flatMap(race => 
-            getResultsForRace(race).filter(res => res.Driver?.driverId === selectedDriverId).map(res => ({ race, res }))
-          )
-          return (
-            <div style={{
-              marginTop: '10px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.06)',
-              borderRadius: '8px',
-              padding: '16px'
-            }}>
-              <h4 style={{ color: '#00A0FF', marginBottom: '10px' }}>Risultati Pilota</h4>
-              {driverResults.length > 0 ? (
-                <div style={{ fontSize: '13px', overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Gara</th>
-                        <th style={{ textAlign: 'center', padding: '6px', fontSize: '12px' }}>Pos</th>
-                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Team</th>
-                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Risultato</th>
-                        <th style={{ textAlign: 'center', padding: '6px', fontSize: '12px' }}>Punti</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {driverResults.map(({ race, res }) => (
-                        <tr key={`${race.season}-${race.round}-${res.Driver.driverId}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                          <td style={{ padding: '6px', fontSize: '12px' }}>{race.raceName}</td>
-                          <td style={{ padding: '6px', fontSize: '12px', textAlign: 'center', fontWeight: 'bold', color: getPodiumPositionColor(res.position) }}>{res.position}</td>
-                          <td style={{ padding: '6px', fontSize: '12px' }}>{res.Constructor?.name}</td>
-                          <td style={{ padding: '6px', fontSize: '12px', color: '#AAA' }}>{res.Time?.time || res.status || '-'}</td>
-                          <td style={{ padding: '6px', fontSize: '12px', textAlign: 'center', color: res.points > 0 ? '#00FF00' : '#888' }}>{res.points || 0}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ color: '#888', fontSize: '13px', padding: '10px' }}>
-                  ⚠️ Nessun risultato trovato per questo pilota (ID: {selectedDriverId})
-                </div>
-              )}
-            </div>
-          )
-        })()}
-
-        {/* Constructor Standings */}
-        {statistiche.constructorStandings?.length > 0 && (
-          <div style={{
-            marginTop: '20px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Classifica Costruttori ({statistiche.constructorStandings.length})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.constructorStandings.map((standing, index) => (
-                <div
-                  key={standing.Constructor?.constructorId}
-                  onClick={() => { console.log('FWM_LOG CONSTRUCTOR_STANDING', standing); setSelectedConstructorId(selectedConstructorId === standing.Constructor?.constructorId ? null : standing.Constructor?.constructorId) }}
-                  style={{
-                    padding: '10px',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    backgroundColor: selectedConstructorId === standing.Constructor?.constructorId ? 'rgba(0, 122, 255, 0.08)' : 'transparent'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <span style={{
-                      fontWeight: 'bold',
-                      color: index < 3 ? '#FFD700' : '#FFF',
-                      minWidth: '30px'
-                    }}>
-                      {standing.position}
-                    </span>
-                    <span>{standing.Constructor?.name}</span>
-                  </div>
-                  <span style={{
-                    fontWeight: 'bold',
-                    color: '#007AFF',
-                    minWidth: '50px',
-                    textAlign: 'right'
-                  }}>
-                    {standing.points}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Selected Constructor Details */}
-        {selectedConstructorId && statistiche.results && (() => {
-          const constructorName = statistiche.constructorStandings.find(c => c.Constructor?.constructorId === selectedConstructorId)?.Constructor?.name
-          const constructorResults = statistiche.results.flatMap(race => 
-            getResultsForRace(race).filter(res => res.Constructor?.name?.toLowerCase() === constructorName?.toLowerCase()).map(res => ({ race, res }))
-          )
-          return (
-            <div style={{
-              marginTop: '10px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid rgba(255, 255, 255, 0.06)',
-              borderRadius: '8px',
-              padding: '16px'
-            }}>
-              <h4 style={{ color: '#00A0FF', marginBottom: '10px' }}>Risultati Costruttore: {constructorName}</h4>
-              {constructorResults.length > 0 ? (
-                <div style={{ fontSize: '13px', overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Gara</th>
-                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Pilota</th>
-                        <th style={{ textAlign: 'center', padding: '6px', fontSize: '12px' }}>Pos</th>
-                        <th style={{ textAlign: 'left', padding: '6px', fontSize: '12px' }}>Risultato</th>
-                        <th style={{ textAlign: 'center', padding: '6px', fontSize: '12px' }}>Punti</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {constructorResults.map(({ race, res }) => (
-                        <tr key={`${race.season}-${race.round}-${res.Driver.driverId}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                          <td style={{ padding: '6px', fontSize: '12px' }}>{race.raceName}</td>
-                          <td style={{ padding: '6px', fontSize: '12px' }}>{res.Driver?.givenName} {res.Driver?.familyName}</td>
-                          <td style={{ padding: '6px', fontSize: '12px', textAlign: 'center', fontWeight: 'bold', color: getPodiumPositionColor(res.position) }}>{res.position}</td>
-                          <td style={{ padding: '6px', fontSize: '12px', color: '#AAA' }}>{res.Time?.time || res.status || '-'}</td>
-                          <td style={{ padding: '6px', fontSize: '12px', textAlign: 'center', color: res.points > 0 ? '#00FF00' : '#888' }}>{res.points || 0}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ color: '#888', fontSize: '13px', padding: '10px' }}>
-                  ⚠️ Nessun risultato trovato per {constructorName}
-                </div>
-              )}
-            </div>
-          )
-        })()}
-
-        {/* Results */}
-        {statistiche.results?.length > 0 && (
-          <div style={{
-            marginTop: '20px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Risultati Gare ({statistiche.results.length})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.results.map((race, index) => (
-                <div
-                  key={`results-${race.season}-${race.round}-${index}`}
-                  onClick={() => {
-                    console.log('FWM_LOG RACE_CLICK', race)
-                    try {
-                      // log JSON only for local seasons (>=2026) to help debugging
-                      if (race && race.season && Number(race.season) >= 2026) console.log('FWM_LOG RACE_CLICK_FULL', JSON.stringify(race))
-                    } catch (e) {
-                      console.warn('FWM_LOG JSON stringify failed', e)
-                    }
-                    setSelectedRace(selectedRace?.type === 'race' && selectedRace?.__idx === index ? null : { ...race, type: 'race', __idx: index })
-                  }}
-                  style={{
-                    padding: '8px',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                    cursor: 'pointer',
-                    backgroundColor: selectedRace?.type === 'race' && selectedRace?.__idx === index ? 'rgba(0, 122, 255, 0.2)' : 'transparent'
-                  }}
-                >
-                  <div>{race.raceName}</div>
-                  <div style={{ color: '#AAA', fontSize: '12px' }}>{formatDateItalian(race.date)}</div>
-                  {selectedRace?.type === 'race' && selectedRace?.__idx === index && (() => {
-                    const resultsForRace = getResultsForRace(race)
-                    return resultsForRace?.length > 0 ? (
-                      <div style={{
-                        marginTop: '10px',
-                        padding: '10px',
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        borderRadius: '4px'
-                      }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.2)' }}>
-                              <th style={{ padding: '4px', textAlign: 'left' }}>Pos</th>
-                              <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
-                              <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
-                              <th style={{ padding: '4px', textAlign: 'left' }}>Tempo</th>
-                              <th style={{ padding: '4px', textAlign: 'left' }}>Punti</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {resultsForRace.map(result => (
-                              <tr key={result.Driver?.driverId || result.number} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                                <td style={{ padding: '4px' }}>{result.position}</td>
-                                <td style={{ padding: '4px' }}>{result.Driver?.givenName} {result.Driver?.familyName}</td>
-                                <td style={{ padding: '4px' }}>{result.Constructor?.name}</td>
-                                <td style={{ padding: '4px' }}>{result.Time?.time || result.status}</td>
-                                <td style={{ padding: '4px' }}>{result.points}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div style={{ color: '#888', fontSize: '13px', padding: '10px' }}>Nessun risultato disponibile per questa gara</div>
-                    )
-                  })()}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Qualifying */}
-        {statistiche.qualifying?.length > 0 && (
-          <div style={{
-            marginTop: '20px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Qualifiche ({statistiche.qualifying.length})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.qualifying.map((race, index) => (
-                <div
-                  key={`qualifying-${race.season}-${race.round}-${index}`}
-                  onClick={() => { console.log('FWM_LOG QUALIFY_CLICK', race, race.QualifyingResults || race.Qualifying); setSelectedRace(selectedRace?.type === 'qualifying' && selectedRace?.__idx === index ? null : { ...race, type: 'qualifying', __idx: index }) }}
-                  style={{
-                    padding: '8px',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                    cursor: 'pointer',
-                    backgroundColor: selectedRace?.type === 'qualifying' && selectedRace?.__idx === index ? 'rgba(0, 122, 255, 0.2)' : 'transparent'
-                  }}
-                >
-                  <div>{race.raceName}</div>
-                  <div style={{ color: '#AAA', fontSize: '12px' }}>{formatDateItalian(race.date)}</div>
-                  {selectedRace?.type === 'qualifying' && selectedRace?.__idx === index && (race.QualifyingResults || race.Qualifying) && (
-                    <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                            <th style={{ padding: '4px', textAlign: 'left' }}>Pos</th>
-                            <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
-                            <th style={{ padding: '4px', textAlign: 'left' }}>Q1</th>
-                            <th style={{ padding: '4px', textAlign: 'left' }}>Q2</th>
-                            <th style={{ padding: '4px', textAlign: 'left' }}>Q3</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(race.QualifyingResults || race.Qualifying || []).map(q => (
-                            <tr key={q.Driver?.driverId || q.number} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                              <td style={{ padding: '6px' }}>{q.position}</td>
-                              <td style={{ padding: '6px' }}>{q.Driver?.givenName} {q.Driver?.familyName}</td>
-                              <td style={{ padding: '6px' }}>{q.Q1 || q.q1 || '-'}</td>
-                              <td style={{ padding: '6px' }}>{q.Q2 || q.q2 || '-'}</td>
-                              <td style={{ padding: '6px' }}>{q.Q3 || q.q3 || '-'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Laps */}
-        {statistiche.laps?.length > 0 && (
-          <div style={{
-            marginTop: '20px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Tempi sui Giri ({statistiche.laps.length})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.laps.map((race, index) => (
-                <div key={`${race.season}-${race.round}-${index}`} style={{
-                  padding: '8px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div>{race.raceName}</div>
-                  <div style={{ color: '#AAA', fontSize: '12px' }}>{formatDateItalian(race.date)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Pit Stops */}
-        {statistiche.pitstops?.length > 0 && (
-          <div style={{
-            marginTop: '20px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Pit Stops ({statistiche.pitstops.length})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.pitstops.map((race, index) => (
-                <div key={`${race.season}-${race.round}-${index}`} style={{
-                  padding: '8px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div>{race.raceName}</div>
-                  <div style={{ color: '#AAA', fontSize: '12px' }}>{formatDateItalian(race.date)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Sprint */}
-        {statistiche.sprint?.length > 0 && (
-          <div style={{
-            marginTop: '20px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Sprint Races ({statistiche.sprint.length})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.sprint.map((race, index) => (
-                <div
-                  key={`sprint-${race.season}-${race.round}-${index}`}
-                  onClick={() => setSelectedRace(selectedRace?.type === 'sprint' && selectedRace?.__idx === index ? null : { ...race, type: 'sprint', __idx: index })}
-                  style={{
-                    padding: '8px',
-                    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                    cursor: 'pointer',
-                    backgroundColor: selectedRace?.type === 'sprint' && selectedRace?.__idx === index ? 'rgba(0, 122, 255, 0.2)' : 'transparent'
-                  }}
-                >
-                  <div>{race.raceName}</div>
-                  <div style={{ color: '#AAA', fontSize: '12px' }}>{formatDateItalian(race.date)}</div>
-                  {selectedRace?.type === 'sprint' && selectedRace?.__idx === index && (() => {
-                    const resultsForRace = getResultsForRace(race)
-                    return resultsForRace?.length > 0 ? (
-                      <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '4px' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.2)' }}>
-                              <th style={{ padding: '4px', textAlign: 'left' }}>Pos</th>
-                              <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
-                              <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
-                              <th style={{ padding: '4px', textAlign: 'left' }}>Tempo</th>
-                              <th style={{ padding: '4px', textAlign: 'left' }}>Punti</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {resultsForRace.map(result => (
-                              <tr key={result.Driver?.driverId || result.number} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                                <td style={{ padding: '6px' }}>{result.position}</td>
-                                <td style={{ padding: '6px' }}>{result.Driver?.givenName} {result.Driver?.familyName}</td>
-                                <td style={{ padding: '6px' }}>{result.Constructor?.name}</td>
-                                <td style={{ padding: '6px' }}>{result.Time?.time || result.status}</td>
-                                <td style={{ padding: '6px' }}>{result.points}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div style={{ color: '#888', fontSize: '13px', padding: '10px' }}>Nessun risultato disponibile per questa sprint</div>
-                    )
-                  })()}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Status */}
-        {statistiche.status?.length > 0 && (
-          <div style={{
-            marginTop: '20px',
-            background: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '8px',
-            padding: '20px'
-          }}>
-            <h3 style={{
-              fontSize: '18px',
-              fontWeight: 'bold',
-              marginBottom: '15px',
-              color: '#007AFF'
-            }}>
-              Status Piloti ({statistiche.status.length})
-            </h3>
-            <div style={{
-              maxHeight: '300px',
-              overflowY: 'auto',
-              fontSize: '14px'
-            }}>
-              {statistiche.status.map(status => (
-                <div key={status.statusId} style={{
-                  padding: '8px',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
-                }}>
-                  <div>{status.status}</div>
-                  <div style={{ color: '#AAA', fontSize: '12px' }}>{status.count} occorrenze</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-      </div>
     </div>
   )
 }
