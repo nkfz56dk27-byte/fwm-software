@@ -134,17 +134,21 @@ const fetchAllJolpicaPagesParallel = async (fetchFromJolpica, endpointPrefix) =>
 // Titolo di sezione (es. "Piloti (20)", "Team (10)", ecc.)
 const sectionTitleStyle = (isMobile) => ({
   fontSize: isMobile ? '16px' : '18px',
-  fontWeight: '700',
-  color: '#007AFF',
+  fontWeight: '800',
+  color: '#9EC5FF',
+  letterSpacing: '0.3px',
   margin: '0 0 12px 0'
 })
 
-// Contenitore "pannello scuro" usato per la maggior parte delle card/liste
-// della vista statistiche (Piloti, Team, Calendario, Circuiti, ecc.)
+// Contenitore "pannello" usato per la maggior parte delle card/liste della
+// vista statistiche (Piloti, Team, Calendario, Circuiti, ecc.). Ripreso dallo
+// stesso trattamento a gradiente/bagliore già usato nelle schede pilota e
+// costruttore, per dare un linguaggio visivo coerente in tutto il file.
 const darkPanelStyle = (isMobile) => ({
-  background: 'rgba(0, 0, 0, 0.85)',
-  border: '2px solid rgba(51, 51, 51, 0.8)',
-  borderRadius: '12px',
+  background: 'linear-gradient(135deg, rgba(18,23,34,0.95) 0%, rgba(8,10,16,0.95) 100%)',
+  border: '1px solid rgba(138, 180, 248, 0.28)',
+  boxShadow: '0 10px 26px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03)',
+  borderRadius: '14px',
   padding: isMobile ? '14px' : '16px',
   color: '#FFF'
 })
@@ -3126,6 +3130,68 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         return a.driverName.localeCompare(b.driverName)
       })
   })()
+  // Giri totali "di gara" nella stagione: per ogni GP prendo il valore più
+  // alto di giri tra i risultati (di solito il vincitore/leader, che copre
+  // l'intera distanza), poi sommo su tutte le gare disputate finora.
+  const seasonTotalRaceLaps = (seasonResultsList || []).reduce((sum, race) => {
+    const raceLaps = getResultsForRace(race).reduce((max, res) => {
+      const laps = Number(res?.laps || 0)
+      return Number.isFinite(laps) && laps > max ? laps : max
+    }, 0)
+    return sum + raceLaps
+  }, 0)
+
+  // --- Record di stagione (Vittorie, Pole, Giri veloci, Podi, Vittorie
+  // sprint, GP a punti) — ognuna è una classifica completa, sempre ordinata
+  // dal pilota con più occorrenze al meno. "Giri in testa" è escluso: non
+  // disponibile in modo affidabile con questa API (vedi seasonLaps sopra).
+  const buildSeasonRecordLeaderboard = (races, getRows, predicate) => {
+    const counts = new Map()
+    ;(races || []).forEach(race => {
+      getRows(race).forEach(res => {
+        if (!predicate(res)) return
+        const driverId = String(res?.Driver?.driverId || '')
+        if (!driverId) return
+        const driverName = `${res?.Driver?.givenName || ''} ${res?.Driver?.familyName || ''}`.trim() || driverId
+        const prev = counts.get(driverId) || { driverId, driverName, count: 0 }
+        counts.set(driverId, { ...prev, count: prev.count + 1 })
+      })
+    })
+    return Array.from(counts.values())
+      .sort((a, b) => b.count - a.count || a.driverName.localeCompare(b.driverName))
+  }
+
+  const seasonMostWins = buildSeasonRecordLeaderboard(
+    seasonResultsList, getResultsForRace, res => String(res?.position) === '1'
+  )
+  const seasonMostPoles = buildSeasonRecordLeaderboard(
+    seasonQualifyingList, race => race?.QualifyingResults || race?.Qualifying || [], res => String(res?.position) === '1'
+  )
+  const seasonMostFastestLaps = buildSeasonRecordLeaderboard(
+    seasonResultsList, getResultsForRace, res => {
+      const rank = res?.FastestLap?.rank || res?.fastestLap?.rank || res?.fastestLapRank
+      return String(rank || '') === '1'
+    }
+  )
+  const seasonMostPodiums = buildSeasonRecordLeaderboard(
+    seasonResultsList, getResultsForRace, res => ['1', '2', '3'].includes(String(res?.position))
+  )
+  const seasonMostSprintWins = buildSeasonRecordLeaderboard(
+    seasonSprintList, getResultsForRace, res => String(res?.position) === '1'
+  )
+  const seasonMostPointsFinishes = buildSeasonRecordLeaderboard(
+    seasonResultsList, getResultsForRace, res => Number(res?.points || 0) > 0
+  )
+
+  const seasonRecordCategories = [
+    { title: 'Più vittorie', rows: seasonMostWins },
+    { title: 'Più pole position', rows: seasonMostPoles },
+    { title: 'Più giri veloci', rows: seasonMostFastestLaps },
+    { title: 'Più podi', rows: seasonMostPodiums },
+    { title: 'Più vittorie sprint', rows: seasonMostSprintWins },
+    { title: 'Più GP finiti a punti', rows: seasonMostPointsFinishes }
+  ]
+
   const seasonSprintQualifyingList = seasonSprintList.map(race => {
     const directSprintQualifyingRows = race?.SprintQualifyingResults || race?.SprintShootoutResults || []
     const fallbackSprintRows = getResultsForRace(race)
@@ -4646,9 +4712,10 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       </div>
 
       <div style={{
-        background: 'rgba(0, 0, 0, 0.85)',
-        border: '2px solid rgba(51, 51, 51, 0.8)',
-        borderRadius: '12px',
+        background: 'linear-gradient(180deg, rgba(12,14,19,0.94) 0%, rgba(8,10,14,0.92) 100%)',
+        border: '1px solid rgba(95, 121, 160, 0.35)',
+        boxShadow: '0 14px 36px rgba(0,0,0,0.45)',
+        borderRadius: '14px',
         padding: isMobile ? '18px' : '22px',
         maxWidth: '1200px',
         width: '100%',
@@ -4758,14 +4825,16 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         </div>
       </div>
 
-      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '4px' }}>
+      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '6px' }}>
         <h2 style={{
-          fontSize: isMobile ? '17px' : '19px',
+          fontSize: isMobile ? '20px' : '23px',
           fontWeight: '800',
-          color: '#66B2FF',
-          margin: '0 0 4px 0',
-          paddingBottom: '6px',
-          borderBottom: '2px solid rgba(0, 122, 255, 0.28)'
+          color: '#FFF',
+          letterSpacing: '0.2px',
+          margin: '0 0 8px 0',
+          paddingBottom: '10px',
+          borderBottom: '2px solid rgba(138, 180, 248, 0.32)',
+          textShadow: '0 2px 10px rgba(0, 122, 255, 0.25)'
         }}>
           Piloti & Team
         </h2>
@@ -4955,14 +5024,16 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       </div>
 
 
-      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '4px' }}>
+      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '6px' }}>
         <h2 style={{
-          fontSize: isMobile ? '17px' : '19px',
+          fontSize: isMobile ? '20px' : '23px',
           fontWeight: '800',
-          color: '#66B2FF',
-          margin: '0 0 4px 0',
-          paddingBottom: '6px',
-          borderBottom: '2px solid rgba(0, 122, 255, 0.28)'
+          color: '#FFF',
+          letterSpacing: '0.2px',
+          margin: '0 0 8px 0',
+          paddingBottom: '10px',
+          borderBottom: '2px solid rgba(138, 180, 248, 0.32)',
+          textShadow: '0 2px 10px rgba(0, 122, 255, 0.25)'
         }}>
           Storia
         </h2>
@@ -5151,15 +5222,129 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         </div>
       </div>
 
+      <div style={{
+        maxWidth: '1200px',
+        width: '100%',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
+            Giri completati per pilota ({seasonCompletedLapsByDriver.length})
+          </h3>
+          <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', marginBottom: '10px' }}>
+            Giri totali stagione: <span style={{ color: '#FF4D4D', fontWeight: '700', fontSize: '14px' }}>{seasonTotalRaceLaps}</span>
+          </div>
 
-      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '4px' }}>
+          <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <thead>
+                <tr style={tableHeaderRowStyle}>
+                  <th style={{ padding: '4px', textAlign: 'left' }}>#</th>
+                  <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
+                  <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
+                  <th style={{ padding: '4px', textAlign: 'right' }}>Giri</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seasonCompletedLapsByDriver.map((row, idx) => {
+                  const ranAllLaps = seasonTotalRaceLaps > 0 && row.laps === seasonTotalRaceLaps
+                  return (
+                    <tr key={row.key} style={tableRowStyle}>
+                      <td style={{ padding: '4px' }}>{idx + 1}</td>
+                      <td style={{ padding: '4px' }}>{row.driverName}</td>
+                      <td style={{ padding: '4px' }}>{row.teamName || '-'}</td>
+                      <td style={{
+                        padding: '4px',
+                        textAlign: 'right',
+                        fontWeight: ranAllLaps ? '700' : '400',
+                        color: ranAllLaps ? '#FFD700' : '#FFF'
+                      }}>
+                        {row.laps}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div style={{
+        maxWidth: '1200px',
+        width: '100%',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
+            Record stagione
+          </h3>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
+            gap: '10px'
+          }}>
+            {seasonRecordCategories.map(category => (
+              <div
+                key={category.title}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.14)',
+                  borderRadius: '10px',
+                  padding: '10px'
+                }}
+              >
+                <div style={{ fontSize: '12px', color: '#9EC5FF', fontWeight: '800', marginBottom: '6px' }}>
+                  {category.title}
+                </div>
+                {category.rows.length === 0 ? (
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>Nessun dato disponibile.</div>
+                ) : (
+                  <div style={{ display: 'grid', gap: '4px', maxHeight: '150px', overflowY: 'auto', paddingRight: '4px' }}>
+                    {category.rows.map((row, idx) => (
+                      <div
+                        key={`${category.title}-${row.driverId}`}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '12px',
+                          padding: '3px 0'
+                        }}
+                      >
+                        <span style={{ color: idx === 0 ? '#FFD700' : '#FFF', fontWeight: idx === 0 ? '700' : '400' }}>
+                          {idx + 1}. {row.driverName}
+                        </span>
+                        <span style={{ color: idx === 0 ? '#FFD700' : 'rgba(255,255,255,0.75)', fontWeight: '700' }}>
+                          {row.count}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+
+      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '6px' }}>
         <h2 style={{
-          fontSize: isMobile ? '17px' : '19px',
+          fontSize: isMobile ? '20px' : '23px',
           fontWeight: '800',
-          color: '#66B2FF',
-          margin: '0 0 4px 0',
-          paddingBottom: '6px',
-          borderBottom: '2px solid rgba(0, 122, 255, 0.28)'
+          color: '#FFF',
+          letterSpacing: '0.2px',
+          margin: '0 0 8px 0',
+          paddingBottom: '10px',
+          borderBottom: '2px solid rgba(138, 180, 248, 0.32)',
+          textShadow: '0 2px 10px rgba(0, 122, 255, 0.25)'
         }}>
           Gara
         </h2>
@@ -5294,44 +5479,6 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           </div>
         </div>
 
-      </div>
-
-      <div style={{
-        maxWidth: '1200px',
-        width: '100%',
-        display: 'grid',
-        gridTemplateColumns: '1fr',
-        gap: '16px',
-        marginBottom: '20px'
-      }}>
-        <div style={darkPanelStyle(isMobile)}>
-          <h3 style={sectionTitleStyle(isMobile)}>
-            Giri completati per pilota ({seasonCompletedLapsByDriver.length})
-          </h3>
-
-          <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-              <thead>
-                <tr style={tableHeaderRowStyle}>
-                  <th style={{ padding: '4px', textAlign: 'left' }}>#</th>
-                  <th style={{ padding: '4px', textAlign: 'left' }}>Pilota</th>
-                  <th style={{ padding: '4px', textAlign: 'left' }}>Team</th>
-                  <th style={{ padding: '4px', textAlign: 'right' }}>Giri</th>
-                </tr>
-              </thead>
-              <tbody>
-                {seasonCompletedLapsByDriver.map((row, idx) => (
-                  <tr key={row.key} style={tableRowStyle}>
-                    <td style={{ padding: '4px' }}>{idx + 1}</td>
-                    <td style={{ padding: '4px' }}>{row.driverName}</td>
-                    <td style={{ padding: '4px' }}>{row.teamName || '-'}</td>
-                    <td style={{ padding: '4px', textAlign: 'right' }}>{row.laps}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
 
       <div style={{
@@ -5597,14 +5744,16 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       </div>
 
 
-      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '4px' }}>
+      <div style={{ maxWidth: '1200px', width: '100%', marginBottom: '6px' }}>
         <h2 style={{
-          fontSize: isMobile ? '17px' : '19px',
+          fontSize: isMobile ? '20px' : '23px',
           fontWeight: '800',
-          color: '#66B2FF',
-          margin: '0 0 4px 0',
-          paddingBottom: '6px',
-          borderBottom: '2px solid rgba(0, 122, 255, 0.28)'
+          color: '#FFF',
+          letterSpacing: '0.2px',
+          margin: '0 0 8px 0',
+          paddingBottom: '10px',
+          borderBottom: '2px solid rgba(138, 180, 248, 0.32)',
+          textShadow: '0 2px 10px rgba(0, 122, 255, 0.25)'
         }}>
           Classifiche
         </h2>
