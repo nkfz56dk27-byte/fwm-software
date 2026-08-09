@@ -1,3 +1,10 @@
+export function getPenaltyScadutaNotification({ pilotaNome, categoriaNome, punti, motivo }) {
+  return {
+    titolo: '⏳ Penalità in scadenza',
+    messaggio: `${categoriaNome}: la penalità di ${punti} punto/i per ${pilotaNome} (${motivo}) scade oggi.`,
+    tipo: 'penalty_scaduta'
+  };
+}
 // ATTENZIONE: Le notifiche PUSH e le notifiche INTERNE devono restare SEPARATE.
 // Modifica non funzionale per forzare deploy Vercel (safe change)
 // Commit di test per verifica webhook Vercel
