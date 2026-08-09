@@ -1,7 +1,7 @@
-export function getPenaltyScadutaNotification({ pilotaNome, categoriaNome, punti, motivo }) {
+export function getPenaltyScadutaNotification({ pilotaNome, categoriaNome, punti, motivo, puntiRimasti }) {
   return {
-    titolo: '⏳ Penalità in scadenza',
-    messaggio: `${categoriaNome}: la penalità di ${punti} punto/i per ${pilotaNome} (${motivo}) scade oggi.`,
+    titolo: 'Penalità scaduta',
+    messaggio: `${categoriaNome}: la penalità di ${punti} punto/i per ${pilotaNome} (${motivo}) è scaduta. Punti attivi attuali: ${puntiRimasti}.`,
     tipo: 'penalty_scaduta'
   };
 }
