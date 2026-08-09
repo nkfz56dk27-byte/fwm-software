@@ -459,11 +459,27 @@ async function sendPenaltyScadutiReminders() {
         const pilota = campionato?.piloti?.find(p => String(p.id) === String(infrazione.pilota_id));
         const pilotaNome = pilota?.nome || 'Pilota sconosciuto';
 
+        // Calcola i punti ancora attivi per questo pilota (esclusa l'infrazione appena scaduta)
+        const { data: infrazioniAttive, error: errAttive } = await supabase
+          .from('infrazioni')
+          .select('punti')
+          .eq('campionato_id', infrazione.campionato_id)
+          .eq('pilota_id', infrazione.pilota_id)
+          .gt('data_scadenza', oggi)
+          .neq('id', infrazione.id);
+
+        if (errAttive) {
+          console.error(`[WARN] Errore calcolo punti attivi per pilota ${infrazione.pilota_id}:`, errAttive.message);
+        }
+
+        const puntiRimasti = (infrazioniAttive || []).reduce((sum, i) => sum + (i.punti || 0), 0);
+
         const notifica = getPenaltyScadutaNotification({
           pilotaNome,
           categoriaNome,
           punti: infrazione.punti,
-          motivo: infrazione.motivo
+          motivo: infrazione.motivo,
+          puntiRimasti
         });
 
         const notificationPayload = {
