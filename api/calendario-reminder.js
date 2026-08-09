@@ -2,7 +2,7 @@
 // Esecuzione: Cron job giornaliero alle 9:00 CET tramite Vercel (chiamato da cron-job.org)
 
 import { createClient } from '@supabase/supabase-js';
-import { getPenaltyScadutaNotification } from '../notificationTemplates.js';
+import { getPenaltyScadutaNotification } from '../src/notificationTemplates.js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
