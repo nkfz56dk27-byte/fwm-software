@@ -1,146 +1,7 @@
-function calcolaPuntiAccorciati(pos, percentuale, customPuntiArr) {
-  if (percentuale === 'custom' && Array.isArray(customPuntiArr)) {
-    return pos > 0 && pos <= customPuntiArr.length ? Number(customPuntiArr[pos - 1]) : 0;
-  }
-  if (percentuale === 25) {
-    const punti = [6, 4, 3, 2, 1];
-    return pos <= punti.length ? punti[pos - 1] : 0;
-  } else if (percentuale === 50) {
-    const punti = [13, 10, 8, 6, 5, 4, 3, 2, 1];
-    return pos <= punti.length ? punti[pos - 1] : 0;
-  } else if (percentuale === 75) {
-    const punti = [19, 14, 12, 10, 8, 6, 4, 3, 2, 1];
-    return pos <= punti.length ? punti[pos - 1] : 0;
-  }
-  return 0;
-}
 import React, { useState, useEffect, useRef } from 'react';
 import VersusModal from './VersusModal';
 import Statistiche from './Statistiche';
-// Fix ReferenceError: calcolaPuntiAccorciati is not defined
-// (auto-import per uso interno in questo file)
-// (Se usato in altri file, esportare/importare correttamente)
-
-// ===== CALCOLA PUNTI POSIZIONE =====
-function calcolaPuntiPosizione(pos, tipoGara, classifica = null, gara = {}) {
-  // Se la gara è accorciata e custom, usa i custom_punti
-  if (gara.accorciata && gara.percentuale_accorciata === 'custom' && Array.isArray(gara.custom_punti)) {
-    return pos > 0 && pos <= gara.custom_punti.length ? Number(gara.custom_punti[pos - 1]) : 0;
-  }
-  // Se è attivo il modificatore libero, usa l'array personalizzato
-  if (classifica && classifica.usa_modificatore_libero && Array.isArray(classifica.modificatore_libero_punti)) {
-    const arr = classifica.modificatore_libero_punti
-    return pos <= arr.length ? (arr[pos - 1] || 0) : 0
-  }
-  const puntiStandard = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
-  const puntiSprint = [8, 7, 6, 5, 4, 3, 2, 1]
-  const puntiF2Feature = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
-  const puntiF2Sprint = [10, 8, 6, 5, 4, 3, 2, 1]
-  if (tipoGara === 'sprint' || tipoGara === 'sprintRace') {
-    return pos <= puntiSprint.length ? puntiSprint[pos - 1] : 0
-  } else if (tipoGara === 'featureRace') {
-    return pos <= puntiF2Feature.length ? puntiF2Feature[pos - 1] : 0
-  } else if (tipoGara === 'f2sprint') {
-    return pos <= puntiF2Sprint.length ? puntiF2Sprint[pos - 1] : 0
-  }
-  return pos <= puntiStandard.length ? puntiStandard[pos - 1] : 0
-}
-// ===== CALCOLA COMBINAZIONI VITTORIA =====
-function calcolaCombinazioniVittoria(pilota, classifica, gpRimanenti, sprintRimanenti) {
-  const combinazioni = []
-  const pilotiOrdinati = (classifica.piloti || []).filter(p => p.attivo).sort((a, b) => (b.punti || 0) - (a.punti || 0))
-  if (pilotiOrdinati.length < 2) return []
-
-  const leader = pilotiOrdinati[0]
-  const secondo = pilotiOrdinati[1]
-
-  // Calcola punti massimi
-  const puntiDaGP = gpRimanenti * 25
-  const puntiDaSprint = sprintRimanenti * 8
-  let bonusPossibili = 0
-  if (classifica.punti_pole_attivo) bonusPossibili += gpRimanenti * (classifica.punti_pole_valore || 3)
-  if (classifica.giro_veloce_attivo) bonusPossibili += gpRimanenti * (classifica.giro_veloce_valore || 1)
-  const puntiMassimi = (pilota.punti || 0) + puntiDaGP + puntiDaSprint + bonusPossibili
-
-  // Se fuori matematicamente
-  if (puntiMassimi < (leader.punti || 0) && String(pilota.id) !== String(leader.id)) {
-    return []
-  }
-
-  // Se già campione
-  if (String(pilota.id) === String(leader.id) && (pilota.punti || 0) > (secondo.punti || 0) + puntiDaGP + puntiDaSprint + bonusPossibili) {
-    combinazioni.push('🏆 Già campione matematico!')
-    return combinazioni
-  }
-
-  // Trova rivale
-  const rivale = String(pilota.id) === String(leader.id) ? secondo : leader
-  const differenzaPunti = (rivale.punti || 0) - (pilota.punti || 0)
-  const puntiPerPosizione = (classifica && classifica.usa_modificatore_libero && Array.isArray(classifica.modificatore_libero_punti) && classifica.modificatore_libero_punti.length > 0)
-    ? classifica.modificatore_libero_punti
-    : [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
-
-  // Combinazione 1: Vittorie consecutive
-  if (gpRimanenti > 0) {
-    const vittorieNecessarie = Math.max(1, Math.ceil(differenzaPunti / 25))
-    if (vittorieNecessarie <= gpRimanenti) {
-      combinazioni.push(`${pilota.nome} vince ${vittorieNecessarie} gare + ${rivale.nome} fuori dal podio`)
-    }
-  }
-
-  // Combinazioni 2-10: Varie posizioni
-  let contatore = 0
-  for (let posPilota = 1; posPilota <= 5 && contatore < 9; posPilota++) {
-    const puntiPilotaPerGara = puntiPerPosizione[posPilota - 1]
-
-    for (let posRivale = Math.max(posPilota + 1, 1); posRivale <= 10 && contatore < 9; posRivale++) {
-      const puntiRivalePerGara = posRivale <= puntiPerPosizione.length ? puntiPerPosizione[posRivale - 1] : 0
-      const differenzaPerGara = puntiPilotaPerGara - puntiRivalePerGara
-
-      if (differenzaPerGara > 0) {
-        const gareNecessarie = Math.ceil(Math.abs(differenzaPunti) / differenzaPerGara)
-
-        if (gareNecessarie > 0 && gareNecessarie <= gpRimanenti) {
-          const posizione = `${posPilota}°`
-          const posizioneRivale = posRivale > 10 ? 'fuori dai punti' : `${posRivale}° o peggio`
-
-          combinazioni.push(`${pilota.nome} ${posizione} + ${rivale.nome} ${posizioneRivale} per ${gareNecessarie} gare`)
-          contatore++
-        }
-      }
-    }
-  }
-
-  // Scenario prossimo GP: usa il primo GP non completato (in ordine nell'array), robusto verso tipi diversi di flag
-  if (gpRimanenti > 0 && Array.isArray(classifica.gp)) {
-    const prossimoIndex = classifica.gp.findIndex(g => !Boolean(g.completato))
-    const gpCompletatiCount = classifica.gp.filter(g => Boolean(g.completato)).length
-    const nomeGP = prossimoIndex !== -1 ? classifica.gp[prossimoIndex].nome : `GP #${gpCompletatiCount + 1}`
-
-    for (let posPilota = 1; posPilota <= 5; posPilota++) {
-      const puntiPilota = puntiPerPosizione[posPilota - 1]
-
-      for (let posRivale = posPilota + 1; posRivale <= 10; posRivale++) {
-        const puntiRivale = posRivale <= puntiPerPosizione.length ? puntiPerPosizione[posRivale - 1] : 0
-        const puntiDopoGara = (pilota.punti || 0) + puntiPilota
-        const puntiRivaleDopoGara = (rivale.punti || 0) + puntiRivale
-
-        const gareDopoQuesta = gpRimanenti - 1
-        const puntiMassimiRivaleFinali = puntiRivaleDopoGara + (gareDopoQuesta * 25)
-
-        if (puntiDopoGara > puntiMassimiRivaleFinali) {
-          const posizione = `${posPilota}°`
-          const posizioneRivale = posRivale > 10 ? 'fuori punti' : `${posRivale}° o peggio`
-
-          combinazioni.unshift(`🏁 A ${nomeGP}: ${pilota.nome} ${posizione} + ${rivale.nome} ${posizioneRivale} = CAMPIONE!`)
-          return combinazioni.slice(0, 10)
-        }
-      }
-    }
-  }
-
-  return combinazioni.slice(0, 10)
-}
+import pronosticoCampionato from './pronosticoCampionato.js';
 import PannelloFonti from './PannelloFonti.jsx'
 import GestioneRSSModal from './GestioneRSSModal.jsx'
 import MonitorUrlModal from './MonitorUrlModal';
@@ -1045,12 +906,14 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
       setGpSelezionato(null);
       setClassifica(nuovaClassifica);
     }} 
+    
   />
   if (showGrafico) return <GraficoPronostico classifica={classifica} isMobile={isMobile} onClose={() => setShowGrafico(false)} />
 
   const pilotiOrdinati = classifica.piloti ? [...classifica.piloti].filter(p => p.attivo).sort((a, b) => b.punti - a.punti) : []
   const costruttoriOrdinati = classifica.costruttori ? [...classifica.costruttori].sort((a, b) => b.punti - a.punti) : []
   const gpCompletati = classifica.gp
+  
     ? classifica.gp.filter(g => g.completato).sort((a, b) => a.id - b.id)
     : []
   const gpDaCompletare = classifica.gp ? classifica.gp.filter(g => !g.completato) : []
@@ -1231,7 +1094,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                     // Normalizza il flag per robustezza
                     const flagNorm = (flag || '').trim().toUpperCase();
                     if (flagNorm !== 'DNS' && flagNorm !== 'DSQ' && flagNorm !== 'DNF' && posizione !== null) {
-                      puntiPos = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
+                      puntiPos = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                     }
                     // Punti pole SEMPRE se pole_id, tranne DNS
                     const isPole = classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS';
@@ -1550,19 +1413,37 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
   }, [gpPreselezionato, garaCorrente, gp]);
 
   const aggiungiGP = () => {
-    if (!nomeGP) return
-    const nuovoGP = {
-      id: Date.now(),
-      nome: nomeGP,
-      tipo_weekend: tipoWeekend,
-      completato: false,
-      gare: tipoWeekend === 'standard' ? [{ id: Date.now(), tipo_gara: 'principale', risultati: {}, completata: false }] : 
-             tipoWeekend === 'sprintF1' ? [{ id: Date.now(), tipo_gara: 'sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'principale', risultati: {}, completata: false }] :
-             [{ id: Date.now(), tipo_gara: 'f2sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'featureRace', risultati: {}, completata: false }]
+  if (!nomeGP) return
+  // Se è spuntato "Double Header" e l'ultimo GP inserito aveva anche lui la spunta,
+  // collega questo nuovo GP allo stesso weekend_id del precedente
+  const ultimoGP = gp[gp.length - 1]
+  let weekendId = null
+  if (doubleHeader) {
+    if (ultimoGP && ultimoGP.weekend_id && ultimoGP.attende_secondo_round) {
+      weekendId = ultimoGP.weekend_id
+    } else {
+      weekendId = `weekend_${Date.now()}`
     }
-    setGp(nuovoGP)
-    setStep(1)
   }
+  const nuovoGP = {
+    id: Date.now(),
+    nome: nomeGP,
+    tipo_weekend: tipoWeekend,
+    completato: false,
+    gare: [],
+    weekend_id: weekendId,
+    attende_secondo_round: doubleHeader && !(ultimoGP && ultimoGP.weekend_id === weekendId)
+  }
+  // Se questo GP completa una coppia già aperta, chiudi il flag sul precedente
+  let nuovaLista = [...gp, nuovoGP]
+  if (weekendId && ultimoGP && ultimoGP.weekend_id === weekendId) {
+    nuovaLista = nuovaLista.map((g, idx) =>
+      idx === nuovaLista.length - 2 ? { ...g, attende_secondo_round: false } : g
+    )
+  }
+  setGp(nuovaLista)
+  setNomeGP('')
+}
 
   // Salva SOLO la gara attiva (Sprint o Feature), non tutto il GP
   const salvaRisultatiGara = () => {
@@ -1617,7 +1498,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           if (flagNorm !== 'DNS' && flagNorm !== 'DSQ' && flagNorm !== 'DNF') {
             const pos = info.posizione;
             if (typeof pos !== 'undefined' && gara) {
-              punti += calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
+              punti += pronosticoCampionato.calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
             }
           }
           // Punti pole SEMPRE se pole_id, tranne DNS
@@ -1729,7 +1610,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           if (!pilota) return;
           if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') return;
           const pos = info.posizione;
-          let punti = calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
+          let punti = pronosticoCampionato.calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
           if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
             punti += classifica.punti_pole_valore || 3;
           }
@@ -2312,6 +2193,7 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         usa_sistema_fia: !!dati.usa_sistema_fia,
         usa_sprint: !!dati.usa_sprint,
         usa_modificatore_libero: !!dati.usa_modificatore_libero,
+        tipo_spareggio: dati.tipo_spareggio || 'nessuno',
         modificatore_libero_numero: Number(dati.modificatore_libero_numero) || 0,
         modificatore_libero_punti: Array.isArray(dati.modificatore_libero_punti) ? dati.modificatore_libero_punti : []
       }
@@ -2480,7 +2362,23 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
             </div>
           )}
       </div>
-
+{classifica.nome !== 'Formula 1' && classifica.nome !== 'Formula E' && (
+  <div style={{ marginBottom: '30px' }}>
+    <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Regola di spareggio a parità di punti</label>
+    <div style={{ display: 'grid', gap: '10px' }}>
+      {[
+        { val: 'nessuno', label: 'Nessuna regola specifica' },
+        { val: 'f1', label: '🏎️ Stile Formula 1' },
+        { val: 'fe', label: '⚡️ Stile Formula E' },
+        { val: 'f2f3', label: '🏁 Stile F2 / F3' },
+      ].map(opt => (
+        <button key={opt.val} onClick={() => setDati({ ...dati, tipo_spareggio: opt.val })} style={{ padding: '12px', background: (dati.tipo_spareggio || 'nessuno') === opt.val ? '#007AFF' : 'white', color: (dati.tipo_spareggio || 'nessuno') === opt.val ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  </div>
+)}
       <div style={{ marginBottom: '30px' }}>
         <button onClick={() => setShowCambiaPilota(true)} style={{ width: '100%', padding: '15px', background: 'linear-gradient(135deg, #FF9500 0%, #FF6B00 100%)', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '15px' }}>
           Cambia Pilota
@@ -2867,6 +2765,7 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
     }
   const [tab, setTab] = useState(0)
   const [pilotaFissato, setPilotaFissato] = useState(null)
+  const [eliminazioniAperte, setEliminazioniAperte] = useState({})
   const [showVersus, setShowVersus] = useState(false)
   
   const pilotiOrdinati = classifica.piloti ? classifica.piloti.filter(p => p.attivo).sort((a, b) => (b.punti || 0) - (a.punti || 0)) : []
@@ -2875,8 +2774,12 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
   const gpRimanenti = classifica.gp ? classifica.gp.filter(g => !g.completato).length : 0
   const sprintRimanenti = classifica.gp ? classifica.gp.filter(g => !g.completato && g.tipo_weekend === 'sprintF1').length : 0
   
-  const puntiMassimiRimanenti = gpRimanenti * 25 + sprintRimanenti * 8
-
+  const puntiMassimiRimanentiPiloti = pronosticoCampionato.calcolaPuntiMassimiRimanenti(classifica, 'pilota')
+const puntiMassimiRimanentiCostruttori = pronosticoCampionato.calcolaPuntiMassimiRimanenti(classifica, 'costruttore')
+const debugSpareggio = pilotiOrdinati.length >= 2
+  ? pronosticoCampionato.chiVinceSpareggio(pilotiOrdinati[0], pilotiOrdinati[1], classifica)
+  : null
+const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classifica)
 
   return (
     <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
@@ -2895,18 +2798,6 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
           <button onClick={() => { setTab(1); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 1 ? '#007AFF' : 'white', color: tab === 1 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Costruttori</button>
         </div>
 
-        <div style={{ background: 'white', borderRadius: '15px', padding: '30px', marginBottom: '20px', textAlign: 'center' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '60px' }}>
-            <div>
-              <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#007AFF' }}>{gpRimanenti}</div>
-              <div style={{ fontSize: '16px', color: '#666' }}>GP rimanenti</div>
-            </div>
-            <div>
-              <div style={{ fontSize: '36px', fontWeight: 'bold', color: '#FF9500' }}>{sprintRimanenti}</div>
-              <div style={{ fontSize: '16px', color: '#666' }}>Sprint rimanenti</div>
-            </div>
-          </div>
-        </div>
 
         <div style={{ background: 'white', borderRadius: '15px', padding: '20px', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '10px', flexWrap: 'wrap' }}>
@@ -2960,9 +2851,9 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                         }
                         let puntiGara;
                         if (gara.accorciata) {
-                          puntiGara = calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti);
+                          puntiGara = pronosticoCampionato.calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti);
                         } else {
-                          puntiGara = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
+                          puntiGara = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                         }
                         if (classifica.punti_pole_attivo && String(gara.pole_id) === String(item.id)) {
                           puntiGara += classifica.punti_pole_valore || 3;
@@ -2982,9 +2873,9 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                           }
                           let puntiGara;
                           if (gara.accorciata) {
-                            puntiGara = calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti);
+                            puntiGara = pronosticoCampionato.calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti);
                           } else {
-                            puntiGara = calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
+                            puntiGara = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                           }
                           if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
                             puntiGara += classifica.punti_pole_valore || 3;
@@ -3005,10 +2896,10 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                   
                   // Calcola percentuale per determinare se fuori lotta
                   const lista = tab === 0 ? pilotiOrdinati : costruttoriOrdinati
-                  const moltiplicatore = tab === 0 ? 1 : 2
-                  const distacco = idx === 0 ? 0 : ((lista[0]?.punti || 0) - (item.punti || 0))
-                  const possibile = distacco <= puntiMassimiRimanenti * moltiplicatore
-                  const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / (puntiMassimiRimanenti * moltiplicatore)) * 100)) : 0
+const puntiMax = tab === 0 ? puntiMassimiRimanentiPiloti : puntiMassimiRimanentiCostruttori
+const distacco = idx === 0 ? 0 : ((lista[0]?.punti || 0) - (item.punti || 0))
+const possibile = distacco <= puntiMax
+const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiMax) * 100)) : 0
                   
                   const fuoriLotta = percentuale === 0 && idx > 0
                   const colore = fuoriLotta ? '#cccccc' : (item.colore || '#007AFF')
@@ -3046,10 +2937,10 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginTop: '20px', padding: '15px', background: '#f9f9f9', borderRadius: '10px' }}>
                 {(tab === 0 ? pilotiOrdinati : costruttoriOrdinati).map((item, idx) => {
                   const lista = tab === 0 ? pilotiOrdinati : costruttoriOrdinati
-                  const moltiplicatore = tab === 0 ? 1 : 2
-                  const distacco = idx === 0 ? 0 : ((lista[0]?.punti || 0) - (item.punti || 0))
-                  const possibile = distacco <= puntiMassimiRimanenti * moltiplicatore
-                  const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / (puntiMassimiRimanenti * moltiplicatore)) * 100)) : 0
+const puntiMax = tab === 0 ? puntiMassimiRimanentiPiloti : puntiMassimiRimanentiCostruttori
+const distacco = idx === 0 ? 0 : ((lista[0]?.punti || 0) - (item.punti || 0))
+const possibile = distacco <= puntiMax
+const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiMax) * 100)) : 0
                   const fuoriLotta = percentuale === 0 && idx > 0
                   const isFissato = pilotaFissato && String(pilotaFissato) === String(item.id)
                   return (
@@ -3086,12 +2977,11 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
           <h2 style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '20px' }}>Analisi Possibilità di Vittoria</h2>
           {tab === 0 ? (
             pilotiOrdinati.map((p, i) => {
-              const puntiRimanenti = puntiMassimiRimanenti
+              const puntiRimanenti = puntiMassimiRimanentiPiloti
               const distacco = i === 0 ? 0 : (pilotiOrdinati[0]?.punti || 0) - (p.punti || 0)
               const possibile = distacco <= puntiRimanenti
               const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiRimanenti) * 100)) : 0
-              const combinazioni = calcolaCombinazioniVittoria(p, classifica, gpRimanenti, sprintRimanenti)
-              
+
               return (
                 <div key={p.id} style={{ padding: '20px', borderBottom: i < pilotiOrdinati.length - 1 ? '1px solid #eee' : 'none', opacity: possibile ? 1 : 0.5 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
@@ -3108,115 +2998,189 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                       {possibile ? (i === 0 ? 'Leader' : `${percentuale}%`) : 'Fuori dalla lotta'}
                     </span>
                   </div>
-                  {possibile && (
+                 {possibile && (
                     <div style={{ width: '100%', height: '8px', background: '#eee', borderRadius: '4px', overflow: 'hidden', marginBottom: '15px' }}>
                       <div style={{ width: `${percentuale}%`, height: '100%', background: '#34C759' }}></div>
                     </div>
                   )}
-                  
-                  {/* COMBINAZIONI */}
-                  {combinazioni.length > 0 && (
-                    <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500' }}>
-                      <div style={{ fontWeight: 'bold', color: '#FF9500', marginBottom: '10px' }}>
-                      Combinazioni per vincere il campionato:
-                      </div>
-                      {combinazioni.map((combo, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '6px', fontSize: '13px' }}>
-                          <span style={{ color: '#FF9500' }}>•</span>
-                          <span>{combo}</span>
+
+                 {(() => {
+                    const risultato = pronosticoCampionato.calcolaCombinazioniVittoria(p, classifica)
+                    if (risultato.stato === 'campione') {
+                      return (
+                        <div style={{ marginTop: '15px', padding: '15px', background: '#e8f9ee', borderRadius: '8px', borderLeft: '4px solid #34C759', fontWeight: 'bold', color: '#1d7a3e' }}>
+                          🏆 Già campione matematico!
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      )
+                    }
+
+                    if (risultato.stato === 'ok') {
+                      return (
+                        <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500' }}>
+                          <div style={{ fontWeight: 'bold', color: '#FF9500', marginBottom: '12px' }}>
+                            Combinazioni per vincere il campionato:
+                          </div>
+                          {risultato.scenari.map((s, idx) => (
+                            <div key={idx} style={{ marginBottom: idx < risultato.scenari.length - 1 ? '14px' : 0, paddingBottom: idx < risultato.scenari.length - 1 ? '14px' : 0, borderBottom: idx < risultato.scenari.length - 1 ? '1px solid #ffe4b3' : 'none' }}>
+                              <div style={{ fontWeight: '600', fontSize: '13px', color: '#333', marginBottom: '6px' }}>
+                                📍 {s.gpNome} — {s.garaLabel}
+                              </div>
+                              <div style={{ fontSize: '13px', marginBottom: '6px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+                                <strong>{s.protagonista}</strong>:
+                                <span style={{ fontWeight: s.posProtagonista === 1 ? 'bold' : 'normal', color: s.posProtagonista === 1 ? '#007AFF' : 'inherit' }}>
+                                  {s.posProtagonista === 1 ? 'Vittoria' : `${s.posProtagonista}° o meglio`}
+                                </span>
+                                {s.richiedePole && (
+                                  <span style={{ display: 'inline-block', background: 'linear-gradient(90deg, #34c759 0%, #28a745 100%)', color: 'white', borderRadius: '8px', fontWeight: 'bold', fontSize: '11px', padding: '2px 7px' }}>POLE</span>
+                                )}
+                                {s.richiedeGiroVeloce && (
+                                  <span style={{ display: 'inline-block', background: 'linear-gradient(90deg, #a259ff 0%, #6e27c5 100%)', color: 'white', borderRadius: '8px', fontWeight: 'bold', fontSize: '11px', padding: '2px 7px' }}>FL</span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>e contemporaneamente:</div>
+                              {s.rivaliSenzaVincoli > 0 && (
+                                <div style={{ fontSize: '11px', color: '#999', fontStyle: 'italic', marginBottom: '6px' }}>
+                                  (+{s.rivaliSenzaVincoli} rival{s.rivaliSenzaVincoli === 1 ? 'e' : 'i'} già fuori gioco in questo scenario)
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                {s.richiesteRivaliVisibili.map((r, ridx) => (
+                                  <div key={ridx} style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', maxWidth: '320px' }}>
+                                    <span>{r.nome}</span>
+                                    <span style={{ fontWeight: '600', color: '#b26b00' }}>{r.fuoriPunti ? 'fuori dalla zona punti' : `${r.posMin}° o peggio`}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    }
+
+                    if (risultato.stato === 'ok_multigara') {
+                      const mg = risultato.multiGara
+                      return (
+                        <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500' }}>
+                          <div style={{ fontWeight: 'bold', color: '#FF9500', marginBottom: '4px' }}>
+                            Combinazioni per vincere il campionato:
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#888', marginBottom: '12px' }}>
+                            Su {mg.numGareCoinvolte} gare: {mg.nomiGare.join(' + ')}
+                          </div>
+                          <div style={{ background: 'white', borderRadius: '8px', padding: '12px 14px', border: '1px solid #ffe4b3', marginBottom: '10px' }}>
+                            <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between' }}>
+                              <span><strong>{p.nome}</strong> deve totalizzare almeno:</span>
+                              <span style={{ fontWeight: 'bold', color: '#b26b00' }}>{mg.puntiTotaliRichiesti}{mg.puntiTotaliRichiesti < mg.puntiBloccoMax ? '+' : ''} punti</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                              (su {mg.puntiBloccoMax} disponibili in quell'arco)
+                            </div>
+                          </div>
+                          {mg.caps.length > 0 && (
+                            <>
+                              <div style={{ fontSize: '12px', color: '#666', marginBottom: '6px' }}>e contemporaneamente:</div>
+                              {mg.caps.map((c, idx) => (
+                                <div key={idx} style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: idx > 0 ? '1px solid #ffe4b3' : 'none' }}>
+                                  <span>{c.nome}{c.principale ? ' ⭐' : ''}</span>
+                                  <span style={{ fontWeight: '600', color: '#b26b00' }}>non più di {c.capPunti} punti</span>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )
+                    }
+
+                    if (risultato.stato === 'nessuno_scenario_singolo') {
+                      return (
+                        <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500', fontSize: '13px', color: '#7a5200' }}>
+                          Non ancora determinabile con le gare rimanenti attuali.
+                        </div>
+                      )
+                    }
+
+                    return null
+                  })()}
+
+                 {possibile && i > 0 && (() => {
+                    const eliminazione = pronosticoCampionato.calcolaCombinazioniEliminazione(p, classifica)
+                    if (eliminazione.gruppi.length === 0 && eliminazione.multiGaraPerRivale.length === 0) return null
+                    return (
+                     <div style={{ marginTop: '15px', padding: '15px', background: '#fdecea', borderRadius: '8px', borderLeft: '4px solid #FF3B30' }}>
+  <div
+    onClick={() => setEliminazioniAperte(prev => ({ ...prev, [p.id]: !prev[p.id] }))}
+    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+  >
+    <div style={{ fontWeight: 'bold', color: '#FF3B30' }}>
+      Come {p.nome} può essere eliminato dalla lotta:
+    </div>
+    <span style={{ fontSize: '18px', color: '#FF3B30', transform: eliminazioniAperte[p.id] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+      ▾
+    </span>
+  </div>
+  {eliminazioniAperte[p.id] && (
+    <>
+      <div style={{ fontSize: '12px', color: '#888', marginTop: '10px', marginBottom: '14px' }}>
+        Basta che si verifichi UNA di queste situazioni
+      </div>
+                        {eliminazione.gruppi.map((gruppo, gidx) => (
+                          <div key={`g${gidx}`} style={{ marginBottom: '16px' }}>
+                            {gruppo.scenari.map((s, sidx) => (
+                              <div key={sidx} style={{ background: 'white', borderRadius: '8px', padding: '12px 14px', marginBottom: '8px', border: '1px solid #f5d5d0' }}>
+                                <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px', fontWeight: '600' }}>
+                                  📍 {s.gpNome} — {s.garaLabel}
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', marginBottom: '6px' }}>
+                                  <span>Se <strong>{gruppo.rivale}</strong> arriva</span>
+                                  <span style={{ fontWeight: 'bold', color: '#1d7a3e', background: '#e8f9ee', padding: '2px 10px', borderRadius: '12px' }}>
+                                    {s.posProtagonista === 1 ? 'Vittoria' : `${s.posProtagonista}° o meglio`}
+                                    {s.richiedePole ? ' + POLE' : ''}
+                                    {s.richiedeGiroVeloce ? ' + FL' : ''}
+                                  </span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                                  <span>e <strong>{p.nome}</strong> arriva</span>
+                                  <span style={{ fontWeight: 'bold', color: '#c0392b', background: '#fbe4e0', padding: '2px 10px', borderRadius: '12px' }}>
+                                    {s.richiesteRivali[0].fuoriPunti ? 'fuori zona punti' : `${s.richiesteRivali[0].posMin}° o peggio`}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                        {eliminazione.multiGaraPerRivale.map((gruppo, gidx) => {
+                          const mg = gruppo.multiGara
+                          return (
+                            <div key={`m${gidx}`} style={{ background: 'white', borderRadius: '8px', padding: '12px 14px', marginBottom: '8px', border: '1px solid #f5d5d0' }}>
+                              <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px', fontWeight: '600' }}>
+                                Su {mg.numGareCoinvolte} gare consecutive
+                              </div>
+                              <div style={{ fontSize: '13px', marginBottom: '6px' }}>
+                                <strong>{gruppo.rivale}</strong> deve totalizzare almeno {mg.puntiTotaliRichiesti} punti
+                              </div>
+                              {mg.caps.filter(c => String(c.id) === String(p.id)).map((c, cidx) => (
+                                <div key={cidx} style={{ fontSize: '13px', color: '#c0392b', fontWeight: '600' }}>
+                                  {p.nome} non più di {c.capPunti} punti nello stesso arco
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })}
+                      </>
+                    )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })
           ) : (
             costruttoriOrdinati.map((c, i) => {
-              const puntiRimanenti = puntiMassimiRimanenti * 2
-              const distacco = i === 0 ? 0 : (costruttoriOrdinati[0]?.punti || 0) - (c.punti || 0)
-              const possibile = distacco <= puntiRimanenti
-              const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiRimanenti) * 100)) : 0
-              
-              // Combinazioni costruttori (simili a piloti ma con 2 piloti per team)
-              const combinazioniCostruttori = []
-              if (possibile && gpRimanenti > 0) {
-                const leader = costruttoriOrdinati[0]
-                
-                if (i === 0) {
-                  // SONO IL LEADER
-                  if (costruttoriOrdinati.length > 1) {
-                    const secondo = costruttoriOrdinati[1]
-                    const vantaggio = (c.punti || 0) - (secondo.punti || 0)
-                    
-                    if (vantaggio > puntiRimanenti) {
-                      combinazioniCostruttori.push('🏆 Già campione matematico!')
-                    } else {
-                      // Combinazioni per mantenere la leadership
-                      combinazioniCostruttori.push(`${c.nome} mantiene vantaggio con doppietta 1-2 in ${Math.ceil((puntiRimanenti - vantaggio) / 43)} gare`)
-                      combinazioniCostruttori.push(`${c.nome} 1° + 3° in ${Math.ceil((puntiRimanenti - vantaggio) / 40)} gare garantisce titolo`)
-                      combinazioniCostruttori.push(`Se ${secondo.nome} fa meno di ${vantaggio} punti, ${c.nome} è campione`)
-                    }
-                  } else {
-                    combinazioniCostruttori.push('🏆 Unico costruttore in classifica!')
-                  }
-                } else {
-                  // SONO INSEGUITORE
-                  const gpRimanentiList = classifica.gp.filter(g => !g.completato)
-                  const puntiPerPosizione = (classifica && classifica.usa_modificatore_libero && Array.isArray(classifica.modificatore_libero_punti) && classifica.modificatore_libero_punti.length > 0)
-                    ? classifica.modificatore_libero_punti
-                    : [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
-                  let garaVittoria = null
-                  const tuttiGliIncastri = []
-                  
-                  // Itera su ogni gara rimanente
-                  for (let gpIdx = 0; gpIdx < gpRimanentiList.length && !garaVittoria; gpIdx++) {
-                    const gp = gpRimanentiList[gpIdx]
-                    const gareDopoQuesta = gpRimanentiList.length - gpIdx - 1
-                    
-                    // Itera su possibili doppiette del costruttore (1-2, 1-3, 2-3, ecc.)
-                    for (let pos1 = 1; pos1 <= 2; pos1++) {
-                      for (let pos2 = pos1 + 1; pos2 <= 3; pos2++) {
-                        const puntiDaQuestaGara = (puntiPerPosizione[pos1 - 1] || 0) + (puntiPerPosizione[pos2 - 1] || 0)
-                        const puntiCostruttoreTotale = (c.punti || 0) + puntiDaQuestaGara
-                        
-                        // Verifica contro tutti i rivali
-                        for (let rivaleIdx = 0; rivaleIdx < costruttoriOrdinati.length; rivaleIdx++) {
-                          const rivale = costruttoriOrdinati[rivaleIdx]
-                          if (rivale.id === c.id) continue
-                          
-                          // Itera su possibili posizioni del rivale (il massimo che potrebbe fare)
-                          for (let posRivale1 = 1; posRivale1 <= 2; posRivale1++) {
-                            for (let posRivale2 = posRivale1 + 1; posRivale2 <= 3; posRivale2++) {
-                              const puntiRivaleDaQuesta = (puntiPerPosizione[posRivale1 - 1] || 0) + (puntiPerPosizione[posRivale2 - 1] || 0)
-                              const puntiRivaleTotale = (rivale.punti || 0) + puntiRivaleDaQuesta
-                              const puntiRivaleMassimi = puntiRivaleTotale + (gareDopoQuesta * 50)
-                              
-                              if (puntiCostruttoreTotale > puntiRivaleMassimi && !garaVittoria) {
-                                garaVittoria = gp.nome
-                                tuttiGliIncastri.push(`${c.nome} ${pos1}°/${pos2}° + ${rivale.nome} ${posRivale1}°/${posRivale2}°`)
-                              } else if (garaVittoria === gp.nome && tuttiGliIncastri.length < 10) {
-                                tuttiGliIncastri.push(`${c.nome} ${pos1}°/${pos2}° + ${rivale.nome} ${posRivale1}°/${posRivale2}°`)
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                  
-                  if (garaVittoria) {
-                    combinazioniCostruttori.push(`🏆 Diventa campione a: ${garaVittoria}`)
-                    combinazioniCostruttori.push('')
-                    const incastriUnique = [...new Set(tuttiGliIncastri)].slice(0, 10)
-                    incastriUnique.forEach(incastro => {
-                      combinazioniCostruttori.push(`✓ ${incastro}`)
-                    })
-                  } else {
-                    combinazioniCostruttori.push('❌ Matematicamente non può vincere il campionato')
-                  }
-                }
-              }
+             const puntiRimanenti = puntiMassimiRimanentiCostruttori
+const distacco = i === 0 ? 0 : (costruttoriOrdinati[0]?.punti || 0) - (c.punti || 0)
+const possibile = distacco <= puntiRimanenti
+const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiRimanenti) * 100)) : 0
+const risultatoCostruttore = possibile ? pronosticoCampionato.calcolaCombinazioniVittoriaCostruttore(c, classifica) : { stato: 'fuori' }
               
               return (
                 <div key={c.id} style={{ padding: '20px', borderBottom: i < costruttoriOrdinati.length - 1 ? '1px solid #eee' : 'none', opacity: possibile ? 1 : 0.5 }}>
@@ -3240,20 +3204,103 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
                     </div>
                   )}
                   
-                  {/* COMBINAZIONI COSTRUTTORI */}
-                  {combinazioniCostruttori.length > 0 && (
-                    <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500' }}>
-                      <div style={{ fontWeight: 'bold', color: '#FF9500', marginBottom: '10px' }}>
-                        Combinazioni per vincere il campionato:
-                      </div>
-                      {combinazioniCostruttori.map((combo, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '6px', fontSize: '13px' }}>
-                          <span style={{ color: '#FF9500' }}>•</span>
-                          <span>{combo}</span>
+                  {(() => {
+                    if (risultatoCostruttore.stato === 'campione') {
+                      return (
+                        <div style={{ marginTop: '15px', padding: '15px', background: '#e8f9ee', borderRadius: '8px', borderLeft: '4px solid #34C759', fontWeight: 'bold', color: '#1d7a3e' }}>
+                          🏆 Già campione matematico!
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      )
+                    }
+                    if (risultatoCostruttore.stato === 'ok_gara_singola') {
+                      const cl = risultatoCostruttore.clinch
+                      return (
+                        <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500' }}>
+                          <div style={{ fontWeight: 'bold', color: '#FF9500', marginBottom: '4px' }}>
+                            Combinazioni per vincere il campionato:
+                          </div>
+                          <div style={{ fontSize: '13px' }}>
+                            📍 A <strong>{cl.gpNome}</strong>: ottenendo almeno <strong>{cl.puntiOttenuti}{cl.puntiOttenuti < cl.puntiMaxGP ? '+' : ''} punti</strong>, il titolo è matematicamente blindato.
+                          </div>
+                        </div>
+                      )
+                    }
+                    if (risultatoCostruttore.stato === 'ok_multigara') {
+                      const mg = risultatoCostruttore.multiGara
+                      return (
+                        <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500' }}>
+                          <div style={{ fontWeight: 'bold', color: '#FF9500', marginBottom: '4px' }}>
+                            Combinazioni per vincere il campionato:
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#888', marginBottom: '12px' }}>
+                            Sulle {mg.numGP} gare rimanenti in stagione
+                          </div>
+                          <div style={{ background: 'white', borderRadius: '8px', padding: '12px 14px', border: '1px solid #ffe4b3', marginBottom: '10px' }}>
+                            <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between' }}>
+                              <span><strong>{c.nome}</strong> deve totalizzare almeno:</span>
+                              <span style={{ fontWeight: 'bold', color: '#b26b00' }}>
+                                {mg.puntiTotaliRichiesti}{mg.puntiTotaliRichiesti < mg.puntiBloccoMax ? '+' : ''} punti
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                              (su {mg.puntiBloccoMax} disponibili)
+                            </div>
+                          </div>
+                          {mg.caps.length > 0 && (
+                            <>
+                              <div style={{ fontSize: '12px', color: '#666', marginBottom: '6px' }}>e contemporaneamente:</div>
+                              {mg.caps.map((cap, idx) => (
+                                <div key={idx} style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: idx > 0 ? '1px solid #ffe4b3' : 'none' }}>
+                                  <span>{cap.nome}</span>
+                                  <span style={{ fontWeight: '600', color: '#b26b00' }}>non più di {cap.capPunti} punti</span>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
+
+                  {possibile && i > 0 && (() => {
+                    const eliminazioni = pronosticoCampionato.calcolaEliminazioneCostruttore(c, classifica)
+                    if (eliminazioni.length === 0) return null
+                    return (
+                      <div style={{ marginTop: '15px', padding: '15px', background: '#fdecea', borderRadius: '8px', borderLeft: '4px solid #FF3B30' }}>
+                        <div
+                          onClick={() => setEliminazioniAperte(prev => ({ ...prev, [`c_${c.id}`]: !prev[`c_${c.id}`] }))}
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                        >
+                          <div style={{ fontWeight: 'bold', color: '#FF3B30' }}>
+                            Come {c.nome} può essere eliminato dalla lotta:
+                          </div>
+                          <span style={{ fontSize: '18px', color: '#FF3B30', transform: eliminazioniAperte[`c_${c.id}`] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                            ▾
+                          </span>
+                        </div>
+                        {eliminazioniAperte[`c_${c.id}`] && (
+                          <>
+                            <div style={{ fontSize: '12px', color: '#888', marginTop: '10px', marginBottom: '14px' }}>
+                              Basta che si verifichi UNA di queste situazioni
+                            </div>
+                            {eliminazioni.map((el, idx) => (
+                              <div key={idx} style={{ background: 'white', borderRadius: '8px', padding: '12px 14px', marginBottom: idx < eliminazioni.length - 1 ? '8px' : 0, border: '1px solid #f5d5d0' }}>
+                                <div style={{ fontSize: '13px', marginBottom: '6px' }}>
+                                  <strong>{el.rivale}</strong> deve totalizzare almeno {el.puntiRichiesti}{el.puntiRichiesti < el.puntiDisponibili ? '+' : ''} punti
+                                </div>
+                                {el.capBersaglio !== null && (
+                                  <div style={{ fontSize: '13px', color: '#c0392b', fontWeight: '600' }}>
+                                    {c.nome} non più di {el.capBersaglio} punti nello stesso arco
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )
             })
@@ -3279,6 +3326,9 @@ function SetupIniziale({ classifica, onSave, onBack }) {
   const [fotoPilota, setFotoPilota] = useState(null)
   const [nomeGP, setNomeGP] = useState('')
   const [tipoWeekend, setTipoWeekend] = useState('standard')
+  const [doubleHeader, setDoubleHeader] = useState(false)
+const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
+  const [tipoSpareggio, setTipoSpareggio] = useState('nessuno')
   const fileInputRef = React.useRef();
 
   const aggiungiPilota = async () => {
@@ -3316,7 +3366,7 @@ function SetupIniziale({ classifica, onSave, onBack }) {
 
   const confermaESalva = async () => {
     // Salva la classifica aggiornata su Supabase (standard o custom)
-    const nuovaClassifica = { ...classifica, piloti, costruttori, gp, numero_gp_stagione: numeroGP, numero_sprint_stagione: numeroSprint };
+    const nuovaClassifica = { ...classifica, piloti, costruttori, gp, numero_gp_stagione: numeroGP, numero_sprint_stagione: numeroSprint, tipo_spareggio: tipoSpareggio };
     if (classifica.isCustom) {
       // Aggiorna classifiche_custom
       await supabase.from('classifiche_custom').update(nuovaClassifica).eq('id', classifica.id);
@@ -3480,6 +3530,26 @@ function SetupIniziale({ classifica, onSave, onBack }) {
           </div>
         )}
 
+       <div style={{ marginBottom: '20px' }}>
+  <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Regola di spareggio a parità di punti</label>
+  <div style={{ display: 'grid', gap: '10px' }}>
+    <button onClick={() => setTipoSpareggio('nessuno')} style={{ padding: '15px', background: tipoSpareggio === 'nessuno' ? '#007AFF' : 'white', color: tipoSpareggio === 'nessuno' ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+      <div style={{ fontWeight: 'bold' }}>Nessuna regola specifica</div>
+    </button>
+    <button onClick={() => setTipoSpareggio('f1')} style={{ padding: '15px', background: tipoSpareggio === 'f1' ? '#007AFF' : 'white', color: tipoSpareggio === 'f1' ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+      <div style={{ fontWeight: 'bold' }}>🏎️ Stile Formula 1</div>
+      <div style={{ fontSize: '14px', opacity: 0.8 }}>Countback: più vittorie, poi più 2°, poi più 3°...</div>
+    </button>
+    <button onClick={() => setTipoSpareggio('fe')} style={{ padding: '15px', background: tipoSpareggio === 'fe' ? '#007AFF' : 'white', color: tipoSpareggio === 'fe' ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+      <div style={{ fontWeight: 'bold' }}>⚡️ Stile Formula E</div>
+      <div style={{ fontSize: '14px', opacity: 0.8 }}>Countback come F1, poi pole position se ancora pari</div>
+    </button>
+    <button onClick={() => setTipoSpareggio('f2f3')} style={{ padding: '15px', background: tipoSpareggio === 'f2f3' ? '#007AFF' : 'white', color: tipoSpareggio === 'f2f3' ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+      <div style={{ fontWeight: 'bold' }}>🏁 Stile F2 / F3</div>
+      <div style={{ fontSize: '14px', opacity: 0.8 }}>Priorità Feature Race, poi Sprint Race, poi countback</div>
+    </button>
+  </div>
+</div>
         <button 
           onClick={() => setStep(1)} 
           disabled={piloti.length === 0} 
@@ -3534,7 +3604,20 @@ function SetupIniziale({ classifica, onSave, onBack }) {
               style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} 
             />
           </div>
-
+<div style={{ marginBottom: '20px' }}>
+  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+    <input 
+      type="checkbox" 
+      checked={doubleHeader} 
+      onChange={(e) => setDoubleHeader(e.target.checked)} 
+      style={{ width: '20px', height: '20px' }} 
+    />
+    <span style={{ fontWeight: '600' }}>È un Double Header (2 round separati, stesso weekend)</span>
+  </label>
+  <div style={{ fontSize: '13px', color: '#888', marginTop: '4px', marginLeft: '30px' }}>
+    Es. Formula E: sabato e domenica come round indipendenti (pole e giro veloce separati)
+  </div>
+</div>
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Tipo Weekend:</label>
             <div style={{ display: 'grid', gap: '10px' }}>
