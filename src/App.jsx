@@ -4329,6 +4329,24 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
   const [loading, setLoading] = useState(true)
   const [showNuovo, setShowNuovo] = useState(false)
   const [editUtente, setEditUtente] = useState(null)
+  const [permessiUtente, setPermessiUtente] = useState(null) // utente di cui si stanno modificando i permessi
+
+  // Elenco dei permessi speciali disponibili: per aggiungerne uno nuovo in futuro basta
+  // aggiungere una riga qui, senza toccare il database (è già pronto a contenerne altri).
+  const PERMESSI_DISPONIBILI = [
+    { chiave: 'linee_guida', label: 'Gestire le linee guida viola (Editor Foto → Post Social)' },
+      { chiave: 'note_grafiche', label: 'Scrivere note in editor foto' }
+]
+
+  const togglePermesso = async (utente, chiave) => {
+    const permessiAttuali = utente.permessi_speciali || {}
+    const nuoviPermessi = { ...permessiAttuali, [chiave]: !permessiAttuali[chiave] }
+    const { error } = await supabase.from('utenti').update({ permessi_speciali: nuoviPermessi }).eq('id', utente.id)
+    if (!error) {
+      setPermessiUtente({ ...utente, permessi_speciali: nuoviPermessi })
+      caricaUtenti()
+    }
+  }
   const [showCategorie, setShowCategorie] = useState(false)
   const [showTemplateArticoli, setShowTemplateArticoli] = useState(false)
   const [showGestioneRSS, setShowGestioneRSS] = useState(false);
@@ -4514,6 +4532,7 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
                   <button className="btn-action btn-green" onClick={() => setEditUtente(utente)}><svg className="icon-small" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>Modifica</button>
                   <button className="btn-action btn-blue" onClick={() => cambiaRuolo(utente)}><svg className="icon-small" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>Cambia Ruolo</button>
                   <button className="btn-action btn-orange" onClick={() => resetPassword(utente)}><svg className="icon-small" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/></svg>Reset Password</button>
+                  <button className="btn-action" style={{ background: '#8e44ad', color: '#fff' }} onClick={() => setPermessiUtente(utente)}>🔐 Permessi</button>
                 </div>
               </div>
             ))}
@@ -4521,6 +4540,50 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
         )}
         {/* Modal MonitorUrl SOLO qui, non duplicato altrove */}
         {showMonitorUrl && <MonitorUrlModal userId={currentUser?.id} onClose={() => setShowMonitorUrl(false)} />}
+
+        {/* Modale permessi speciali */}
+        {permessiUtente && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ background: 'white', borderRadius: '16px', padding: '30px', maxWidth: '440px', width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 style={{ margin: 0, fontSize: '20px' }}>Permessi speciali</h2>
+                <button onClick={() => setPermessiUtente(null)} style={{ background: 'none', border: 'none', fontSize: '22px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
+              </div>
+              <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
+                Per <strong>{permessiUtente.nome_completo}</strong> (@{permessiUtente.username})
+              </p>
+              {permessiUtente.ruolo === 'admin' && (
+                <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px', marginBottom: '14px', fontSize: '13px', color: '#8a6d00' }}>
+                  ⭐ Questo utente è <strong>admin</strong>: ha già accesso a tutto automaticamente, indipendentemente dalle spunte qui sotto.
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {PERMESSI_DISPONIBILI.map((p) => {
+                  const isAdmin = permessiUtente.ruolo === 'admin'
+                  return isAdmin ? (
+                    <div key={p.chiave} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: '#f0f0f0', borderRadius: '10px', opacity: 0.7 }}>
+                      <span style={{ fontSize: '18px' }}>✅</span>
+                      <span style={{ fontSize: '14px', fontWeight: '600' }}>{p.label} <span style={{ fontWeight: '400', color: '#888' }}>(sempre attivo, admin)</span></span>
+                    </div>
+                  ) : (
+                    <label key={p.chiave} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', background: '#f8f9fa', borderRadius: '10px' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!(permessiUtente.permessi_speciali && permessiUtente.permessi_speciali[p.chiave])}
+                        onChange={() => togglePermesso(permessiUtente, p.chiave)}
+                        style={{ width: '20px', height: '20px' }}
+                      />
+                      <span style={{ fontSize: '14px', fontWeight: '600' }}>{p.label}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              <p style={{ fontSize: '12px', color: '#999', marginTop: '18px' }}>
+                Nota: se l'utente ha già una sessione aperta, deve rifare il login per vedere il nuovo permesso attivo.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
       
       </div>
