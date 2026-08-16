@@ -814,7 +814,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
       // Se non trovata, cerca nella tabella custom
       let customRes = await supabase.from('classifiche_custom').select('*').eq('id', classificaId)
       if (!customRes.error && customRes.data && customRes.data.length > 0) {
-        const classifica = customRes.data[0]
+        const classifica = { ...customRes.data[0], isCustom: true }
         console.log('📖 Classificazione custom caricata:', classifica.nome)
         console.log('📖 Piloti array:', classifica.piloti)
         console.log('📖 Piloti length:', classifica.piloti?.length)
@@ -843,6 +843,8 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         gp: nuovaClassifica.gp || [],
         piloti: nuovaClassifica.piloti || [],
         costruttori: nuovaClassifica.costruttori || [],
+        motoristi: nuovaClassifica.motoristi || [],
+        motoristi_attivo: typeof nuovaClassifica.motoristi_attivo !== 'undefined' ? !!nuovaClassifica.motoristi_attivo : false,
         numero_gp_stagione: nuovaClassifica.numero_gp_stagione || nuovaClassifica.numeroGP || null,
         numero_sprint_stagione: nuovaClassifica.numero_sprint_stagione || nuovaClassifica.numeroSprint || null,
         punti_pole_attivo: typeof nuovaClassifica.punti_pole_attivo !== 'undefined' ? !!nuovaClassifica.punti_pole_attivo : false,
@@ -900,6 +902,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
     classifica={classifica} 
     gpPreselezionato={gpSelezionato} 
     onClose={() => { setShowInserimentoGP(false); setGpSelezionato(null) }} 
+    onClassificaUpdate={(nuovaClassifica) => setClassifica(nuovaClassifica)}
     onSave={(nuovaClassifica) => {
       salvaClassifica(nuovaClassifica); // Salva su Supabase!
       setShowInserimentoGP(false);
@@ -912,6 +915,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
 
   const pilotiOrdinati = classifica.piloti ? [...classifica.piloti].filter(p => p.attivo).sort((a, b) => b.punti - a.punti) : []
   const costruttoriOrdinati = classifica.costruttori ? [...classifica.costruttori].sort((a, b) => b.punti - a.punti) : []
+  const motoristiOrdinati = classifica.motoristi_attivo && classifica.motoristi ? [...classifica.motoristi].sort((a, b) => b.punti - a.punti) : []
   const gpCompletati = classifica.gp
   
     ? classifica.gp.filter(g => g.completato).sort((a, b) => a.id - b.id)
@@ -1206,13 +1210,37 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
             )}
           </div>
         </div>
+
+        {/* CLASSIFICA MOTORISTI */}
+        {classifica.motoristi_attivo && (
+          <div style={{ marginBottom: '20px' }}>
+            <h2 style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '15px' }}>Classifica Motoristi</h2>
+            <div style={{ background: 'white', borderRadius: '10px', padding: '15px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+              {motoristiOrdinati.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#999', padding: '20px' }}>Nessun motorista inserito</div>
+              ) : (
+                motoristiOrdinati.map((m, i) => (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '12px 0', borderBottom: i < motoristiOrdinati.length - 1 ? '1px solid #eee' : 'none' }}>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', minWidth: '30px' }}>{i + 1}</div>
+                    <div style={{ width: '8px', height: '40px', background: m.colore || '#007AFF', borderRadius: '4px' }}></div>
+                    <div style={{ flex: 1, fontWeight: '600', fontSize: '16px' }}>{m.nome}</div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{m.punti || 0}</div>
+                      {i > 0 && <div style={{ fontSize: '14px', color: '#999' }}>+{motoristiOrdinati[0].punti - m.punti}</div>}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
 // ===== INSERIMENTO RISULTATI GP =====
-function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave }) {
+function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave, onClassificaUpdate }) {
     // Stato per pannello sync Timing71
     const [showSyncPanel, setShowSyncPanel] = useState(false);
     const [timing71Sessions, setTiming71Sessions] = useState([]);
@@ -1412,38 +1440,35 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     }
   }, [gpPreselezionato, garaCorrente, gp]);
 
-  const aggiungiGP = () => {
-  if (!nomeGP) return
-  // Se è spuntato "Double Header" e l'ultimo GP inserito aveva anche lui la spunta,
-  // collega questo nuovo GP allo stesso weekend_id del precedente
-  const ultimoGP = gp[gp.length - 1]
-  let weekendId = null
-  if (doubleHeader) {
-    if (ultimoGP && ultimoGP.weekend_id && ultimoGP.attende_secondo_round) {
-      weekendId = ultimoGP.weekend_id
-    } else {
-      weekendId = `weekend_${Date.now()}`
+  const aggiungiGP = async () => {
+    if (!nomeGP) return
+    const gare = tipoWeekend === 'standard'
+      ? [{ id: Date.now(), tipo_gara: 'principale', risultati: {}, completata: false }]
+      : tipoWeekend === 'sprintF1'
+      ? [{ id: Date.now(), tipo_gara: 'sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'principale', risultati: {}, completata: false }]
+      : [{ id: Date.now(), tipo_gara: 'f2sprint', risultati: {}, completata: false }, { id: Date.now() + 1, tipo_gara: 'featureRace', risultati: {}, completata: false }]
+    const nuovoGP = {
+      id: Date.now(),
+      nome: nomeGP,
+      tipo_weekend: tipoWeekend,
+      completato: false,
+      gare
+    }
+    setGp(nuovoGP)
+    setGaraCorrente(0)
+    setStep(1)
+
+    // Salva subito il GP (ancora senza risultati) sulla classifica: così conta già
+    // per i punti massimi rimanenti e resta visibile anche uscendo senza compilarlo
+    const nuoviGPClassifica = [...(Array.isArray(classifica.gp) ? classifica.gp : []), nuovoGP]
+    const targetTable = classifica.isCustom ? 'classifiche_custom' : 'classifiche'
+    const { error } = await supabase.from(targetTable).update({ gp: nuoviGPClassifica }).eq('id', classifica.id)
+    if (error) {
+      console.error('Errore salvataggio nuovo GP (vuoto):', error)
+    } else if (onClassificaUpdate) {
+      onClassificaUpdate({ ...classifica, gp: nuoviGPClassifica })
     }
   }
-  const nuovoGP = {
-    id: Date.now(),
-    nome: nomeGP,
-    tipo_weekend: tipoWeekend,
-    completato: false,
-    gare: [],
-    weekend_id: weekendId,
-    attende_secondo_round: doubleHeader && !(ultimoGP && ultimoGP.weekend_id === weekendId)
-  }
-  // Se questo GP completa una coppia già aperta, chiudi il flag sul precedente
-  let nuovaLista = [...gp, nuovoGP]
-  if (weekendId && ultimoGP && ultimoGP.weekend_id === weekendId) {
-    nuovaLista = nuovaLista.map((g, idx) =>
-      idx === nuovaLista.length - 2 ? { ...g, attende_secondo_round: false } : g
-    )
-  }
-  setGp(nuovaLista)
-  setNomeGP('')
-}
 
   // Salva SOLO la gara attiva (Sprint o Feature), non tutto il GP
   const salvaRisultatiGara = () => {
@@ -1486,6 +1511,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     // Ricalcola punti piloti/costruttori
     const nuoviPiloti = classifica.piloti.map(p => ({ ...p, punti: 0 }));
     const nuoviCostruttori = classifica.costruttori.map(c => ({ ...c, punti: 0 }));
+    const nuoviMotoristi = classifica.motoristi_attivo && classifica.motoristi ? classifica.motoristi.map(m => ({ ...m, punti: 0 })) : [];
     nuoviGP.forEach(gpItem => {
       gpItem.gare.forEach(gara => {
         Object.entries(gara.risultati || {}).forEach(([pilotaId, info]) => {
@@ -1514,6 +1540,12 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           if (costruttore) {
             costruttore.punti = (costruttore.punti || 0) + punti;
           }
+          if (classifica.motoristi_attivo && costruttore) {
+            const motorista = nuoviMotoristi.find(m => m.nome === costruttore.motore);
+            if (motorista) {
+              motorista.punti = (motorista.punti || 0) + punti;
+            }
+          }
         });
       });
     });
@@ -1523,7 +1555,10 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
       c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0);
     });
-    onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori });
+    nuoviMotoristi.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((m, i) => {
+      m.distacco = i === 0 ? 0 : (nuoviMotoristi[0].punti || 0) - (m.punti || 0);
+    });
+    onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori, motoristi: nuoviMotoristi });
     onClose();
   }
 
@@ -1552,12 +1587,13 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
       
       const nuoviPiloti = [...classifica.piloti]
       const nuoviCostruttori = [...classifica.costruttori]
+      const nuoviMotoristi = classifica.motoristi ? [...classifica.motoristi] : []
       
       // Non assegna alcun punto poiché la gara non è stata disputata
       
       console.log('Gara non disputata - Nessun punto assegnato')
       
-      onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori })
+      onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori, motoristi: nuoviMotoristi })
       onClose()
     }
   }
@@ -1603,6 +1639,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     // Ricalcola punti piloti/costruttori (come in salvaRisultatiGara)
     const nuoviPiloti = classifica.piloti.map(p => ({ ...p, punti: 0 }));
     const nuoviCostruttori = classifica.costruttori.map(c => ({ ...c, punti: 0 }));
+    const nuoviMotoristi = classifica.motoristi_attivo && classifica.motoristi ? classifica.motoristi.map(m => ({ ...m, punti: 0 })) : [];
     nuoviGP.forEach(gpItem => {
       gpItem.gare.forEach(gara => {
         Object.entries(gara.risultati || {}).forEach(([pilotaId, info]) => {
@@ -1622,6 +1659,12 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
           if (costruttore) {
             costruttore.punti = (costruttore.punti || 0) + punti;
           }
+          if (classifica.motoristi_attivo && costruttore) {
+            const motorista = nuoviMotoristi.find(m => m.nome === costruttore.motore);
+            if (motorista) {
+              motorista.punti = (motorista.punti || 0) + punti;
+            }
+          }
         });
       });
     });
@@ -1631,7 +1674,10 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave 
     nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
       c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0);
     });
-    onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori });
+    nuoviMotoristi.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((m, i) => {
+      m.distacco = i === 0 ? 0 : (nuoviMotoristi[0].punti || 0) - (m.punti || 0);
+    });
+    onSave({ ...classifica, gp: nuoviGP, piloti: nuoviPiloti, costruttori: nuoviCostruttori, motoristi: nuoviMotoristi });
     onClose();
     // NON avanzare automaticamente alla gara successiva: lascia che l’utente decida quando farlo
   }
@@ -2655,9 +2701,10 @@ function CambiaPilotaView({ classifica, onClose, onSave }) {
       }
     }
     
-    // Salva direttamente su Supabase
+    // Salva direttamente su Supabase, sulla tabella corretta (custom o standard)
+    const targetTable = classifica.isCustom ? 'classifiche_custom' : 'classifiche'
     const { error } = await supabase
-      .from('classifiche')
+      .from(targetTable)
       .update({ piloti: nuoviPiloti })
       .eq('id', classifica.id)
     
@@ -2669,7 +2716,7 @@ function CambiaPilotaView({ classifica, onClose, onSave }) {
       return
     }
     
-    console.log('Salvato con successo su Supabase')
+    console.log(`Salvato con successo su Supabase (${targetTable})`)
     console.log('Piloti salvati:', nuoviPiloti.map(p => ({ nome: p.nome, attivo: p.attivo })))
     
     // Aggiorna lo stato locale
@@ -2770,12 +2817,19 @@ function GraficoPronostico({ classifica, isMobile, onClose }) {
   
   const pilotiOrdinati = classifica.piloti ? classifica.piloti.filter(p => p.attivo).sort((a, b) => (b.punti || 0) - (a.punti || 0)) : []
   const costruttoriOrdinati = classifica.costruttori ? classifica.costruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)) : []
-  
+  const motoristiOrdinati = classifica.motoristi_attivo && classifica.motoristi ? classifica.motoristi.slice().sort((a, b) => (b.punti || 0) - (a.punti || 0)) : []
+  const listaAttuale = tab === 0 ? pilotiOrdinati : tab === 1 ? costruttoriOrdinati : motoristiOrdinati
+
   const gpRimanenti = classifica.gp ? classifica.gp.filter(g => !g.completato).length : 0
   const sprintRimanenti = classifica.gp ? classifica.gp.filter(g => !g.completato && g.tipo_weekend === 'sprintF1').length : 0
   
   const puntiMassimiRimanentiPiloti = pronosticoCampionato.calcolaPuntiMassimiRimanenti(classifica, 'pilota')
 const puntiMassimiRimanentiCostruttori = pronosticoCampionato.calcolaPuntiMassimiRimanenti(classifica, 'costruttore')
+const getPuntiMaxRimanenti = (item) => {
+  if (tab === 0) return puntiMassimiRimanentiPiloti
+  if (tab === 1) return puntiMassimiRimanentiCostruttori
+  return pronosticoCampionato.calcolaPuntiMassimiRimanenti(classifica, 'motorista', pronosticoCampionato.numPilotiAttiviPerMotore(item.nome, classifica))
+}
 const debugSpareggio = pilotiOrdinati.length >= 2
   ? pronosticoCampionato.chiVinceSpareggio(pilotiOrdinati[0], pilotiOrdinati[1], classifica)
   : null
@@ -2796,6 +2850,9 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
           <button onClick={() => { setTab(0); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 0 ? '#007AFF' : 'white', color: tab === 0 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Piloti</button>
           <button onClick={() => { setTab(1); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 1 ? '#007AFF' : 'white', color: tab === 1 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Costruttori</button>
+          {classifica.motoristi_attivo && (
+            <button onClick={() => { setTab(2); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 2 ? '#007AFF' : 'white', color: tab === 2 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Motoristi</button>
+          )}
         </div>
 
 
@@ -2826,8 +2883,8 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
                   </g>
                 ))}
                 
-                {/* Linee piloti/costruttori */}
-                {(tab === 0 ? pilotiOrdinati : costruttoriOrdinati).map((item, idx) => {
+                {/* Linee piloti/costruttori/motoristi */}
+                {listaAttuale.map((item, idx) => {
                   const gpCompletati = classifica.gp.filter(g => g.completato)
                   if (gpCompletati.length === 0) return null
                   
@@ -2862,11 +2919,36 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
                           puntiGara += classifica.giro_veloce_valore || 1;
                         }
                         puntiGP += puntiGara;
-                      } else {
+                      } else if (tab === 1) {
                         // COSTRUTTORI: somma punti di tutti i piloti del team
                         Object.entries(gara.risultati || {}).forEach(([pilotaId, pos]) => {
                           const pilota = classifica.piloti.find(p => String(p.id) === String(pilotaId))
                           if (!pilota || pilota.team !== item.nome) return
+                          let posizione = pos;
+                          if (typeof pos === 'object' && pos !== null && typeof pos.posizione !== 'undefined') {
+                            posizione = pos.posizione;
+                          }
+                          let puntiGara;
+                          if (gara.accorciata) {
+                            puntiGara = pronosticoCampionato.calcolaPuntiAccorciati(posizione, gara.percentuale_accorciata, gara.custom_punti);
+                          } else {
+                            puntiGara = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
+                          }
+                          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
+                            puntiGara += classifica.punti_pole_valore || 3;
+                          }
+                          if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
+                            puntiGara += classifica.giro_veloce_valore || 1;
+                          }
+                          puntiGP += puntiGara;
+                        })
+                      } else {
+                        // MOTORISTI: somma punti di tutti i piloti dei team che usano questo motore
+                        Object.entries(gara.risultati || {}).forEach(([pilotaId, pos]) => {
+                          const pilota = classifica.piloti.find(p => String(p.id) === String(pilotaId))
+                          if (!pilota) return
+                          const teamPilotaObj = (classifica.costruttori || []).find(c => c.nome === pilota.team)
+                          if (!teamPilotaObj || teamPilotaObj.motore !== item.nome) return
                           let posizione = pos;
                           if (typeof pos === 'object' && pos !== null && typeof pos.posizione !== 'undefined') {
                             posizione = pos.posizione;
@@ -2895,9 +2977,8 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
                   })
                   
                   // Calcola percentuale per determinare se fuori lotta
-                  const lista = tab === 0 ? pilotiOrdinati : costruttoriOrdinati
-const puntiMax = tab === 0 ? puntiMassimiRimanentiPiloti : puntiMassimiRimanentiCostruttori
-const distacco = idx === 0 ? 0 : ((lista[0]?.punti || 0) - (item.punti || 0))
+                  const puntiMax = getPuntiMaxRimanenti(item)
+const distacco = idx === 0 ? 0 : ((listaAttuale[0]?.punti || 0) - (item.punti || 0))
 const possibile = distacco <= puntiMax
 const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiMax) * 100)) : 0
                   
@@ -2935,10 +3016,9 @@ const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiMa
               
               {/* Legenda */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginTop: '20px', padding: '15px', background: '#f9f9f9', borderRadius: '10px' }}>
-                {(tab === 0 ? pilotiOrdinati : costruttoriOrdinati).map((item, idx) => {
-                  const lista = tab === 0 ? pilotiOrdinati : costruttoriOrdinati
-const puntiMax = tab === 0 ? puntiMassimiRimanentiPiloti : puntiMassimiRimanentiCostruttori
-const distacco = idx === 0 ? 0 : ((lista[0]?.punti || 0) - (item.punti || 0))
+                {listaAttuale.map((item, idx) => {
+                  const puntiMax = getPuntiMaxRimanenti(item)
+const distacco = idx === 0 ? 0 : ((listaAttuale[0]?.punti || 0) - (item.punti || 0))
 const possibile = distacco <= puntiMax
 const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiMax) * 100)) : 0
                   const fuoriLotta = percentuale === 0 && idx > 0
@@ -3174,7 +3254,7 @@ const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiMa
                 </div>
               )
             })
-          ) : (
+          ) : tab === 1 ? (
             costruttoriOrdinati.map((c, i) => {
              const puntiRimanenti = puntiMassimiRimanentiCostruttori
 const distacco = i === 0 ? 0 : (costruttoriOrdinati[0]?.punti || 0) - (c.punti || 0)
@@ -3304,6 +3384,136 @@ const risultatoCostruttore = possibile ? pronosticoCampionato.calcolaCombinazion
                 </div>
               )
             })
+          ) : (
+            motoristiOrdinati.map((m, i) => {
+             const puntiRimanenti = getPuntiMaxRimanenti(m)
+const distacco = i === 0 ? 0 : (motoristiOrdinati[0]?.punti || 0) - (m.punti || 0)
+const possibile = distacco <= puntiRimanenti
+const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiRimanenti) * 100)) : 0
+const risultatoMotorista = possibile ? pronosticoCampionato.calcolaCombinazioniVittoriaMotorista(m, classifica) : { stato: 'fuori' }
+
+              return (
+                <div key={m.id} style={{ padding: '20px', borderBottom: i < motoristiOrdinati.length - 1 ? '1px solid #eee' : 'none', opacity: possibile ? 1 : 0.5 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '20px', fontWeight: 'bold' }}>{m.nome}</span>
+                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#007AFF' }}>{m.punti || 0} pts</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span>Punti rimanenti:</span>
+                    <span style={{ fontWeight: 'bold' }}>{puntiRimanenti}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span>Possibilità di vincere:</span>
+                    <span style={{ fontWeight: 'bold', color: possibile ? '#34C759' : '#FF3B30' }}>
+                      {possibile ? (i === 0 ? 'Leader' : `${percentuale}%`) : 'Fuori dalla lotta'}
+                    </span>
+                  </div>
+                  {possibile && (
+                    <div style={{ width: '100%', height: '8px', background: '#eee', borderRadius: '4px', overflow: 'hidden', marginBottom: '15px' }}>
+                      <div style={{ width: `${percentuale}%`, height: '100%', background: '#34C759' }}></div>
+                    </div>
+                  )}
+
+                  {(() => {
+                    if (risultatoMotorista.stato === 'campione') {
+                      return (
+                        <div style={{ marginTop: '15px', padding: '15px', background: '#e8f9ee', borderRadius: '8px', borderLeft: '4px solid #34C759', fontWeight: 'bold', color: '#1d7a3e' }}>
+                          🏆 Già campione matematico!
+                        </div>
+                      )
+                    }
+                    if (risultatoMotorista.stato === 'ok_gara_singola') {
+                      const cl = risultatoMotorista.clinch
+                      return (
+                        <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500' }}>
+                          <div style={{ fontWeight: 'bold', color: '#FF9500', marginBottom: '4px' }}>
+                            Combinazioni per vincere il campionato:
+                          </div>
+                          <div style={{ fontSize: '13px' }}>
+                            📍 A <strong>{cl.gpNome}</strong>: ottenendo almeno <strong>{cl.puntiOttenuti}{cl.puntiOttenuti < cl.puntiMaxGP ? '+' : ''} punti</strong>, il titolo è matematicamente blindato.
+                          </div>
+                        </div>
+                      )
+                    }
+                    if (risultatoMotorista.stato === 'ok_multigara') {
+                      const mg = risultatoMotorista.multiGara
+                      return (
+                        <div style={{ marginTop: '15px', padding: '15px', background: '#fff8e1', borderRadius: '8px', borderLeft: '4px solid #FF9500' }}>
+                          <div style={{ fontWeight: 'bold', color: '#FF9500', marginBottom: '4px' }}>
+                            Combinazioni per vincere il campionato:
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#888', marginBottom: '12px' }}>
+                            Sulle {mg.numGP} gare rimanenti in stagione
+                          </div>
+                          <div style={{ background: 'white', borderRadius: '8px', padding: '12px 14px', border: '1px solid #ffe4b3', marginBottom: '10px' }}>
+                            <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between' }}>
+                              <span><strong>{m.nome}</strong> deve totalizzare almeno:</span>
+                              <span style={{ fontWeight: 'bold', color: '#b26b00' }}>
+                                {mg.puntiTotaliRichiesti}{mg.puntiTotaliRichiesti < mg.puntiBloccoMax ? '+' : ''} punti
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#999', marginTop: '4px' }}>
+                              (su {mg.puntiBloccoMax} disponibili)
+                            </div>
+                          </div>
+                          {mg.caps.length > 0 && (
+                            <>
+                              <div style={{ fontSize: '12px', color: '#666', marginBottom: '6px' }}>e contemporaneamente:</div>
+                              {mg.caps.map((cap, idx) => (
+                                <div key={idx} style={{ fontSize: '13px', display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: idx > 0 ? '1px solid #ffe4b3' : 'none' }}>
+                                  <span>{cap.nome}</span>
+                                  <span style={{ fontWeight: '600', color: '#b26b00' }}>non più di {cap.capPunti} punti</span>
+                                </div>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
+
+                  {possibile && i > 0 && (() => {
+                    const eliminazioni = pronosticoCampionato.calcolaEliminazioneMotorista(m, classifica)
+                    if (eliminazioni.length === 0) return null
+                    return (
+                      <div style={{ marginTop: '15px', padding: '15px', background: '#fdecea', borderRadius: '8px', borderLeft: '4px solid #FF3B30' }}>
+                        <div
+                          onClick={() => setEliminazioniAperte(prev => ({ ...prev, [`m_${m.id}`]: !prev[`m_${m.id}`] }))}
+                          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                        >
+                          <div style={{ fontWeight: 'bold', color: '#FF3B30' }}>
+                            Come {m.nome} può essere eliminato dalla lotta:
+                          </div>
+                          <span style={{ fontSize: '18px', color: '#FF3B30', transform: eliminazioniAperte[`m_${m.id}`] ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                            ▾
+                          </span>
+                        </div>
+                        {eliminazioniAperte[`m_${m.id}`] && (
+                          <>
+                            <div style={{ fontSize: '12px', color: '#888', marginTop: '10px', marginBottom: '14px' }}>
+                              Basta che si verifichi UNA di queste situazioni
+                            </div>
+                            {eliminazioni.map((el, idx) => (
+                              <div key={idx} style={{ background: 'white', borderRadius: '8px', padding: '12px 14px', marginBottom: idx < eliminazioni.length - 1 ? '8px' : 0, border: '1px solid #f5d5d0' }}>
+                                <div style={{ fontSize: '13px', marginBottom: '6px' }}>
+                                  <strong>{el.rivale}</strong> deve totalizzare almeno {el.puntiRichiesti}{el.puntiRichiesti < el.puntiDisponibili ? '+' : ''} punti
+                                </div>
+                                {el.capBersaglio !== null && (
+                                  <div style={{ fontSize: '13px', color: '#c0392b', fontWeight: '600' }}>
+                                    {m.nome} non più di {el.capBersaglio} punti nello stesso arco
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </div>
+              )
+            })
           )}
         </div>
       </div>
@@ -3316,12 +3526,15 @@ function SetupIniziale({ classifica, onSave, onBack }) {
   const [step, setStep] = useState(0)
   const [piloti, setPiloti] = useState([])
   const [costruttori, setCostruttori] = useState([])
+  const [motoristiAttivo, setMotoristiAttivo] = useState(!!classifica.motoristi_attivo)
+  const [motoristi, setMotoristi] = useState([])
   const [numeroGP, setNumeroGP] = useState(10)
   const [numeroSprint, setNumeroSprint] = useState(2)
   const [gp, setGp] = useState([])
   const [nomePilota, setNomePilota] = useState('')
   const [cognomePilota, setCognomePilota] = useState('')
   const [teamPilota, setTeamPilota] = useState('')
+  const [motorePilota, setMotorePilota] = useState('')
   const [colorePilota, setColorePilota] = useState('#0066FF')
   const [fotoPilota, setFotoPilota] = useState(null)
   const [nomeGP, setNomeGP] = useState('')
@@ -3345,14 +3558,20 @@ const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
       }
     }
     const nomeCompleto = `${nomePilota} ${cognomePilota}`;
+    const teamEsistente = costruttori.find(c => c.nome === teamPilota);
+    const motoreFinale = motoristiAttivo ? (teamEsistente ? (teamEsistente.motore || '') : motorePilota) : null;
     const nuovoPilota = { id: Date.now(), nome: nomeCompleto, nome_pilota: nomePilota, cognome_pilota: cognomePilota, team: teamPilota, colore: colorePilota, punti: 0, distacco: 0, attivo: true, foto: fotoUrl };
     setPiloti([...piloti, nuovoPilota]);
-    if (!costruttori.find(c => c.nome === teamPilota)) {
-      setCostruttori([...costruttori, { id: Date.now() + 1, nome: teamPilota, colore: colorePilota, punti: 0, distacco: 0 }]);
+    if (!teamEsistente) {
+      setCostruttori([...costruttori, { id: Date.now() + 1, nome: teamPilota, colore: colorePilota, punti: 0, distacco: 0, motore: motoreFinale }]);
+      if (motoristiAttivo && motoreFinale && !motoristi.find(m => m.nome === motoreFinale)) {
+        setMotoristi([...motoristi, { id: Date.now() + 2, nome: motoreFinale, colore: colorePilota, punti: 0, distacco: 0 }]);
+      }
     }
     setNomePilota('');
     setCognomePilota('');
     setTeamPilota('');
+    setMotorePilota('');
     setColorePilota('#0066FF');
     setFotoPilota(null);
   }
@@ -3366,7 +3585,7 @@ const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
 
   const confermaESalva = async () => {
     // Salva la classifica aggiornata su Supabase (standard o custom)
-    const nuovaClassifica = { ...classifica, piloti, costruttori, gp, numero_gp_stagione: numeroGP, numero_sprint_stagione: numeroSprint, tipo_spareggio: tipoSpareggio };
+    const nuovaClassifica = { ...classifica, piloti, costruttori, motoristi, motoristi_attivo: motoristiAttivo, gp, numero_gp_stagione: numeroGP, numero_sprint_stagione: numeroSprint, tipo_spareggio: tipoSpareggio };
     if (classifica.isCustom) {
       // Aggiorna classifiche_custom
       await supabase.from('classifiche_custom').update(nuovaClassifica).eq('id', classifica.id);
@@ -3392,6 +3611,18 @@ const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
       <>
         <div>
           <h1 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>Inserisci i piloti e i team in {classifica.nome}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '25px', padding: '15px', background: '#f8f9fa', borderRadius: '10px' }}>
+            <input
+              type="checkbox"
+              id="motoristi-attivo"
+              checked={motoristiAttivo}
+              onChange={e => setMotoristiAttivo(e.target.checked)}
+              style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+            />
+            <label htmlFor="motoristi-attivo" style={{ fontWeight: '600', cursor: 'pointer' }}>
+              Traccia anche la Classifica Motoristi
+            </label>
+          </div>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome</label>
@@ -3406,6 +3637,27 @@ const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Team</label>
             <input type="text" value={teamPilota} onChange={e => setTeamPilota(e.target.value)} placeholder="es. Red Bull Racing" style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }} />
           </div>
+          {motoristiAttivo && (() => {
+            const teamEsistente = costruttori.find(c => c.nome === teamPilota);
+            return (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Motorista</label>
+                <input
+                  type="text"
+                  value={teamEsistente ? (teamEsistente.motore || '') : motorePilota}
+                  onChange={e => setMotorePilota(e.target.value)}
+                  disabled={!!teamEsistente}
+                  placeholder="es. Mahindra Powertrain"
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px', background: teamEsistente ? '#f0f0f0' : 'white' }}
+                />
+                {teamEsistente && (
+                  <div style={{ fontSize: '12px', color: '#888', marginTop: '6px' }}>
+                    Motorista già assegnato al team "{teamEsistente.nome}"
+                  </div>
+                )}
+              </div>
+            )
+          })()}
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Colore Team</label>
             <input type="color" value={colorePilota} onChange={e => setColorePilota(e.target.value)} style={{ width: '100%', height: '50px', borderRadius: '8px', border: '1px solid #ddd', cursor: 'pointer' }} />
@@ -3463,7 +3715,7 @@ const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
             {piloti.map((p, idx) => (
               <li key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                 {p.foto ? <img src={p.foto} alt="Foto" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', border: '1px solid #ccc' }} /> : <span style={{ width: 32, height: 32, display: 'inline-block', background: '#eee', borderRadius: 6, border: '1px solid #ccc', textAlign: 'center', lineHeight: '32px', color: '#bbb' }}>?</span>}
-                <span style={{ fontWeight: 500 }}>{p.nome}</span> <span style={{ color: '#888' }}>({p.team})</span>
+                <span style={{ fontWeight: 500 }}>{p.nome}</span> <span style={{ color: '#888' }}>({p.team}{(() => { const t = costruttori.find(c => c.nome === p.team); return t && t.motore ? ` – ${t.motore}` : ''; })()})</span>
               </li>
             ))}
           </ul>
