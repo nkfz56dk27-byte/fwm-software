@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import AlertSVG from './assets/alert.svg'
-import { inserisciNotificaPush } from './pushNotificationService'
 import html2canvas from 'html2canvas'
 
 // ===== MAPPING UTENTE → REDATTORE =====
@@ -315,23 +314,9 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
             tutte: 0
           }
         }))
-        // --- PUSH NOTIFICATION (OneSignal pipeline, tabella push_notifications) ---
-        try {
-          const { error: pushError, id } = await inserisciNotificaPush({
-            title: 'Disponibilità Weekend',
-            body: messaggio,
-            notification_type: 'disponibilita_weekend',
-            target_all: true,
-            data: { weekend_id }
-          });
-          if (pushError) {
-            console.error('[ERRORE INSERIMENTO push_notifications]', pushError);
-          } else {
-            console.log('[DEBUG CREA NOTIFICA PUSH] Inserita in push_notifications', id);
-          }
-        } catch (pushErr) {
-          console.error('[ERRORE JS INSERIMENTO push_notifications]', pushErr);
-        }
+        // NOTA: l'invio della push OneSignal per la creazione weekend è gestito
+        // esplicitamente in creaWeekend() (tabella push_disponibilita_weekend).
+        // Questa funzione crea solo la notifica interna, per evitare invii duplicati.
       }
     } catch (err) {
       console.error('Errore creazione notifica (catch JS):', err);
@@ -778,37 +763,12 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
 
     // INVIO NOTIFICA PUSH (PLUS, SEPARATA)
     try {
-      // Import dinamico per evitare problemi SSR
-      const { inviaNotificaAUtente } = await import('./pushNotificationService')
-      // Notifica a tutti i redattori selezionati (convertiamo il nome in username, perché
-      // il listener realtime filtra su username, non sul nome visualizzato)
-      for (const redattore of redattori) {
-        const usernameDestinatario = REDATTORE_TO_UTENTE[redattore] || redattore
-        await inviaNotificaAUtente(usernameDestinatario, {
-          titolo: 'Nuovo weekend disponibile',
-          messaggio: `È stato aperto il weekend: ${nomeGP} (${dataInizio} - ${dataFine})`,
-          url: '/',
-          data: { weekend_id: weekend.id }
-        })
-      }
-      // Notifica push OneSignal (tabella dedicata)
-      const pushParams = {
-        title: 'Nuovo weekend disponibile',
-        body: `È stato aperto il weekend: ${nomeGP} (${dataInizio} - ${dataFine})`,
-        notification_type: 'disponibilita_weekend',
-        target_all: true,
-        data: { weekend_id: weekend.id }
-      };
-      const { error: pushError, data: pushDataRes } = await supabase.from('push_notifications').insert(pushParams);
-      if (pushError) {
-        console.error('[ERRORE INSERIMENTO push_notifications - CREAZIONE WEEKEND]', pushError);
-      } else {
-        console.log('[DEBUG CREA NOTIFICA] Inserita in push_notifications (creazione weekend)', pushDataRes);
-      }
-
-      // Inserisci anche nella tabella push_disponibilita_weekend per pipeline OneSignal
-      // (indipendente dal risultato dell'insert sopra: un fallimento in push_notifications
-      // non deve impedire l'invio della push reale via OneSignal)
+      // Notifica push OneSignal — un solo insert, nella tabella dedicata push_disponibilita_weekend.
+      // NOTA: in precedenza c'era anche un ciclo che inviava una notifica realtime "in-app"
+      // (via notifiche_push/inviaNotificaAUtente) a ciascun redattore. È stato rimosso perché
+      // duplicava la push reale OneSignal per chi aveva il sito già aperto: ora l'unico canale
+      // di invio "push" è questo, mentre la notifica interna resta quella di onCreaNotifica
+      // (tabella notifiche_disponibilita, campanella condivisa).
       const { error: pushWeekendError } = await supabase.from('push_disponibilita_weekend').insert({
         title: 'Nuovo weekend disponibile',
         body: `È stato aperto il weekend: ${nomeGP} (${dataInizio} - ${dataFine})`,
