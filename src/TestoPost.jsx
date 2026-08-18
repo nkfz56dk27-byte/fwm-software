@@ -16,6 +16,20 @@ import { createPortal } from 'react-dom'
 // ============================================================================
 
 let _measureCanvas = null
+let _robotoReady = false // diventa true solo dopo che il font Roboto è davvero caricato dal browser
+
+// Forza il caricamento del font "Roboto" il prima possibile, e tiene traccia di quando è
+// pronto — senza questo, il canvas "nascosto" usato per calcolare quanto allargare il testo
+// potrebbe misurare con un font di riserva (più stretto di Roboto) prima che quello vero sia
+// disponibile, causando uno stiramento incompleto (il testo non arriva ai bordi).
+if (typeof document !== 'undefined' && document.fonts) {
+  Promise.all([
+    document.fonts.load('700 16px Roboto'),
+    document.fonts.load('900 16px Roboto')
+  ]).then(() => { _robotoReady = true })
+  document.fonts.ready.then(() => { _robotoReady = true })
+}
+
 function getMeasureCtx() {
   if (!_measureCanvas) {
     _measureCanvas = document.createElement('canvas')
@@ -32,8 +46,12 @@ function getMeasureCtx() {
 // (in pixel veri) proporzionalmente più larga. Verificato guardando il pannello "Spaziatura
 // lettere" di Canva sullo stesso identico progetto.
 export const LETTER_SPACING_RATIO = 19 / 1000
+
+// Interruttore per il pulsante "📍 Posizione" (mostra le coordinate in pixel reali della
+// casella). Metti a "true" per riattivarlo — tutto il resto del codice resta invariato.
+const SHOW_POSITION_BUTTON = false
 // Interlinea richiesta, anch'essa verificata sullo stesso pannello Canva ("Spaziatura righe: 1.2").
-export const DEFAULT_LINE_HEIGHT_RATIO = 1.2
+export const DEFAULT_LINE_HEIGHT_RATIO = 0.9
 
 // Spezza un singolo blocco di testo (senza a-capo manuali al suo interno) in righe che
 // stanno dentro maxWidth, ad una data dimensione font (wrap "greedy").
@@ -139,7 +157,11 @@ function computeStretchedAtSizeFast(ctx, text, fontSize, fontWeight, fontFamily,
     if (!line) return { text: '', fontSize }
     const w = ctx.measureText(line).width || 1
     const scale = maxWidth / w
-    const size = Math.min(maxFontSize, Math.max(minFontSize, fontSize * scale))
+    const sizeGrezza = fontSize * scale
+    const size = Math.min(maxFontSize, Math.max(minFontSize, sizeGrezza))
+    if (Math.abs(size - sizeGrezza) > 0.5) {
+      console.log('DEBUG STRETCH - TETTO RAGGIUNTO su', JSON.stringify(line), '| volevo:', Math.round(sizeGrezza), '| limitato a:', Math.round(size), '| maxFontSize:', Math.round(maxFontSize), '| minFontSize:', Math.round(minFontSize))
+    }
     return { text: line, fontSize: size }
   })
 }
@@ -230,13 +252,14 @@ function splitLineIntoRuns(lineText, startOffset, spans, defaultColor, defaultUn
 export function fitText(text, {
   maxWidth,
   minFontSize = 16,
-  maxFontSize = 1000,
-  fontWeight = 800,
+  maxFontSize = 300,
+  fontWeight = 700,
   fontFamily = 'Roboto, sans-serif',
   lineHeightRatio = DEFAULT_LINE_HEIGHT_RATIO,
   maxHeight = Infinity,
   manualFontSize = null,
-  letterSpacingRatio = 0
+  letterSpacingRatio = 0,
+  extraLineGap = 0 // pixel FISSI aggiunti tra una riga e l'altra, sopra alla dimensione naturale
 }) {
   const ctx = getMeasureCtx()
 
@@ -247,8 +270,8 @@ export function fitText(text, {
   const attachAndReturn = (rawLines) => {
     const withOffsets = attachOffsets(text, rawLines.map((l) => l.text))
     const merged = rawLines.map((l, i) => ({ ...l, startOffset: withOffsets[i].startOffset, endOffset: withOffsets[i].endOffset }))
-    const totalHeight = merged.reduce((sum, l) => sum + l.fontSize * lineHeightRatio, 0)
-    return { lines: merged, totalHeight, lineHeightRatio, baseFontSize: merged[0]?.fontSize || minFontSize }
+    const totalHeight = merged.reduce((sum, l) => sum + l.fontSize * lineHeightRatio + extraLineGap, 0)
+    return { lines: merged, totalHeight, lineHeightRatio, extraLineGap, baseFontSize: merged[0]?.fontSize || minFontSize }
   }
 
   // Se è impostata una dimensione manuale, la usa direttamente e uniforme su tutte le righe.
@@ -269,7 +292,7 @@ export function fitText(text, {
   const step = Math.max(1, (maxFontSize - minFontSize) / 300)
   for (let size = minFontSize; size <= maxFontSize; size += step) {
     const stretched = computeStretchedAtSizeFast(ctx, text, size, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
-    const totalH = stretched.reduce((sum, l) => sum + l.fontSize * lineHeightRatio, 0)
+    const totalH = stretched.reduce((sum, l) => sum + l.fontSize * lineHeightRatio + extraLineGap, 0)
     if (totalH <= maxHeight && totalH > bestTotalHeight) {
       bestSize = size
       bestTotalHeight = totalH
@@ -279,14 +302,14 @@ export function fitText(text, {
   if (bestSize === null) {
     // Caso estremo: nessuna dimensione testata rientra nell'altezza disponibile.
     const minLines = computeStretchedAtSize(ctx, text, minFontSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
-    const minTotal = minLines.reduce((sum, l) => sum + l.fontSize * lineHeightRatio, 0)
+    const minTotal = minLines.reduce((sum, l) => sum + l.fontSize * lineHeightRatio + extraLineGap, 0)
     const shrink = minTotal > 0 ? Math.min(1, maxHeight / minTotal) : 1
     const safeLines = minLines.map((l) => ({ text: l.text, fontSize: Math.max(1, l.fontSize * shrink) }))
     return attachAndReturn(safeLines)
   }
 
-  // Ricalcolo finale, UNA SOLA VOLTA, con il bilanciamento vero sulla dimensione vincente.
-  const finalLines = computeStretchedAtSize(ctx, text, bestSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
+  // Ricalcolo finale con lo STESSO metodo (veloce) usato durante la scansione.
+  const finalLines = computeStretchedAtSizeFast(ctx, text, bestSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
   return attachAndReturn(finalLines)
 }
 
@@ -295,6 +318,7 @@ export function fitText(text, {
 // Rispetta la formattazione parziale (box.spans) esattamente come l'anteprima.
 export function drawTextBoxOnCanvas(ctx, box, scale) {
   if (!box.text || !box.text.trim()) return
+  console.log('DEBUG FONT - Roboto pronto al momento dell\'export?', _robotoReady, '| document.fonts.check:', typeof document !== 'undefined' && document.fonts ? document.fonts.check('700 16px Roboto') : 'n/d')
 
   // "scale" è il fattore SCHERMO/REALE (es. 0.33 se lo schermo mostra l'immagine a 1/3 della
   // sua dimensione reale). box.x/y/width/height sono salvati in coordinate SCHERMO: per
@@ -310,7 +334,7 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
   // Gli span sono offset di CARATTERI (indipendenti dalla scala), non serve riscalarli.
   const spans = box.spans || []
 
-  const { lines, lineHeightRatio } = fitText(box.text, {
+  const { lines, lineHeightRatio, extraLineGap } = fitText(box.text, {
     maxWidth: realWidth,
     minFontSize: realMinFont,
     maxFontSize: realMaxFont,
@@ -318,7 +342,8 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
     fontFamily: 'Roboto, sans-serif',
     maxHeight: realHeight,
     manualFontSize: box.manualFontSize ? box.manualFontSize / scale : null,
-    letterSpacingRatio: LETTER_SPACING_RATIO
+    letterSpacingRatio: LETTER_SPACING_RATIO,
+    extraLineGap: box.lineGapPx || 0 // già in px REALI, nessuna conversione di scala necessaria
   })
 
   ctx.save()
@@ -335,9 +360,14 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
     ctx.font = `700 ${line.fontSize}px Roboto, sans-serif`
     // La spaziatura si ricalcola qui in base alla dimensione REALE di QUESTA riga (che può
     // differire tra le righe con l'auto-adattamento) — proporzionale, non un valore fisso.
-    ctx.letterSpacing = `${line.fontSize * LETTER_SPACING_RATIO}px`
-    const lineHeight = line.fontSize * lineHeightRatio
+    // ctx.letterSpacing = `${line.fontSize * LETTER_SPACING_RATIO}px` // DISATTIVATA per test
+    const lineHeight = line.fontSize * lineHeightRatio + extraLineGap
     const runs = splitLineIntoRuns(line.text, line.startOffset, spans, box.color, box.underline)
+
+    // DEBUG: misura la larghezza REALE della riga a questa dimensione, per confrontarla con
+    // quella che dovrebbe avere (realWidth) — così vediamo esattamente quanti pixel mancano.
+    const misuraReale = ctx.measureText(line.text).width
+    console.log('DEBUG STIRAMENTO -', JSON.stringify(line.text), '| fontSize:', Math.round(line.fontSize), '| larghezza misurata:', Math.round(misuraReale), '| larghezza target (realWidth):', Math.round(realWidth), '| differenza:', Math.round(realWidth - misuraReale))
 
     // Calcola la larghezza totale della riga per poter allineare centro/destra
     const totalWidth = runs.reduce((sum, r) => sum + ctx.measureText(r.text).width, 0)
@@ -377,10 +407,11 @@ export function createTextBox(overrides = {}) {
     color: '#FFFFFF',
     align: 'left',
     minFontSize: 14,
-    maxFontSize: 300,
+    maxFontSize: 1000,
     manualFontSize: null, // null = automatico; un numero = dimensione scelta a mano
     underline: false,
     spans: [], // formattazione (colore/sottolineato) su porzioni specifiche di testo
+    lineGapPx: null, // px REALI fissi extra tra le righe; null = usa il rapporto automatico (DEFAULT_LINE_HEIGHT_RATIO)
     ...overrides
   }
 }
@@ -395,25 +426,90 @@ const COLOR_SWATCHES = [
   { value: '#FF3B30', label: 'Rosso' }
 ]
 
-export default function TextOverlay({ containerWidth, containerHeight, textBoxes, onChange, isMobile = false, displayScale = 1, zoomLevel = 1 }) {
+// Disegna l'anteprima della casella usando la STESSA IDENTICA funzione (drawTextBoxOnCanvas)
+// usata per l'export finale — non più HTML/CSS. Così non può più esserci nessuno scarto tra
+// quello che vedi mentre lavori e quello che ottieni nel file scaricato: è letteralmente lo
+// stesso codice di disegno, solo con scale=1 (le coordinate del box sono già in pixel schermo).
+function TextBoxCanvasPreview({ box, boxHeight }) {
+  const canvasRef = useRef(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const width = Math.max(1, Math.round(box.width))
+    const height = Math.max(1, Math.round(boxHeight))
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1
+
+    canvas.width = width * dpr
+    canvas.height = height * dpr
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+
+    const ctx = canvas.getContext('2d')
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, width, height)
+
+    // scale=1: le proprietà del box (minFontSize, maxFontSize, ecc.) sono già pensate per lo
+    // schermo, non serve nessuna conversione — x/y a 0 perché disegniamo nel riquadro LOCALE
+    // del canvas (il posizionamento nella pagina lo fa il contenitore <div> che lo racchiude).
+    drawTextBoxOnCanvas(ctx, { ...box, x: 0, y: 0, width, height }, 1)
+  }, [box, boxHeight])
+
+  return (
+    <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
+      <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }} />
+      {(!box.text || !box.text.trim()) && (
+        <div style={{ opacity: 0.4, fontSize: '16px', color: '#fff', pointerEvents: 'none' }}>Doppio click per scrivere...</div>
+      )}
+    </div>
+  )
+}
+
+export default function TextOverlay({ containerWidth, containerHeight, textBoxes, onChange, isMobile = false, displayScale = 1, zoomLevel = 1, baseContainerWidth = null }) {
   const [activeId, setActiveId] = useState(null)
+  const [showPositionInfo, setShowPositionInfo] = useState(null) // id della casella di cui mostrare la posizione, o null
   const [editingId, setEditingId] = useState(null)
   const dragStateRef = useRef(null)
   const textareaRef = useRef(null) // riferimento alla textarea attualmente in modifica
   const lastTapRef = useRef({ id: null, time: 0 }) // per rilevare il doppio tap su mobile
   const [snapGuides, setSnapGuides] = useState({ v: null, h: null }) // linee guida smart (stile Canva) mostrate durante il trascinamento
 
+  // Clic fuori da qualunque casella (e fuori dal pannello strumenti a destra) = deseleziona,
+  // così il bordo blu tratteggiato sparisce. I clic DENTRO una casella o sul pannello (che vive
+  // nel portale fwm-text-side-portal, fuori dal frame) non contano come "fuori".
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      const clickedInsideBox = e.target.closest && e.target.closest('[data-fwm-textbox]')
+      const clickedInsidePanel = e.target.closest && e.target.closest('#fwm-text-side-portal')
+      if (!clickedInsideBox && !clickedInsidePanel) {
+        setActiveId(null)
+      }
+    }
+    window.addEventListener('mousedown', handleOutsideClick)
+    window.addEventListener('touchstart', handleOutsideClick)
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick)
+      window.removeEventListener('touchstart', handleOutsideClick)
+    }
+  }, [])
+
   // Le caselle di testo memorizzano posizione e dimensione in PIXEL DELLO SCHERMO (non in
   // percentuale). Se il contenitore cambia larghezza — es. passando da vista mobile a desktop
   // in DevTools, o ruotando il telefono — quei pixel non sono più corretti e la casella appare
   // disallineata. Qui la ricalcoliamo in proporzione, appena il contenitore cambia larghezza.
-  const prevContainerWidthRef = useRef(containerWidth)
+  // IMPORTANTE: reagisce a "baseContainerWidth" (la larghezza VERA del contenitore, senza
+  // zoom), NON a "containerWidth" (che qui riceve zoomedWidth, cioè containerWidth*zoomLevel).
+  // Prima usava containerWidth per errore: ogni volta che si zoomava (non solo ridimensionando
+  // la finestra), questo effetto scattava e deformava le coordinate della casella, pensando
+  // che il contenitore fosse stato ridimensionato per davvero.
+  const prevContainerWidthRef = useRef(baseContainerWidth || containerWidth)
   useEffect(() => {
+    const refWidth = baseContainerWidth || containerWidth
     const prevWidth = prevContainerWidthRef.current
     const roundedPrev = Math.round(prevWidth)
-    const roundedNow = Math.round(containerWidth)
+    const roundedNow = Math.round(refWidth)
     if (roundedPrev && roundedPrev > 0 && roundedPrev !== roundedNow) {
-      const ratio = containerWidth / prevWidth
+      const ratio = refWidth / prevWidth
       if (textBoxes.length > 0) {
         onChange(textBoxes.map((b) => ({
           ...b,
@@ -424,9 +520,9 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
         })))
       }
     }
-    prevContainerWidthRef.current = containerWidth
+    prevContainerWidthRef.current = refWidth
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerWidth])
+  }, [baseContainerWidth, containerWidth])
 
   const updateBox = (id, patch) => {
     onChange(textBoxes.map((b) => (b.id === id ? { ...b, ...patch } : b)))
@@ -678,9 +774,8 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
       style={
         sidePanel
           ? {
-              position: 'absolute', top: `${targetBox.y}px`, left: '100%', marginLeft: '12px',
               display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'stretch',
-              background: 'rgba(28,28,30,0.92)', padding: '8px', borderRadius: '10px', zIndex: 70, width: '112px'
+              background: 'rgba(28,28,30,0.92)', padding: '8px', borderRadius: '10px', width: '112px'
             }
           : {
               position: 'absolute', top: '-46px', left: 0, display: 'flex', gap: '6px',
@@ -778,12 +873,36 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
         >
           ✎ Testo
         </button>
+        {SHOW_POSITION_BUTTON && (
+          <button
+            onClick={() => setShowPositionInfo(targetBox.id)}
+            title="Vedi la posizione in pixel reali"
+            style={{ padding: '5px 9px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+          >
+            📍 Posizione
+          </button>
+        )}
       </div>
     </div>
   )
 
   return (
     <>
+      {/* Tutte le caselle di testo vivono qui dentro: un contenitore che si INGRANDISCE con lo
+      zoom (transform:scale), così posizione e dimensione di ogni casella seguono
+      automaticamente lo zoom della foto, invece di restare "ferme" in pixel fissi mentre la
+      foto sotto cresce/si rimpicciolisce. Le coordinate delle caselle (box.x/y/width) restano
+      SEMPRE quelle "vere" (a zoom 100%) — è solo la resa visiva che si scala qui. */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0,
+        width: `${zoomLevel > 0 ? 100 / zoomLevel : 100}%`,
+        height: `${zoomLevel > 0 ? 100 / zoomLevel : 100}%`,
+        transform: `scale(${zoomLevel})`,
+        transformOrigin: 'top left',
+        zIndex: 45 // più alto della grafica overlay (zIndex:6 in RitaglioImmagine.jsx) — il
+        // "transform" qui sopra crea un nuovo livello di sovrapposizione isolato, quindi senza
+        // questo numero esplicito il gruppo di caselle finiva sotto alla grafica per errore.
+      }}>
       {textBoxes.map((box) => {
         const boxHeight = box.height || 120
         const { lines } = fitText(box.text, {
@@ -794,7 +913,8 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           fontFamily: 'Roboto, sans-serif',
           maxHeight: boxHeight,
           manualFontSize: box.manualFontSize,
-          letterSpacingRatio: LETTER_SPACING_RATIO
+          letterSpacingRatio: LETTER_SPACING_RATIO,
+          extraLineGap: (box.lineGapPx || 0) * displayScale
         })
         const isActive = activeId === box.id
         const isEditing = editingId === box.id
@@ -802,6 +922,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
         return (
           <div
             key={box.id}
+            data-fwm-textbox="true"
             onMouseDown={(e) => { if (!isEditing) startDrag(e, box.id, 'move') }}
             onTouchStart={(e) => { if (!isEditing) { const openedEditing = handlePotentialDoubleTap(box.id); if (!openedEditing) startDrag(e, box.id, 'move') } }}
             onClick={(e) => { e.stopPropagation(); setActiveId(box.id) }}
@@ -907,7 +1028,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                               const runs = splitLineIntoRuns(line.text, line.startOffset, box.spans, box.color, box.underline)
                               const previewScale = Math.min(1, 28 / (line.fontSize || 28))
                               return (
-                                <div key={i} style={{ fontSize: `${(line.fontSize || 16) * previewScale}px`, letterSpacing: `${(line.fontSize || 16) * previewScale * LETTER_SPACING_RATIO}px`, lineHeight: DEFAULT_LINE_HEIGHT_RATIO, whiteSpace: 'nowrap' }}>
+                                <div key={i} style={{ fontSize: `${(line.fontSize || 16) * previewScale}px`, letterSpacing: `${(line.fontSize || 16) * previewScale * LETTER_SPACING_RATIO}px`, lineHeight: `${(line.fontSize || 16) * previewScale * DEFAULT_LINE_HEIGHT_RATIO + (box.lineGapPx || 0) * displayScale * previewScale}px`, whiteSpace: 'nowrap' }}>
                                   {runs.map((run, ri) => (
                                     <span key={ri} style={{ color: run.color, textDecoration: run.underline ? 'underline' : 'none' }}>
                                       {run.text}
@@ -924,33 +1045,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                 )}
               </>
             ) : (
-              <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-                <div
-                  style={{
-                    fontFamily: 'Roboto, sans-serif',
-                    fontWeight: 700,
-                    textAlign: box.align,
-                    pointerEvents: 'none'
-                  }}
-                >
-                  {lines.length > 0
-                    ? lines.map((line, i) => {
-                        const runs = splitLineIntoRuns(line.text, line.startOffset, box.spans, box.color, box.underline)
-                        return (
-                          <div key={i} style={{ fontSize: `${line.fontSize}px`, letterSpacing: `${line.fontSize * LETTER_SPACING_RATIO}px`, lineHeight: DEFAULT_LINE_HEIGHT_RATIO, whiteSpace: 'nowrap' }}>
-                            {runs.length > 0
-                              ? runs.map((run, ri) => (
-                                  <span key={ri} style={{ color: run.color, textDecoration: run.underline ? 'underline' : 'none' }}>
-                                    {run.text}
-                                  </span>
-                                ))
-                              : '\u00A0'}
-                          </div>
-                        )
-                      })
-                    : <div style={{ opacity: 0.4, fontSize: '16px', color: '#fff' }}>Doppio click per scrivere...</div>}
-                </div>
-              </div>
+              <TextBoxCanvasPreview box={box} boxHeight={boxHeight} />
             )}
 
             {isActive && !isEditing && (
@@ -1036,11 +1131,16 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           </div>
         )
       })}
+      </div>
 
-      {/* Su desktop: pannello controlli fuori dal frame, a destra, per la casella attiva */}
+      {/* Su desktop: pannello controlli SEMPRE fuori dal frame, a destra — usa lo stesso
+      "portale" affidabile già usato per note/anteprima (fwm-text-side-portal, gestito da
+      RitaglioImmagine.jsx), invece del vecchio posizionamento "a destra della casella" che
+      finiva DENTRO la foto quando la casella non era vicina al bordo destro del frame. */}
       {!isMobile && (() => {
         const activeBox = textBoxes.find((b) => b.id === activeId)
         if (!activeBox || editingId === activeId) return null
+        if (typeof document === 'undefined' || !document.getElementById('fwm-text-side-portal')) return null
         const { lines: activeLines } = fitText(activeBox.text, {
           maxWidth: activeBox.width,
           minFontSize: activeBox.minFontSize,
@@ -1051,7 +1151,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           manualFontSize: activeBox.manualFontSize,
           letterSpacingRatio: LETTER_SPACING_RATIO
         })
-        return renderToolbar(activeBox, activeLines, true)
+        return createPortal(renderToolbar(activeBox, activeLines, true), document.getElementById('fwm-text-side-portal'))
       })()}
 
       {/* Linee guida smart (stile Canva): appaiono solo mentre trascini una casella e si
@@ -1062,6 +1162,71 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
       {snapGuides.h !== null && (
         <div style={{ position: 'absolute', top: `${snapGuides.h}px`, left: 0, right: 0, height: '1px', background: '#007AFF', zIndex: 90, pointerEvents: 'none', boxShadow: '0 0 4px rgba(0,122,255,0.8)' }} />
       )}
+
+      {/* Popup con la posizione della casella in PIXEL REALI, pronta da copiare — niente più
+      bisogno di guardare la Console o fare calcoli a mano. */}
+      {showPositionInfo && (() => {
+        const box = textBoxes.find((b) => b.id === showPositionInfo)
+        if (!box) return null
+        const s = displayScale || 1
+        const x = Math.round(box.x / s)
+        const y = Math.round(box.y / s)
+        const w = Math.round(box.width / s)
+        const h = Math.round((box.height || 120) / s)
+        const testo = `const TESTO_SX_REALE = ${x}\nconst TESTO_DX_REALE = ${x + w}  // oppure: dimensions.width - ${Math.round(x)}\nconst TESTO_ALTO_REALE = ${y}\nconst TESTO_BASSO_REALE = ${y + h}`
+        return (
+          <div
+            onClick={() => setShowPositionInfo(null)}
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+          >
+            <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '16px', padding: '20px', maxWidth: '380px', width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h3 style={{ margin: 0, fontSize: '16px' }}>📍 Posizione in pixel reali</h3>
+                <button onClick={() => setShowPositionInfo(null)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>X (sinistra)</div>
+                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{x}px</div>
+                </div>
+                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Y (alto)</div>
+                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{y}px</div>
+                </div>
+                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Larghezza</div>
+                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{w}px</div>
+                </div>
+                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Altezza</div>
+                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{h}px</div>
+                </div>
+                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Bordo destro</div>
+                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{x + w}px</div>
+                </div>
+                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Bordo inferiore</div>
+                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{y + h}px</div>
+                </div>
+              </div>
+              <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700', marginBottom: '4px' }}>Pronto da incollare in RitaglioImmagine.jsx:</div>
+              <textarea
+                readOnly
+                value={testo}
+                onClick={(e) => e.target.select()}
+                style={{ width: '100%', minHeight: '90px', padding: '10px', borderRadius: '10px', border: '1px solid #e5e5ea', fontSize: '12px', fontFamily: 'monospace', background: '#1c1c1e', color: '#0f0', boxSizing: 'border-box', resize: 'vertical' }}
+              />
+              <button
+                onClick={() => { navigator.clipboard?.writeText(testo); }}
+                style={{ marginTop: '10px', width: '100%', padding: '10px', borderRadius: '10px', border: 'none', background: '#007AFF', color: '#fff', fontWeight: '800', fontSize: '13px', cursor: 'pointer' }}
+              >
+                📋 Copia tutto
+              </button>
+            </div>
+          </div>
+        )
+      })()}
 
     </>
   )
