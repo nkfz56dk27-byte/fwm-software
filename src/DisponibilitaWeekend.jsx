@@ -804,20 +804,27 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
         console.error('[ERRORE INSERIMENTO push_notifications - CREAZIONE WEEKEND]', pushError);
       } else {
         console.log('[DEBUG CREA NOTIFICA] Inserita in push_notifications (creazione weekend)', pushDataRes);
-          // Inserisci anche nella tabella push_disponibilita_weekend per pipeline OneSignal
-          await supabase.from('push_disponibilita_weekend').insert({
-            title: 'Nuovo weekend disponibile',
-            body: `È stato aperto il weekend: ${nomeGP} (${dataInizio} - ${dataFine})`,
-            notification_type: 'disponibilita_weekend',
-            target_all: true,
-            data: { weekend_id: weekend.id }
-          });
+      }
+
+      // Inserisci anche nella tabella push_disponibilita_weekend per pipeline OneSignal
+      // (indipendente dal risultato dell'insert sopra: un fallimento in push_notifications
+      // non deve impedire l'invio della push reale via OneSignal)
+      const { error: pushWeekendError } = await supabase.from('push_disponibilita_weekend').insert({
+        title: 'Nuovo weekend disponibile',
+        body: `È stato aperto il weekend: ${nomeGP} (${dataInizio} - ${dataFine})`,
+        notification_type: 'disponibilita_weekend',
+        target_all: true,
+        data: { weekend_id: weekend.id }
+      });
+      if (pushWeekendError) {
+        console.error('[ERRORE INSERIMENTO push_disponibilita_weekend - CREAZIONE WEEKEND]', pushWeekendError);
+      } else {
         // Trigger funzione cloud su Vercel per processare notifiche
-  try {
-    await fetch('https://fwm-software.vercel.app/api/processPushNotifications', { method: 'POST' });
-  } catch (err) {
-    console.error('[ERRORE TRIGGER PROCESS PUSH NOTIFICATIONS]', err);
-  }
+        try {
+          await fetch('https://fwm-software.vercel.app/api/processPushNotifications', { method: 'POST' });
+        } catch (err) {
+          console.error('[ERRORE TRIGGER PROCESS PUSH NOTIFICATIONS]', err);
+        }
       }
     } catch (err) {
       console.error('Errore invio notifica push:', err)
@@ -1126,13 +1133,16 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         }
       }))
       // Inserisci anche nella tabella push_disponibilita_weekend per pipeline OneSignal
-      await supabase.from('push_disponibilita_weekend').insert({
+      const { error: pushConfermaError } = await supabase.from('push_disponibilita_weekend').insert({
         title: 'Disponibilità Weekend',
         body: `${nomeRedattore} ha confermato ${articoliSelezionati.size} articoli per ${weekend.nome_gp}`,
         notification_type: 'disponibilita_weekend',
         target_all: true,
         data: { weekend_id: weekend.id }
       })
+      if (pushConfermaError) {
+        console.error('[ERRORE INSERIMENTO push_disponibilita_weekend - CONFERMA ARTICOLI]', pushConfermaError);
+      }
         // Trigger funzione cloud su Vercel per processare notifiche
         try {
           await fetch('https://fwm-software.vercel.app/api/processPushNotifications', { method: 'POST' });
