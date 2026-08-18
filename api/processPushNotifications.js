@@ -1,6 +1,6 @@
-// API Route per Vercel: processa notifiche push da tabella push_disponibilita_weekend
-import { createClient } from '@supabase/supabase-js';
-import fetch from 'node-fetch';
+// Google Cloud Function per invio notifiche push con OneSignal
+const { createClient } = require('@supabase/supabase-js');
+const fetch = require('node-fetch');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -19,9 +19,8 @@ async function sendOneSignalNotification({ title, body, url = '/', data = {}, ta
     && !targetAll;
   const payload = {
     app_id: ONESIGNAL_APP_ID,
-    headings: { it: title, en: title, default: title },
-    contents: { it: body, en: body, default: body },
-    subtitle: { it: body, en: body, default: body },
+    headings: { en: title },
+    contents: { en: body },
     url,
     data,
     included_segments: useTargeting ? undefined : ['All'],
@@ -49,29 +48,51 @@ async function sendOneSignalNotification({ title, body, url = '/', data = {}, ta
   return res.json();
 }
 
-export default async function handler(req, res) {
+// Controlla quanti articoli critici sono ancora liberi (non assegnati) per un weekend.
+// Ritorna null in caso di errore nella query (da gestire separatamente dal caso "zero").
+async function contaArticoliCriticiLiberi(weekendId) {
+  const { count, error } = await supabase
+    .from('articoli')
+    .select('id', { count: 'exact', head: true })
+    .eq('weekend_id', weekendId)
+    .eq('critico', true)
+    .eq('stato', 'libero');
+  if (error) {
+    console.error('[ERROR] Conteggio articoli critici liberi:', error);
+    return null; // null = errore nel controllo, non sappiamo lo stato reale
+  }
+  return count ?? 0;
+}
+
+exports.processPushNotifications = async (req, res) => {
   const start = Date.now();
+  const nowIso = new Date().toISOString();
   try {
-    // Prendi tutte le notifiche pending da tutte e tre le tabelle
+    // Prendi tutte le notifiche pending E già "mature" (scheduled_for nullo o già passato)
     const { data: weekendNotifications, error: errorWeekend } = await supabase
       .from('push_disponibilita_weekend')
       .select('*')
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .or(`scheduled_for.is.null,scheduled_for.lte.${nowIso}`);
     if (errorWeekend) throw errorWeekend;
 
     const { data: accreditiNotifications, error: errorAccrediti } = await supabase
       .from('push_calendario_accrediti')
       .select('*')
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .or(`scheduled_for.is.null,scheduled_for.lte.${nowIso}`);
     if (errorAccrediti) throw errorAccrediti;
 
     const { data: generalNotifications, error: errorGeneral } = await supabase
       .from('push_notifications')
       .select('*')
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .or(`scheduled_for.is.null,scheduled_for.lte.${nowIso}`);
     if (errorGeneral) throw errorGeneral;
 
     let sent = 0;
+    let skipped = 0;
+
     // Processa notifiche weekend
     for (const notif of weekendNotifications) {
       try {
@@ -106,6 +127,7 @@ export default async function handler(req, res) {
         sent++;
         await supabase.from('push_calendario_accrediti').update({ status: 'sent' }).eq('id', notif.id);
       } catch (err) {
+        console.error('[ERROR] Invio notifica calendario accrediti:', err);
         await supabase.from('push_calendario_accrediti').update({ status: 'error', error: err.message }).eq('id', notif.id);
       }
     }
@@ -113,6 +135,24 @@ export default async function handler(req, res) {
     // Processa notifiche generali
     for (const notif of generalNotifications) {
       try {
+        // Caso speciale: "articoli critici ancora liberi" — verifica lo stato REALE
+        // al momento dell'invio, non fidarti del messaggio scritto alla creazione del weekend.
+        if (notif.notification_type === 'articoli_critici') {
+          const weekendId = notif.data?.weekend_id;
+          const countLiberi = await contaArticoliCriticiLiberi(weekendId);
+          if (countLiberi === null) {
+            // Errore nel controllo: non inviare e segnala per revisione manuale, non riprovare all'infinito
+            await supabase.from('push_notifications').update({ status: 'error', error: 'Impossibile verificare articoli critici liberi' }).eq('id', notif.id);
+            continue;
+          }
+          if (countLiberi === 0) {
+            // Nessun articolo critico ancora libero: la notifica non serve più
+            await supabase.from('push_notifications').update({ status: 'skipped', error: 'Nessun articolo critico ancora libero' }).eq('id', notif.id);
+            skipped++;
+            continue;
+          }
+        }
+
         await sendOneSignalNotification({
           title: notif.title,
           body: notif.body,
@@ -132,8 +172,8 @@ export default async function handler(req, res) {
       }
     }
     const end = Date.now();
-    res.status(200).json({ success: true, sent, durationMs: end - start });
+    res.status(200).json({ success: true, sent, skipped, durationMs: end - start });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
-}
+};
