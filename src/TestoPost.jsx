@@ -899,9 +899,12 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
         height: `${zoomLevel > 0 ? 100 / zoomLevel : 100}%`,
         transform: `scale(${zoomLevel})`,
         transformOrigin: 'top left',
-        zIndex: 45 // più alto della grafica overlay (zIndex:6 in RitaglioImmagine.jsx) — il
+        zIndex: 45, // più alto della grafica overlay (zIndex:6 in RitaglioImmagine.jsx) — il
         // "transform" qui sopra crea un nuovo livello di sovrapposizione isolato, quindi senza
         // questo numero esplicito il gruppo di caselle finiva sotto alla grafica per errore.
+        pointerEvents: 'none' // lascia passare i clic alla foto sottostante nelle zone SENZA
+        // testo — altrimenti questo contenitore (che copre l'intera area) intercettava anche i
+        // clic destinati al trascinamento della foto, impedendo di spostarla.
       }}>
       {textBoxes.map((box) => {
         const boxHeight = box.height || 120
@@ -940,7 +943,9 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
               // browser (che comunque gestiamo noi manualmente per aprire la modifica del testo)
               outline: isActive ? '1px dashed rgba(0,122,255,0.8)' : 'none',
               outlineOffset: '6px',
-              zIndex: isActive ? 50 : 40
+              zIndex: isActive ? 50 : 40,
+              pointerEvents: 'auto' // riattiva i clic SOLO qui, dato che il contenitore intorno
+              // (vedi sopra) li ha disattivati di default per lasciar passare quelli sulla foto
             }}
           >
             {isEditing ? (
