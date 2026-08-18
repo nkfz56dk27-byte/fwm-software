@@ -12,11 +12,16 @@ function getVettorePuntiGara(gara, classifica) {
   if (classifica?.usa_modificatore_libero && Array.isArray(classifica.modificatore_libero_punti) && classifica.modificatore_libero_punti.length) {
     return classifica.modificatore_libero_punti.map(Number)
   }
+  // F2 e F3 condividono la STESSA etichetta interna "f2sprint" per le gare sprint (nessuna
+  // distinzione strutturale tra i due formati) — quindi qui controlliamo il campo dedicato
+  // "formato_sprint" (scelto una volta alla creazione della classifica, salvato per sempre,
+  // indipendente dal nome del campionato) per capire quale tabella punti sprint usare davvero.
+  const eF3 = classifica?.formato_sprint === 'f3'
   const tabelle = {
     sprint: [8, 7, 6, 5, 4, 3, 2, 1],
     sprintRace: [8, 7, 6, 5, 4, 3, 2, 1],
     featureRace: [25, 18, 15, 12, 10, 8, 6, 4, 2, 1],
-    f2sprint: [10, 8, 6, 5, 4, 3, 2, 1],
+    f2sprint: eF3 ? [10, 9, 8, 7, 6, 5, 4, 3, 2, 1] : [10, 8, 6, 5, 4, 3, 2, 1],
   }
   return tabelle[gara.tipo_gara] || [25, 18, 15, 12, 10, 8, 6, 4, 2, 1]
 }
@@ -57,22 +62,57 @@ function puntiMassimiGaraPilota(gara, classifica) {
   return puntiPosizione + puntiBonusMassimi(classifica)
 }
 
-function puntiMassimiGaraCostruttore(gara, classifica) {
+// Punti massimi ottenibili in una gara da un GRUPPO di piloti (team costruttore, oppure
+// tutti i piloti che condividono lo stesso motorista): somma dei migliori N piazzamenti,
+// dove N è il numero di piloti attivi che appartengono al gruppo.
+function puntiMassimiGaraGruppo(gara, classifica, numPiloti = 2) {
   if (gara.completata) return 0
   const vettore = getVettorePuntiGara(gara, classifica).map(Number).sort((a, b) => b - a)
-  const top1 = vettore[0] || 0
-  const top2 = vettore[1] || 0
-  return top1 + top2 + puntiBonusMassimi(classifica)
+  const n = Math.max(1, numPiloti || 2)
+  const somma = vettore.slice(0, n).reduce((s, v) => s + v, 0)
+  return somma + puntiBonusMassimi(classifica)
 }
 
-function puntiMassimiGP(gp, classifica, perCostruttore) {
-  return getGareGP(gp).reduce((tot, gara) =>
-    tot + (perCostruttore ? puntiMassimiGaraCostruttore(gara, classifica) : puntiMassimiGaraPilota(gara, classifica)), 0)
+function puntiMassimiGaraCostruttore(gara, classifica) {
+  return puntiMassimiGaraGruppo(gara, classifica, 2)
 }
 
-function calcolaPuntiMassimiRimanenti(classifica, tipo = 'pilota') {
+// numPiloti: rilevante solo per tipo === 'motorista' (i gruppi motoristi possono avere
+// un numero variabile di piloti, a differenza dei team che ne hanno sempre 2)
+function puntiMassimiGP(gp, classifica, tipo, numPiloti) {
+  return getGareGP(gp).reduce((tot, gara) => {
+    if (tipo === 'costruttore') return tot + puntiMassimiGaraCostruttore(gara, classifica)
+    if (tipo === 'motorista') return tot + puntiMassimiGaraGruppo(gara, classifica, numPiloti)
+    return tot + puntiMassimiGaraPilota(gara, classifica)
+  }, 0)
+}
+
+function calcolaPuntiMassimiRimanenti(classifica, tipo = 'pilota', numPiloti) {
   const gpNonCompletati = (classifica.gp || []).filter(g => !g.completato)
-  return gpNonCompletati.reduce((tot, gp) => tot + puntiMassimiGP(gp, classifica, tipo === 'costruttore'), 0)
+  return gpNonCompletati.reduce((tot, gp) => tot + puntiMassimiGP(gp, classifica, tipo, numPiloti), 0)
+}
+
+// ===== MOTORISTI: helper di raggruppamento =====
+// Il motorista è assegnato a livello di TEAM (classifica.costruttori[].motore), non di
+// singolo pilota: più team possono condividere la stessa power unit (es. Formula E).
+
+function teamDiPilota(pilota, classifica) {
+  return (classifica.costruttori || []).find(c => c.nome === pilota.team) || null
+}
+
+function motoreDiPilota(pilota, classifica) {
+  const team = teamDiPilota(pilota, classifica)
+  return team ? team.motore : null
+}
+
+function teamConMotore(nomeMotore, classifica) {
+  return (classifica.costruttori || []).filter(c => c.motore === nomeMotore).map(c => c.nome)
+}
+
+function numPilotiAttiviPerMotore(nomeMotore, classifica) {
+  const teams = teamConMotore(nomeMotore, classifica)
+  const n = (classifica.piloti || []).filter(p => p.attivo && teams.includes(p.team)).length
+  return n || 2
 }
 
 function contaPiazzamenti(pilotaId, classifica, filtroTipoGara = null) {
@@ -352,32 +392,47 @@ function calcolaCombinazioniEliminazione(pilotaBersaglio, classifica, maxScenari
   return { gruppi: gruppiPerRivale, multiGaraPerRivale }
 }
 
-function calcolaCostruttoriInLotta(classifica) {
-  const ordinati = (classifica.costruttori || []).slice().sort((a, b) => (b.punti || 0) - (a.punti || 0))
+// ===== LOGICA GENERICA "DI GRUPPO" (usata sia da Costruttori che da Motoristi) =====
+
+function calcolaGruppiInLotta(lista, classifica, tipo, numPilotiFn) {
+  const ordinati = (lista || []).slice().sort((a, b) => (b.punti || 0) - (a.punti || 0))
   if (ordinati.length === 0) return []
   const leader = ordinati[0]
-  const puntiMax = calcolaPuntiMassimiRimanenti(classifica, 'costruttore')
-  return ordinati.filter(c => ((c.punti || 0) + puntiMax) >= (leader.punti || 0))
+  return ordinati.filter(item => {
+    const numPiloti = numPilotiFn ? numPilotiFn(item) : 2
+    const puntiMax = calcolaPuntiMassimiRimanenti(classifica, tipo, numPiloti)
+    return ((item.punti || 0) + puntiMax) >= (leader.punti || 0)
+  })
 }
 
-function trovaClinchGaraSingolaCostruttore(costruttore, rivali, classifica) {
+function suffixMaxArray(gpNonCompletati, classifica, tipo, numPiloti) {
+  const maxPerGP = gpNonCompletati.map(gp => puntiMassimiGP(gp, classifica, tipo, numPiloti))
+  const suffix = new Array(gpNonCompletati.length + 1).fill(0)
+  for (let i = gpNonCompletati.length - 1; i >= 0; i--) {
+    suffix[i] = suffix[i + 1] + maxPerGP[i]
+  }
+  return suffix
+}
+
+// Trova la prima gara in cui, ottenendo un certo numero di punti come gruppo, il titolo
+// risulta già matematicamente blindato indipendentemente da come vanno tutte le gare
+// successive. Ogni rivale può avere un proprio numero di piloti (rilevante per i motoristi).
+function trovaClinchGaraSingolaGruppo(entita, rivali, classifica, tipo, numPilotiFn) {
   const gpNonCompletati = (classifica.gp || []).filter(g => !g.completato)
   if (gpNonCompletati.length === 0) return null
 
-  const maxPerGP = gpNonCompletati.map(gp => puntiMassimiGP(gp, classifica, true))
-  const suffixMax = new Array(gpNonCompletati.length + 1).fill(0)
-  for (let i = gpNonCompletati.length - 1; i >= 0; i--) {
-    suffixMax[i] = suffixMax[i + 1] + maxPerGP[i]
-  }
+  const numPilotiEntita = numPilotiFn(entita)
+  const maxPerGPEntita = gpNonCompletati.map(gp => puntiMassimiGP(gp, classifica, tipo, numPilotiEntita))
+  const suffixPerRivale = rivali.map(rivale => suffixMaxArray(gpNonCompletati, classifica, tipo, numPilotiFn(rivale)))
 
   for (let i = 0; i < gpNonCompletati.length; i++) {
     const gp = gpNonCompletati[i]
-    const puntiMaxQuestoGP = maxPerGP[i]
-    const suffixDopo = suffixMax[i + 1]
+    const puntiMaxQuestoGP = maxPerGPEntita[i]
 
     for (let t = 0; t <= puntiMaxQuestoGP; t++) {
-      const puntiGarantiti = (costruttore.punti || 0) + t
-      const tuttiOk = rivali.every(rivale => {
+      const puntiGarantiti = (entita.punti || 0) + t
+      const tuttiOk = rivali.every((rivale, ridx) => {
+        const suffixDopo = suffixPerRivale[ridx][i + 1]
         const massimoRivale = (rivale.punti || 0) + suffixDopo
         return massimoRivale < puntiGarantiti
       })
@@ -389,18 +444,19 @@ function trovaClinchGaraSingolaCostruttore(costruttore, rivali, classifica) {
   return null
 }
 
-function trovaScenarioMultiGaraCostruttore(costruttoreChiVince, rivali, classifica) {
+function trovaScenarioMultiGaraGruppo(entitaChiVince, rivali, classifica, tipo, numPilotiFn) {
   const gpNonCompletati = (classifica.gp || []).filter(g => !g.completato)
   if (gpNonCompletati.length === 0) return null
 
-  const puntiBloccoMax = calcolaPuntiMassimiRimanenti(classifica, 'costruttore')
+  const numPilotiEntita = numPilotiFn(entitaChiVince)
+  const puntiBloccoMax = calcolaPuntiMassimiRimanenti(classifica, tipo, numPilotiEntita)
 
   // Ordina i rivali dal più forte al più debole; considera solo il rivale
   // più forte per calcolare il T minimo, non tutti insieme al massimo assoluto
   const rivaliOrdinati = [...rivali].sort((a, b) => (b.punti || 0) - (a.punti || 0))
   const rivalePiuForte = rivaliOrdinati[0]
 
-  let T = (rivalePiuForte.punti || 0) - (costruttoreChiVince.punti || 0) + 1
+  let T = (rivalePiuForte.punti || 0) - (entitaChiVince.punti || 0) + 1
   T = Math.max(0, Math.min(T, puntiBloccoMax))
 
   const gapDalLeader = puntiBloccoMax > 0 ? (T / puntiBloccoMax) : 0
@@ -408,7 +464,7 @@ function trovaScenarioMultiGaraCostruttore(costruttoreChiVince, rivali, classifi
     T = puntiBloccoMax
   }
 
-  const puntiFinaliProtagonista = (costruttoreChiVince.punti || 0) + T
+  const puntiFinaliProtagonista = (entitaChiVince.punti || 0) + T
   const caps = rivaliOrdinati.map(rivale => {
     const capPunti = puntiFinaliProtagonista - (rivale.punti || 0) - 1
     return {
@@ -426,6 +482,20 @@ function trovaScenarioMultiGaraCostruttore(costruttoreChiVince, rivali, classifi
     caps: caps.filter(c => c.capPunti < puntiBloccoMax || c.bloccato),
     impossibile: caps.some(c => c.bloccato)
   }
+}
+
+// ===== COSTRUTTORI (sempre 2 piloti per team) =====
+
+function calcolaCostruttoriInLotta(classifica) {
+  return calcolaGruppiInLotta(classifica.costruttori, classifica, 'costruttore', () => 2)
+}
+
+function trovaClinchGaraSingolaCostruttore(costruttore, rivali, classifica) {
+  return trovaClinchGaraSingolaGruppo(costruttore, rivali, classifica, 'costruttore', () => 2)
+}
+
+function trovaScenarioMultiGaraCostruttore(costruttoreChiVince, rivali, classifica) {
+  return trovaScenarioMultiGaraGruppo(costruttoreChiVince, rivali, classifica, 'costruttore', () => 2)
 }
 
 function calcolaCombinazioniVittoriaCostruttore(costruttore, classifica) {
@@ -465,6 +535,57 @@ function calcolaEliminazioneCostruttore(costruttoreBersaglio, classifica) {
     .filter(Boolean)
 }
 
+// ===== MOTORISTI (numero di piloti variabile: dipende da quanti team condividono la power unit) =====
+
+function calcolaMotoristiInLotta(classifica) {
+  return calcolaGruppiInLotta(classifica.motoristi, classifica, 'motorista', m => numPilotiAttiviPerMotore(m.nome, classifica))
+}
+
+function trovaClinchGaraSingolaMotorista(motorista, rivali, classifica) {
+  return trovaClinchGaraSingolaGruppo(motorista, rivali, classifica, 'motorista', m => numPilotiAttiviPerMotore(m.nome, classifica))
+}
+
+function trovaScenarioMultiGaraMotorista(motoristaChiVince, rivali, classifica) {
+  return trovaScenarioMultiGaraGruppo(motoristaChiVince, rivali, classifica, 'motorista', m => numPilotiAttiviPerMotore(m.nome, classifica))
+}
+
+function calcolaCombinazioniVittoriaMotorista(motorista, classifica) {
+  const inLotta = calcolaMotoristiInLotta(classifica)
+  if (!inLotta.some(m => String(m.id) === String(motorista.id))) return { stato: 'fuori' }
+
+  const rivali = inLotta.filter(m => String(m.id) !== String(motorista.id))
+  if (rivali.length === 0) return { stato: 'campione' }
+
+  const clinchSingolo = trovaClinchGaraSingolaMotorista(motorista, rivali, classifica)
+  if (clinchSingolo) return { stato: 'ok_gara_singola', clinch: clinchSingolo }
+
+  const multiGara = trovaScenarioMultiGaraMotorista(motorista, rivali, classifica)
+  if (multiGara) return { stato: 'ok_multigara', multiGara }
+
+  return { stato: 'nessuno_scenario' }
+}
+
+function calcolaEliminazioneMotorista(motoristaBersaglio, classifica) {
+  const inLotta = calcolaMotoristiInLotta(classifica)
+  if (!inLotta.some(m => String(m.id) === String(motoristaBersaglio.id))) return []
+
+  const rivali = inLotta.filter(m => String(m.id) !== String(motoristaBersaglio.id))
+  return rivali
+    .map(rivale => {
+      const mg = trovaScenarioMultiGaraMotorista(rivale, [motoristaBersaglio], classifica)
+      if (!mg) return null
+      const capBersaglio = mg.caps.find(c => String(c.id) === String(motoristaBersaglio.id))
+      return {
+        rivale: rivale.nome,
+        rivaleId: rivale.id,
+        puntiRichiesti: mg.puntiTotaliRichiesti,
+        puntiDisponibili: mg.puntiBloccoMax,
+        capBersaglio: capBersaglio ? capBersaglio.capPunti : null
+      }
+    })
+    .filter(Boolean)
+}
+
 export default {
   calcolaPuntiAccorciati,
   calcolaPuntiPosizione,
@@ -473,6 +594,7 @@ export default {
   puntiMassimiGP,
   puntiMassimiGaraPilota,
   puntiMassimiGaraCostruttore,
+  puntiMassimiGaraGruppo,
   calcolaPuntiMassimiRimanenti,
   calcolaPilotiInLotta,
   determinaTipoSpareggio,
@@ -482,5 +604,11 @@ export default {
   calcolaCombinazioniEliminazione,
   calcolaCostruttoriInLotta,
   calcolaCombinazioniVittoriaCostruttore,
-  calcolaEliminazioneCostruttore
+  calcolaEliminazioneCostruttore,
+  teamDiPilota,
+  motoreDiPilota,
+  numPilotiAttiviPerMotore,
+  calcolaMotoristiInLotta,
+  calcolaCombinazioniVittoriaMotorista,
+  calcolaEliminazioneMotorista
 }
