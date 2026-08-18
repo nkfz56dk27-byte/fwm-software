@@ -851,6 +851,8 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         punti_pole_valore: typeof nuovaClassifica.punti_pole_valore !== 'undefined' ? Number(nuovaClassifica.punti_pole_valore) : 0,
         giro_veloce_attivo: typeof nuovaClassifica.giro_veloce_attivo !== 'undefined' ? !!nuovaClassifica.giro_veloce_attivo : false,
         giro_veloce_valore: typeof nuovaClassifica.giro_veloce_valore !== 'undefined' ? Number(nuovaClassifica.giro_veloce_valore) : 0,
+        tipo_spareggio: nuovaClassifica.tipo_spareggio || 'nessuno', // mancava: la regola di spareggio non veniva mai salvata davvero
+        formato_sprint: nuovaClassifica.formato_sprint || null, // nuovo: quale tabella punti sprint usare (F2 o F3) quando lo stile è "f2f3"
       }
 
       console.log('💾 Salvando classificazione:', updateObj)
@@ -2225,6 +2227,78 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
   const [salvando, setSalvando] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [modificatoreRaw, setModificatoreRaw] = useState((classifica.modificatore_libero_punti || []).join(', '))
+  const [ricalcolando, setRicalcolando] = useState(false)
+
+  // Rifà da zero il conto dei punti di TUTTI i piloti/costruttori/motoristi, leggendo le
+  // posizioni già salvate in ogni gara — utile dopo aver cambiato una regola di punteggio
+  // (es. formato_sprint), perché i punti non si ricalcolano da soli finché non si riapre e
+  // risalva ogni singolo GP: questo lo fa per TUTTI i GP in un colpo solo.
+  const ricalcolaTuttiIPunti = async () => {
+    if (!confirm('Ricalcolare tutti i punti della classifica dalle posizioni già salvate? Utile dopo aver cambiato una regola di punteggio.')) return
+    setRicalcolando(true)
+    try {
+      const classificaAggiornata = { ...classifica, ...dati }
+      const nuoviPiloti = (classificaAggiornata.piloti || []).map(p => ({ ...p, punti: 0 }))
+      const nuoviCostruttori = (classificaAggiornata.costruttori || []).map(c => ({ ...c, punti: 0 }))
+      const nuoviMotoristi = classificaAggiornata.motoristi_attivo && classificaAggiornata.motoristi
+        ? classificaAggiornata.motoristi.map(m => ({ ...m, punti: 0 }))
+        : []
+
+      ;(classificaAggiornata.gp || []).forEach(gpItem => {
+        (gpItem.gare || []).forEach(gara => {
+          Object.entries(gara.risultati || {}).forEach(([pilotaId, info]) => {
+            const pilota = nuoviPiloti.find(p => String(p.id) === String(pilotaId))
+            if (!pilota) return
+            const flagNorm = (info.flag || '').trim().toUpperCase()
+            let punti = 0
+            if (flagNorm !== 'DNS' && flagNorm !== 'DSQ' && flagNorm !== 'DNF') {
+              const pos = info.posizione
+              if (typeof pos !== 'undefined') {
+                punti += pronosticoCampionato.calcolaPuntiPosizione(pos, gara.tipo_gara, classificaAggiornata, gara)
+              }
+            }
+            if (classificaAggiornata.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS') {
+              punti += classificaAggiornata.punti_pole_valore || 3
+            }
+            if (classificaAggiornata.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS') {
+              punti += classificaAggiornata.giro_veloce_valore || 1
+            }
+            pilota.punti = (pilota.punti || 0) + punti
+            const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
+            if (costruttore) {
+              costruttore.punti = (costruttore.punti || 0) + punti
+              if (classificaAggiornata.motoristi_attivo) {
+                const motorista = nuoviMotoristi.find(m => m.nome === costruttore.motore)
+                if (motorista) motorista.punti = (motorista.punti || 0) + punti
+              }
+            }
+          })
+        })
+      })
+
+      nuoviPiloti.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((p, i) => {
+        p.distacco = i === 0 ? 0 : (nuoviPiloti[0].punti || 0) - (p.punti || 0)
+      })
+      nuoviCostruttori.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((c, i) => {
+        c.distacco = i === 0 ? 0 : (nuoviCostruttori[0].punti || 0) - (c.punti || 0)
+      })
+      nuoviMotoristi.sort((a, b) => (b.punti || 0) - (a.punti || 0)).forEach((m, i) => {
+        m.distacco = i === 0 ? 0 : (nuoviMotoristi[0].punti || 0) - (m.punti || 0)
+      })
+
+      const table = dati.isCustom ? 'classifiche_custom' : 'classifiche'
+      const { error } = await supabase.from(table).update({ piloti: nuoviPiloti, costruttori: nuoviCostruttori, motoristi: nuoviMotoristi }).eq('id', classifica.id)
+      if (error) {
+        alert('❌ Errore durante il ricalcolo: ' + (error.message || JSON.stringify(error)))
+      } else {
+        alert('✅ Punti ricalcolati per tutta la classifica!')
+        onSave({ ...classificaAggiornata, piloti: nuoviPiloti, costruttori: nuoviCostruttori, motoristi: nuoviMotoristi })
+      }
+    } catch (err) {
+      alert('❌ Errore durante il ricalcolo: ' + err.message)
+    }
+    setRicalcolando(false)
+  }
 
   const salva = async () => {
     setSalvando(true)
@@ -2240,6 +2314,7 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         usa_sprint: !!dati.usa_sprint,
         usa_modificatore_libero: !!dati.usa_modificatore_libero,
         tipo_spareggio: dati.tipo_spareggio || 'nessuno',
+        formato_sprint: dati.formato_sprint || null, // mancava: per questo F3 non si salvava
         modificatore_libero_numero: Number(dati.modificatore_libero_numero) || 0,
         modificatore_libero_punti: Array.isArray(dati.modificatore_libero_punti) ? dati.modificatore_libero_punti : []
       }
@@ -2420,6 +2495,29 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
       ].map(opt => (
         <button key={opt.val} onClick={() => setDati({ ...dati, tipo_spareggio: opt.val })} style={{ padding: '12px', background: (dati.tipo_spareggio || 'nessuno') === opt.val ? '#007AFF' : 'white', color: (dati.tipo_spareggio || 'nessuno') === opt.val ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
           {opt.label}
+        </button>
+      ))}
+    </div>
+    <button
+      onClick={ricalcolaTuttiIPunti}
+      disabled={ricalcolando}
+      style={{ marginTop: '14px', width: '100%', padding: '14px', background: '#FF9500', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: ricalcolando ? 'default' : 'pointer', opacity: ricalcolando ? 0.6 : 1 }}
+    >
+      {ricalcolando ? '⏳ Ricalcolo in corso...' : '🔄 Ricalcola tutti i punti (dopo un cambio di regola)'}
+    </button>
+  </div>
+)}
+{classifica.nome !== 'Formula 1' && classifica.nome !== 'Formula E' && (dati.tipo_spareggio || 'nessuno') === 'f2f3' && (
+  <div style={{ marginBottom: '30px' }}>
+    <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Formato punti Sprint Race</label>
+    <div style={{ display: 'grid', gap: '10px' }}>
+      {[
+        { val: 'f2', label: 'Formula 2', sotto: "Sprint: 10-8-6-5-4-3-2-1 (fino all'8° posto)" },
+        { val: 'f3', label: 'Formula 3', sotto: "Sprint: 10-9-8-7-6-5-4-3-2-1 (fino al 10° posto)" },
+      ].map(opt => (
+        <button key={opt.val} onClick={() => setDati({ ...dati, formato_sprint: opt.val })} style={{ padding: '12px', background: (dati.formato_sprint || 'f2') === opt.val ? '#007AFF' : 'white', color: (dati.formato_sprint || 'f2') === opt.val ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+          <div style={{ fontWeight: 'bold' }}>{opt.label}</div>
+          <div style={{ fontSize: '13px', opacity: 0.8 }}>{opt.sotto}</div>
         </button>
       ))}
     </div>
@@ -3542,6 +3640,7 @@ function SetupIniziale({ classifica, onSave, onBack }) {
   const [doubleHeader, setDoubleHeader] = useState(false)
 const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
   const [tipoSpareggio, setTipoSpareggio] = useState('nessuno')
+  const [formatoSprint, setFormatoSprint] = useState('f2') // solo per stile F2/F3: quale tabella punti sprint usare
   const fileInputRef = React.useRef();
 
   const aggiungiPilota = async () => {
@@ -3585,7 +3684,7 @@ const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
 
   const confermaESalva = async () => {
     // Salva la classifica aggiornata su Supabase (standard o custom)
-    const nuovaClassifica = { ...classifica, piloti, costruttori, motoristi, motoristi_attivo: motoristiAttivo, gp, numero_gp_stagione: numeroGP, numero_sprint_stagione: numeroSprint, tipo_spareggio: tipoSpareggio };
+    const nuovaClassifica = { ...classifica, piloti, costruttori, motoristi, motoristi_attivo: motoristiAttivo, gp, numero_gp_stagione: numeroGP, numero_sprint_stagione: numeroSprint, tipo_spareggio: tipoSpareggio, formato_sprint: tipoSpareggio === 'f2f3' ? formatoSprint : null };
     if (classifica.isCustom) {
       // Aggiorna classifiche_custom
       await supabase.from('classifiche_custom').update(nuovaClassifica).eq('id', classifica.id);
@@ -3802,6 +3901,21 @@ const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
     </button>
   </div>
 </div>
+{tipoSpareggio === 'f2f3' && (
+  <div style={{ marginBottom: '20px' }}>
+    <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Formato punti Sprint Race</label>
+    <div style={{ display: 'grid', gap: '10px' }}>
+      <button onClick={() => setFormatoSprint('f2')} style={{ padding: '15px', background: formatoSprint === 'f2' ? '#007AFF' : 'white', color: formatoSprint === 'f2' ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ fontWeight: 'bold' }}>Formula 2</div>
+        <div style={{ fontSize: '14px', opacity: 0.8 }}>Sprint: 10-8-6-5-4-3-2-1 (fino all'8° posto)</div>
+      </button>
+      <button onClick={() => setFormatoSprint('f3')} style={{ padding: '15px', background: formatoSprint === 'f3' ? '#007AFF' : 'white', color: formatoSprint === 'f3' ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ fontWeight: 'bold' }}>Formula 3</div>
+        <div style={{ fontSize: '14px', opacity: 0.8 }}>Sprint: 10-9-8-7-6-5-4-3-2-1 (fino al 10° posto)</div>
+      </button>
+    </div>
+  </div>
+)}
         <button 
           onClick={() => setStep(1)} 
           disabled={piloti.length === 0} 
