@@ -22,6 +22,11 @@ const UTENTE_TO_REDATTORE = {
   'mdelia': 'Mattia'
 }
 
+// ===== MAPPING REDATTORE → UTENTE (inversa, per inviare notifiche all'username giusto) =====
+const REDATTORE_TO_UTENTE = Object.fromEntries(
+  Object.entries(UTENTE_TO_REDATTORE).map(([username, nome]) => [nome, username])
+)
+
 // ===== COSTANTI =====
 const GIORNI_WEEKEND = [
   { id: 'giovedi', nome: 'Giovedì', emoji: '🔵', colore: 'rgba(0, 122, 255, 0.3)' },
@@ -775,9 +780,11 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
     try {
       // Import dinamico per evitare problemi SSR
       const { inviaNotificaAUtente } = await import('./pushNotificationService')
-      // Notifica a tutti i redattori selezionati
+      // Notifica a tutti i redattori selezionati (convertiamo il nome in username, perché
+      // il listener realtime filtra su username, non sul nome visualizzato)
       for (const redattore of redattori) {
-        await inviaNotificaAUtente(redattore, {
+        const usernameDestinatario = REDATTORE_TO_UTENTE[redattore] || redattore
+        await inviaNotificaAUtente(usernameDestinatario, {
           titolo: 'Nuovo weekend disponibile',
           messaggio: `È stato aperto il weekend: ${nomeGP} (${dataInizio} - ${dataFine})`,
           url: '/',
@@ -943,7 +950,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
         </div>
         <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', padding: '20px 30px', borderTop: '1px solid #e0e0e0' }}>
           <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
-          <button onClick={creaWeekend} disabled={!nomeGP || !date || salvando} style={{ padding: '10px 20px', background: (!nomeGP || !date || salvando) ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: (!nomeGP || !date || salvando) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+          <button onClick={creaWeekend} disabled={!nomeGP || !dataInizio || salvando} style={{ padding: '10px 20px', background: (!nomeGP || !dataInizio || salvando) ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: (!nomeGP || !dataInizio || salvando) ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
             {salvando ? 'Creazione...' : 'Crea Tabella'}
           </button>
         </div>
