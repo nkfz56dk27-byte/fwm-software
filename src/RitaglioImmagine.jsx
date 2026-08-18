@@ -15,7 +15,10 @@ import GuideLines from './LineeGuida'
 // Legge automaticamente tutti i PNG dentro src/assets/overlays/ — per aggiungerne uno nuovo
 // basta trascinare il file lì dentro, senza toccare il codice. Il nome del file (senza .png)
 // diventa la voce nel menu di selezione.
-const overlayModules = import.meta.glob('/src/assets/overlays/*.png', { eager: true, import: 'default' })
+const overlayModulesPng = import.meta.glob('/src/assets/overlays/*.png', { eager: true, import: 'default' })
+const overlayModulesSvg = import.meta.glob('/src/assets/overlays/*.svg', { eager: true, import: 'default' })
+const overlayModulesJpg = import.meta.glob('/src/assets/overlays/*.{jpg,jpeg}', { eager: true, import: 'default' })
+const overlayModules = { ...overlayModulesPng, ...overlayModulesSvg, ...overlayModulesJpg }
 const OVERLAY_GRAPHICS = Object.entries(overlayModules)
   .map(([path, url]) => {
     const filename = path.split('/').pop().replace(/\.png$/i, '')
@@ -241,7 +244,13 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
     OVERLAY_GRAPHICS.forEach((g) => {
       const im = new Image()
       im.src = g.url
-      im.onload = () => { overlayImagesRef.current[g.key] = im }
+      im.onload = () => {
+        overlayImagesRef.current[g.key] = im
+        console.log('DEBUG OVERLAY - caricata:', g.key, g.url, 'dimensioni:', im.naturalWidth, 'x', im.naturalHeight)
+      }
+      im.onerror = (err) => {
+        console.error('DEBUG OVERLAY - ERRORE caricamento:', g.key, g.url, err)
+      }
     })
     
     return () => window.removeEventListener('resize', handleResize)
@@ -509,12 +518,23 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
         setImageScale(1)
         setMobileImgStyle({ width: '100%', height: 'auto' })
         if (projectMode === 'postsocial') {
-          const margin = 8 // ridotto da 16: Canva ha il testo quasi a filo del bordo sinistro
+          // Quattro "punti" (in PIXEL REALI dell'immagine finale, non dello schermo) che
+          // definiscono i bordi della casella di testo — cambia solo questi 5 numeri.
+          const TESTO_SX_REALE = 62
+const TESTO_DX_REALE = 1056  // oppure: dimensions.width - 62
+const TESTO_ALTO_REALE = 820
+const TESTO_BASSO_REALE = 1225
+          const SPAZIATURA_RIGHE_PX = 7   // px reali fissi extra tra una riga e l'altra
+
+          const TESTO_LARGHEZZA_REALE = TESTO_DX_REALE - TESTO_SX_REALE
+          const TESTO_ALTEZZA_REALE = TESTO_BASSO_REALE - TESTO_ALTO_REALE
+
           setTextBoxes([createTextBox({
-            x: margin,
-            y: Math.round(containerHeight * 0.62),
-            width: Math.max(60, containerWidth - margin * 2),
-            height: Math.round(containerHeight * 0.32)
+            x: TESTO_SX_REALE * displayScale,
+            y: TESTO_ALTO_REALE * displayScale,
+            width: Math.max(60, TESTO_LARGHEZZA_REALE * displayScale),
+            height: Math.max(30, TESTO_ALTEZZA_REALE * displayScale),
+            lineGapPx: SPAZIATURA_RIGHE_PX
           })])
         } else {
           setTextBoxes([])
@@ -894,7 +914,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
           URL.revokeObjectURL(url)
           if (conLogo) setCounterWithLogo(counterWithLogo + 1)
           else setCounterWithoutLogo(counterWithoutLogo + 1)
-          setFeedback(`✅ Esportato: ${ext.toUpperCase()}`)
+          setFeedback(`Esportato: ${ext.toUpperCase()}`)
           setIsSaving(false)
           setTimeout(() => setFeedback(''), 4000)
         }
@@ -1001,8 +1021,17 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
       if (projectMode === 'postsocial') {
         console.log('DEBUG EXPORT - textBoxes:', textBoxes)
         console.log('DEBUG EXPORT - displayScale:', displayScale)
+        console.log('DEBUG EXPORT OVERLAY - selectedOverlay:', selectedOverlay)
+        console.log('DEBUG EXPORT OVERLAY - immagine in cache?', !!overlayImagesRef.current[selectedOverlay])
         if (selectedOverlay && overlayImagesRef.current[selectedOverlay]) {
-          ctx.drawImage(overlayImagesRef.current[selectedOverlay], 0, 0, canvas.width, canvas.height)
+          try {
+            ctx.drawImage(overlayImagesRef.current[selectedOverlay], 0, 0, canvas.width, canvas.height)
+            console.log('DEBUG EXPORT OVERLAY - disegnata con successo')
+          } catch (err) {
+            console.error('DEBUG EXPORT OVERLAY - ERRORE nel disegnare:', err)
+          }
+        } else {
+          console.warn('DEBUG EXPORT OVERLAY - saltata: nessuna grafica selezionata o non ancora caricata in cache')
         }
         textBoxes.forEach(box => {
           console.log('DEBUG EXPORT - disegno box:', box.id, 'testo:', JSON.stringify(box.text))
@@ -1062,7 +1091,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
         } else {
           setCounterWithoutLogo(counterWithoutLogo + 1)
         }
-        setFeedback(`✅ Esportato: ${ext.toUpperCase()}`)
+        setFeedback(`Esportato: ${ext.toUpperCase()}`)
         setIsSaving(false)
         setTimeout(() => setFeedback(''), 4000)
       }
@@ -2352,7 +2381,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                             )}
 
                             {projectMode === 'postsocial' && (
-                              <TextOverlay
+                             <TextOverlay
                                 containerWidth={zoomedWidth}
                                 containerHeight={zoomedHeight}
                                 textBoxes={textBoxes}
@@ -2360,6 +2389,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                                 isMobile={isMobile}
                                 displayScale={displayScale}
                                 zoomLevel={zoomLevel}
+                                baseContainerWidth={containerWidth}
                               />
                             )}
 
@@ -2381,47 +2411,38 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                       </div>
                     </div>
                   </div>
-                  {/* Pannello laterale FUORI dal frame (a destra): qui atterrano, tramite portale da
-                  TestoPost.jsx, sia la barra colori/sottolineato sia l'anteprima del testo mentre lo
-                  modifichi — altrimenti (essendo l'area della foto con overflow:hidden/auto per via
-                  dello zoom) resterebbero tagliate o intrappolate dentro il canvas. */}
-                  {projectMode === 'postsocial' && (
-                    <div id="fwm-text-side-portal" style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: showRulers ? '20px' : 0 }} />
-                  )}
-                  {/* Fumetto note: CHIUSO di default su desktop — mostra solo un pallino con il
-                  numero di note, cliccabile per aprire l'elenco completo. Su mobile si usa invece
-                  il popup aperto dal pulsante "Note" in basso. Cambia automaticamente contenuto
-                  quando cambi grafica, dato che graphicNotes viene ricaricato su selectedOverlay. */}
+
+                  {/* Colonna FISSA a destra (stessa larghezza sempre, come quella sinistra):
+                  Note in cima, pannello colori/sottolineato (via portale da TestoPost.jsx)
+                  subito sotto. Essendo una colonna a larghezza fissa nella STESSA riga
+                  flessibile della sidebar sinistra, comparire/sparire del contenuto al suo
+                  interno non sposta MAI il canvas — esattamente come la sidebar sinistra. */}
                   {!isMobile && projectMode === 'postsocial' && (
-                    <div style={{ position: 'relative', flexShrink: 0, paddingTop: showRulers ? '20px' : 0 }}>
-                      {!notesOpen ? (
-                        <button
-                          onClick={() => setNotesOpen(true)}
-                          title="Note per questa grafica"
-                          style={{
-                            width: '40px', height: '40px', borderRadius: '50%', border: 'none', cursor: 'pointer',
-                            background: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', position: 'relative',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px'
-                          }}
-                        >
-                          📝
-                          {graphicNotes.length > 0 && (
-                            <span style={{
-                              position: 'absolute', top: '-4px', right: '-4px', minWidth: '18px', height: '18px', padding: '0 4px',
-                              borderRadius: '9px', background: '#FF3B30', color: '#fff', fontSize: '10px', fontWeight: '800',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                              {graphicNotes.length}
-                            </span>
-                          )}
-                        </button>
-                      ) : (
-                        <div style={{ width: '220px', position: 'relative' }}>
-                          <div style={{
-                            position: 'absolute', left: '-8px', top: '24px', width: '16px', height: '16px',
-                            background: '#fff', transform: 'rotate(45deg)', boxShadow: '-2px 2px 4px rgba(0,0,0,0.04)'
-                          }} />
-                          <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', position: 'relative' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '220px', flexShrink: 0 }}>
+                      <div style={{ position: 'relative' }}>
+                        {!notesOpen ? (
+                          <button
+                            onClick={() => setNotesOpen(true)}
+                            title="Note per questa grafica"
+                            style={{
+                              width: '36px', height: '36px', borderRadius: '50%', border: 'none', cursor: 'pointer',
+                              background: '#fff', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', position: 'relative',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px'
+                            }}
+                          >
+                            📝
+                            {graphicNotes.length > 0 && (
+                              <span style={{
+                                position: 'absolute', top: '-4px', right: '-4px', minWidth: '18px', height: '18px', padding: '0 4px',
+                                borderRadius: '9px', background: '#FF3B30', color: '#fff', fontSize: '10px', fontWeight: '800',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                              }}>
+                                {graphicNotes.length}
+                              </span>
+                            )}
+                          </button>
+                        ) : (
+                          <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                               <span style={{ fontSize: '12px', fontWeight: '800', color: '#1c1c1e' }}>
                                 📝 {OVERLAY_GRAPHICS.find((g) => g.key === selectedOverlay)?.label || 'Grafica'}
@@ -2430,8 +2451,12 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                             </div>
                             {renderNotesList()}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
+
+                      {/* Pannello colori/sottolineato + anteprima testo: arriva qui via portale
+                      da TestoPost.jsx, SUBITO SOTTO Note, nella stessa colonna fissa. */}
+                      <div id="fwm-text-side-portal" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }} />
                     </div>
                   )}
                   </div>
@@ -2447,6 +2472,13 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                         }}
                       >
                         🔍 {Math.round(zoomLevel * 100)}%
+                      </div>
+                    </div>
+                  )}
+                  {feedback && (
+                    <div style={{ width: `${containerWidth + (showRulers && projectMode === 'postsocial' ? 20 : 0)}px`, textAlign: 'center', marginTop: '10px' }}>
+                      <div style={{ display: 'inline-block', padding: '14px 28px', background: '#34C759', color: '#fff', borderRadius: '16px', fontWeight: '800' }}>
+                        {feedback}
                       </div>
                     </div>
                   )}
@@ -2590,7 +2622,6 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
                   </div>
                 </>
               )}
-              {feedback && <div style={{ marginTop: '25px', padding: '14px 28px', background: '#34C759', color: '#fff', borderRadius: '16px', fontWeight: '800' }}>{feedback}</div>}
             </div>
           )}
         </div>
