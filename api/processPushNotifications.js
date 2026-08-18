@@ -1,6 +1,5 @@
-// Google Cloud Function per invio notifiche push con OneSignal
-const { createClient } = require('@supabase/supabase-js');
-const fetch = require('node-fetch');
+// Vercel Serverless Function per invio notifiche push con OneSignal
+import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -32,6 +31,7 @@ async function sendOneSignalNotification({ title, body, url = '/', data = {}, ta
       : undefined
   };
 
+  // fetch è globale nei runtime Node moderni di Vercel: non serve importare node-fetch
   const res = await fetch('https://onesignal.com/api/v1/notifications', {
     method: 'POST',
     headers: {
@@ -64,7 +64,7 @@ async function contaArticoliCriticiLiberi(weekendId) {
   return count ?? 0;
 }
 
-exports.processPushNotifications = async (req, res) => {
+export default async function handler(req, res) {
   const start = Date.now();
   const nowIso = new Date().toISOString();
   try {
@@ -141,12 +141,10 @@ exports.processPushNotifications = async (req, res) => {
           const weekendId = notif.data?.weekend_id;
           const countLiberi = await contaArticoliCriticiLiberi(weekendId);
           if (countLiberi === null) {
-            // Errore nel controllo: non inviare e segnala per revisione manuale, non riprovare all'infinito
             await supabase.from('push_notifications').update({ status: 'error', error: 'Impossibile verificare articoli critici liberi' }).eq('id', notif.id);
             continue;
           }
           if (countLiberi === 0) {
-            // Nessun articolo critico ancora libero: la notifica non serve più
             await supabase.from('push_notifications').update({ status: 'skipped', error: 'Nessun articolo critico ancora libero' }).eq('id', notif.id);
             skipped++;
             continue;
@@ -176,4 +174,4 @@ exports.processPushNotifications = async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
-};
+}
