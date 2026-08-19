@@ -915,7 +915,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
   />
   if (showGrafico) return <GraficoPronostico classifica={classifica} isMobile={isMobile} onClose={() => setShowGrafico(false)} />
 
-  const pilotiOrdinati = classifica.piloti ? [...classifica.piloti].filter(p => p.attivo).sort((a, b) => b.punti - a.punti) : []
+  const pilotiOrdinati = classifica.piloti ? [...classifica.piloti].sort((a, b) => b.punti - a.punti) : []
   const costruttoriOrdinati = classifica.costruttori ? [...classifica.costruttori].sort((a, b) => b.punti - a.punti) : []
   const motoristiOrdinati = classifica.motoristi_attivo && classifica.motoristi ? [...classifica.motoristi].sort((a, b) => b.punti - a.punti) : []
   const gpCompletati = classifica.gp
@@ -2717,151 +2717,284 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
   )
 }
 
+function PilotaCard({ pilota, classifica, etichetta, colore }) {
+  if (!pilota) return null
+  const teamColore = (classifica.costruttori || []).find(c => c.nome === pilota.team)?.colore || pilota.colore || '#888'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: 'white', borderRadius: '12px', border: `2px solid ${colore || teamColore}`, minWidth: '200px' }}>
+      <div style={{ width: '10px', height: '40px', borderRadius: '5px', background: teamColore, flexShrink: 0 }} />
+      <div>
+        {etichetta && <div style={{ fontSize: '11px', fontWeight: '700', color: '#888', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{etichetta}</div>}
+        <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{pilota.nome}</div>
+        <div style={{ fontSize: '13px', color: '#666' }}>{pilota.team} · {pilota.punti || 0} pt</div>
+      </div>
+    </div>
+  )
+}
+
 function CambiaPilotaView({ classifica, onClose, onSave }) {
-  const [pilota1, setPilota1] = useState('')
-  const [pilota2, setPilota2] = useState('')
-  const [usaNuovoPilota, setUsaNuovoPilota] = useState(false)
-  const [nomePilota, setNomePilota] = useState('')
+  const [azione, setAzione] = useState(null) // null | 'scambio' | 'sostituzione'
   const [salvando, setSalvando] = useState(false)
 
-  const conferma = async () => {
-    if (!pilota1) {
-      alert('Seleziona il primo pilota')
+  // --- SCAMBIO: due piloti già attivi si scambiano squadra ---
+  const [scambioA, setScambioA] = useState('')
+  const [scambioB, setScambioB] = useState('')
+
+  // --- SOSTITUZIONE (anche a catena): elenco di passaggi ---
+  const [catena, setCatena] = useState([{ uscenteId: '', entranteId: '', entranteNuovoNome: '', usaNuovoPilota: false }])
+
+  const trovaPilota = (id) => classifica.piloti.find(p => String(p.id) === String(id))
+
+  const aggiungiPassaggioSuccessivo = (squadraLasciataLibera) => {
+    setCatena(prev => ([...prev, { squadraDaCoprire: squadraLasciataLibera, uscenteId: '', entranteId: '', entranteNuovoNome: '', usaNuovoPilota: false }]))
+  }
+
+  const aggiornaPassaggio = (index, campi) => {
+    setCatena(prev => prev.map((p, i) => i === index ? { ...p, ...campi } : p))
+  }
+
+  const rimuoviPassaggiDaIndice = (index) => {
+    setCatena(prev => prev.slice(0, index + 1))
+  }
+
+  const confermaScambio = async () => {
+    if (!scambioA || !scambioB || scambioA === scambioB) {
+      alert('Seleziona due piloti diversi')
       return
     }
-    
     setSalvando(true)
-    
     const nuoviPiloti = [...classifica.piloti]
-    const idx1 = nuoviPiloti.findIndex(p => String(p.id) === String(pilota1))
-    if (idx1 === -1) {
-      setSalvando(false)
+    const idxA = nuoviPiloti.findIndex(p => String(p.id) === String(scambioA))
+    const idxB = nuoviPiloti.findIndex(p => String(p.id) === String(scambioB))
+    if (idxA === -1 || idxB === -1) { setSalvando(false); return }
+
+    const tempTeam = nuoviPiloti[idxA].team
+    const tempColore = nuoviPiloti[idxA].colore
+    nuoviPiloti[idxA].team = nuoviPiloti[idxB].team
+    nuoviPiloti[idxA].colore = nuoviPiloti[idxB].colore
+    nuoviPiloti[idxB].team = tempTeam
+    nuoviPiloti[idxB].colore = tempColore
+
+    await salvaESalva(nuoviPiloti)
+  }
+
+  const confermaSostituzione = async () => {
+    for (const passo of catena) {
+      const haEntranteValido = passo.usaNuovoPilota ? !!passo.entranteNuovoNome.trim() : !!passo.entranteId
+      if (!haEntranteValido) {
+        alert('Completa tutti i passaggi prima di confermare')
+        return
+      }
+    }
+    if (!catena[0].uscenteId) {
+      alert('Seleziona chi esce nel primo passaggio')
       return
     }
-    
-    if (usaNuovoPilota) {
-      // CASO 1: NUOVO PILOTA SCRITTO A MANO
-      if (!nomePilota) {
-        alert('Inserisci il nome del nuovo pilota')
-        setSalvando(false)
-        return
-      }
-      
-      // Primo pilota → INATTIVO (ma mantiene punti!)
-      nuoviPiloti[idx1].attivo = false
-      
-      // Nuovo pilota → ATTIVO con stesso team/colore
-      const nuovoPilotaObj = {
-        id: Date.now().toString(),
-        nome: nomePilota,
-        team: nuoviPiloti[idx1].team,
-        colore: nuoviPiloti[idx1].colore,
-        punti: 0,
-        distacco: 0,
-        attivo: true  // ESPLICITAMENTE true
-      }
-      
-      console.log('Creando nuovo pilota:', nuovoPilotaObj)
-      console.log('Pilota sostituito:', nuoviPiloti[idx1])
-      
-      nuoviPiloti.push(nuovoPilotaObj)
-      
-      console.log('Lista piloti dopo aggiunta:', nuoviPiloti.map(p => ({ nome: p.nome, attivo: p.attivo })))
-    } else {
-      // CASO 2: PILOTA DALLA TENDINA
-      if (!pilota2) {
-        alert('Seleziona il secondo pilota')
-        setSalvando(false)
-        return
-      }
-      const idx2 = nuoviPiloti.findIndex(p => String(p.id) === String(pilota2))
-      if (idx2 === -1) {
-        setSalvando(false)
-        return
-      }
-      
-      // SCAMBIO TEAM (sempre)
-      const tempTeam = nuoviPiloti[idx1].team
-      const tempColore = nuoviPiloti[idx1].colore
-      nuoviPiloti[idx1].team = nuoviPiloti[idx2].team
-      nuoviPiloti[idx1].colore = nuoviPiloti[idx2].colore
-      nuoviPiloti[idx2].team = tempTeam
-      nuoviPiloti[idx2].colore = tempColore
-      
-      // LOGICA ATTIVO/INATTIVO
-      if (nuoviPiloti[idx2].attivo) {
-        // Secondo GIÀ ATTIVO → ENTRAMBI RIMANGONO ATTIVI (scambio semplice)
-        // NON toccare .attivo
+
+    setSalvando(true)
+    let nuoviPiloti = [...classifica.piloti]
+
+    catena.forEach((passo, i) => {
+      let squadraTarget, coloreTarget
+
+      if (i === 0) {
+        const idxUscente = nuoviPiloti.findIndex(p => String(p.id) === String(passo.uscenteId))
+        if (idxUscente === -1) return
+        squadraTarget = nuoviPiloti[idxUscente].team
+        coloreTarget = nuoviPiloti[idxUscente].colore
+        nuoviPiloti[idxUscente].attivo = false
       } else {
-        // Secondo INATTIVO → SOSTITUZIONE
-        nuoviPiloti[idx2].attivo = true  // Inattivo diventa attivo
-        nuoviPiloti[idx1].attivo = false // Attivo diventa inattivo (ma mantiene punti!)
+        squadraTarget = passo.squadraDaCoprire
+        coloreTarget = (classifica.costruttori || []).find(c => c.nome === squadraTarget)?.colore || '#888'
       }
-    }
-    
-    // Salva direttamente su Supabase, sulla tabella corretta (custom o standard)
+
+      if (passo.usaNuovoPilota) {
+        nuoviPiloti.push({
+          id: Date.now().toString() + '_' + i,
+          nome: passo.entranteNuovoNome.trim(),
+          team: squadraTarget,
+          colore: coloreTarget,
+          punti: 0,
+          distacco: 0,
+          attivo: true
+        })
+      } else {
+        const idxEntrante = nuoviPiloti.findIndex(p => String(p.id) === String(passo.entranteId))
+        if (idxEntrante === -1) return
+        nuoviPiloti[idxEntrante].team = squadraTarget
+        nuoviPiloti[idxEntrante].colore = coloreTarget
+        nuoviPiloti[idxEntrante].attivo = true
+      }
+    })
+
+    await salvaESalva(nuoviPiloti)
+  }
+
+  const salvaESalva = async (nuoviPiloti) => {
     const targetTable = classifica.isCustom ? 'classifiche_custom' : 'classifiche'
-    const { error } = await supabase
-      .from(targetTable)
-      .update({ piloti: nuoviPiloti })
-      .eq('id', classifica.id)
-    
+    const { error } = await supabase.from(targetTable).update({ piloti: nuoviPiloti }).eq('id', classifica.id)
     setSalvando(false)
-    
     if (error) {
       console.error('Errore salvataggio:', error)
       alert('❌ Errore durante il salvataggio')
       return
     }
-    
-    console.log(`Salvato con successo su Supabase (${targetTable})`)
-    console.log('Piloti salvati:', nuoviPiloti.map(p => ({ nome: p.nome, attivo: p.attivo })))
-    
-    // Aggiorna lo stato locale
     onSave({ ...classifica, piloti: nuoviPiloti })
-    
-    alert('✅ Pilota cambiato con successo!')
+    alert('✅ Cambio effettuato con successo!')
     onClose()
   }
 
+  const bottoneAzione = (val, emoji, titolo, sotto) => (
+    <button
+      onClick={() => setAzione(val)}
+      style={{
+        padding: '18px', textAlign: 'left', borderRadius: '14px', cursor: 'pointer',
+        background: azione === val ? '#007AFF' : 'white', color: azione === val ? 'white' : '#000',
+        border: '2px solid #007AFF', width: '100%'
+      }}
+    >
+      <div style={{ fontWeight: 'bold', fontSize: '16px' }}>{emoji} {titolo}</div>
+      <div style={{ fontSize: '13px', opacity: 0.85, marginTop: '4px' }}>{sotto}</div>
+    </button>
+  )
+
   return (
-    <div style={{ padding: '40px', maxWidth: '600px', margin: '0 auto', background: 'white', borderRadius: '20px' }}>
+    <div style={{ padding: '40px', maxWidth: '640px', margin: '0 auto', background: '#f5f5f7', borderRadius: '20px' }}>
       <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Indietro</button>
-      <h1 style={{ fontSize: '28px', marginBottom: '30px' }}>Cambia Pilota</h1>
-      
-      <div style={{ marginBottom: '20px' }}>
-        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Primo pilota (da sostituire):</label>
-        <select value={pilota1} onChange={(e) => setPilota1(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
-          <option value="">Seleziona</option>
-          {classifica.piloti.filter(p => p.attivo).map(p => <option key={p.id} value={p.id}>{p.nome} ({p.team})</option>)}
-        </select>
+      <h1 style={{ fontSize: '28px', marginBottom: '25px' }}>Cambia Pilota</h1>
+
+      <div style={{ display: 'grid', gap: '10px', marginBottom: '30px' }}>
+        {bottoneAzione('scambio', '🔄', 'Scambio', 'Due piloti già attivi si scambiano squadra. Entrambi restano attivi.')}
+        {bottoneAzione('sostituzione', '➡️', 'Sostituzione', 'Un pilota esce (inattivo, punti congelati), un altro prende il suo posto mantenendo i propri punti. Gestisce anche le catene (es. infortunio con effetto domino).')}
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <input type="checkbox" checked={usaNuovoPilota} onChange={(e) => setUsaNuovoPilota(e.target.checked)} style={{ width: '20px', height: '20px' }} />
-          <span>Usa nuovo pilota</span>
-        </label>
-      </div>
+      {azione === 'scambio' && (
+        <div style={{ background: 'white', borderRadius: '16px', padding: '20px' }}>
+          <div style={{ display: 'grid', gap: '16px', marginBottom: '20px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Primo pilota</label>
+              <select value={scambioA} onChange={(e) => setScambioA(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                <option value="">Seleziona</option>
+                {classifica.piloti.filter(p => p.attivo).map(p => <option key={p.id} value={p.id}>{p.nome} ({p.team})</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Secondo pilota</label>
+              <select value={scambioB} onChange={(e) => setScambioB(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                <option value="">Seleziona</option>
+                {classifica.piloti.filter(p => p.attivo).map(p => <option key={p.id} value={p.id}>{p.nome} ({p.team})</option>)}
+              </select>
+            </div>
+          </div>
 
-      {usaNuovoPilota ? (
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome nuovo pilota:</label>
-          <input type="text" value={nomePilota} onChange={(e) => setNomePilota(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
-        </div>
-      ) : (
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Secondo pilota:</label>
-          <select value={pilota2} onChange={(e) => setPilota2(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
-            <option value="">Seleziona</option>
-            {classifica.piloti.map(p => <option key={p.id} value={p.id}>{p.nome} ({p.team}) {p.attivo ? '✅' : '⚠️ INATTIVO'}</option>)}
-          </select>
+          {scambioA && scambioB && scambioA !== scambioB && (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: '#888', marginBottom: '10px', textTransform: 'uppercase' }}>Anteprima</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <PilotaCard pilota={trovaPilota(scambioA)} classifica={classifica} etichetta="Prima" />
+                <span style={{ fontSize: '20px' }}>→</span>
+                <PilotaCard pilota={{ ...trovaPilota(scambioA), team: trovaPilota(scambioB)?.team }} classifica={classifica} etichetta="Dopo" />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '10px' }}>
+                <PilotaCard pilota={trovaPilota(scambioB)} classifica={classifica} etichetta="Prima" />
+                <span style={{ fontSize: '20px' }}>→</span>
+                <PilotaCard pilota={{ ...trovaPilota(scambioB), team: trovaPilota(scambioA)?.team }} classifica={classifica} etichetta="Dopo" />
+              </div>
+            </div>
+          )}
+
+          <button onClick={confermaScambio} disabled={salvando} style={{ width: '100%', padding: '15px', background: salvando ? '#ccc' : '#007AFF', color: 'white', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: salvando ? 'not-allowed' : 'pointer' }}>
+            {salvando ? 'Salvando...' : 'Conferma scambio'}
+          </button>
         </div>
       )}
 
-      <button onClick={conferma} disabled={salvando} style={{ width: '100%', padding: '15px', background: salvando ? '#ccc' : '#007AFF', color: 'white', border: 'none', borderRadius: '15px', fontSize: '18px', fontWeight: 'bold', cursor: salvando ? 'not-allowed' : 'pointer' }}>
-        {salvando ? 'Salvando...' : 'Conferma'}
-      </button>
+      {azione === 'sostituzione' && (
+        <div style={{ display: 'grid', gap: '16px' }}>
+          {catena.map((passo, i) => {
+            const entrantePrecedente = passo.entranteId ? trovaPilota(passo.entranteId) : null
+            const entranteGiaAttivoAltrove = entrantePrecedente && entrantePrecedente.attivo
+            const squadraDaLiberare = entranteGiaAttivoAltrove ? entrantePrecedente.team : null
+            const giaAggiuntoPassaggioSuccessivo = catena[i + 1] && catena[i + 1].squadraDaCoprire === squadraDaLiberare
+
+            return (
+              <div key={i} style={{ background: 'white', borderRadius: '16px', padding: '20px' }}>
+                <div style={{ fontSize: '12px', fontWeight: '700', color: '#888', marginBottom: '14px', textTransform: 'uppercase' }}>
+                  {i === 0 ? 'Passaggio 1' : `Passaggio ${i + 1} — copre il posto lasciato libero`}
+                </div>
+
+                {i === 0 ? (
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Chi esce</label>
+                    <select value={passo.uscenteId} onChange={(e) => { aggiornaPassaggio(i, { uscenteId: e.target.value }); rimuoviPassaggiDaIndice(i) }} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                      <option value="">Seleziona</option>
+                      {classifica.piloti.filter(p => p.attivo).map(p => <option key={p.id} value={p.id}>{p.nome} ({p.team})</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: '14px', padding: '10px 14px', background: '#FFF3E0', borderRadius: '10px', fontSize: '14px' }}>
+                    Squadra da coprire: <strong>{passo.squadraDaCoprire}</strong>
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <input type="checkbox" checked={passo.usaNuovoPilota} onChange={(e) => aggiornaPassaggio(i, { usaNuovoPilota: e.target.checked, entranteId: '' })} style={{ width: '20px', height: '20px' }} />
+                    <span>Pilota nuovo (non ancora in classifica)</span>
+                  </label>
+                </div>
+
+                {passo.usaNuovoPilota ? (
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Nome nuovo pilota</label>
+                    <input type="text" value={passo.entranteNuovoNome} onChange={(e) => aggiornaPassaggio(i, { entranteNuovoNome: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                  </div>
+                ) : (
+                  <div style={{ marginBottom: '14px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Chi entra</label>
+                    <select value={passo.entranteId} onChange={(e) => { aggiornaPassaggio(i, { entranteId: e.target.value }); rimuoviPassaggiDaIndice(i) }} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                      <option value="">Seleziona</option>
+                      {classifica.piloti.filter(p => String(p.id) !== String(passo.uscenteId)).map(p => <option key={p.id} value={p.id}>{p.nome} ({p.team}) {p.attivo ? '✅ attivo' : '⚠️ inattivo'}</option>)}
+                    </select>
+                  </div>
+                )}
+
+                {(passo.entranteId || passo.entranteNuovoNome) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '16px' }}>
+                    {i === 0 && passo.uscenteId && (
+                      <>
+                        <PilotaCard pilota={trovaPilota(passo.uscenteId)} classifica={classifica} etichetta="Esce" colore="#FF3B30" />
+                        <span style={{ fontSize: '20px' }}>→</span>
+                      </>
+                    )}
+                    <PilotaCard
+                      pilota={passo.usaNuovoPilota ? { nome: passo.entranteNuovoNome, team: i === 0 ? trovaPilota(passo.uscenteId)?.team : passo.squadraDaCoprire, punti: 0 } : entrantePrecedente}
+                      classifica={classifica}
+                      etichetta="Entra"
+                      colore="#34C759"
+                    />
+                  </div>
+                )}
+
+                {entranteGiaAttivoAltrove && !giaAggiuntoPassaggioSuccessivo && (
+                  <div style={{ marginTop: '16px', padding: '14px', background: '#FFF3E0', borderRadius: '10px' }}>
+                    <div style={{ fontSize: '14px', marginBottom: '10px' }}>
+                      ⚠️ <strong>{entrantePrecedente.nome}</strong> lascia libera <strong>{squadraDaLiberare}</strong>. Chi la prende?
+                    </div>
+                    <button onClick={() => aggiungiPassaggioSuccessivo(squadraDaLiberare)} style={{ padding: '10px 16px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                      + Aggiungi passaggio per coprire {squadraDaLiberare}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          <button onClick={confermaSostituzione} disabled={salvando} style={{ width: '100%', padding: '15px', background: salvando ? '#ccc' : '#007AFF', color: 'white', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: salvando ? 'not-allowed' : 'pointer' }}>
+            {salvando ? 'Salvando...' : `Conferma tutta la catena (${catena.length} passaggio/i)`}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
