@@ -1403,6 +1403,7 @@ function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle, selez
     <button onClick={onToggle} disabled={!canSelect} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: bgColor, border: 'none', borderRadius: '8px', cursor: canSelect ? 'pointer' : 'not-allowed', marginBottom: '8px', opacity: canSelect ? 1 : 0.6 }}>
       <span style={{ fontSize: '18px', color: checkColor }}>{checkIcon}</span>
       <span style={{ flex: 1, textAlign: 'left', fontSize: '14px', color: canSelect ? '#000' : '#666' }}>
+        {articolo.critico && <img src={AlertSVG} alt="Articolo critico" title="Articolo critico" style={{ width: '14px', height: '14px', marginRight: '6px', verticalAlign: 'middle' }} />}
         {renderTextWithBold(articolo.titolo, articolo.range_grassetto)}
       </span>
       <span style={{ fontSize: '12px', color: statoColor, fontWeight: 'bold' }}>{statoText}</span>
