@@ -672,10 +672,15 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
     if (!nomeGP || !dataInizio || !dataFine) return
     setSalvando(true)
 
-    // Calcola la data per la notifica (giorno prima alle 9:00 fuso Roma)
+    // Calcola la data per la notifica generica (giorno prima dell'inizio, alle 9:00 fuso Roma)
+    // — usata solo come riferimento sul campo data_notifica_articoli_critici della tabella weekend;
+    // le vere notifiche vengono programmate una per giorno più sotto.
     const dataNotifica = new Date(dataInizio)
     dataNotifica.setDate(dataNotifica.getDate() - 1)
-    dataNotifica.setHours(9, 0, 0, 0) // 9:00 AM fuso locale (Roma)
+    dataNotifica.setHours(9, 0, 0, 0)
+
+    const ordineGiorniSettimana = GIORNI_WEEKEND.map(g => g.id)
+    let giorniArticoliCreati = []
 
     const { data: weekend, error: errorWeekend } = await supabase
       .from('weekend')
@@ -720,6 +725,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
           }))
         const { error: errorArticoli } = await supabase.from('articoli').insert(articoli)
         if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
+        giorniArticoliCreati = [...new Set(articoli.map(a => a.giorno))]
       }
     } else if (usaTemplate) {
       // Fallback al template hardcoded se nessun template selezionato
@@ -734,6 +740,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
       }))
       const { error: errorArticoli } = await supabase.from('articoli').insert(articoli)
       if (errorArticoli) console.error('Errore creazione articoli:', errorArticoli)
+      giorniArticoliCreati = [...new Set(articoli.map(a => a.giorno))]
     }
     
     // Crea notifica interna (non blocca se fallisce)
@@ -745,20 +752,46 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
       console.error('Errore creazione notifica:', err)
     }
 
-    // Programma notifica per articoli critici (giorno prima alle 9:00)
+    // Programma una notifica "articoli critici": la prima (il giorno prima dell'inizio weekend)
+    // controlla TUTTI i giorni insieme, dando una visione d'insieme prima che cominci il weekend.
+    // Le successive (una per ogni giorno successivo al primo) sono specifiche per quella singola
+    // giornata: il giorno prima di ogni giornata (es. giovedì per venerdì, venerdì per sabato, ecc.)
     try {
       const { inserisciNotificaPush } = await import('./pushNotificationService')
-      await inserisciNotificaPush({
-        title: '⚠️ Articoli critici ancora liberi',
-        body: `Ci sono ancora articoli critici non selezionati per il weekend ${nomeGP}`,
-        notification_type: 'articoli_critici',
-        target_all: true,
-        scheduled_for: dataNotifica.toISOString(),
-        data: { weekend_id: weekend.id }
-      })
-      console.log('[DEBUG] Notifica articoli critici programmata per:', dataNotifica.toISOString())
+      const giorniOrdinati = giorniArticoliCreati
+        .filter(g => ordineGiorniSettimana.includes(g))
+        .sort((a, b) => ordineGiorniSettimana.indexOf(a) - ordineGiorniSettimana.indexOf(b))
+      if (giorniOrdinati.length > 0) {
+        const primoIndex = ordineGiorniSettimana.indexOf(giorniOrdinati[0])
+        for (let i = 0; i < giorniOrdinati.length; i++) {
+          const giornoId = giorniOrdinati[i]
+          const isPrimoGiorno = i === 0
+          const offset = ordineGiorniSettimana.indexOf(giornoId) - primoIndex
+          const dataGiorno = new Date(dataInizio)
+          dataGiorno.setDate(dataGiorno.getDate() + offset)
+          const dataNotificaGiorno = new Date(dataGiorno)
+          dataNotificaGiorno.setDate(dataNotificaGiorno.getDate() - 1)
+          dataNotificaGiorno.setHours(9, 0, 0, 0) // 9:00 AM fuso locale (Roma)
+          const nomeGiorno = GIORNI_WEEKEND.find(g => g.id === giornoId)?.nome || giornoId
+          await inserisciNotificaPush({
+            title: '⚠️ Articoli critici ancora liberi',
+            body: isPrimoGiorno
+              ? `Ci sono ancora articoli critici non selezionati per il weekend ${nomeGP}`
+              : `Ci sono ancora articoli critici non selezionati per ${nomeGiorno} (${nomeGP})`,
+            notification_type: 'articoli_critici',
+            target_all: true,
+            scheduled_for: dataNotificaGiorno.toISOString(),
+            // Il primo giorno non filtra per giorno: controlla tutto il weekend.
+            // I successivi filtrano solo sulla giornata specifica.
+            data: isPrimoGiorno
+              ? { weekend_id: weekend.id }
+              : { weekend_id: weekend.id, giorno: giornoId }
+          })
+          console.log(`[DEBUG] Notifica articoli critici (${isPrimoGiorno ? 'tutto il weekend' : nomeGiorno}) programmata per:`, dataNotificaGiorno.toISOString())
+        }
+      }
     } catch (err) {
-      console.error('Errore programmazione notifica articoli critici:', err)
+      console.error('Errore programmazione notifiche articoli critici:', err)
     }
 
     // INVIO NOTIFICA PUSH (PLUS, SEPARATA)
@@ -1183,8 +1216,11 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
 
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ ...g, articoli: articoli.filter(a => a.giorno === g.id) }))
   
-  // Articoli critici ancora liberi
-  const articoliCriticiLiberi = articoli.filter(a => a.critico && a.stato === 'libero')
+  // Articoli critici ancora liberi — ordinati da giovedì a domenica
+  const ordineGiorni = GIORNI_WEEKEND.map(g => g.id)
+  const articoliCriticiLiberi = articoli
+    .filter(a => a.critico && a.stato === 'libero')
+    .sort((a, b) => ordineGiorni.indexOf(a.giorno) - ordineGiorni.indexOf(b.giorno))
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
@@ -1237,22 +1273,36 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
                     Questi articoli sono importanti e devono essere assegnati:
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {articoliCriticiLiberi.map(articolo => (
-                      <div key={articolo.id} style={{ padding: '10px 12px', background: '#f8f8f8', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{articolo.titolo}</div>
-                          <div style={{ fontSize: '12px', color: '#666' }}>
-                            {CATEGORIE.find(c => c.id === articolo.categoria)?.nome || articolo.categoria} • {GIORNI_WEEKEND.find(g => g.id === articolo.giorno)?.nome || articolo.giorno}
+                    {articoliCriticiLiberi.map(articolo => {
+                      const isSelected = articoliSelezionati.has(articolo.id)
+                      const selezionatoDaAltro = selezioniCollaborative && selezioniCollaborative[articolo.id] && selezioniCollaborative[articolo.id] !== nomeRedattore
+                      const altroNome = selezioniCollaborative && selezioniCollaborative[articolo.id]
+                      const canSelect = !selezionatoDaAltro
+                      let bottoneTesto = 'Seleziona', bottoneColore = '#FF3B30'
+                      if (isSelected) {
+                        bottoneTesto = '✓ Selezionato'
+                      } else if (selezionatoDaAltro) {
+                        bottoneTesto = `👁 ${altroNome}`
+                        bottoneColore = '#007AFF'
+                      }
+                      return (
+                        <div key={articolo.id} style={{ padding: '10px 12px', background: '#f8f8f8', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{articolo.titolo}</div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>
+                              {CATEGORIE.find(c => c.id === articolo.categoria)?.nome || articolo.categoria} • {GIORNI_WEEKEND.find(g => g.id === articolo.giorno)?.nome || articolo.giorno}
+                            </div>
                           </div>
+                          <button
+                            onClick={() => toggleArticolo(articolo.id, articolo)}
+                            disabled={!canSelect}
+                            style={{ padding: '6px 12px', background: bottoneColore, color: 'white', border: 'none', borderRadius: '6px', cursor: canSelect ? 'pointer' : 'not-allowed', fontSize: '12px', fontWeight: 'bold', opacity: canSelect ? 1 : 0.7 }}
+                          >
+                            {bottoneTesto}
+                          </button>
                         </div>
-                        <button
-                          onClick={() => toggleArticolo(articolo.id, articolo)}
-                          style={{ padding: '6px 12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
-                        >
-                          {articoliSelezionati.has(articolo.id) ? '✓ Selezionato' : 'Seleziona'}
-                        </button>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
