@@ -68,6 +68,9 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
   const [favoriteProjects, setFavoriteProjects] = useState([]) // Solo gli id dei preferiti
   const [favoriteProjectsData, setFavoriteProjectsData] = useState([]) // Dati completi dei preferiti
   const [showFormatsInfo, setShowFormatsInfo] = useState(false) // Popup riepilogo dimensioni di tutti i formati salvati
+  const [novoNome, setNovoNome] = useState('')
+  const [novoW, setNovoW] = useState(1200)
+  const [novoH, setNovoH] = useState(729)
   const [showGraphicsModal, setShowGraphicsModal] = useState(false) // Modale con anteprima di ogni grafica sovrapposta
   const [graphicNotes, setGraphicNotes] = useState([]) // Elenco di note per la grafica attualmente selezionata
   const [newNoteText, setNewNoteText] = useState('') // Testo della nuova nota in scrittura
@@ -327,7 +330,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
       .from('progetti_dimensioni')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(30) // pool più ampio: filtriamo la visibilità PRIMA di tenere solo gli ultimi 6
+      .limit(200) // pool ampio: praticamente tutti i progetti salvati, non solo gli ultimi
     if (!data) return
 
     const { data: accessData } = await supabase.from('progetto_accessi').select('*')
@@ -345,7 +348,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
           const restricted = accessMap[p.id] && accessMap[p.id].length > 0
           return !restricted || accessMap[p.id].includes(user?.username)
         })
-    setRecentProjects(visible.slice(0, 6))
+    setRecentProjects(visible) // mostra TUTTI i progetti visibili, non più tagliati a 6
   }
 
   const fetchAllUsersForAccess = async () => {
@@ -1254,381 +1257,288 @@ const TESTO_BASSO_REALE = 1225
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '30px' }}>
           {view === 'menu' ? (
-            <div style={{ textAlign: 'center' }}>
-              <h2 style={{ fontSize: '26px', fontWeight: '800', marginBottom: '40px' }}>Progetti Condivisi</h2>
-              
-              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '30px' }}>
-                <div style={{ background: '#fff', padding: '35px', borderRadius: '24px', width: '300px' }}>
-                  
-                  {/* SOLO TAB DI SCELTA - NON TOCCA IL SISTEMA */}
-                  <div style={{ 
-                    display: 'flex', 
-                    background: '#F8F9FA', 
-                    borderRadius: '10px', 
-                    padding: '3px', 
-                    marginBottom: '25px',
-                    border: '1px solid #E9ECEF'
-                  }}>
-                    <button 
-                      onClick={() => handleModeChange('normale')}
-                      style={{ 
-                        flex: 1, 
-                        padding: '10px 8px', 
-                        borderRadius: '7px', 
-                        border: 'none', 
-                        background: projectMode === 'normale' ? '#007AFF' : 'transparent', 
-                        color: projectMode === 'normale' ? '#fff' : '#8E8E93', 
-                        fontWeight: '600', 
-                        fontSize: '11px', 
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      NORMALE
-                    </button>
-                    <button 
-                      onClick={() => handleModeChange('cover')}
-                      style={{ 
-                        flex: 1, 
-                        padding: '10px 8px', 
-                        borderRadius: '7px', 
-                        border: 'none', 
-                        background: projectMode === 'cover' ? '#007AFF' : 'transparent', 
-                        color: projectMode === 'cover' ? '#fff' : '#8E8E93', 
-                        fontWeight: '600', 
-                        fontSize: '11px', 
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      COVER
-                    </button>
-                    <button 
-                      onClick={() => handleModeChange('griglia')}
-                      style={{ 
-                        flex: 1, 
-                        padding: '10px 8px', 
-                        borderRadius: '7px', 
-                        border: 'none', 
-                        background: projectMode === 'griglia' ? '#007AFF' : 'transparent', 
-                        color: projectMode === 'griglia' ? '#fff' : '#8E8E93', 
-                        fontWeight: '600', 
-                        fontSize: '11px', 
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      GRIGLIA
-                    </button>
-                    <button 
-                      onClick={() => handleModeChange('postsocial')}
-                      style={{ 
-                        flex: 1, 
-                        padding: '10px 8px', 
-                        borderRadius: '7px', 
-                        border: 'none', 
-                        background: projectMode === 'postsocial' ? '#007AFF' : 'transparent', 
-                        color: projectMode === 'postsocial' ? '#fff' : '#8E8E93', 
-                        fontWeight: '600', 
-                        fontSize: '11px', 
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      POST
-                    </button>
-                  </div>
+            <div style={{ textAlign: 'center', maxWidth: '900px', margin: '0 auto' }}>
+              <h2 style={{ fontSize: '26px', fontWeight: '800', marginBottom: '8px', textAlign: 'left' }}>Progetti Condivisi</h2>
+              <p style={{ fontSize: '13px', color: '#8e8e93', marginBottom: '30px', textAlign: 'left' }}>Riprendi un formato salvato, o creane uno nuovo qui sotto.</p>
 
-                  <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>NOME PROGETTO</label>
-                  <input id="proj_name" type="text" placeholder="Es: Post Facebook" style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', marginBottom: '20px' }} />
-                  <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>LARGHEZZA (PX)</label>
-                  <input id="w" type="number" defaultValue={1200} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', marginBottom: '20px' }} />
-                  <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px', textAlign: 'left' }}>ALTEZZA (PX)</label>
-                  <input id="h" type="number" defaultValue={729} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', marginBottom: '30px' }} />
-                  <StyledButton fullWidth onClick={() => startNewProject(document.getElementById('w').value, document.getElementById('h').value, document.getElementById('proj_name').value)}>SALVA</StyledButton>
-                </div>
+              {(() => {
+                const iconaTipo = (nome) => {
+                  const n = (nome || '').toLowerCase()
+                  if (n.includes('griglia')) return { colore: '#5856D6' }
+                  if (n.includes('post social')) return { colore: '#007AFF' }
+                  if (n.includes('cover')) return { colore: '#FF3B30' }
+                  return { colore: '#34C759' }
+                }
+                const apriProgetto = (p) => {
+                  setDimensions({ width: p.width, height: p.height })
+                  setView('editor')
+                  const nomeLower = (p.nome || '').toLowerCase()
+                  if (nomeLower.includes('griglia')) {
+                    setProjectMode('griglia')
+                    setGridImages([])
+                    if (nomeLower.includes('2x2')) {
+                      setGridLayout('grid2x2')
+                    } else {
+                      setGridLayout('strips')
+                      const match = nomeLower.match(/griglia/)
+                      setGridCount(match ? parseInt(match[1]) : 3)
+                    }
+                  } else if (nomeLower.includes('post social')) {
+                    setProjectMode('postsocial')
+                  } else {
+                    setProjectMode(nomeLower.includes('cover') ? 'cover' : 'normale')
+                  }
+                }
 
-                <div style={{ background: '#fff', padding: '18px 18px 8px 18px', borderRadius: '10px', width: '300px', textAlign: 'left', position: 'relative' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93' }}>FORMATI CLOUD</label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {user?.ruolo === 'admin' && (
-                        <button
-                          onClick={() => { setShowAccessModal(true); setSelectedProjectForAccess(null); fetchAllUsersForAccess() }}
-                          title="Gestisci a chi è visibile ogni progetto (solo admin)"
-                          style={{
-                            width: '22px', height: '22px', borderRadius: '50%', border: '1.5px solid #FF9500',
-                            background: 'transparent', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0
-                          }}
-                        >
-                          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#FF9500" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="4" y="10.5" width="16" height="10" rx="2" />
-                            <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5" />
-                          </svg>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setShowFormatsInfo(true)}
-                        title="Vedi le dimensioni di tutti i formati salvati"
-                        style={{
-                          width: '22px', height: '22px', borderRadius: '50%', border: '1.5px solid #007AFF',
-                          background: 'transparent', color: '#007AFF', fontSize: '12px', fontWeight: '800',
-                          fontFamily: '-apple-system, sans-serif', fontStyle: 'normal', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0
-                        }}
-                      >
-                        i
-                      </button>
-                    </div>
-                  </div>
-
-                  {showFormatsInfo && (
-                    <div
-                      onClick={() => setShowFormatsInfo(false)}
-                      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
-                    >
-                      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '420px', width: '100%', maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                          <h3 style={{ margin: 0, fontSize: '17px' }}>Dimensioni formati salvati</h3>
-                          <button onClick={() => setShowFormatsInfo(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
-                        </div>
-                        {recentProjects.length === 0 ? (
-                          <p style={{ color: '#8e8e93', fontSize: '14px' }}>Nessun formato salvato.</p>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {recentProjects.map((p, i) => (
-                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f2f2f7', borderRadius: '10px' }}>
-                                <span style={{ fontSize: '13px', fontWeight: '700', color: '#1c1c1e' }}>
-                                  {favoriteProjects.includes(p.id) ? '⭐ ' : ''}{p.nome || 'Senza nome'}
+                const RigaOrizzontale = ({ titolo, coloreTitolo, progetti, mostraStella, mostraElimina }) => (
+                  <div style={{ marginBottom: '28px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: '800', color: coloreTitolo || '#8e8e93', display: 'block', marginBottom: '12px', textAlign: 'left' }}>{titolo}</label>
+                    <div style={{ display: 'flex', gap: '14px', overflowX: 'auto', paddingBottom: '10px' }}>
+                      {progetti.map((p, i) => {
+                        const icona = iconaTipo(p.nome)
+                        const preferito = favoriteProjects.includes(p.id)
+                        return (
+                          <div
+                            key={i}
+                            onClick={() => apriProgetto(p)}
+                            style={{
+                              cursor: 'pointer', flexShrink: 0, width: '160px', padding: '16px',
+                              background: '#fff', borderRadius: '16px', border: `2px solid ${icona.colore}`,
+                              boxShadow: '0 2px 10px rgba(0,0,0,0.06)', position: 'relative', textAlign: 'left'
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '4px', marginBottom: '10px' }}>
+                              {mostraStella && (
+                                <span onClick={(e) => { e.stopPropagation(); toggleFavorite(p.id) }} style={{ cursor: 'pointer', display: 'flex' }}>
+                                  <svg viewBox="0 0 24 24" width="16" height="16" fill={preferito ? '#FFD600' : 'none'} stroke={preferito ? '#FFD600' : '#C7C7CC'} strokeWidth="2">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                  </svg>
                                 </span>
-                                <span style={{ fontSize: '12px', fontWeight: '800', color: '#007AFF', background: '#fff', padding: '4px 10px', borderRadius: '20px' }}>
-                                  {p.width} × {p.height} px
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Modale gestione accessi (solo admin): scegli un progetto, poi seleziona quali
-                  utenti possono vederlo. Nessuna spunta = progetto pubblico (tutti lo vedono). */}
-                  {showAccessModal && (
-                    <div
-                      onClick={() => { setShowAccessModal(false); setSelectedProjectForAccess(null) }}
-                      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
-                    >
-                      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '420px', width: '100%', maxHeight: '75vh', overflowY: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
-                        {!selectedProjectForAccess ? (
-                          <>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                              <h3 style={{ margin: 0, fontSize: '17px' }}>Accessi progetti</h3>
-                              <button onClick={() => setShowAccessModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
-                            </div>
-                            <p style={{ fontSize: '12px', color: '#8e8e93', marginBottom: '16px' }}>
-                              Scegli un progetto per decidere chi può vederlo. Senza restrizioni, un progetto è visibile a tutti.
-                            </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              {recentProjects.length === 0 ? (
-                                <p style={{ color: '#8e8e93', fontSize: '14px' }}>Nessun formato salvato.</p>
-                              ) : (
-                                recentProjects.map((p) => {
-                                  const restrictedCount = (projectAccess[p.id] || []).length
-                                  return (
-                                    <button
-                                      key={p.id}
-                                      onClick={() => setSelectedProjectForAccess(p)}
-                                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f2f2f7', borderRadius: '10px', border: 'none', cursor: 'pointer', textAlign: 'left' }}
-                                    >
-                                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#1c1c1e' }}>{p.nome || 'Senza nome'}</span>
-                                      <span style={{ fontSize: '11px', fontWeight: '800', color: restrictedCount > 0 ? '#FF9500' : '#34C759', background: '#fff', padding: '4px 10px', borderRadius: '20px' }}>
-                                        {restrictedCount > 0 ? `🔒 ${restrictedCount}` : '🌍 Pubblico'}
-                                      </span>
-                                    </button>
-                                  )
-                                })
+                              )}
+                              {mostraElimina && (
+                                <span onClick={(e) => deleteProject(e, p.id)} style={{ fontSize: '15px', color: '#FF3B30', fontWeight: 'bold', cursor: 'pointer' }}>✕</span>
                               )}
                             </div>
-                          </>
-                        ) : (
-                          <>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                              <button onClick={() => setSelectedProjectForAccess(null)} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '14px', fontWeight: '700', cursor: 'pointer', padding: 0 }}>← Indietro</button>
+                            <div style={{ fontWeight: '800', fontSize: '13px', color: '#1c1c1e', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {getDisplayName(p.nome)}
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                              <h3 style={{ margin: 0, fontSize: '16px' }}>{selectedProjectForAccess.nome || 'Senza nome'}</h3>
-                              <button onClick={() => setShowAccessModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: icona.colore }}>
+                              {p.width} × {p.height}
                             </div>
-                            <p style={{ fontSize: '12px', color: '#8e8e93', marginBottom: '14px' }}>
-                              {(projectAccess[selectedProjectForAccess.id] || []).length === 0
-                                ? '🌍 Pubblico: lo vedono tutti. Spunta un utente per iniziare a restringere l\'accesso.'
-                                : '🔒 Riservato: lo vedono solo gli utenti spuntati (più gli admin).'}
-                            </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              {allUsersForAccess.map((u) => {
-                                const hasAccess = (projectAccess[selectedProjectForAccess.id] || []).includes(u.username)
-                                return (
-                                  <label key={u.username} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: '#f2f2f7', borderRadius: '10px', cursor: 'pointer' }}>
-                                    <input
-                                      type="checkbox"
-                                      checked={hasAccess}
-                                      onChange={() => hasAccess
-                                        ? revokeProjectAccess(selectedProjectForAccess.id, u.username)
-                                        : grantProjectAccess(selectedProjectForAccess.id, u.username)}
-                                      style={{ width: '18px', height: '18px' }}
-                                    />
-                                    <span style={{ fontSize: '13px', fontWeight: '600' }}>{u.nome_completo} <span style={{ color: '#8e8e93' }}>@{u.username}</span></span>
-                                  </label>
-                                )
-                              })}
-                            </div>
-                          </>
-                        )}
-                      </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                  )}
-                  
-                  {/* SEZIONE PREFERITI */}
-                  {favoriteProjectsData.length > 0 && (
-                    <>
-                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#FF3B30', display: 'block', marginBottom: '10px' }}>⭐ PREFERITI</label>
-                      <div style={{
-                        maxHeight: '340px',
-                        overflowY: 'auto',
-                        paddingRight: '8px',
-                        marginBottom: '10px',
-                        background: 'transparent',
-                      }}>
-                        {favoriteProjectsData.map((p, i) => (
-                          <div key={i} onClick={() => { 
-                            setDimensions({width: p.width, height: p.height}); 
-                            setView('editor'); 
-                            const nomeLower = (p.nome || '').toLowerCase();
-                            if (nomeLower.includes('griglia')) {
-                              setProjectMode('griglia');
-                              setGridImages([]);
-                              if (nomeLower.includes('2x2')) {
-                                setGridLayout('grid2x2');
-                              } else {
-                                setGridLayout('strips');
-                                const match = nomeLower.match(/griglia/);
-                                setGridCount(match ? parseInt(match[1]) : 3);
-                              }
-                            } else if (nomeLower.includes('post social')) {
-                              setProjectMode('postsocial');
-                            } else {
-                              setProjectMode(nomeLower.includes('cover') ? 'cover' : 'normale');
-                            }
-                          }} 
-                               style={{ 
-                                 cursor: 'pointer', 
-                                 padding: '14px', 
-                                 background: favoriteProjects.includes(p.id) ? '#FFF8F0' : '#E5E5EA',
-                                 marginBottom: '12px', 
-                                 borderRadius: '14px', 
-                                 border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF', 
-                                 position: 'relative' 
-                               }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span
-                                style={{
-                                  fontSize: '18px',
-                                  color: '#FFD600',
-                                  cursor: 'pointer',
-                                  padding: '0 8px 0 0',
-                                  verticalAlign: 'middle',
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleFavorite(p.id);
-                                }}
-                              >
-                                ⭐
-                              </span>
-                              <div style={{ fontWeight: '800', fontSize: '13px', color: '#FF3B30' }}>{getDisplayName(p.nome)}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  
-                  {/* SEZIONE ALTRI PROGETTI */}
-                  {recentProjects.filter(p => !favoriteProjects.includes(p.id)).length > 0 && (
-                    <>
-                      <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '10px', marginTop: favoriteProjects.length > 0 ? '20px' : '0' }}>ALTRI PROGETTI</label>
-                      <div style={{
-                        maxHeight: '340px',
-                        overflowY: 'auto',
-                        paddingRight: '8px',
-                        marginBottom: '10px',
-                        background: 'transparent',
-                      }}>
-                        {recentProjects.filter(p => !favoriteProjects.includes(p.id)).map((p, i) => (
-                          <div key={i} onClick={() => { 
-                            setDimensions({width: p.width, height: p.height}); 
-                            setView('editor'); 
-                            const nomeLower = (p.nome || '').toLowerCase();
-                            if (nomeLower.includes('griglia')) {
-                              setProjectMode('griglia');
-                              setGridImages([]);
-                              if (nomeLower.includes('2x2')) {
-                                setGridLayout('grid2x2');
-                              } else {
-                                setGridLayout('strips');
-                                const match = nomeLower.match(/griglia/);
-                                setGridCount(match ? parseInt(match[1]) : 3);
-                              }
-                            } else if (nomeLower.includes('post social')) {
-                              setProjectMode('postsocial');
-                            } else {
-                              setProjectMode(nomeLower.includes('cover') ? 'cover' : 'normale');
-                            }
-                          }} 
-                               style={{ 
-                                 cursor: 'pointer',
-                                 padding: '14px',
-                                 background: favoriteProjects.includes(p.id) ? '#FFF8F0' : '#F8F9FA',
-                                 marginBottom: '12px',
-                                 borderRadius: '14px',
-                                 border: p.nome && p.nome.toLowerCase().includes('cover') ? '2px solid #FF3B30' : '2px solid #007AFF',
-                                 display: 'flex',
-                                 alignItems: 'center',
-                                 justifyContent: 'space-between',
-                                 gap: '8px',
-                               }}>
-                            <>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span
-                                  style={{
-                                    fontSize: '18px',
-                                    color: favoriteProjects.includes(p.id) ? '#FFD600' : '#C7C7CC',
-                                    cursor: 'pointer',
-                                    padding: '0 8px 0 0',
-                                    verticalAlign: 'middle',
-                                  }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleFavorite(p.id);
-                                  }}
-                                >
-                                  {favoriteProjects.includes(p.id) ? '⭐' : '☆'}
-                                </span>
-                                <div style={{ fontWeight: '800', fontSize: '13px', color: p.nome && p.nome.toLowerCase().includes('cover') ? '#FF3B30' : '#007AFF' }}>{getDisplayName(p.nome)}</div>
-                              </div>
-                              <span onClick={(e) => deleteProject(e, p.id)} style={{ fontSize: '18px', color: '#FF3B30', fontWeight: 'bold', cursor: 'pointer', padding: '5px' }}>✕</span>
-                            </>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                  
-                  {recentProjects.length === 0 && <p style={{ color: '#c7c7cc', fontSize: '14px' }}>Nessun formato salvato</p>}
-                </div>
+                  </div>
+                )
+
+                return (
+                  <>
+                    {favoriteProjectsData.length > 0 && (
+                      <RigaOrizzontale titolo="PREFERITI" coloreTitolo="#FF3B30" progetti={favoriteProjectsData} mostraStella />
+                    )}
+                    {recentProjects.filter(p => !favoriteProjects.includes(p.id)).length > 0 && (
+                      <RigaOrizzontale titolo="ALTRI PROGETTI" progetti={recentProjects.filter(p => !favoriteProjects.includes(p.id))} mostraStella mostraElimina />
+                    )}
+                    {recentProjects.length === 0 && (
+                      <p style={{ color: '#c7c7cc', fontSize: '14px', textAlign: 'left', marginBottom: '20px' }}>Nessun formato salvato ancora.</p>
+                    )}
+                  </>
+                )
+              })()}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: '14px' }}>
+                {user?.ruolo === 'admin' && (
+                  <button
+                    onClick={() => { setShowAccessModal(true); setSelectedProjectForAccess(null); fetchAllUsersForAccess() }}
+                    title="Gestisci a chi è visibile ogni progetto (solo admin)"
+                    style={{
+                      width: '26px', height: '26px', borderRadius: '50%', border: '1.5px solid #FF9500',
+                      background: 'transparent', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#FF9500" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="4" y="10.5" width="16" height="10" rx="2" />
+                      <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5" />
+                    </svg>
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowFormatsInfo(true)}
+                  title="Vedi le dimensioni di tutti i formati salvati"
+                  style={{
+                    width: '26px', height: '26px', borderRadius: '50%', border: '1.5px solid #007AFF',
+                    background: 'transparent', color: '#007AFF', fontSize: '13px', fontWeight: '800',
+                    fontFamily: '-apple-system, sans-serif', fontStyle: 'normal', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0
+                  }}
+                >
+                  i
+                </button>
               </div>
+
+              <div style={{ background: '#fff', padding: '32px', borderRadius: '24px', textAlign: 'left', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '20px' }}>Crea nuovo progetto</h3>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '26px' }}>
+                  {[
+                    { val: 'normale', label: 'Normale', colore: '#34C759' },
+                    { val: 'cover', label: 'Cover', colore: '#FF3B30' },
+                    { val: 'griglia', label: 'Griglia', colore: '#5856D6' },
+                    { val: 'postsocial', label: 'Post Social', colore: '#007AFF' },
+                  ].map(m => (
+                    <button
+                      key={m.val}
+                      onClick={() => handleModeChange(m.val)}
+                      style={{
+                        padding: '28px 16px', borderRadius: '14px', cursor: 'pointer', textAlign: 'left',
+                        border: `2px solid ${projectMode === m.val ? m.colore : '#E9ECEF'}`,
+                        background: projectMode === m.val ? `${m.colore}14` : '#fff',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ fontWeight: '800', fontSize: '13px', color: projectMode === m.val ? m.colore : '#1c1c1e' }}>{m.label}</div>
+                    </button>
+                  ))}
+                </div>
+
+                <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px' }}>NOME PROGETTO</label>
+                <input
+                  value={novoNome}
+                  onChange={(e) => setNovoNome(e.target.value)}
+                  type="text" placeholder="Es: Post Facebook"
+                  style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', marginBottom: '20px', boxSizing: 'border-box' }}
+                />
+
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '26px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px' }}>LARGHEZZA (PX)</label>
+                    <input
+                      value={novoW}
+                      onChange={(e) => setNovoW(e.target.value)}
+                      type="number"
+                      style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px' }}>ALTEZZA (PX)</label>
+                    <input
+                      value={novoH}
+                      onChange={(e) => setNovoH(e.target.value)}
+                      type="number"
+                      style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <StyledButton fullWidth onClick={() => startNewProject(novoW, novoH, novoNome)}>SALVA</StyledButton>
+              </div>
+
+              {showFormatsInfo && (
+                <div
+                  onClick={() => setShowFormatsInfo(false)}
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                >
+                  <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '420px', width: '100%', maxHeight: '70vh', overflowY: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ margin: 0, fontSize: '17px' }}>Dimensioni formati salvati</h3>
+                      <button onClick={() => setShowFormatsInfo(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
+                    </div>
+                    {recentProjects.length === 0 ? (
+                      <p style={{ color: '#8e8e93', fontSize: '14px' }}>Nessun formato salvato.</p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {recentProjects.map((p, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f2f2f7', borderRadius: '10px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: '700', color: '#1c1c1e' }}>
+                              {favoriteProjects.includes(p.id) ? '⭐ ' : ''}{p.nome || 'Senza nome'}
+                            </span>
+                            <span style={{ fontSize: '12px', fontWeight: '800', color: '#007AFF', background: '#fff', padding: '4px 10px', borderRadius: '20px' }}>
+                              {p.width} × {p.height} px
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {showAccessModal && (
+                <div
+                  onClick={() => { setShowAccessModal(false); setSelectedProjectForAccess(null) }}
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+                >
+                  <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '16px', padding: '24px', maxWidth: '420px', width: '100%', maxHeight: '75vh', overflowY: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
+                    {!selectedProjectForAccess ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <h3 style={{ margin: 0, fontSize: '17px' }}>Accessi progetti</h3>
+                          <button onClick={() => setShowAccessModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
+                        </div>
+                        <p style={{ fontSize: '12px', color: '#8e8e93', marginBottom: '16px' }}>
+                          Scegli un progetto per decidere chi può vederlo. Senza restrizioni, un progetto è visibile a tutti.
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {recentProjects.length === 0 ? (
+                            <p style={{ color: '#8e8e93', fontSize: '14px' }}>Nessun formato salvato.</p>
+                          ) : (
+                            recentProjects.map((p) => {
+                              const restrictedCount = (projectAccess[p.id] || []).length
+                              return (
+                                <button
+                                  key={p.id}
+                                  onClick={() => setSelectedProjectForAccess(p)}
+                                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#f2f2f7', borderRadius: '10px', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                                >
+                                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#1c1c1e' }}>{p.nome || 'Senza nome'}</span>
+                                  <span style={{ fontSize: '11px', fontWeight: '800', color: restrictedCount > 0 ? '#FF9500' : '#34C759', background: '#fff', padding: '4px 10px', borderRadius: '20px' }}>
+                                    {restrictedCount > 0 ? `🔒 ${restrictedCount}` : '🌍 Pubblico'}
+                                  </span>
+                                </button>
+                              )
+                            })
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                          <button onClick={() => setSelectedProjectForAccess(null)} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '14px', fontWeight: '700', cursor: 'pointer', padding: 0 }}>← Indietro</button>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                          <h3 style={{ margin: 0, fontSize: '16px' }}>{selectedProjectForAccess.nome || 'Senza nome'}</h3>
+                          <button onClick={() => setShowAccessModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
+                        </div>
+                        <p style={{ fontSize: '12px', color: '#8e8e93', marginBottom: '14px' }}>
+                          {(projectAccess[selectedProjectForAccess.id] || []).length === 0
+                            ? '🌍 Pubblico: lo vedono tutti. Spunta un utente per iniziare a restringere l\'accesso.'
+                            : '🔒 Riservato: lo vedono solo gli utenti spuntati (più gli admin).'}
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {allUsersForAccess.map((u) => {
+                            const hasAccess = (projectAccess[selectedProjectForAccess.id] || []).includes(u.username)
+                            return (
+                              <label key={u.username} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: '#f2f2f7', borderRadius: '10px', cursor: 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={hasAccess}
+                                  onChange={() => hasAccess
+                                    ? revokeProjectAccess(selectedProjectForAccess.id, u.username)
+                                    : grantProjectAccess(selectedProjectForAccess.id, u.username)}
+                                  style={{ width: '18px', height: '18px' }}
+                                />
+                                <span style={{ fontSize: '13px', fontWeight: '600' }}>{u.nome_completo} <span style={{ color: '#8e8e93' }}>@{u.username}</span></span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
