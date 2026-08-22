@@ -579,7 +579,8 @@ const TESTO_BASSO_REALE = posCfg.basso
             y: TESTO_ALTO_REALE * displayScale,
             width: Math.max(60, TESTO_LARGHEZZA_REALE * displayScale),
             height: Math.max(30, TESTO_ALTEZZA_REALE * displayScale),
-            lineGapPx: SPAZIATURA_RIGHE_PX
+            lineGapPx: SPAZIATURA_RIGHE_PX,
+            locked: true // la casella di default è già bloccata all'apertura del progetto
           })])
         } else {
           setTextBoxes([])
