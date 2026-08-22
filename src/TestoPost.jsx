@@ -49,7 +49,7 @@ export const LETTER_SPACING_RATIO = 19 / 1000
 
 // Interruttore per il pulsante "📍 Posizione" (mostra le coordinate in pixel reali della
 // casella). Metti a "true" per riattivarlo — tutto il resto del codice resta invariato.
-const SHOW_POSITION_BUTTON = false
+const SHOW_POSITION_BUTTON = true
 // Interlinea richiesta, anch'essa verificata sullo stesso pannello Canva ("Spaziatura righe: 1.2").
 export const DEFAULT_LINE_HEIGHT_RATIO = 0.9
 
@@ -412,6 +412,7 @@ export function createTextBox(overrides = {}) {
     underline: false,
     spans: [], // formattazione (colore/sottolineato) su porzioni specifiche di testo
     lineGapPx: null, // px REALI fissi extra tra le righe; null = usa il rapporto automatico (DEFAULT_LINE_HEIGHT_RATIO)
+    locked: false, // se true: la casella non si sposta né si ridimensiona (come il lucchetto di Canva)
     ...overrides
   }
 }
@@ -480,8 +481,9 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
   useEffect(() => {
     const handleOutsideClick = (e) => {
       const clickedInsideBox = e.target.closest && e.target.closest('[data-fwm-textbox]')
-      const clickedInsidePanel = e.target.closest && e.target.closest('#fwm-text-side-portal')
-      if (!clickedInsideBox && !clickedInsidePanel) {
+      const clickedInsideDesktopPanel = e.target.closest && e.target.closest('#fwm-text-side-portal')
+      const clickedInsideMobilePanel = e.target.closest && e.target.closest('#fwm-text-mobile-portal')
+      if (!clickedInsideBox && !clickedInsideDesktopPanel && !clickedInsideMobilePanel) {
         setActiveId(null)
       }
     }
@@ -775,27 +777,30 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
         sidePanel
           ? {
               display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'stretch',
-              background: 'rgba(28,28,30,0.92)', padding: '8px', borderRadius: '10px', width: '112px'
+              background: 'rgba(28,28,30,0.92)', padding: '8px', borderRadius: '10px', width: '148px'
             }
           : {
-              position: 'absolute', top: '-46px', left: 0, display: 'flex', gap: '6px',
-              alignItems: 'center', background: 'rgba(28,28,30,0.9)', padding: '6px 8px', borderRadius: '10px', zIndex: 60
+              display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center',
+              background: 'rgba(28,28,30,0.92)', padding: '10px', borderRadius: '12px', width: '100%', boxSizing: 'border-box'
             }
       }
     >
-      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: sidePanel ? 'center' : 'flex-start', flexWrap: sidePanel ? 'wrap' : 'nowrap' }}>
+      {/* Su mobile: prima riga = formattazione (colore, sottolineato, allineamento). Su
+      desktop questi restano due gruppi separati, uno sotto l'altro come sempre. */}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: sidePanel ? undefined : 'wrap', flexDirection: sidePanel ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', width: sidePanel ? '100%' : 'auto' }}>
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
         {COLOR_SWATCHES.map((c) => (
           <button
             key={c.value}
             title={c.label}
             onClick={() => updateBox(targetBox.id, { color: c.value })}
-            style={{ width: '22px', height: '22px', borderRadius: '50%', background: c.value, border: targetBox.color === c.value ? '2px solid #007AFF' : '1px solid #555', cursor: 'pointer', padding: 0 }}
+            style={{ width: '26px', height: '26px', borderRadius: '50%', background: c.value, border: targetBox.color === c.value ? '2px solid #007AFF' : '1px solid #555', cursor: 'pointer', padding: 0 }}
           />
         ))}
         <button
           onClick={() => updateBox(targetBox.id, { underline: !targetBox.underline })}
           title="Sottolineato"
-          style={{ width: '22px', height: '22px', borderRadius: '5px', border: 'none', background: targetBox.underline ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '12px', fontWeight: '900', textDecoration: 'underline', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+          style={{ width: '26px', height: '26px', borderRadius: '6px', border: 'none', background: targetBox.underline ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '13px', fontWeight: '900', textDecoration: 'underline', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
         >
           U
         </button>
@@ -804,68 +809,118 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
         <button
           onClick={() => updateBox(targetBox.id, { align: 'left' })}
           title="Allinea a sinistra"
-          style={{ width: '26px', height: '24px', borderRadius: '6px', border: 'none', background: targetBox.align === 'left' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+          style={{ width: '30px', height: '28px', borderRadius: '6px', border: 'none', background: targetBox.align === 'left' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
         >
           ⬅
         </button>
         <button
           onClick={() => updateBox(targetBox.id, { align: 'center' })}
           title="Allinea al centro"
-          style={{ width: '26px', height: '24px', borderRadius: '6px', border: 'none', background: targetBox.align === 'center' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+          style={{ width: '30px', height: '28px', borderRadius: '6px', border: 'none', background: targetBox.align === 'center' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
         >
           ↔
         </button>
         <button
           onClick={() => updateBox(targetBox.id, { align: 'right' })}
           title="Allinea a destra"
-          style={{ width: '26px', height: '24px', borderRadius: '6px', border: 'none', background: targetBox.align === 'right' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+          style={{ width: '30px', height: '28px', borderRadius: '6px', border: 'none', background: targetBox.align === 'right' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
         >
           ➡
         </button>
       </div>
-      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: sidePanel ? 'center' : 'flex-start', flexWrap: sidePanel ? 'wrap' : 'nowrap' }}>
+      </div>
+
+      {/* Su mobile: seconda riga = dimensione (- / + / predefinite) e Auto/Testo */}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: sidePanel ? undefined : 'wrap', flexDirection: sidePanel ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', width: sidePanel ? '100%' : 'auto' }}>
+      {/* Box unico "dimensione testo": raggruppa -/+/numero e lo switch AUTO/MANUALE, così si
+      vede a colpo d'occhio che sono parte dello stesso sistema. */}
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: sidePanel ? 'center' : 'flex-start', flexWrap: sidePanel ? 'wrap' : 'nowrap', background: '#242426', border: '1px solid #3A3A3C', borderRadius: '9px', padding: '5px' }}>
         <button
           onClick={() => {
+            if (targetBox.manualFontSize == null) return // in automatico i pulsanti sono disattivati
             const current = targetBox.manualFontSize || targetLines[0]?.fontSize || targetBox.minFontSize
-            updateBox(targetBox.id, { manualFontSize: Math.max(targetBox.minFontSize, Math.round(current - 4)) })
+            updateBox(targetBox.id, { manualFontSize: Math.max(targetBox.minFontSize, Math.round((current - 1) * 10) / 10) })
           }}
+          disabled={targetBox.manualFontSize == null}
           title="Rimpicciolisci"
-          style={{ width: '22px', height: '24px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+          style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '16px', fontWeight: '800', cursor: targetBox.manualFontSize == null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, opacity: targetBox.manualFontSize == null ? 0.4 : 1 }}
         >
           −
         </button>
         <button
           onClick={() => {
+            if (targetBox.manualFontSize == null) return // in automatico i pulsanti sono disattivati
             const current = targetBox.manualFontSize || targetLines[0]?.fontSize || targetBox.minFontSize
-            updateBox(targetBox.id, { manualFontSize: Math.min(targetBox.maxFontSize, Math.round(current + 4)) })
+            updateBox(targetBox.id, { manualFontSize: Math.min(targetBox.maxFontSize, Math.round((current + 1) * 10) / 10) })
           }}
+          disabled={targetBox.manualFontSize == null}
           title="Ingrandisci"
-          style={{ width: '22px', height: '24px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+          style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '16px', fontWeight: '800', cursor: targetBox.manualFontSize == null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, opacity: targetBox.manualFontSize == null ? 0.4 : 1 }}
         >
           +
         </button>
-        <select
-          value={targetBox.manualFontSize || ''}
+        <input
+          type="number"
+          step="0.1"
+          min="0"
+          value={targetBox.manualFontSize ?? ''}
+          disabled={targetBox.manualFontSize == null}
           onChange={(e) => {
             const val = e.target.value
-            updateBox(targetBox.id, { manualFontSize: val === '' ? null : Math.min(targetBox.maxFontSize, Math.max(targetBox.minFontSize, parseInt(val, 10))) })
+            if (val === '') { updateBox(targetBox.id, { manualFontSize: null }); return }
+            const parsed = parseFloat(val)
+            if (Number.isNaN(parsed)) return
+            if (parsed < 0) return // mai negativo, nemmeno mentre si scrive
+            updateBox(targetBox.id, { manualFontSize: parsed }) // sotto il minimo si può scrivere liberamente, il limite scatta solo al blur
           }}
-          title="Scegli una dimensione predefinita"
-          style={{ height: '24px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '10px', fontWeight: '700', cursor: 'pointer', padding: '0 2px' }}
-        >
-          <option value="">Auto</option>
-          {[16, 20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 96, 112, 128, 150, 180, 220, 260, 300].map((size) => (
-            <option key={size} value={size}>{size}px</option>
-          ))}
-        </select>
+          onBlur={() => {
+            // Il limite minimo/massimo si applica solo ORA, quando si esce dal campo — così si
+            // può cancellare tutto e scrivere un numero nuovo senza scattare al minimo a metà.
+            if (targetBox.manualFontSize == null) return
+            const clamped = Math.min(targetBox.maxFontSize, Math.max(targetBox.minFontSize, targetBox.manualFontSize))
+            if (clamped !== targetBox.manualFontSize) updateBox(targetBox.id, { manualFontSize: clamped })
+          }}
+          placeholder="Auto"
+          title="Dimensione font — puoi scrivere anche i decimali, es. 12.1, 12.2..."
+          style={{ width: '52px', height: '28px', borderRadius: '6px', border: 'none', background: targetBox.manualFontSize == null ? '#2C2C2E' : '#3A3A3C', color: targetBox.manualFontSize == null ? '#8e8e93' : '#fff', fontSize: '11px', fontWeight: '700', padding: '0 6px', textAlign: 'center', cursor: targetBox.manualFontSize == null ? 'not-allowed' : 'text' }}
+        />
+        <div style={{ width: '1px', alignSelf: 'stretch', background: '#3A3A3C', margin: '0 1px' }} />
+        {/* Switch esplicito Automatico / Manuale per la dimensione del testo */}
+        <div style={{ display: 'flex', gap: '3px', background: '#1c1c1e', padding: '2px', borderRadius: '7px' }}>
+          <button
+            onClick={() => updateBox(targetBox.id, { manualFontSize: null })}
+            title="La dimensione si adatta da sola alla casella"
+            style={{ padding: '5px 9px', borderRadius: '5px', border: 'none', background: targetBox.manualFontSize == null ? '#007AFF' : 'transparent', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}
+          >
+            AUTO
+          </button>
+          <button
+            onClick={() => {
+              if (targetBox.manualFontSize != null) return // già in manuale
+              const startSize = targetLines[0]?.fontSize || targetBox.minFontSize
+              updateBox(targetBox.id, { manualFontSize: Math.round(startSize * 10) / 10 })
+            }}
+            title="Scrivi tu la dimensione del testo"
+            style={{ padding: '5px 9px', borderRadius: '5px', border: 'none', background: targetBox.manualFontSize != null ? '#007AFF' : 'transparent', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}
+          >
+            MANUALE
+          </button>
+        </div>
       </div>
-      <div style={{ display: 'flex', gap: '4px', justifyContent: sidePanel ? 'center' : 'flex-start' }}>
+      <div style={{ display: 'flex', gap: '4px', justifyContent: sidePanel ? 'center' : 'flex-start', flexWrap: 'wrap' }}>
         <button
-          onClick={() => updateBox(targetBox.id, { manualFontSize: null })}
-          title="Torna alla dimensione automatica"
-          style={{ padding: '5px 7px', borderRadius: '6px', border: 'none', background: targetBox.manualFontSize ? '#3A3A3C' : '#007AFF', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}
+          onClick={() => updateBox(targetBox.id, { locked: !targetBox.locked })}
+          title={targetBox.locked ? 'Sblocca posizione' : 'Blocca posizione (come su Canva: non si sposta né ridimensiona)'}
+          style={{ padding: '5px 9px', borderRadius: '6px', border: 'none', background: targetBox.locked ? '#FF9500' : '#3A3A3C', color: '#fff', fontSize: '12px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          AUTO
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="10.5" width="16" height="10" rx="2" />
+            {targetBox.locked ? (
+              <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5" />
+            ) : (
+              <path d="M7.5 10.5V7a4.5 4.5 0 0 1 8.5-2.8" />
+            )}
+          </svg>
         </button>
         <button
           onClick={() => startEditing(targetBox.id)}
@@ -882,6 +937,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
             📍 Posizione
           </button>
         )}
+      </div>
       </div>
     </div>
   )
@@ -926,8 +982,8 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           <div
             key={box.id}
             data-fwm-textbox="true"
-            onMouseDown={(e) => { if (!isEditing) startDrag(e, box.id, 'move') }}
-            onTouchStart={(e) => { if (!isEditing) { const openedEditing = handlePotentialDoubleTap(box.id); if (!openedEditing) startDrag(e, box.id, 'move') } }}
+            onMouseDown={(e) => { if (!isEditing && !box.locked) startDrag(e, box.id, 'move') }}
+            onTouchStart={(e) => { if (!isEditing) { const openedEditing = handlePotentialDoubleTap(box.id); if (!openedEditing && !box.locked) startDrag(e, box.id, 'move') } }}
             onClick={(e) => { e.stopPropagation(); setActiveId(box.id) }}
             onDoubleClick={(e) => { e.stopPropagation(); startEditing(box.id) }}
             style={{
@@ -936,7 +992,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
               top: `${box.y}px`,
               width: `${box.width}px`,
               height: `${boxHeight}px`,
-              cursor: isEditing ? 'text' : 'move',
+              cursor: isEditing ? 'text' : (box.locked ? 'default' : 'move'),
               userSelect: 'none',
               touchAction: 'manipulation', // 'none' bloccava anche il pinch-to-zoom con due dita;
               // 'manipulation' lascia passare il pinch, blocca solo il doppio-tap-zoom nativo del
@@ -948,6 +1004,19 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
               // (vedi sopra) li ha disattivati di default per lasciar passare quelli sulla foto
             }}
           >
+            {/* Badge lucchetto: sempre visibile sulla casella bloccata, anche senza selezionarla */}
+            {box.locked && (
+              <div style={{
+                position: 'absolute', top: '-8px', left: '-8px', width: '16px', height: '16px',
+                borderRadius: '50%', background: '#FF9500', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', zIndex: 61, pointerEvents: 'none'
+              }}>
+                <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="4" y="10.5" width="16" height="10" rx="2" />
+                  <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5" />
+                </svg>
+              </div>
+            )}
             {isEditing ? (
               <>
                 <textarea
@@ -984,48 +1053,48 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                     WebkitUserSelect: 'text'
                   }}
                 />
-                {/* Barra colori/sottolineato + anteprima dal vivo: "teletrasportate" con un portale
-                in un contenitore FUORI dal canvas (in RitaglioImmagine.jsx, a destra della foto),
-                altrimenti — essendo l'area della foto con overflow:hidden/auto per via dello zoom —
-                resterebbero tagliate o intrappolate dentro il frame. */}
-                {typeof document !== 'undefined' && document.getElementById('fwm-text-side-portal') && createPortal(
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {/* Barra colori/sottolineato + anteprima dal vivo, MENTRE SI SCRIVE (isEditing):
+                unico punto dove esistono davvero questi controlli in quel momento — l'ALTRA
+                barra (renderToolbar) appare in un momento diverso (box selezionato ma NON in
+                modifica), quindi qui NON è una duplicazione, va mostrata su mobile e desktop. */}
+                {typeof document !== 'undefined' && document.getElementById(isMobile ? 'fwm-text-mobile-portal' : 'fwm-text-side-portal') && createPortal(
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: isMobile ? 'center' : 'stretch', width: '100%' }}>
                     <div
                       onMouseDown={(e) => e.stopPropagation()}
                       style={{
-                        display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap',
-                        background: 'rgba(28,28,30,0.92)', padding: '8px', borderRadius: '10px'
-                      }}
-                    >
-                      {COLOR_SWATCHES.map((c) => (
-                        <button
-                          key={c.value}
-                          title={c.label}
-                          onMouseDown={(e) => { e.preventDefault(); applyFormat(box, { color: c.value }) }}
-                          style={{ width: '22px', height: '22px', borderRadius: '50%', background: c.value, border: '1px solid rgba(255,255,255,0.5)', cursor: 'pointer', padding: 0 }}
-                        />
-                      ))}
-                      <div style={{ width: '1px', height: '20px', background: '#555', margin: '0 2px' }} />
-                      <button
-                        title="Sottolineato (su selezione, o su tutta la casella se nulla è selezionato)"
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          const ta = textareaRef.current
-                          const hasSelection = ta && ta.selectionStart !== ta.selectionEnd
-                          if (hasSelection) {
-                            const currentlyUnderlined = getEffectiveFormat(box.spans, ta.selectionStart, box.color, box.underline).underline
-                            applyFormat(box, { underline: !currentlyUnderlined })
-                          } else {
-                            applyFormat(box, { underline: !box.underline })
-                          }
+                          display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap',
+                          background: 'rgba(28,28,30,0.92)', padding: '8px', borderRadius: '10px'
                         }}
-                        style={{ width: '26px', height: '22px', borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '12px', fontWeight: '900', textDecoration: 'underline', cursor: 'pointer' }}
                       >
-                        S
-                      </button>
-                      <span style={{ fontSize: '10px', color: '#aaa' }}>seleziona per colorare solo una parte</span>
-                    </div>
-                    <div style={{ background: 'rgba(0,0,0,0.85)', borderRadius: '10px', padding: '12px 16px', maxWidth: '90vw' }}>
+                        {COLOR_SWATCHES.map((c) => (
+                          <button
+                            key={c.value}
+                            title={c.label}
+                            onMouseDown={(e) => { e.preventDefault(); applyFormat(box, { color: c.value }) }}
+                            style={{ width: '22px', height: '22px', borderRadius: '50%', background: c.value, border: '1px solid rgba(255,255,255,0.5)', cursor: 'pointer', padding: 0 }}
+                          />
+                        ))}
+                        <div style={{ width: '1px', height: '20px', background: '#555', margin: '0 2px' }} />
+                        <button
+                          title="Sottolineato (su selezione, o su tutta la casella se nulla è selezionato)"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            const ta = textareaRef.current
+                            const hasSelection = ta && ta.selectionStart !== ta.selectionEnd
+                            if (hasSelection) {
+                              const currentlyUnderlined = getEffectiveFormat(box.spans, ta.selectionStart, box.color, box.underline).underline
+                              applyFormat(box, { underline: !currentlyUnderlined })
+                            } else {
+                              applyFormat(box, { underline: !box.underline })
+                            }
+                          }}
+                          style={{ width: '26px', height: '22px', borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '12px', fontWeight: '900', textDecoration: 'underline', cursor: 'pointer' }}
+                        >
+                          S
+                        </button>
+                        <span style={{ fontSize: '10px', color: '#aaa' }}>seleziona per colorare solo una parte</span>
+                      </div>
+                    <div style={{ background: 'rgba(0,0,0,0.85)', borderRadius: '10px', padding: '12px 16px', maxWidth: '90vw', overflow: 'hidden', boxSizing: 'border-box', margin: isMobile ? '0 auto' : 0 }}>
                       <div style={{ fontSize: '10px', color: '#aaa', marginBottom: '6px', fontWeight: '700', letterSpacing: '0.5px' }}>ANTEPRIMA</div>
                       <div style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, textAlign: box.align }}>
                         {lines.length > 0
@@ -1033,7 +1102,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                               const runs = splitLineIntoRuns(line.text, line.startOffset, box.spans, box.color, box.underline)
                               const previewScale = Math.min(1, 28 / (line.fontSize || 28))
                               return (
-                                <div key={i} style={{ fontSize: `${(line.fontSize || 16) * previewScale}px`, letterSpacing: `${(line.fontSize || 16) * previewScale * LETTER_SPACING_RATIO}px`, lineHeight: `${(line.fontSize || 16) * previewScale * DEFAULT_LINE_HEIGHT_RATIO + (box.lineGapPx || 0) * displayScale * previewScale}px`, whiteSpace: 'nowrap' }}>
+                                <div key={i} style={{ fontSize: `${(line.fontSize || 16) * previewScale}px`, letterSpacing: `${(line.fontSize || 16) * previewScale * LETTER_SPACING_RATIO}px`, lineHeight: `${(line.fontSize || 16) * previewScale * DEFAULT_LINE_HEIGHT_RATIO + (box.lineGapPx || 0) * displayScale * previewScale}px`, whiteSpace: 'normal', wordBreak: 'break-word' }}>
                                   {runs.map((run, ri) => (
                                     <span key={ri} style={{ color: run.color, textDecoration: run.underline ? 'underline' : 'none' }}>
                                       {run.text}
@@ -1046,7 +1115,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                       </div>
                     </div>
                   </div>,
-                  document.getElementById('fwm-text-side-portal')
+                  document.getElementById(isMobile ? 'fwm-text-mobile-portal' : 'fwm-text-side-portal')
                 )}
               </>
             ) : (
@@ -1055,6 +1124,8 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
 
             {isActive && !isEditing && (
               <>
+                {!box.locked && (
+                  <>
                 {/* Maniglie laterali per regolare la larghezza */}
                 <div
                   onMouseDown={(e) => startDrag(e, box.id, 'resize-left')}
@@ -1115,6 +1186,8 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                 >
                   <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#fff', border: '3px solid #007AFF' }} />
                 </div>
+                  </>
+                )}
 
                 {/* Pulsante elimina */}
                 <button
@@ -1129,8 +1202,12 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                   ✕
                 </button>
 
-                {/* Barra controlli: su mobile resta ancorata sopra la casella (su desktop è un pannello a parte, fuori dal frame) */}
-                {isMobile && renderToolbar(box, lines, false)}
+                {/* Barra controlli: su mobile teleportata in un punto FISSO sotto il canvas
+                (sopra il pulsante Salva) — prima restava ancorata vicino alla casella e, se
+                questa era vicina al bordo destro, usciva fuori dallo schermo diventando
+                inutilizzabile. Su desktop resta un pannello a parte, fuori dal frame. */}
+                {isMobile && typeof document !== 'undefined' && document.getElementById('fwm-text-mobile-portal') &&
+                  createPortal(renderToolbar(box, lines, false), document.getElementById('fwm-text-mobile-portal'))}
               </>
             )}
           </div>
