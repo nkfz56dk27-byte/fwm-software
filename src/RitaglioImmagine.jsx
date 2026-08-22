@@ -27,6 +27,23 @@ const OVERLAY_GRAPHICS = Object.entries(overlayModules)
   })
   .sort((a, b) => a.label.localeCompare(b.label))
 
+// Posizione FISSA della casella di testo per ciascuna grafica sovrapposta (chiave = "key" di
+// OVERLAY_GRAPHICS, cioè il nome del file in src/assets/overlays/ senza estensione). Aggiungendo
+// una nuova grafica basta aggiungere qui una nuova riga con i suoi 4 numeri: nessun if/else da
+// far crescere a mano.
+//
+// Come trovare i numeri per una nuova grafica: seleziona quella grafica, trascina/ridimensiona
+// la casella di testo dove deve stare SEMPRE per quella grafica, poi attiva temporaneamente
+// SHOW_POSITION_BUTTON in TestoPost.jsx (mettilo a true), clicca "📍 Posizione" sulla casella e
+// copia i 4 valori mostrati nel popup dentro una nuova riga qui sotto (usando la key giusta).
+// "default" è la posizione usata quando una grafica non ha una voce dedicata.
+const TESTO_POSIZIONE_PER_GRAFICA = {
+  default: { sx: 62, dx: 1056, alto: 820, basso: 1225, spaziaturaRighe: 7 },
+  'BREAKING NEWS.jpg': { sx: 62, dx: 1041, alto: 931, basso: 1267, spaziaturaRighe: 7 },
+  // esempio — aggiungi una riga così per ogni grafica:
+  // 'nome-file-grafica': { sx: 40, dx: 900, alto: 700, basso: 1100, spaziaturaRighe: 7 },
+}
+
 export default function RitaglioImmagine({ user, onClose }) {
   const [view, setView] = useState('menu')
   const [userCategorie, setUserCategorie] = useState([])
@@ -451,6 +468,28 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
     }
   }, [projectMode, view, dimensions.width, dimensions.height, selectedOverlay])
 
+  // Se si cambia grafica mentre c'è ANCORA solo la casella di testo di default (nessun'altra
+  // casella aggiunta a mano), la riposiziona secondo TESTO_POSIZIONE_PER_GRAFICA per la nuova
+  // grafica — così "casella si sposta da sola cambiando grafica" senza toccare caselle extra
+  // che l'utente ha aggiunto manualmente.
+  useEffect(() => {
+    if (projectMode === 'postsocial' && view === 'editor' && textBoxes.length === 1) {
+      const posCfg = TESTO_POSIZIONE_PER_GRAFICA[selectedOverlay] || TESTO_POSIZIONE_PER_GRAFICA.default
+      const s = displayScale || 1
+      const larghezza = posCfg.dx - posCfg.sx
+      const altezza = posCfg.basso - posCfg.alto
+      setTextBoxes(([box]) => [{
+        ...box,
+        x: posCfg.sx * s,
+        y: posCfg.alto * s,
+        width: Math.max(60, larghezza * s),
+        height: Math.max(30, altezza * s),
+        lineGapPx: posCfg.spaziaturaRighe
+      }])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOverlay])
+
   const startNewProject = async (width, height, nome) => {
     if (projectMode === 'griglia') {
       setGridImages([])
@@ -522,12 +561,15 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
         setMobileImgStyle({ width: '100%', height: 'auto' })
         if (projectMode === 'postsocial') {
           // Quattro "punti" (in PIXEL REALI dell'immagine finale, non dello schermo) che
-          // definiscono i bordi della casella di testo — cambia solo questi 5 numeri.
-          const TESTO_SX_REALE = 62
-const TESTO_DX_REALE = 1056  // oppure: dimensions.width - 62
-const TESTO_ALTO_REALE = 820
-const TESTO_BASSO_REALE = 1225
-          const SPAZIATURA_RIGHE_PX = 7   // px reali fissi extra tra una riga e l'altra
+          // definiscono i bordi della casella di testo — presi dalla configurazione
+          // TESTO_POSIZIONE_PER_GRAFICA in base alla grafica attualmente selezionata, con
+          // fallback su "default" se questa grafica non ha ancora una voce dedicata.
+          const posCfg = TESTO_POSIZIONE_PER_GRAFICA[selectedOverlay] || TESTO_POSIZIONE_PER_GRAFICA.default
+          const TESTO_SX_REALE = posCfg.sx
+const TESTO_DX_REALE = posCfg.dx  // oppure: dimensions.width - posCfg.sx
+const TESTO_ALTO_REALE = posCfg.alto
+const TESTO_BASSO_REALE = posCfg.basso
+          const SPAZIATURA_RIGHE_PX = posCfg.spaziaturaRighe   // px reali fissi extra tra una riga e l'altra
 
           const TESTO_LARGHEZZA_REALE = TESTO_DX_REALE - TESTO_SX_REALE
           const TESTO_ALTEZZA_REALE = TESTO_BASSO_REALE - TESTO_ALTO_REALE
@@ -885,7 +927,7 @@ const TESTO_BASSO_REALE = 1225
           ctx.drawImage(logoImg, lX, lY, lW, lH)
         }
 
-        const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
+        const ext = exportFormat === 'image/webp' ? 'webp' : (exportFormat === 'image/png' ? 'png' : 'jpg')
         const fileName = conLogo ? `Foto con logo_${counterWithLogo}.${ext}` : `Foto senza logo_${counterWithoutLogo}.${ext}`
 
         const exportWithDpi = async () => {
@@ -1056,7 +1098,7 @@ const TESTO_BASSO_REALE = 1225
         ctx.drawImage(logoImg, lX, lY, lW, lH)
       }
       
-      const ext = exportFormat === 'image/webp' ? 'webp' : 'jpg'
+      const ext = exportFormat === 'image/webp' ? 'webp' : (exportFormat === 'image/png' ? 'png' : 'jpg')
       // Nome file richiesto
       const fileName = conLogo ? `Foto con logo_${counterWithLogo}.${ext}` : `Foto senza logo_${counterWithoutLogo}.${ext}`
       
@@ -1416,8 +1458,14 @@ const TESTO_BASSO_REALE = 1225
                     <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px' }}>LARGHEZZA (PX)</label>
                     <input
                       value={novoW}
-                      onChange={(e) => setNovoW(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        if (val === '') { setNovoW(''); return }
+                        const n = parseInt(val, 10)
+                        setNovoW(Number.isNaN(n) ? '' : Math.max(0, n)) // mai negativo
+                      }}
                       type="number"
+                      min="1"
                       style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', boxSizing: 'border-box' }}
                     />
                   </div>
@@ -1425,8 +1473,14 @@ const TESTO_BASSO_REALE = 1225
                     <label style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', display: 'block', marginBottom: '8px' }}>ALTEZZA (PX)</label>
                     <input
                       value={novoH}
-                      onChange={(e) => setNovoH(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        if (val === '') { setNovoH(''); return }
+                        const n = parseInt(val, 10)
+                        setNovoH(Number.isNaN(n) ? '' : Math.max(0, n)) // mai negativo
+                      }}
                       type="number"
+                      min="1"
                       style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid #e5e5ea', boxSizing: 'border-box' }}
                     />
                   </div>
@@ -1821,6 +1875,7 @@ const TESTO_BASSO_REALE = 1225
                     <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} style={{ padding: '12px', borderRadius: '14px', border: '1px solid #d1d1d6', fontWeight: '800', background: '#fff', height: '45px' }}>
                       <option value="image/webp">WEBP</option>
                       <option value="image/jpeg">JPEG</option>
+                      <option value="image/png">PNG</option>
                     </select>
                     <StyledButton variant={conLogo ? 'success' : 'secondary'} onClick={() => setConLogo(!conLogo)}>➕ Logo</StyledButton>
                     <StyledButton variant="primary" onClick={handleSave} disabled={isSaving}>{isSaving ? '⏳...' : 'Salva'}</StyledButton>
@@ -1947,6 +2002,7 @@ const TESTO_BASSO_REALE = 1225
                         <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} title="Formato file" style={{ padding: '8px', borderRadius: '10px', border: 'none', background: '#f2f2f7', fontWeight: '700', fontSize: '11px', width: '100%', marginBottom: '4px' }}>
                           <option value="image/webp">WEBP</option>
                           <option value="image/jpeg">JPEG</option>
+                      <option value="image/png">PNG</option>
                         </select>
                         <div style={{ height: '1px', background: '#f2f2f2', margin: '2px 4px 6px' }} />
 
@@ -2398,6 +2454,13 @@ const TESTO_BASSO_REALE = 1225
                   visibile subito, come nella toolbar mobile di Canva). */}
                   {isMobile && (
                     <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                      {/* Punto di atterraggio FISSO per la barra colori/sottolineato quando si
+                      modifica un testo — sempre qui, sempre visibile per intero, mai più
+                      "attaccata" alla casella (dove poteva uscire dal bordo dello schermo). */}
+                      {projectMode === 'postsocial' && (
+                        <div id="fwm-text-mobile-portal" style={{ width: '100%' }} />
+                      )}
+
                       <button
                         onClick={handleSave}
                         disabled={isSaving}
@@ -2418,6 +2481,7 @@ const TESTO_BASSO_REALE = 1225
                         <select value={exportFormat} onChange={(e) => setExportFormat(e.target.value)} title="Formato file" style={{ padding: '12px 14px', borderRadius: '14px', border: 'none', background: '#f2f2f7', fontWeight: '700', fontSize: '14px' }}>
                           <option value="image/webp">WEBP</option>
                           <option value="image/jpeg">JPEG</option>
+                      <option value="image/png">PNG</option>
                         </select>
 
                         {projectMode === 'postsocial' && OVERLAY_GRAPHICS.length > 0 && (
