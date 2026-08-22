@@ -412,7 +412,7 @@ export function createTextBox(overrides = {}) {
     underline: false,
     spans: [], // formattazione (colore/sottolineato) su porzioni specifiche di testo
     lineGapPx: null, // px REALI fissi extra tra le righe; null = usa il rapporto automatico (DEFAULT_LINE_HEIGHT_RATIO)
-    locked: false, // se true: la casella non si sposta né si ridimensiona (come il lucchetto di Canva)
+    locked: false, // se true: la casella non si sposta né si ridimensiona (come il lucchetto di Canva) — di default sbloccata; la casella automatica del progetto passa locked:true esplicitamente
     ...overrides
   }
 }
