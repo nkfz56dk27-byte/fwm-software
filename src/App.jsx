@@ -1477,17 +1477,18 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
     const gare = [...gp.gare];
     // Prepara risultati con flag DNS/DNF/DSQ
     const risultatiConFlag = {};
-    Object.keys(risultati).forEach(key => {
+        Object.keys(risultati).forEach(key => {
       if (key.endsWith('_flag')) return;
       const pilotaId = key;
       const flag = risultati[`${pilotaId}_flag`] || '';
       const posizione = risultati[pilotaId];
+      const teamAlMomento = classifica.piloti.find(p => String(p.id) === String(pilotaId))?.team;
       if (flag && posizione) {
-        risultatiConFlag[pilotaId] = { posizione, flag };
+        risultatiConFlag[pilotaId] = { posizione, flag, team: teamAlMomento };
       } else if (flag) {
-        risultatiConFlag[pilotaId] = { flag };
+        risultatiConFlag[pilotaId] = { flag, team: teamAlMomento };
       } else if (posizione) {
-        risultatiConFlag[pilotaId] = { posizione };
+        risultatiConFlag[pilotaId] = { posizione, team: teamAlMomento };
       }
     });
     gare[garaCorrente] = {
@@ -1538,7 +1539,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
             punti += classifica.giro_veloce_valore || 1;
           }
           pilota.punti = (pilota.punti || 0) + punti;
-          const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team);
+                    const teamAlMomento = info.team || pilota.team;
+          const costruttore = nuoviCostruttori.find(c => c.nome === teamAlMomento);
           if (costruttore) {
             costruttore.punti = (costruttore.punti || 0) + punti;
           }
@@ -1604,15 +1606,16 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
   const garaAccorciata = () => {
     const gare = [...gp.gare]
     // Prepara risultati con flag DNS/DNF/DSQ come in salvaRisultatiGara
-    const risultatiConFlag = {};
+        const risultatiConFlag = {};
     Object.keys(risultati).forEach(key => {
       if (key.endsWith('_flag')) return;
       const pilotaId = key;
       const flag = risultati[`${pilotaId}_flag`] || '';
+      const teamAlMomento = classifica.piloti.find(p => String(p.id) === String(pilotaId))?.team;
       if (flag) {
-        risultatiConFlag[pilotaId] = { flag };
+        risultatiConFlag[pilotaId] = { flag, team: teamAlMomento };
       } else if (risultati[pilotaId]) {
-        risultatiConFlag[pilotaId] = { posizione: risultati[pilotaId] };
+        risultatiConFlag[pilotaId] = { posizione: risultati[pilotaId], team: teamAlMomento };
       }
     });
     gare[garaCorrente] = {
@@ -1657,7 +1660,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
             punti += classifica.giro_veloce_valore || 1;
           }
           pilota.punti = (pilota.punti || 0) + punti;
-          const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team);
+                    const teamAlMomento = info.team || pilota.team;
+          const costruttore = nuoviCostruttori.find(c => c.nome === teamAlMomento);
           if (costruttore) {
             costruttore.punti = (costruttore.punti || 0) + punti;
           }
@@ -2264,7 +2268,8 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
               punti += classificaAggiornata.giro_veloce_valore || 1
             }
             pilota.punti = (pilota.punti || 0) + punti
-            const costruttore = nuoviCostruttori.find(c => c.nome === pilota.team)
+                      const teamAlMomento = info.team || pilota.team;
+          const costruttore = nuoviCostruttori.find(c => c.nome === teamAlMomento);
             if (costruttore) {
               costruttore.punti = (costruttore.punti || 0) + punti
               if (classificaAggiornata.motoristi_attivo) {
@@ -2498,15 +2503,17 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         </button>
       ))}
     </div>
-    <button
-      onClick={ricalcolaTuttiIPunti}
-      disabled={ricalcolando}
-      style={{ marginTop: '14px', width: '100%', padding: '14px', background: '#FF9500', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: ricalcolando ? 'default' : 'pointer', opacity: ricalcolando ? 0.6 : 1 }}
-    >
-      {ricalcolando ? '⏳ Ricalcolo in corso...' : '🔄 Ricalcola tutti i punti (dopo un cambio di regola)'}
-    </button>
   </div>
 )}
+<div style={{ marginBottom: '30px' }}>
+  <button
+    onClick={ricalcolaTuttiIPunti}
+    disabled={ricalcolando}
+    style={{ width: '100%', padding: '14px', background: '#FF9500', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: ricalcolando ? 'default' : 'pointer', opacity: ricalcolando ? 0.6 : 1 }}
+  >
+    {ricalcolando ? '⏳ Ricalcolo in corso...' : '🔄 Ricalcola tutti i punti (dopo un cambio di regola o di team dei piloti)'}
+  </button>
+</div>
 {classifica.nome !== 'Formula 1' && classifica.nome !== 'Formula E' && (dati.tipo_spareggio || 'nessuno') === 'f2f3' && (
   <div style={{ marginBottom: '30px' }}>
     <label style={{ display: 'block', marginBottom: '12px', fontWeight: '600' }}>Formato punti Sprint Race</label>
@@ -2859,7 +2866,7 @@ function CambiaPilotaView({ classifica, onClose, onSave }) {
   )
 
   return (
-    <div style={{ padding: '40px', maxWidth: '640px', margin: '0 auto', background: '#f5f5f7', borderRadius: '20px' }}>
+    <div style={{ padding: '40px', maxWidth: '640px', margin: '0 auto', background: '#f5f5f7', borderRadius: '20px', maxHeight: '90vh', overflowY: 'auto' }}>
       <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Indietro</button>
       <h1 style={{ fontSize: '28px', marginBottom: '25px' }}>Cambia Pilota</h1>
 
