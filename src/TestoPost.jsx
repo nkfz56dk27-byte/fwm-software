@@ -51,7 +51,7 @@ export const LETTER_SPACING_RATIO = 19 / 1000
 // casella). Metti a "true" per riattivarlo — tutto il resto del codice resta invariato.
 const SHOW_POSITION_BUTTON = true
 // Interlinea richiesta, anch'essa verificata sullo stesso pannello Canva ("Spaziatura righe: 1.2").
-export const DEFAULT_LINE_HEIGHT_RATIO = 0.9
+export const DEFAULT_LINE_HEIGHT_RATIO = 0.8
 
 // Spezza un singolo blocco di testo (senza a-capo manuali al suo interno) in righe che
 // stanno dentro maxWidth, ad una data dimensione font (wrap "greedy").
