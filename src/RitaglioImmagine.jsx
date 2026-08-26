@@ -39,7 +39,7 @@ const OVERLAY_GRAPHICS = Object.entries(overlayModules)
 // "default" è la posizione usata quando una grafica non ha una voce dedicata.
 const TESTO_POSIZIONE_PER_GRAFICA = {
   default: { sx: 62, dx: 1056, alto: 820, basso: 1225, spaziaturaRighe: 7 },
-  'BREAKING NEWS.jpg': { sx: 62, dx: 1041, alto: 931, basso: 1267, spaziaturaRighe: 7 },
+  'BREAKING NEWS.svg': { sx: 62, dx: 1041, alto: 931, basso: 1267, spaziaturaRighe: 7 },
   // esempio — aggiungi una riga così per ogni grafica:
   // 'nome-file-grafica': { sx: 40, dx: 900, alto: 700, basso: 1100, spaziaturaRighe: 7 },
 }
@@ -484,7 +484,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
         y: posCfg.alto * s,
         width: Math.max(60, larghezza * s),
         height: Math.max(30, altezza * s),
-        lineGapPx: posCfg.spaziaturaRighe
+        lineGapPx: posCfg.spaziaturaRighe * s
       }])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -579,7 +579,7 @@ const TESTO_BASSO_REALE = posCfg.basso
             y: TESTO_ALTO_REALE * displayScale,
             width: Math.max(60, TESTO_LARGHEZZA_REALE * displayScale),
             height: Math.max(30, TESTO_ALTEZZA_REALE * displayScale),
-            lineGapPx: SPAZIATURA_RIGHE_PX,
+            lineGapPx: SPAZIATURA_RIGHE_PX * displayScale,
             locked: true // la casella di default è già bloccata all'apertura del progetto
           })])
         } else {
