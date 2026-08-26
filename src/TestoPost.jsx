@@ -267,18 +267,24 @@ export function fitText(text, {
     return { lines: [], totalHeight: 0, lineHeightRatio, baseFontSize: minFontSize }
   }
 
-  const attachAndReturn = (rawLines) => {
+  const attachAndReturn = (rawLines, refSize) => {
     const withOffsets = attachOffsets(text, rawLines.map((l) => l.text))
     const merged = rawLines.map((l, i) => ({ ...l, startOffset: withOffsets[i].startOffset, endOffset: withOffsets[i].endOffset }))
-    const totalHeight = merged.reduce((sum, l) => sum + l.fontSize * lineHeightRatio + extraLineGap, 0)
-    return { lines: merged, totalHeight, lineHeightRatio, extraLineGap, baseFontSize: merged[0]?.fontSize || minFontSize }
+    // L'altezza di riga usata per lo SPAZIO VERTICALE si basa su "refSize" (una dimensione
+    // UNIFORME, uguale per ogni riga) e NON sulla dimensione effettiva/stirata di ciascuna riga
+    // (che può differire da riga a riga per via dello stiramento orizzontale a piena larghezza).
+    // Così tutte le righe hanno sempre la STESSA distanza tra loro, anche se una riga corta viene
+    // ingrandita di più delle altre per riempire la larghezza della casella.
+    const rowHeight = refSize * lineHeightRatio + extraLineGap
+    const totalHeight = merged.length * rowHeight
+    return { lines: merged, totalHeight, lineHeightRatio, extraLineGap, rowFontSize: refSize, baseFontSize: merged[0]?.fontSize || minFontSize }
   }
 
   // Se è impostata una dimensione manuale, la usa direttamente e uniforme su tutte le righe.
   if (manualFontSize && manualFontSize > 0) {
     const size = Math.min(maxFontSize, Math.max(minFontSize, manualFontSize))
     const rawLines = computeStructure(ctx, text, size, fontWeight, fontFamily, maxWidth, letterSpacingRatio).map((line) => ({ text: line, fontSize: size }))
-    return attachAndReturn(rawLines)
+    return attachAndReturn(rawLines, size)
   }
 
   // Scansiona tutte le dimensioni possibili e tiene quella che, dopo lo stiramento, riempie
@@ -287,12 +293,17 @@ export function fitText(text, {
   // scansione moltiplicherebbe il costo per centinaia di volte (era la causa dei blocchi di
   // diversi secondi quando si incollava testo lungo). Il bilanciamento "carino" delle righe si
   // applica una sola volta, alla fine, sulla dimensione già scelta.
+  // L'altezza totale usata per il confronto è quella basata sulla dimensione UNIFORME "size"
+  // (righe*rowHeight), NON la somma delle dimensioni post-stiramento di ogni riga: altrimenti lo
+  // stiramento orizzontale di una riga corta gonfiava anche la sua altezza "conteggiata",
+  // facendo scegliere una dimensione più piccola del necessario e/o rendendo l'altezza stimata
+  // incoerente con la spaziatura verticale realmente disegnata (ora sempre uniforme).
   let bestSize = null
   let bestTotalHeight = -1
   const step = Math.max(1, (maxFontSize - minFontSize) / 300)
   for (let size = minFontSize; size <= maxFontSize; size += step) {
-    const stretched = computeStretchedAtSizeFast(ctx, text, size, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
-    const totalH = stretched.reduce((sum, l) => sum + l.fontSize * lineHeightRatio + extraLineGap, 0)
+    const numLines = computeStructureFast(ctx, text, size, fontWeight, fontFamily, maxWidth, letterSpacingRatio).length
+    const totalH = numLines * (size * lineHeightRatio + extraLineGap)
     if (totalH <= maxHeight && totalH > bestTotalHeight) {
       bestSize = size
       bestTotalHeight = totalH
@@ -302,15 +313,16 @@ export function fitText(text, {
   if (bestSize === null) {
     // Caso estremo: nessuna dimensione testata rientra nell'altezza disponibile.
     const minLines = computeStretchedAtSize(ctx, text, minFontSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
-    const minTotal = minLines.reduce((sum, l) => sum + l.fontSize * lineHeightRatio + extraLineGap, 0)
+    const minRowHeight = minFontSize * lineHeightRatio + extraLineGap
+    const minTotal = minLines.length * minRowHeight
     const shrink = minTotal > 0 ? Math.min(1, maxHeight / minTotal) : 1
     const safeLines = minLines.map((l) => ({ text: l.text, fontSize: Math.max(1, l.fontSize * shrink) }))
-    return attachAndReturn(safeLines)
+    return attachAndReturn(safeLines, Math.max(1, minFontSize * shrink))
   }
 
   // Ricalcolo finale con lo STESSO metodo (veloce) usato durante la scansione.
   const finalLines = computeStretchedAtSizeFast(ctx, text, bestSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
-  return attachAndReturn(finalLines)
+  return attachAndReturn(finalLines, bestSize)
 }
 
 // Disegna un box di testo direttamente su un canvas 2D (per l'export ad alta risoluzione),
@@ -334,7 +346,7 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
   // Gli span sono offset di CARATTERI (indipendenti dalla scala), non serve riscalarli.
   const spans = box.spans || []
 
-  const { lines, lineHeightRatio, extraLineGap } = fitText(box.text, {
+  const { lines, lineHeightRatio, extraLineGap, rowFontSize } = fitText(box.text, {
     maxWidth: realWidth,
     minFontSize: realMinFont,
     maxFontSize: realMaxFont,
@@ -358,13 +370,16 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
   ctx.textBaseline = 'top'
   ctx.textAlign = 'left' // gestiamo l'allineamento manualmente per poter disegnare run multipli
 
+  // L'avanzamento verticale (spazio tra una riga e l'altra) usa SEMPRE rowFontSize — una
+  // dimensione UNIFORME uguale per tutte le righe — e NON la dimensione stirata di ciascuna
+  // riga: altrimenti una riga corta stirata più delle altre (per riempire tutta la larghezza)
+  // finiva anche per "occupare" più spazio verticale, rendendo il distacco alla riga successiva
+  // visibilmente diverso dagli altri.
+  const lineHeight = rowFontSize * lineHeightRatio + extraLineGap
   let cursorY = realY
   lines.forEach((line) => {
     ctx.font = `700 ${line.fontSize}px Roboto, sans-serif`
-    // La spaziatura si ricalcola qui in base alla dimensione REALE di QUESTA riga (che può
-    // differire tra le righe con l'auto-adattamento) — proporzionale, non un valore fisso.
     // ctx.letterSpacing = `${line.fontSize * LETTER_SPACING_RATIO}px` // DISATTIVATA per test
-    const lineHeight = line.fontSize * lineHeightRatio + extraLineGap
     const runs = splitLineIntoRuns(line.text, line.startOffset, spans, box.color, box.underline)
 
     // DEBUG: misura la larghezza REALE della riga a questa dimensione, per confrontarla con
