@@ -343,7 +343,10 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
     maxHeight: realHeight,
     manualFontSize: box.manualFontSize ? box.manualFontSize / scale : null,
     letterSpacingRatio: LETTER_SPACING_RATIO,
-    extraLineGap: box.lineGapPx || 0 // già in px REALI, nessuna conversione di scala necessaria
+    // Come width/height/minFontSize: box.lineGapPx è salvato in px SCHERMO, va diviso per
+    // scale per ottenere il valore in px REALI (coerente in export e in anteprima, dove
+    // questa stessa funzione viene chiamata con scale=1).
+    extraLineGap: (box.lineGapPx || 0) / scale
   })
 
   ctx.save()
@@ -411,7 +414,7 @@ export function createTextBox(overrides = {}) {
     manualFontSize: null, // null = automatico; un numero = dimensione scelta a mano
     underline: false,
     spans: [], // formattazione (colore/sottolineato) su porzioni specifiche di testo
-    lineGapPx: null, // px REALI fissi extra tra le righe; null = usa il rapporto automatico (DEFAULT_LINE_HEIGHT_RATIO)
+    lineGapPx: null, // px SCHERMO extra tra le righe (stessa convenzione di x/y/width/height); null = usa il rapporto automatico (DEFAULT_LINE_HEIGHT_RATIO)
     locked: false, // se true: la casella non si sposta né si ridimensiona (come il lucchetto di Canva) — di default sbloccata; la casella automatica del progetto passa locked:true esplicitamente
     ...overrides
   }
@@ -423,8 +426,8 @@ export function createTextBox(overrides = {}) {
 
 const COLOR_SWATCHES = [
   { value: '#FFFFFF', label: 'Bianco' },
-  { value: '#39C7F2', label: 'Azzurro' },
-  { value: '#FF3B30', label: 'Rosso' }
+  { value: '#01a9ce', label: 'Azzurro' },
+  { value: '#fe0001', label: 'Rosso' }
 ]
 
 // Disegna l'anteprima della casella usando la STESSA IDENTICA funzione (drawTextBoxOnCanvas)
@@ -466,6 +469,51 @@ function TextBoxCanvasPreview({ box, boxHeight }) {
   )
 }
 
+// Campo numerico editabile usato nel popup "📍 Posizione" (mostra px REALI e converte da/verso
+// i px del canvas moltiplicando/dividendo per displayScale quando l'utente scrive un valore).
+// DEVE stare a livello di modulo (fuori da qualunque funzione che si rieseguisce ad ogni render,
+// come l'IIFE del popup): definirlo lì dentro gli dava un'identità DIVERSA ad ogni render, quindi
+// React lo smontava e rimontava da zero ad ogni battitura, azzerando lo stato locale prima
+// ancora che l'utente potesse vedere il numero cambiare — sembrava che scrivere o usare le
+// freccette del campo non facesse assolutamente nulla.
+// Il testo digitato vive in uno stato LOCALE, sincronizzato dal valore ufficiale solo quando il
+// campo NON ha il focus — altrimenti, siccome il valore ufficiale passa per un arrotondamento
+// reale<->schermo, ogni tentativo di scrivere veniva subito "corretto" e spesso riportato a un
+// altro numero prima ancora di poter scrivere la cifra successiva.
+function PositionField({ label, value, onCommit }) {
+  const [local, setLocal] = useState(String(value))
+  const focusedRef = useRef(false)
+  useEffect(() => {
+    if (!focusedRef.current) setLocal(String(value))
+  }, [value])
+  return (
+    <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
+      <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+        <input
+          type="number"
+          value={local}
+          onFocus={(e) => { focusedRef.current = true; e.target.select() }}
+          onBlur={() => { focusedRef.current = false; setLocal(String(value)) }}
+          onChange={(e) => {
+            const raw = e.target.value
+            setLocal(raw)
+            const v = raw === '' || raw === '-' ? 0 : Number(raw)
+            if (!Number.isNaN(v)) onCommit(v)
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur() }}
+          style={{
+            width: '70px', fontSize: '18px', fontWeight: '800', border: 'none',
+            background: 'transparent', padding: 0, outline: 'none', color: '#000',
+            fontFamily: 'inherit', MozAppearance: 'textfield'
+          }}
+        />
+        <span style={{ fontSize: '13px', fontWeight: '700', color: '#8e8e93' }}>px</span>
+      </div>
+    </div>
+  )
+}
+
 export default function TextOverlay({ containerWidth, containerHeight, textBoxes, onChange, isMobile = false, displayScale = 1, zoomLevel = 1, baseContainerWidth = null }) {
   const [activeId, setActiveId] = useState(null)
   const [showPositionInfo, setShowPositionInfo] = useState(null) // id della casella di cui mostrare la posizione, o null
@@ -474,6 +522,17 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
   const textareaRef = useRef(null) // riferimento alla textarea attualmente in modifica
   const lastTapRef = useRef({ id: null, time: 0 }) // per rilevare il doppio tap su mobile
   const [snapGuides, setSnapGuides] = useState({ v: null, h: null }) // linee guida smart (stile Canva) mostrate durante il trascinamento
+  // Trascinamento del MODALE "📍 Posizione in pixel reali" (solo desktop, dalla barra del
+  // titolo) — per poterlo spostare via dal canvas e vedere sia la foto che i numeri insieme,
+  // invece di doverlo chiudere per guardare dove sta andando a finire la casella di testo.
+  const [modalOffset, setModalOffset] = useState({ x: 0, y: 0 })
+  const modalDragStateRef = useRef(null)
+  // Riparte centrato ogni volta che si apre il popup per una NUOVA casella (o si riapre dopo
+  // averlo chiuso), invece di restare fermo nell'ultima posizione trascinata potenzialmente fuori
+  // vista.
+  useEffect(() => {
+    if (showPositionInfo) setModalOffset({ x: 0, y: 0 })
+  }, [showPositionInfo])
 
   // Clic fuori da qualunque casella (e fuori dal pannello strumenti a destra) = deseleziona,
   // così il bordo blu tratteggiato sparisce. I clic DENTRO una casella o sul pannello (che vive
@@ -518,7 +577,16 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           x: b.x * ratio,
           y: b.y * ratio,
           width: b.width * ratio,
-          height: (b.height || 120) * ratio
+          height: (b.height || 120) * ratio,
+          // Anche i parametri del TESTO vanno riscalati con lo stesso rapporto — altrimenti
+          // box e testo cambiano dimensione insieme ma la spaziatura/font-size restano fissi
+          // in pixel assoluti, e il rapporto tra i due cambia tra desktop e mobile (è la causa
+          // della spaziatura diversa segnalata: qualunque valore si imposta, deve apparire
+          // IDENTICO in proporzione su ogni dispositivo, non solo su quello dove è stato scelto).
+          minFontSize: b.minFontSize * ratio,
+          maxFontSize: b.maxFontSize * ratio,
+          manualFontSize: b.manualFontSize != null ? b.manualFontSize * ratio : b.manualFontSize,
+          lineGapPx: b.lineGapPx != null ? b.lineGapPx * ratio : b.lineGapPx
         })))
       }
     }
@@ -721,6 +789,38 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
       window.removeEventListener('touchend', stopDrag)
     }
   }, [textBoxes, containerWidth, containerHeight])
+
+  // Avvia il trascinamento del modale "Posizione" quando si tiene premuto sulla sua barra del
+  // titolo — SOLO su desktop (su mobile il modale resta centrato/a schermo intero, non c'è
+  // spazio utile per spostarlo e trascinarlo interferirebbe con lo scroll a dito).
+  const startModalDrag = (e) => {
+    if (isMobile) return
+    // Non avviare il trascinamento se si è premuto sul pulsante "✕" di chiusura.
+    if (e.target.closest && e.target.closest('button')) return
+    e.preventDefault()
+    modalDragStateRef.current = {
+      startX: e.clientX, startY: e.clientY,
+      startOffsetX: modalOffset.x, startOffsetY: modalOffset.y
+    }
+  }
+
+  useEffect(() => {
+    const handleModalMove = (e) => {
+      const ds = modalDragStateRef.current
+      if (!ds) return
+      setModalOffset({
+        x: ds.startOffsetX + (e.clientX - ds.startX),
+        y: ds.startOffsetY + (e.clientY - ds.startY)
+      })
+    }
+    const stopModalDrag = () => { modalDragStateRef.current = null }
+    window.addEventListener('mousemove', handleModalMove)
+    window.addEventListener('mouseup', stopModalDrag)
+    return () => {
+      window.removeEventListener('mousemove', handleModalMove)
+      window.removeEventListener('mouseup', stopModalDrag)
+    }
+  }, [])
 
   // Barra di formattazione mostrata SOPRA la textarea mentre si scrive/modifica: seleziona
   // del testo e clicca un colore o "S" per formattare solo quella porzione; senza selezione,
@@ -973,7 +1073,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           maxHeight: boxHeight,
           manualFontSize: box.manualFontSize,
           letterSpacingRatio: LETTER_SPACING_RATIO,
-          extraLineGap: (box.lineGapPx || 0) * displayScale
+          extraLineGap: box.lineGapPx || 0
         })
         const isActive = activeId === box.id
         const isEditing = editingId === box.id
@@ -1102,7 +1202,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                               const runs = splitLineIntoRuns(line.text, line.startOffset, box.spans, box.color, box.underline)
                               const previewScale = Math.min(1, 28 / (line.fontSize || 28))
                               return (
-                                <div key={i} style={{ fontSize: `${(line.fontSize || 16) * previewScale}px`, letterSpacing: `${(line.fontSize || 16) * previewScale * LETTER_SPACING_RATIO}px`, lineHeight: `${(line.fontSize || 16) * previewScale * DEFAULT_LINE_HEIGHT_RATIO + (box.lineGapPx || 0) * displayScale * previewScale}px`, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                                <div key={i} style={{ fontSize: `${(line.fontSize || 16) * previewScale}px`, letterSpacing: `${(line.fontSize || 16) * previewScale * LETTER_SPACING_RATIO}px`, lineHeight: `${(line.fontSize || 16) * previewScale * DEFAULT_LINE_HEIGHT_RATIO + (box.lineGapPx || 0) * previewScale}px`, whiteSpace: 'normal', wordBreak: 'break-word' }}>
                                   {runs.map((run, ri) => (
                                     <span key={ri} style={{ color: run.color, textDecoration: run.underline ? 'underline' : 'none' }}>
                                       {run.text}
@@ -1261,37 +1361,58 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
             onClick={() => setShowPositionInfo(null)}
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
           >
-            <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: '16px', padding: '20px', maxWidth: '380px', width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: '#fff', borderRadius: '16px', padding: '20px', maxWidth: '380px', width: '100%',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+                transform: (!isMobile && (modalOffset.x || modalOffset.y)) ? `translate(${modalOffset.x}px, ${modalOffset.y}px)` : 'none'
+              }}
+            >
+              <div
+                onMouseDown={startModalDrag}
+                style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px',
+                  cursor: isMobile ? 'default' : 'grab', userSelect: 'none'
+                }}
+              >
                 <h3 style={{ margin: 0, fontSize: '16px' }}>📍 Posizione in pixel reali</h3>
                 <button onClick={() => setShowPositionInfo(null)} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
-                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
-                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>X (sinistra)</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{x}px</div>
+              {(
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
+                  <PositionField
+                    label="X (sinistra)"
+                    value={x}
+                    onCommit={(v) => updateBox(box.id, { x: Math.round(v * s) })}
+                  />
+                  <PositionField
+                    label="Y (alto)"
+                    value={y}
+                    onCommit={(v) => updateBox(box.id, { y: Math.round(v * s) })}
+                  />
+                  <PositionField
+                    label="Larghezza"
+                    value={w}
+                    onCommit={(v) => updateBox(box.id, { width: Math.round(v * s) })}
+                  />
+                  <PositionField
+                    label="Altezza"
+                    value={h}
+                    onCommit={(v) => updateBox(box.id, { height: Math.round(v * s) })}
+                  />
+                  <PositionField
+                    label="Bordo destro"
+                    value={x + w}
+                    onCommit={(v) => updateBox(box.id, { width: Math.round((v - x) * s) })}
+                  />
+                  <PositionField
+                    label="Bordo inferiore"
+                    value={y + h}
+                    onCommit={(v) => updateBox(box.id, { height: Math.round((v - y) * s) })}
+                  />
                 </div>
-                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
-                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Y (alto)</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{y}px</div>
-                </div>
-                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
-                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Larghezza</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{w}px</div>
-                </div>
-                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
-                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Altezza</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{h}px</div>
-                </div>
-                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
-                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Bordo destro</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{x + w}px</div>
-                </div>
-                <div style={{ background: '#f2f2f7', borderRadius: '10px', padding: '10px' }}>
-                  <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Bordo inferiore</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800' }}>{y + h}px</div>
-                </div>
-              </div>
+              )}
               <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700', marginBottom: '4px' }}>Pronto da incollare in RitaglioImmagine.jsx:</div>
               <textarea
                 readOnly
