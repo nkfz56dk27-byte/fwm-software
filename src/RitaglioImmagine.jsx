@@ -484,7 +484,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
         y: posCfg.alto * s,
         width: Math.max(60, larghezza * s),
         height: Math.max(30, altezza * s),
-        lineGapPx: posCfg.spaziaturaRighe * s
+        lineGaps: Array(8).fill(posCfg.spaziaturaRighe * s)
       }])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -579,7 +579,7 @@ const TESTO_BASSO_REALE = posCfg.basso
             y: TESTO_ALTO_REALE * displayScale,
             width: Math.max(60, TESTO_LARGHEZZA_REALE * displayScale),
             height: Math.max(30, TESTO_ALTEZZA_REALE * displayScale),
-            lineGapPx: SPAZIATURA_RIGHE_PX * displayScale,
+            lineGaps: Array(8).fill(SPAZIATURA_RIGHE_PX * displayScale),
             locked: true // la casella di default è già bloccata all'apertura del progetto
           })])
         } else {
