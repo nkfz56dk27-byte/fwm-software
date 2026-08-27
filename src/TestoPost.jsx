@@ -30,11 +30,65 @@ if (typeof document !== 'undefined' && document.fonts) {
   document.fonts.ready.then(() => { _robotoReady = true })
 }
 
+// Hook React che restituisce true solo quando Roboto è DAVVERO pronto — e fa RI-RENDERIZZARE
+// il componente che lo usa nel momento esatto in cui lo diventa. Prima, _robotoReady veniva
+// impostata ma nessun componente React la "osservava": se il primissimo disegno avveniva prima
+// che Roboto fosse caricato (misurando quindi con un font di riserva più stretto), quella misura
+// sbagliata restava congelata per sempre — anche dopo che Roboto diventava disponibile, perché
+// nulla innescava un nuovo disegno. Questo hook chiude quel buco.
+function useRobotoReady() {
+  const [ready, setReady] = useState(_robotoReady)
+  useEffect(() => {
+    if (ready) return
+    let cancelled = false
+    const markReady = () => { if (!cancelled) setReady(true) }
+    if (typeof document !== 'undefined' && document.fonts) {
+      Promise.all([
+        document.fonts.load('700 16px Roboto'),
+        document.fonts.load('900 16px Roboto')
+      ]).then(markReady)
+      document.fonts.ready.then(markReady)
+    }
+    return () => { cancelled = true }
+  }, [ready])
+  return ready
+}
+
 function getMeasureCtx() {
   if (!_measureCanvas) {
     _measureCanvas = document.createElement('canvas')
   }
   return _measureCanvas.getContext('2d')
+}
+
+// Misura la larghezza di un testo con spaziatura tra lettere GESTITA A MANO (somma delle
+// larghezze dei singoli caratteri + uno spazio fisso tra ognuno), invece di affidarsi alla
+// proprietà nativa ctx.letterSpacing del browser. Necessario perché in alcuni browser
+// ctx.letterSpacing può essere applicata in modo leggermente diverso tra measureText e
+// fillText — un conto quando si MISURA, un altro quando si DISEGNA — quindi qualunque
+// ricalibrazione basata sulla stessa misurazione nativa eredita lo stesso scarto e non risolve
+// mai davvero il problema. Misurando e disegnando SEMPRE con questo stesso identico algoritmo,
+// il risultato combacia sempre esattamente, perché siamo noi (non il browser) a decidere dove
+// va ogni carattere.
+function measureTextWithSpacing(ctx, text, letterSpacingPx) {
+  if (!text) return 0
+  let width = 0
+  for (const ch of text) {
+    width += ctx.measureText(ch).width
+  }
+  if (text.length > 1) width += (Array.from(text).length - 1) * letterSpacingPx
+  return width
+}
+
+// Disegna un testo con la stessa spaziatura manuale usata da measureTextWithSpacing, carattere
+// per carattere. Restituisce la larghezza totale effettivamente disegnata.
+function fillTextWithSpacing(ctx, text, x, y, letterSpacingPx) {
+  let cursorX = x
+  for (const ch of text) {
+    ctx.fillText(ch, cursorX, y)
+    cursorX += ctx.measureText(ch).width + letterSpacingPx
+  }
+  return cursorX - x
 }
 
 // Spaziatura tra lettere richiesta: fissa, sempre uguale, non regolabile dall'utente.
@@ -52,18 +106,23 @@ export const LETTER_SPACING_RATIO = 19 / 1000
 const SHOW_POSITION_BUTTON = true
 // Interlinea richiesta, anch'essa verificata sullo stesso pannello Canva ("Spaziatura righe: 1.2").
 export const DEFAULT_LINE_HEIGHT_RATIO = 0.8
+// Rapporto "incollato": usato SOLO quando l'interlinea è impostata manualmente, come base da cui
+// il campo "Interlinea" parte a 0 (righe che si toccano). Più basso di DEFAULT_LINE_HEIGHT_RATIO
+// perché quello include già una spaziatura "leggibile" di default, mentre qui 0 deve voler dire
+// letteralmente incollato — poi ogni px scritto nel campo si aggiunge SOLO da qui in su.
+export const TIGHT_LINE_HEIGHT_RATIO = 0.62
 
 // Spezza un singolo blocco di testo (senza a-capo manuali al suo interno) in righe che
 // stanno dentro maxWidth, ad una data dimensione font (wrap "greedy").
 function wrapAtSize(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, letterSpacingRatio = 0) {
   ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
-  ctx.letterSpacing = `${fontSize * letterSpacingRatio}px`
+  const letterSpacingPx = fontSize * letterSpacingRatio
   const words = text.split(/\s+/).filter(Boolean)
   const lines = []
   let current = ''
   for (const word of words) {
     const candidate = current ? `${current} ${word}` : word
-    if (current && ctx.measureText(candidate).width > maxWidth) {
+    if (current && measureTextWithSpacing(ctx, candidate, letterSpacingPx) > maxWidth) {
       lines.push(current)
       current = word
     } else {
@@ -81,10 +140,10 @@ function wrapBalanced(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, let
   const targetLineCount = greedyLines.length
 
   ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
-  ctx.letterSpacing = `${fontSize * letterSpacingRatio}px`
+  const letterSpacingPx = fontSize * letterSpacingRatio
   const words = text.split(/\s+/).filter(Boolean)
   let longestWordWidth = 0
-  words.forEach((w) => { longestWordWidth = Math.max(longestWordWidth, ctx.measureText(w).width) })
+  words.forEach((w) => { longestWordWidth = Math.max(longestWordWidth, measureTextWithSpacing(ctx, w, letterSpacingPx)) })
 
   let lo = longestWordWidth
   let hi = maxWidth
@@ -132,36 +191,64 @@ function computeStructureFast(ctx, text, fontSize, fontWeight, fontFamily, maxWi
   return lines
 }
 
+// Dopo aver PREVISTO una dimensione stirata (in base a una misurazione fatta a una dimensione
+// diversa e proiettata linearmente), la rimisura DAVVERO a quella dimensione esatta — con la
+// spaziatura tra lettere corrispondente — e la corregge se il risultato non centra esattamente
+// il bordo. Serve perché la proiezione lineare (dimensione_base * scala) non è garantita essere
+// perfettamente esatta (arrotondamenti del motore di rendering, sub-pixel), quindi senza questa
+// rifinitura le righe potevano finire leggermente più strette del previsto e non toccare i bordi.
+function refineStretchToWidth(ctx, lineText, predictedSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio) {
+  // Se la dimensione prevista è già al limite min/max, resterebbe comunque clampata lì: non ha
+  // senso (e potrebbe essere fuorviante) provare a "correggerla" oltre quel limite.
+  if (predictedSize <= minFontSize || predictedSize >= maxFontSize) return predictedSize
+  ctx.font = `${fontWeight} ${predictedSize}px ${fontFamily}`
+  const actualW = measureTextWithSpacing(ctx, lineText, predictedSize * letterSpacingRatio) || 1
+  if (actualW <= 0) return predictedSize
+  const correctedSize = predictedSize * (maxWidth / actualW)
+  return Math.min(maxFontSize, Math.max(minFontSize, correctedSize))
+}
+
 // Calcola la struttura delle righe a una data dimensione di riferimento, poi stira SUBITO
 // ogni riga a piena larghezza. Restituisce le righe già stirate (senza offset).
 function computeStretchedAtSize(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio = 0) {
   const lines = computeStructure(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, letterSpacingRatio)
-  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
-  ctx.letterSpacing = `${fontSize * letterSpacingRatio}px`
   return lines.map((line) => {
     if (!line) return { text: '', fontSize }
-    const w = ctx.measureText(line).width || 1
+    // IMPORTANTE: ctx.font va reimpostato alla dimensione BASE qui, per OGNI riga — non basta
+    // farlo una volta sola prima del ciclo, perché refineStretchToWidth (chiamata più sotto)
+    // lascia ctx.font impostato sulla dimensione RIFINITA di questa riga. Senza reimpostarlo, la
+    // riga SUCCESSIVA erediterebbe quella dimensione sbagliata invece di ripartire dalla base,
+    // con un errore di misurazione che si accumula (e aggrava) riga dopo riga.
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
+    const w = measureTextWithSpacing(ctx, line, fontSize * letterSpacingRatio) || 1
     const scale = maxWidth / w
-    const size = Math.min(maxFontSize, Math.max(minFontSize, fontSize * scale))
+    const predictedSize = Math.min(maxFontSize, Math.max(minFontSize, fontSize * scale))
+    const size = refineStretchToWidth(ctx, line, predictedSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
     return { text: line, fontSize: size }
   })
 }
 
 // Come computeStretchedAtSize, ma usa la struttura VELOCE (senza bilanciamento) — pensata
 // per la scansione in fitText, dove viene chiamata fino a centinaia di volte.
-function computeStretchedAtSizeFast(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio = 0) {
+// "refine": se true (default) rimisura esattamente ogni riga per la massima precisione — costa
+// una misurazione canvas in più a riga. Durante la SCANSIONE (dove serve solo confrontare le
+// altezze tra tanti candidati, non un risultato pixel-perfect) va passato false, altrimenti il
+// costo si moltiplica per centinaia di iterazioni ed è quello che rendeva tutto lentissimo.
+function computeStretchedAtSizeFast(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio = 0, refine = true) {
   const lines = computeStructureFast(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, letterSpacingRatio)
-  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
-  ctx.letterSpacing = `${fontSize * letterSpacingRatio}px`
   return lines.map((line) => {
     if (!line) return { text: '', fontSize }
-    const w = ctx.measureText(line).width || 1
+    // Stesso motivo del commento in computeStretchedAtSize: reimposta SEMPRE la dimensione BASE
+    // prima di misurare questa riga, altrimenti eredita quella (rifinita) lasciata dalla riga
+    // precedente nel ciclo.
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
+    const w = measureTextWithSpacing(ctx, line, fontSize * letterSpacingRatio) || 1
     const scale = maxWidth / w
     const sizeGrezza = fontSize * scale
-    const size = Math.min(maxFontSize, Math.max(minFontSize, sizeGrezza))
-    if (Math.abs(size - sizeGrezza) > 0.5) {
-      console.log('DEBUG STRETCH - TETTO RAGGIUNTO su', JSON.stringify(line), '| volevo:', Math.round(sizeGrezza), '| limitato a:', Math.round(size), '| maxFontSize:', Math.round(maxFontSize), '| minFontSize:', Math.round(minFontSize))
-    }
+    const predictedSize = Math.min(maxFontSize, Math.max(minFontSize, sizeGrezza))
+    const size = refine
+      ? refineStretchToWidth(ctx, line, predictedSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
+      : predictedSize
     return { text: line, fontSize: size }
   })
 }
@@ -259,7 +346,10 @@ export function fitText(text, {
   maxHeight = Infinity,
   manualFontSize = null,
   letterSpacingRatio = 0,
-  extraLineGap = 0 // pixel FISSI aggiunti tra una riga e l'altra, sopra alla dimensione naturale
+  lineGaps = null // array opzionale: le giunzioni REALI impostate manualmente dall'utente (stessa
+  // unità di maxWidth/maxHeight). Se fornito, il font può CRESCERE oltre la dimensione "di
+  // sicurezza" quando queste giunzioni reali occupano MENO spazio del rapporto automatico
+  // roomy — mai farlo restringere: si prende sempre il maggiore tra le due dimensioni calcolate.
 }) {
   const ctx = getMeasureCtx()
 
@@ -270,14 +360,17 @@ export function fitText(text, {
   const attachAndReturn = (rawLines, refSize) => {
     const withOffsets = attachOffsets(text, rawLines.map((l) => l.text))
     const merged = rawLines.map((l, i) => ({ ...l, startOffset: withOffsets[i].startOffset, endOffset: withOffsets[i].endOffset }))
-    // L'altezza di riga usata per lo SPAZIO VERTICALE si basa su "refSize" (una dimensione
-    // UNIFORME, uguale per ogni riga) e NON sulla dimensione effettiva/stirata di ciascuna riga
-    // (che può differire da riga a riga per via dello stiramento orizzontale a piena larghezza).
-    // Così tutte le righe hanno sempre la STESSA distanza tra loro, anche se una riga corta viene
-    // ingrandita di più delle altre per riempire la larghezza della casella.
-    const rowHeight = refSize * lineHeightRatio + extraLineGap
+    // L'altezza di riga qui è usata SOLO per decidere quanto testo entra nella casella (durante
+    // la scansione della dimensione), NON per il disegno finale — quella (con l'eventuale
+    // interlinea manuale) la calcola separatamente drawTextBoxOnCanvas usando "rowFontSize".
+    // "refSize" è una dimensione UNIFORME, uguale per ogni riga — è il MASSIMO tra le dimensioni
+    // post-stiramento di tutte le righe — e NON la dimensione effettiva di ciascuna singola riga
+    // presa da sola. Così tutte le righe hanno sempre la STESSA distanza tra loro, ed essendo il
+    // massimo è sempre abbastanza alta da contenere anche la riga più stirata (nessuna
+    // sovrapposizione).
+    const rowHeight = refSize * lineHeightRatio
     const totalHeight = merged.length * rowHeight
-    return { lines: merged, totalHeight, lineHeightRatio, extraLineGap, rowFontSize: refSize, baseFontSize: merged[0]?.fontSize || minFontSize }
+    return { lines: merged, totalHeight, lineHeightRatio, rowFontSize: refSize, baseFontSize: merged[0]?.fontSize || minFontSize }
   }
 
   // Se è impostata una dimensione manuale, la usa direttamente e uniforme su tutte le righe.
@@ -293,36 +386,72 @@ export function fitText(text, {
   // scansione moltiplicherebbe il costo per centinaia di volte (era la causa dei blocchi di
   // diversi secondi quando si incollava testo lungo). Il bilanciamento "carino" delle righe si
   // applica una sola volta, alla fine, sulla dimensione già scelta.
-  // L'altezza totale usata per il confronto è quella basata sulla dimensione UNIFORME "size"
-  // (righe*rowHeight), NON la somma delle dimensioni post-stiramento di ogni riga: altrimenti lo
-  // stiramento orizzontale di una riga corta gonfiava anche la sua altezza "conteggiata",
-  // facendo scegliere una dimensione più piccola del necessario e/o rendendo l'altezza stimata
-  // incoerente con la spaziatura verticale realmente disegnata (ora sempre uniforme).
-  let bestSize = null
-  let bestTotalHeight = -1
-  const step = Math.max(1, (maxFontSize - minFontSize) / 300)
-  for (let size = minFontSize; size <= maxFontSize; size += step) {
-    const numLines = computeStructureFast(ctx, text, size, fontWeight, fontFamily, maxWidth, letterSpacingRatio).length
-    const totalH = numLines * (size * lineHeightRatio + extraLineGap)
-    if (totalH <= maxHeight && totalH > bestTotalHeight) {
-      bestSize = size
-      bestTotalHeight = totalH
+  // Prima scansione: SEMPRE con il rapporto automatico "roomy" (lineHeightRatio) — questa è la
+  // dimensione "di sicurezza", che NON dipende mai dall'interlinea manuale scelta dall'utente.
+  // L'altezza di riga usata per il confronto è quella della riga PIÙ GRANDE dopo lo stiramento
+  // (non la dimensione base pre-stiramento): usare la base pre-stiramento lasciava che una riga
+  // corta, stirata molto più delle altre per riempire la larghezza, finisse più alta della riga
+  // che le veniva allocata — sovrapponendosi alla riga successiva. Usando il massimo, la riga di
+  // riferimento è sempre abbastanza alta da contenere anche la riga più stirata.
+  const scanBestSize = (heightForCandidate) => {
+    let best = null
+    let bestTotal = -1
+    const step = Math.max(1, (maxFontSize - minFontSize) / 120)
+    for (let size = minFontSize; size <= maxFontSize; size += step) {
+      const stretched = computeStretchedAtSizeFast(ctx, text, size, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio, false)
+      const maxLineSize = stretched.reduce((m, l) => Math.max(m, l.fontSize), 0)
+      const totalH = heightForCandidate(stretched, maxLineSize)
+      if (totalH <= maxHeight && totalH > bestTotal) {
+        best = size
+        bestTotal = totalH
+      }
     }
+    // Se NESSUNA dimensione testata rientra nell'altezza disponibile (testo davvero troppo
+    // lungo per la casella), usa comunque minFontSize invece di restituire null. È FONDAMENTALE
+    // che il chiamante prosegua sempre nel percorso normale (che stira ogni riga a piena
+    // larghezza) — il vecchio ramo "caso estremo" più sotto rimpiccioliva UNIFORMEMENTE il font
+    // DOPO averlo già stirato correttamente, vanificando lo stiramento: ogni riga finiva
+    // proporzionalmente più corta del bordo della casella (era la causa vera del testo che non
+    // toccava i bordi — non c'entrava letterSpacing). L'eventuale eccedenza verticale resta
+    // comunque al sicuro, tagliata dal ritaglio (ctx.clip) del box.
+    return best === null ? minFontSize : best
   }
 
-  if (bestSize === null) {
-    // Caso estremo: nessuna dimensione testata rientra nell'altezza disponibile.
-    const minLines = computeStretchedAtSize(ctx, text, minFontSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
-    const minRowHeight = minFontSize * lineHeightRatio + extraLineGap
-    const minTotal = minLines.length * minRowHeight
-    const shrink = minTotal > 0 ? Math.min(1, maxHeight / minTotal) : 1
-    const safeLines = minLines.map((l) => ({ text: l.text, fontSize: Math.max(1, l.fontSize * shrink) }))
-    return attachAndReturn(safeLines, Math.max(1, minFontSize * shrink))
+  const bestSizeSafe = scanBestSize((stretched, maxLineSize) => stretched.length * (maxLineSize * lineHeightRatio))
+
+  // Seconda scansione (solo se sono state fornite le giunzioni REALI): usa lo spazio
+  // EFFETTIVAMENTE occupato dalle giunzioni impostate dall'utente, invece del rapporto
+  // automatico. Se queste giunzioni sono più STRETTE del rapporto automatico, questa scansione
+  // può restituire una dimensione PIÙ GRANDE (c'è più spazio libero da riempire) — mai più
+  // piccola di bestSizeSafe nel risultato finale, perché prendiamo sempre il maggiore dei due.
+  let bestSizeReal = null
+  if (lineGaps != null) {
+    bestSizeReal = scanBestSize((stretched, maxLineSize) => {
+      let total = maxLineSize // estensione della prima/ultima riga, come termine di paragone
+      for (let i = 0; i < stretched.length - 1; i++) {
+        const gapVal = lineGaps[i] != null ? lineGaps[i] : 0
+        total += computeGapLineHeight(maxLineSize, gapVal)
+      }
+      return total
+    })
   }
+
+  const bestSize = (bestSizeReal != null && bestSizeReal > bestSizeSafe) ? bestSizeReal : bestSizeSafe
 
   // Ricalcolo finale con lo STESSO metodo (veloce) usato durante la scansione.
   const finalLines = computeStretchedAtSizeFast(ctx, text, bestSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
-  return attachAndReturn(finalLines, bestSize)
+  const finalMaxLineSize = finalLines.reduce((m, l) => Math.max(m, l.fontSize), 0)
+  return attachAndReturn(finalLines, finalMaxLineSize)
+}
+
+// Calcola l'altezza (spazio verticale) di UNA giunzione tra due righe consecutive, dato il suo
+// valore specifico (già nell'unità giusta: px reali per l'export, px schermo per l'anteprima).
+// gapValue === null → quella giunzione (o l'intera casella, se è null per costruzione) usa il
+// rapporto automatico "leggibile" di sempre. gapValue è un numero (anche 0 o negativo, con un
+// minimo di sicurezza) → parte dal rapporto "incollato" (TIGHT_LINE_HEIGHT_RATIO) e ci si somma.
+function computeGapLineHeight(rowFontSize, gapValue) {
+  if (gapValue == null) return rowFontSize * DEFAULT_LINE_HEIGHT_RATIO
+  return Math.max(rowFontSize * 0.08, rowFontSize * TIGHT_LINE_HEIGHT_RATIO + gapValue)
 }
 
 // Disegna un box di testo direttamente su un canvas 2D (per l'export ad alta risoluzione),
@@ -330,7 +459,6 @@ export function fitText(text, {
 // Rispetta la formattazione parziale (box.spans) esattamente come l'anteprima.
 export function drawTextBoxOnCanvas(ctx, box, scale) {
   if (!box.text || !box.text.trim()) return
-  console.log('DEBUG FONT - Roboto pronto al momento dell\'export?', _robotoReady, '| document.fonts.check:', typeof document !== 'undefined' && document.fonts ? document.fonts.check('700 16px Roboto') : 'n/d')
 
   // "scale" è il fattore SCHERMO/REALE (es. 0.33 se lo schermo mostra l'immagine a 1/3 della
   // sua dimensione reale). box.x/y/width/height sono salvati in coordinate SCHERMO: per
@@ -346,7 +474,7 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
   // Gli span sono offset di CARATTERI (indipendenti dalla scala), non serve riscalarli.
   const spans = box.spans || []
 
-  const { lines, lineHeightRatio, extraLineGap, rowFontSize } = fitText(box.text, {
+  const { lines, rowFontSize } = fitText(box.text, {
     maxWidth: realWidth,
     minFontSize: realMinFont,
     maxFontSize: realMaxFont,
@@ -355,10 +483,10 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
     maxHeight: realHeight,
     manualFontSize: box.manualFontSize ? box.manualFontSize / scale : null,
     letterSpacingRatio: LETTER_SPACING_RATIO,
-    // Come width/height/minFontSize: box.lineGapPx è salvato in px SCHERMO, va diviso per
-    // scale per ottenere il valore in px REALI (coerente in export e in anteprima, dove
-    // questa stessa funzione viene chiamata con scale=1).
-    extraLineGap: (box.lineGapPx || 0) / scale
+    // Le giunzioni reali (già convertite da px SCHERMO a px REALI, come width/height/minFontSize)
+    // servono qui SOLO per permettere al font di CRESCERE oltre la base di sicurezza quando
+    // occupano meno spazio del rapporto automatico — mai per farlo restringere, vedi fitText.
+    lineGaps: box.lineGaps != null ? box.lineGaps.map((g) => (g != null ? g / scale : g)) : null
   })
 
   ctx.save()
@@ -375,39 +503,65 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
   // riga: altrimenti una riga corta stirata più delle altre (per riempire tutta la larghezza)
   // finiva anche per "occupare" più spazio verticale, rendendo il distacco alla riga successiva
   // visibilmente diverso dagli altri.
-  const lineHeight = rowFontSize * lineHeightRatio + extraLineGap
+  // Ogni GIUNZIONE tra riga e riga successiva ha il proprio valore indipendente in
+  // box.lineGaps[i] (i = 0 tra riga 1 e 2, ecc.), così si può stringere/allargare una singola
+  // coppia di righe senza toccare le altre, tutte dentro la stessa casella. box.lineGaps === null
+  // → l'intera casella resta sul rapporto automatico "leggibile" di sempre. Se invece è un array
+  // (modalità manuale attiva sulla casella) ma questa specifica giunzione non è stata
+  // personalizzata, parte "incollata" (0) e non dal rapporto automatico più largo.
   let cursorY = realY
-  lines.forEach((line) => {
+  lines.forEach((line, i) => {
     ctx.font = `700 ${line.fontSize}px Roboto, sans-serif`
-    // ctx.letterSpacing = `${line.fontSize * LETTER_SPACING_RATIO}px` // DISATTIVATA per test
-    const runs = splitLineIntoRuns(line.text, line.startOffset, spans, box.color, box.underline)
+    const letterSpacingPx = line.fontSize * LETTER_SPACING_RATIO
 
-    // DEBUG: misura la larghezza REALE della riga a questa dimensione, per confrontarla con
-    // quella che dovrebbe avere (realWidth) — così vediamo esattamente quanti pixel mancano.
-    const misuraReale = ctx.measureText(line.text).width
-    console.log('DEBUG STIRAMENTO -', JSON.stringify(line.text), '| fontSize:', Math.round(line.fontSize), '| larghezza misurata:', Math.round(misuraReale), '| larghezza target (realWidth):', Math.round(realWidth), '| differenza:', Math.round(realWidth - misuraReale))
-
-    // Calcola la larghezza totale della riga per poter allineare centro/destra
-    const totalWidth = runs.reduce((sum, r) => sum + ctx.measureText(r.text).width, 0)
+    // Larghezza totale della riga (per l'allineamento centro/destra): misurata con LO STESSO
+    // identico algoritmo (carattere per carattere) usato durante lo stiramento e che verrà
+    // usato qui sotto per disegnare — deve combaciare sempre esattamente, altrimenti la riga
+    // non tocca i bordi come previsto.
+    const totalWidth = measureTextWithSpacing(ctx, line.text, letterSpacingPx)
     let startX = realX
     if (box.align === 'center') startX = realX + (realWidth - totalWidth) / 2
     else if (box.align === 'right') startX = realX + realWidth - totalWidth
 
+    // Disegna CARATTERE PER CARATTERE, in modo continuo su tutta la riga — non un "run" (blocco
+    // di colore) alla volta: sommare le larghezze di più run separati perdeva lo spazio esatto
+    // nel punto di giunzione tra un colore e l'altro (un carattere di troppo poco vicino al
+    // successivo), causando lo stesso tipo di scarto che impediva di toccare i bordi.
+    const bridgedUnderline = computeBridgedUnderline(line.text, line.startOffset, spans, box.underline)
     let cursorX = startX
-    runs.forEach((run) => {
-      ctx.fillStyle = run.color
-      ctx.fillText(run.text, cursorX, cursorY)
-      const runWidth = ctx.measureText(run.text).width
-      if (run.underline) {
-        const underlineY = cursorY + line.fontSize * 0.92
-        const thickness = Math.max(1, line.fontSize * 0.06)
-        ctx.fillStyle = run.color
-        ctx.fillRect(cursorX, underlineY, runWidth, thickness)
+    let underlineStart = null
+    let underlineColor = null
+    const flushUnderline = (endX) => {
+      if (underlineStart == null) return
+      const underlineY = cursorY + line.fontSize * 0.92
+      const thickness = Math.max(1, line.fontSize * 0.06)
+      ctx.fillStyle = underlineColor
+      ctx.fillRect(underlineStart, underlineY, endX - underlineStart, thickness)
+      underlineStart = null
+    }
+    for (let ci = 0; ci < line.text.length; ci++) {
+      const ch = line.text[ci]
+      const { color } = getEffectiveFormat(spans, line.startOffset + ci, box.color, box.underline)
+      const isUnderlined = bridgedUnderline[ci]
+      ctx.fillStyle = color
+      ctx.fillText(ch, cursorX, cursorY)
+      const chWidth = ctx.measureText(ch).width
+      if (isUnderlined && underlineStart == null) {
+        underlineStart = cursorX
+        underlineColor = color
+      } else if (!isUnderlined) {
+        flushUnderline(cursorX)
       }
-      cursorX += runWidth
-    })
+      cursorX += chWidth + (ci < line.text.length - 1 ? letterSpacingPx : 0)
+    }
+    flushUnderline(cursorX)
 
-    cursorY += lineHeight
+    if (i < lines.length - 1) {
+      const gapValue = box.lineGaps != null
+        ? (box.lineGaps[i] != null ? box.lineGaps[i] / scale : 0)
+        : null
+      cursorY += computeGapLineHeight(rowFontSize, gapValue)
+    }
   })
 
   ctx.restore()
@@ -429,7 +583,7 @@ export function createTextBox(overrides = {}) {
     manualFontSize: null, // null = automatico; un numero = dimensione scelta a mano
     underline: false,
     spans: [], // formattazione (colore/sottolineato) su porzioni specifiche di testo
-    lineGapPx: null, // px SCHERMO extra tra le righe (stessa convenzione di x/y/width/height); null = usa il rapporto automatico (DEFAULT_LINE_HEIGHT_RATIO)
+    lineGaps: null, // array px SCHERMO, uno per ogni giunzione tra riga e riga successiva (indice 0 = tra riga 1 e 2, ecc); null = tutta la casella in automatico. Elementi mancanti nell'array = quella giunzione è "incollata" (0 sopra al rapporto stretto)
     locked: false, // se true: la casella non si sposta né si ridimensiona (come il lucchetto di Canva) — di default sbloccata; la casella automatica del progetto passa locked:true esplicitamente
     ...overrides
   }
@@ -451,6 +605,7 @@ const COLOR_SWATCHES = [
 // stesso codice di disegno, solo con scale=1 (le coordinate del box sono già in pixel schermo).
 function TextBoxCanvasPreview({ box, boxHeight }) {
   const canvasRef = useRef(null)
+  const robotoReady = useRobotoReady()
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -472,7 +627,7 @@ function TextBoxCanvasPreview({ box, boxHeight }) {
     // schermo, non serve nessuna conversione — x/y a 0 perché disegniamo nel riquadro LOCALE
     // del canvas (il posizionamento nella pagina lo fa il contenitore <div> che lo racchiude).
     drawTextBoxOnCanvas(ctx, { ...box, x: 0, y: 0, width, height }, 1)
-  }, [box, boxHeight])
+  }, [box, boxHeight, robotoReady])
 
   return (
     <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
@@ -530,6 +685,7 @@ function PositionField({ label, value, onCommit }) {
 }
 
 export default function TextOverlay({ containerWidth, containerHeight, textBoxes, onChange, isMobile = false, displayScale = 1, zoomLevel = 1, baseContainerWidth = null }) {
+  useRobotoReady() // forza un re-render (e quindi un ricalcolo di fitText ovunque) nel momento esatto in cui Roboto diventa davvero pronto — senza, una misurazione fatta col font di riserva del browser restava sbagliata per sempre
   const [activeId, setActiveId] = useState(null)
   const [showPositionInfo, setShowPositionInfo] = useState(null) // id della casella di cui mostrare la posizione, o null
   const [editingId, setEditingId] = useState(null)
@@ -601,7 +757,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           minFontSize: b.minFontSize * ratio,
           maxFontSize: b.maxFontSize * ratio,
           manualFontSize: b.manualFontSize != null ? b.manualFontSize * ratio : b.manualFontSize,
-          lineGapPx: b.lineGapPx != null ? b.lineGapPx * ratio : b.lineGapPx
+          lineGaps: b.lineGaps != null ? b.lineGaps.map((g) => (g != null ? g * ratio : g)) : b.lineGaps
         })))
       }
     }
@@ -1022,6 +1178,81 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           </button>
         </div>
       </div>
+
+      {/* Gruppo "Interlinea": UNA riga di controlli per OGNI giunzione tra due righe adiacenti
+      (indice i = spazio tra la riga i+1 e la riga i+2) — non un valore unico per tutta la
+      casella, perché ogni coppia di righe deve potersi regolare in modo indipendente, anche con
+      valori diversi tra loro, restando sempre dentro la stessa casella. Pulsante "AUTO" in alto
+      riporta l'INTERA casella al rapporto automatico "leggibile" di sempre (nessun controllo
+      manuale su nessuna giunzione); appena si tocca anche solo una giunzione, la casella entra in
+      modalità manuale e le giunzioni non ancora toccate partono "incollate" (0). */}
+      {targetLines.length > 1 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'stretch', background: '#242426', border: '1px solid #3A3A3C', borderRadius: '9px', padding: '5px', width: sidePanel ? '100%' : 'auto', boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', padding: '0 2px' }}>
+            <span style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Interlinea (per ogni riga)</span>
+            <button
+              onClick={() => updateBox(targetBox.id, { lineGaps: null })}
+              disabled={targetBox.lineGaps == null}
+              title="Torna tutta la casella alla spaziatura automatica"
+              style={{
+                padding: '3px 8px', borderRadius: '5px', border: 'none',
+                background: targetBox.lineGaps == null ? '#007AFF' : 'transparent',
+                color: '#fff', fontSize: '9px', fontWeight: '800',
+                cursor: targetBox.lineGaps == null ? 'default' : 'pointer'
+              }}
+            >
+              AUTO
+            </button>
+          </div>
+          {Array.from({ length: targetLines.length - 1 }).map((_, gapIndex) => {
+            const currentValue = (targetBox.lineGaps && targetBox.lineGaps[gapIndex] != null) ? targetBox.lineGaps[gapIndex] : 0
+            const setGap = (newValue) => {
+              // Ricostruisce l'array partendo da quello attuale (o da uno vuoto se la casella
+              // era ancora in automatico), allungandolo se serve, e tocca SOLO l'indice
+              // interessato — le altre giunzioni restano come stanno.
+              const base = targetBox.lineGaps ? [...targetBox.lineGaps] : []
+              while (base.length <= gapIndex) base.push(0)
+              base[gapIndex] = newValue
+              updateBox(targetBox.id, { lineGaps: base })
+            }
+            return (
+              <div key={gapIndex} style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'flex-start' }}>
+                <span style={{ fontSize: '9px', color: '#8e8e93', fontWeight: '700', width: '38px', flexShrink: 0 }}>{gapIndex + 1}↕{gapIndex + 2}</span>
+                <button
+                  onClick={() => setGap(currentValue - 1)}
+                  title={`Riduci lo spazio tra riga ${gapIndex + 1} e riga ${gapIndex + 2}`}
+                  style={{ width: '24px', height: '24px', borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}
+                >
+                  −
+                </button>
+                <button
+                  onClick={() => setGap(currentValue + 1)}
+                  title={`Aumenta lo spazio tra riga ${gapIndex + 1} e riga ${gapIndex + 2}`}
+                  style={{ width: '24px', height: '24px', borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}
+                >
+                  +
+                </button>
+                <input
+                  type="number"
+                  step="1"
+                  value={currentValue}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === '' || val === '-') { setGap(0); return }
+                    const parsed = parseFloat(val)
+                    if (Number.isNaN(parsed)) return
+                    // Valori NEGATIVI ammessi: avvicinano questa coppia di righe oltre
+                    // l'incollato. La dimensione del testo resta invariata in ogni caso.
+                    setGap(parsed)
+                  }}
+                  title={`Spazio (px, anche negativo, 0 = incollate) tra riga ${gapIndex + 1} e riga ${gapIndex + 2}`}
+                  style={{ width: '44px', height: '24px', borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '10px', fontWeight: '700', padding: '0 4px', textAlign: 'center', flexShrink: 0 }}
+                />
+              </div>
+            )
+          })}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: '4px', justifyContent: sidePanel ? 'center' : 'flex-start', flexWrap: 'wrap' }}>
         <button
           onClick={() => updateBox(targetBox.id, { locked: !targetBox.locked })}
@@ -1088,7 +1319,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           maxHeight: boxHeight,
           manualFontSize: box.manualFontSize,
           letterSpacingRatio: LETTER_SPACING_RATIO,
-          extraLineGap: box.lineGapPx || 0
+          lineGaps: box.lineGaps
         })
         const isActive = activeId === box.id
         const isEditing = editingId === box.id
@@ -1216,8 +1447,21 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                           ? lines.map((line, i) => {
                               const runs = splitLineIntoRuns(line.text, line.startOffset, box.spans, box.color, box.underline)
                               const previewScale = Math.min(1, 28 / (line.fontSize || 28))
+                              // Per la riga i, lo spazio rilevante è la giunzione PRIMA di essa
+                              // (tra la riga precedente e questa), cioè box.lineGaps[i - 1]. La
+                              // prima riga non ha una giunzione prima di sé.
+                              const gapIndex = i - 1
+                              const gapValueRaw = gapIndex < 0
+                                ? null
+                                : (box.lineGaps != null ? (box.lineGaps[gapIndex] != null ? box.lineGaps[gapIndex] : 0) : null)
+                              const previewLineHeight = gapValueRaw == null
+                                ? (line.fontSize || 16) * previewScale * DEFAULT_LINE_HEIGHT_RATIO
+                                : Math.max(
+                                    (line.fontSize || 16) * previewScale * 0.08,
+                                    (line.fontSize || 16) * previewScale * TIGHT_LINE_HEIGHT_RATIO + gapValueRaw * previewScale
+                                  )
                               return (
-                                <div key={i} style={{ fontSize: `${(line.fontSize || 16) * previewScale}px`, letterSpacing: `${(line.fontSize || 16) * previewScale * LETTER_SPACING_RATIO}px`, lineHeight: `${(line.fontSize || 16) * previewScale * DEFAULT_LINE_HEIGHT_RATIO + (box.lineGapPx || 0) * previewScale}px`, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                                <div key={i} style={{ fontSize: `${(line.fontSize || 16) * previewScale}px`, letterSpacing: `${(line.fontSize || 16) * previewScale * LETTER_SPACING_RATIO}px`, lineHeight: `${previewLineHeight}px`, whiteSpace: 'normal', wordBreak: 'break-word' }}>
                                   {runs.map((run, ri) => (
                                     <span key={ri} style={{ color: run.color, textDecoration: run.underline ? 'underline' : 'none' }}>
                                       {run.text}
@@ -1346,7 +1590,8 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           fontFamily: 'Roboto, sans-serif',
           maxHeight: activeBox.height || 120,
           manualFontSize: activeBox.manualFontSize,
-          letterSpacingRatio: LETTER_SPACING_RATIO
+          letterSpacingRatio: LETTER_SPACING_RATIO,
+          lineGaps: activeBox.lineGaps
         })
         return createPortal(renderToolbar(activeBox, activeLines, true), document.getElementById('fwm-text-side-portal'))
       })()}
