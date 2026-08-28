@@ -1040,7 +1040,13 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
     </div>
   )
 
-  const renderToolbar = (targetBox, targetLines, sidePanel = false) => (
+  const renderToolbar = (targetBox, targetLines, sidePanel = false) => {
+  // Su mobile (sidePanel=false) i pulsanti sono troppo piccoli per il tocco — questo
+  // moltiplicatore li ingrandisce del 60% SOLO lì, lasciando il pannello desktop (sidePanel=true,
+  // spazio stretto accanto al canvas) esattamente come prima.
+  const m = sidePanel ? 1 : 1.6
+  const mpx = (n) => `${Math.round(n * m)}px`
+  return (
     <div
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
@@ -1065,13 +1071,13 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
             key={c.value}
             title={c.label}
             onClick={() => updateBox(targetBox.id, { color: c.value })}
-            style={{ width: '26px', height: '26px', borderRadius: '50%', background: c.value, border: targetBox.color === c.value ? '2px solid #007AFF' : '1px solid #555', cursor: 'pointer', padding: 0 }}
+            style={{ width: mpx(26), height: mpx(26), borderRadius: '50%', background: c.value, border: targetBox.color === c.value ? '2px solid #007AFF' : '1px solid #555', cursor: 'pointer', padding: 0 }}
           />
         ))}
         <button
           onClick={() => updateBox(targetBox.id, { underline: !targetBox.underline })}
           title="Sottolineato"
-          style={{ width: '26px', height: '26px', borderRadius: '6px', border: 'none', background: targetBox.underline ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '13px', fontWeight: '900', textDecoration: 'underline', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+          style={{ width: mpx(26), height: mpx(26), borderRadius: '6px', border: 'none', background: targetBox.underline ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: mpx(13), fontWeight: '900', textDecoration: 'underline', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
         >
           U
         </button>
@@ -1080,21 +1086,21 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
         <button
           onClick={() => updateBox(targetBox.id, { align: 'left' })}
           title="Allinea a sinistra"
-          style={{ width: '30px', height: '28px', borderRadius: '6px', border: 'none', background: targetBox.align === 'left' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+          style={{ width: mpx(30), height: mpx(28), borderRadius: '6px', border: 'none', background: targetBox.align === 'left' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: mpx(14), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
         >
           ⬅
         </button>
         <button
           onClick={() => updateBox(targetBox.id, { align: 'center' })}
           title="Allinea al centro"
-          style={{ width: '30px', height: '28px', borderRadius: '6px', border: 'none', background: targetBox.align === 'center' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+          style={{ width: mpx(30), height: mpx(28), borderRadius: '6px', border: 'none', background: targetBox.align === 'center' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: mpx(14), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
         >
           ↔
         </button>
         <button
           onClick={() => updateBox(targetBox.id, { align: 'right' })}
           title="Allinea a destra"
-          style={{ width: '30px', height: '28px', borderRadius: '6px', border: 'none', background: targetBox.align === 'right' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+          style={{ width: mpx(30), height: mpx(28), borderRadius: '6px', border: 'none', background: targetBox.align === 'right' ? '#007AFF' : '#3A3A3C', color: '#fff', fontSize: mpx(14), cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
         >
           ➡
         </button>
@@ -1114,7 +1120,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           }}
           disabled={targetBox.manualFontSize == null}
           title="Rimpicciolisci"
-          style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '16px', fontWeight: '800', cursor: targetBox.manualFontSize == null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, opacity: targetBox.manualFontSize == null ? 0.4 : 1 }}
+          style={{ width: mpx(28), height: mpx(28), borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: mpx(16), fontWeight: '800', cursor: targetBox.manualFontSize == null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, opacity: targetBox.manualFontSize == null ? 0.4 : 1 }}
         >
           −
         </button>
@@ -1126,7 +1132,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           }}
           disabled={targetBox.manualFontSize == null}
           title="Ingrandisci"
-          style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '16px', fontWeight: '800', cursor: targetBox.manualFontSize == null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, opacity: targetBox.manualFontSize == null ? 0.4 : 1 }}
+          style={{ width: mpx(28), height: mpx(28), borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: mpx(16), fontWeight: '800', cursor: targetBox.manualFontSize == null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, opacity: targetBox.manualFontSize == null ? 0.4 : 1 }}
         >
           +
         </button>
@@ -1153,7 +1159,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           }}
           placeholder="Auto"
           title="Dimensione font — puoi scrivere anche i decimali, es. 12.1, 12.2..."
-          style={{ width: '52px', height: '28px', borderRadius: '6px', border: 'none', background: targetBox.manualFontSize == null ? '#2C2C2E' : '#3A3A3C', color: targetBox.manualFontSize == null ? '#8e8e93' : '#fff', fontSize: '11px', fontWeight: '700', padding: '0 6px', textAlign: 'center', cursor: targetBox.manualFontSize == null ? 'not-allowed' : 'text' }}
+          style={{ width: mpx(52), height: mpx(28), borderRadius: '6px', border: 'none', background: targetBox.manualFontSize == null ? '#2C2C2E' : '#3A3A3C', color: targetBox.manualFontSize == null ? '#8e8e93' : '#fff', fontSize: mpx(11), fontWeight: '700', padding: '0 6px', textAlign: 'center', cursor: targetBox.manualFontSize == null ? 'not-allowed' : 'text' }}
         />
         <div style={{ width: '1px', alignSelf: 'stretch', background: '#3A3A3C', margin: '0 1px' }} />
         {/* Switch esplicito Automatico / Manuale per la dimensione del testo */}
@@ -1161,7 +1167,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           <button
             onClick={() => updateBox(targetBox.id, { manualFontSize: null })}
             title="La dimensione si adatta da sola alla casella"
-            style={{ padding: '5px 9px', borderRadius: '5px', border: 'none', background: targetBox.manualFontSize == null ? '#007AFF' : 'transparent', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}
+            style={{ padding: sidePanel ? '5px 9px' : '7px 12px', borderRadius: '5px', border: 'none', background: targetBox.manualFontSize == null ? '#007AFF' : 'transparent', color: '#fff', fontSize: mpx(10), fontWeight: '800', cursor: 'pointer' }}
           >
             AUTO
           </button>
@@ -1172,7 +1178,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
               updateBox(targetBox.id, { manualFontSize: Math.round(startSize * 10) / 10 })
             }}
             title="Scrivi tu la dimensione del testo"
-            style={{ padding: '5px 9px', borderRadius: '5px', border: 'none', background: targetBox.manualFontSize != null ? '#007AFF' : 'transparent', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}
+            style={{ padding: sidePanel ? '5px 9px' : '7px 12px', borderRadius: '5px', border: 'none', background: targetBox.manualFontSize != null ? '#007AFF' : 'transparent', color: '#fff', fontSize: mpx(10), fontWeight: '800', cursor: 'pointer' }}
           >
             MANUALE
           </button>
@@ -1189,15 +1195,15 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
       {targetLines.length > 1 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'stretch', background: '#242426', border: '1px solid #3A3A3C', borderRadius: '9px', padding: '5px', width: sidePanel ? '100%' : 'auto', boxSizing: 'border-box' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', padding: '0 2px' }}>
-            <span style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700' }}>Interlinea (per ogni riga)</span>
+            <span style={{ fontSize: mpx(10), color: '#8e8e93', fontWeight: '700' }}>Interlinea (per ogni riga)</span>
             <button
               onClick={() => updateBox(targetBox.id, { lineGaps: null })}
               disabled={targetBox.lineGaps == null}
               title="Torna tutta la casella alla spaziatura automatica"
               style={{
-                padding: '3px 8px', borderRadius: '5px', border: 'none',
+                padding: sidePanel ? '3px 8px' : '5px 11px', borderRadius: '5px', border: 'none',
                 background: targetBox.lineGaps == null ? '#007AFF' : 'transparent',
-                color: '#fff', fontSize: '9px', fontWeight: '800',
+                color: '#fff', fontSize: mpx(9), fontWeight: '800',
                 cursor: targetBox.lineGaps == null ? 'default' : 'pointer'
               }}
             >
@@ -1217,18 +1223,18 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
             }
             return (
               <div key={gapIndex} style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'flex-start' }}>
-                <span style={{ fontSize: '9px', color: '#8e8e93', fontWeight: '700', width: '38px', flexShrink: 0 }}>{gapIndex + 1}↕{gapIndex + 2}</span>
+                <span style={{ fontSize: mpx(9), color: '#8e8e93', fontWeight: '700', width: mpx(38), flexShrink: 0 }}>{gapIndex + 1}↕{gapIndex + 2}</span>
                 <button
                   onClick={() => setGap(currentValue - 1)}
                   title={`Riduci lo spazio tra riga ${gapIndex + 1} e riga ${gapIndex + 2}`}
-                  style={{ width: '24px', height: '24px', borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}
+                  style={{ width: mpx(24), height: mpx(24), borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: mpx(14), fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}
                 >
                   −
                 </button>
                 <button
                   onClick={() => setGap(currentValue + 1)}
                   title={`Aumenta lo spazio tra riga ${gapIndex + 1} e riga ${gapIndex + 2}`}
-                  style={{ width: '24px', height: '24px', borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '14px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}
+                  style={{ width: mpx(24), height: mpx(24), borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: mpx(14), fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}
                 >
                   +
                 </button>
@@ -1246,7 +1252,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                     setGap(parsed)
                   }}
                   title={`Spazio (px, anche negativo, 0 = incollate) tra riga ${gapIndex + 1} e riga ${gapIndex + 2}`}
-                  style={{ width: '44px', height: '24px', borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '10px', fontWeight: '700', padding: '0 4px', textAlign: 'center', flexShrink: 0 }}
+                  style={{ width: mpx(44), height: mpx(24), borderRadius: '5px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: mpx(10), fontWeight: '700', padding: '0 4px', textAlign: 'center', flexShrink: 0 }}
                 />
               </div>
             )
@@ -1257,9 +1263,9 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
         <button
           onClick={() => updateBox(targetBox.id, { locked: !targetBox.locked })}
           title={targetBox.locked ? 'Sblocca posizione' : 'Blocca posizione (come su Canva: non si sposta né ridimensiona)'}
-          style={{ padding: '5px 9px', borderRadius: '6px', border: 'none', background: targetBox.locked ? '#FF9500' : '#3A3A3C', color: '#fff', fontSize: '12px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ padding: sidePanel ? '5px 9px' : '9px 14px', borderRadius: '6px', border: 'none', background: targetBox.locked ? '#FF9500' : '#3A3A3C', color: '#fff', fontSize: mpx(12), fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+          <svg viewBox="0 0 24 24" width={Math.round(13 * m)} height={Math.round(13 * m)} fill="none" stroke="#fff" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
             <rect x="4" y="10.5" width="16" height="10" rx="2" />
             {targetBox.locked ? (
               <path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5" />
@@ -1270,7 +1276,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
         </button>
         <button
           onClick={() => startEditing(targetBox.id)}
-          style={{ padding: '5px 9px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+          style={{ padding: sidePanel ? '5px 9px' : '9px 14px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: mpx(12), fontWeight: '800', cursor: 'pointer' }}
         >
           ✎ Testo
         </button>
@@ -1278,7 +1284,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
           <button
             onClick={() => setShowPositionInfo(targetBox.id)}
             title="Vedi la posizione in pixel reali"
-            style={{ padding: '5px 9px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+            style={{ padding: sidePanel ? '5px 9px' : '9px 14px', borderRadius: '6px', border: 'none', background: '#3A3A3C', color: '#fff', fontSize: mpx(12), fontWeight: '800', cursor: 'pointer' }}
           >
             📍 Posizione
           </button>
@@ -1287,6 +1293,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
       </div>
     </div>
   )
+  }
 
   return (
     <>
