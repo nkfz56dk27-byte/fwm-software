@@ -61,7 +61,7 @@ const OVERLAY_GRAPHICS = Object.entries(overlayModules)
 // copia i 4 valori mostrati nel popup dentro una nuova riga qui sotto (usando la key giusta).
 // "default" è la posizione usata quando una grafica non ha una voce dedicata.
 const TESTO_POSIZIONE_PER_GRAFICA = {
-  default: { sx: 62, dx: 1044, alto: 864, basso: 1269, spaziaturaRighe: 7 },
+  default: { sx: 62, dx: 1020, alto: 864, basso: 1269, spaziaturaRighe: 7 },
   'BREAKING NEWS': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
   'SPECIALE': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
   'SPECIALE FE': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
