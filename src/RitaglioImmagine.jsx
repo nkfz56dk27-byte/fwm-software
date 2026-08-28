@@ -19,13 +19,27 @@ const overlayModulesPng = import.meta.glob('/src/assets/overlays/*.png', { eager
 const overlayModulesSvg = import.meta.glob('/src/assets/overlays/*.svg', { eager: true, import: 'default' })
 const overlayModulesJpg = import.meta.glob('/src/assets/overlays/*.{jpg,jpeg}', { eager: true, import: 'default' })
 const overlayModules = { ...overlayModulesPng, ...overlayModulesSvg, ...overlayModulesJpg }
+// "NEWS" sempre per prima (e quindi anche grafica attiva di DEFAULT, perché più sotto
+// selectedOverlay parte da OVERLAY_GRAPHICS[0]), "ARTICOLO" sempre per seconda — le altre
+// restano in ordine alfabetico dopo. Il confronto è sul nome file (case-insensitive), non sulla
+// label, così funziona a prescindere da maiuscole/minuscole nel nome del file caricato.
+const ORDINE_PRIORITARIO = ['news', 'articolo']
 const OVERLAY_GRAPHICS = Object.entries(overlayModules)
   .map(([path, url]) => {
     const filename = path.split('/').pop().replace(/\.png$/i, '')
     const label = filename.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
     return { key: filename, label, url }
   })
-  .sort((a, b) => a.label.localeCompare(b.label))
+  .sort((a, b) => {
+    const ia = ORDINE_PRIORITARIO.indexOf(a.key.toLowerCase())
+    const ib = ORDINE_PRIORITARIO.indexOf(b.key.toLowerCase())
+    if (ia !== -1 || ib !== -1) {
+      if (ia === -1) return 1
+      if (ib === -1) return -1
+      return ia - ib
+    }
+    return a.label.localeCompare(b.label)
+  })
 
 // Posizione FISSA della casella di testo per ciascuna grafica sovrapposta (chiave = "key" di
 // OVERLAY_GRAPHICS, cioè il nome del file in src/assets/overlays/ senza estensione). Aggiungendo
