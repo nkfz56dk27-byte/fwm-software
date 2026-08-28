@@ -23,7 +23,10 @@ const overlayModules = { ...overlayModulesPng, ...overlayModulesSvg, ...overlayM
 // selectedOverlay parte da OVERLAY_GRAPHICS[0]), "ARTICOLO" sempre per seconda — le altre
 // restano in ordine alfabetico dopo. Il confronto è sul nome file (case-insensitive), non sulla
 // label, così funziona a prescindere da maiuscole/minuscole nel nome del file caricato.
+// Le grafiche il cui nome finisce con "FE" (es. "SPECIALE FE") vanno invece raggruppate tutte
+// insieme in FONDO alla lista, dopo tutte le altre.
 const ORDINE_PRIORITARIO = ['news', 'articolo']
+const finisceConFE = (key) => /\bfe$/i.test(key.trim())
 const OVERLAY_GRAPHICS = Object.entries(overlayModules)
   .map(([path, url]) => {
     const filename = path.split('/').pop().replace(/\.png$/i, '')
@@ -33,11 +36,17 @@ const OVERLAY_GRAPHICS = Object.entries(overlayModules)
   .sort((a, b) => {
     const ia = ORDINE_PRIORITARIO.indexOf(a.key.toLowerCase())
     const ib = ORDINE_PRIORITARIO.indexOf(b.key.toLowerCase())
+    // 1) NEWS e ARTICOLO sempre per prime, in quest'ordine
     if (ia !== -1 || ib !== -1) {
       if (ia === -1) return 1
       if (ib === -1) return -1
       return ia - ib
     }
+    // 2) le grafiche "... FE" vanno sempre raggruppate in fondo
+    const feA = finisceConFE(a.key)
+    const feB = finisceConFE(b.key)
+    if (feA !== feB) return feA ? 1 : -1
+    // 3) tra loro (sia il gruppo normale che il gruppo FE), ordine alfabetico
     return a.label.localeCompare(b.label)
   })
 
