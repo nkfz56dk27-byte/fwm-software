@@ -38,8 +38,10 @@ const OVERLAY_GRAPHICS = Object.entries(overlayModules)
 // copia i 4 valori mostrati nel popup dentro una nuova riga qui sotto (usando la key giusta).
 // "default" è la posizione usata quando una grafica non ha una voce dedicata.
 const TESTO_POSIZIONE_PER_GRAFICA = {
-  default: { sx: 62, dx: 1056, alto: 820, basso: 1225, spaziaturaRighe: 7 },
-  'BREAKING NEWS.svg': { sx: 62, dx: 1041, alto: 931, basso: 1267, spaziaturaRighe: 7 },
+  default: { sx: 62, dx: 1044, alto: 864, basso: 1269, spaziaturaRighe: 7 },
+  'BREAKING NEWS': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
+  'SPECIALE': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
+  'ROMPI PADDOCK': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
   // esempio — aggiungi una riga così per ogni grafica:
   // 'nome-file-grafica': { sx: 40, dx: 900, alto: 700, basso: 1100, spaziaturaRighe: 7 },
 }
