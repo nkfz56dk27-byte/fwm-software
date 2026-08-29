@@ -54,15 +54,22 @@ export default function GestioneCategorie({ onClose }) {
   }
 
   return (
-    <div style={{ height: '100vh', background: '#f5f5f7' }}>
+    <div style={{ height: '100vh', background: 'linear-gradient(180deg, #eef0f4 0%, #e4e6ec 100%)' }}>
       <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', paddingTop: '45px' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>Categorie e Gruppi</div>
-            <div style={{ fontSize: '12px', color: '#666' }}></div>
+        <div className="gestione-header" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
+          <div className="gestione-navbar">
+            <button className="btn-back" onClick={onClose}>
+              <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+              Indietro
+            </button>
+            <h1 className="gestione-title">Categorie e Gruppi</h1>
           </div>
-          <button onClick={() => setShowNuovaCategoria(true)} style={{ padding: '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: '600', cursor: 'pointer' }}>Nuova Categoria</button>
+          <div className="gestione-actions">
+            <button className="btn-nuovo btn-nuovo-primary" onClick={() => setShowNuovaCategoria(true)} style={{ flex: 1 }}>
+              <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+              Nuova categoria
+            </button>
+          </div>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
           <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -77,15 +84,15 @@ export default function GestioneCategorie({ onClose }) {
                 {categorie.map(categoria => {
                   const redattoriCategoria = gruppi.filter(g => g.categoria_id === categoria.id);
                   return (
-                    <div key={categoria.id} style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 2px 10px rgba(0,0,0,0.08)', borderLeft: `6px solid ${categoria.colore}` }}>
+                    <div key={categoria.id} style={{ background: 'white', borderRadius: '20px', padding: '25px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', borderLeft: `6px solid ${categoria.colore}` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                         <div>
                           <div style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '5px' }}>{categoria.nome}</div>
                           <div style={{ fontSize: '13px', color: '#666' }}>{redattoriCategoria.length} redattori assegnati</div>
                         </div>
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                          <button onClick={() => setEditCategoria(categoria)} style={{ padding: '8px 15px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Modifica</button>
-                          <button onClick={() => eliminaCategoria(categoria.id)} style={{ padding: '8px 15px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>✕</button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => setEditCategoria(categoria)} style={{ padding: '8px 15px', background: 'rgba(0,122,255,0.12)', color: '#007AFF', border: 'none', borderRadius: '100px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Modifica</button>
+                          <button onClick={() => eliminaCategoria(categoria.id)} style={{ width: '34px', height: '34px', background: 'rgba(255,59,48,0.12)', color: '#FF3B30', border: 'none', borderRadius: '50%', cursor: 'pointer', fontSize: '15px', fontWeight: '600' }}>✕</button>
                         </div>
                       </div>
                       <div style={{ fontSize: '15px', fontWeight: '600', marginBottom: '12px', color: '#333' }}>Redattori assegnati:</div>
@@ -93,7 +100,7 @@ export default function GestioneCategorie({ onClose }) {
                         {redattori.map(redattore => {
                           const isAssegnato = redattoriCategoria.some(g => g.username === redattore.username);
                           return (
-                            <label key={redattore.username} style={{ display: 'flex', alignItems: 'center', padding: '10px', background: isAssegnato ? '#eaffea' : '#f5f5f7', border: isAssegnato ? '2px solid #34C759' : '2px solid #eee', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', color: isAssegnato ? '#34C759' : '#666', fontWeight: isAssegnato ? '600' : 'normal', transition: 'all 0.2s ease' }}>
+                            <label key={redattore.username} style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', background: isAssegnato ? 'rgba(52,199,89,0.12)' : 'rgba(120,120,128,0.08)', border: 'none', borderRadius: '100px', cursor: 'pointer', fontSize: '14px', color: isAssegnato ? '#248A3D' : '#666', fontWeight: isAssegnato ? '600' : 'normal', transition: 'all 0.2s ease' }}>
                               <input
                                 type="checkbox"
                                 checked={isAssegnato}
@@ -165,69 +172,29 @@ function ModalCategoria({ categoria, onClose, onSave }) {
   }
 
   return (
-    <div style={{ 
-      position: 'fixed', 
-      top: 0, 
-      left: 0, 
-      right: 0, 
-      bottom: 0, 
-      background: 'rgba(0,0,0,0.5)', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      zIndex: 10000 
-    }}>
-      <div style={{ 
-        background: 'white', 
-        borderRadius: '15px', 
-        width: '500px', 
-        display: 'flex', 
-        flexDirection: 'column' 
-      }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: '20px 30px', 
-          borderBottom: '1px solid #e0e0e0' 
-        }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
-            {categoria ? 'Modifica Categoria' : 'Nuova Categoria'}
-          </div>
-          <button 
-            onClick={onClose} 
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              fontSize: '24px', 
-              cursor: 'pointer', 
-              color: '#666' 
-            }}
-          >
-            ✕
-          </button>
+    <div className="modal-container">
+      <div className="modal-card" style={{ maxWidth: 460 }}>
+        <div className="modal-header">
+          <h2 style={{ fontSize: 20 }}>
+            {categoria ? 'Modifica categoria' : 'Nuova categoria'}
+          </h2>
+          <button className="btn-close" onClick={onClose}>✕</button>
         </div>
 
-        <div style={{ padding: '30px' }}>
-          <div style={{ marginBottom: '25px' }}>
-            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Nome Categoria</div>
+        <div className="modal-form">
+          <div className="form-group">
+            <label className="form-label">Nome categoria</label>
             <input 
               type="text" 
               value={nome} 
               onChange={e => setNome(e.target.value)} 
               placeholder="es: Formula 1, MotoGP, Indycar"
-              style={{ 
-                width: '100%', 
-                padding: '12px', 
-                borderRadius: '8px', 
-                border: '1px solid #ddd', 
-                fontSize: '15px' 
-              }} 
+              className="form-input"
             />
           </div>
 
-          <div>
-            <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>Colore Bordo</div>
+          <div className="form-group">
+            <label className="form-label">Colore bordo</label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
               {COLORI_PREDEFINITI.map(c => (
                 <button
@@ -237,7 +204,7 @@ function ModalCategoria({ categoria, onClose, onSave }) {
                     padding: '12px',
                     background: c.valore,
                     border: colore === c.valore ? '3px solid #000' : '3px solid transparent',
-                    borderRadius: '8px',
+                    borderRadius: '12px',
                     cursor: 'pointer',
                     color: 'white',
                     fontSize: '12px',
@@ -250,42 +217,20 @@ function ModalCategoria({ categoria, onClose, onSave }) {
               ))}
             </div>
           </div>
-        </div>
 
-        <div style={{ 
-          display: 'flex', 
-          gap: '10px', 
-          justifyContent: 'flex-end', 
-          padding: '20px 30px', 
-          borderTop: '1px solid #e0e0e0' 
-        }}>
-          <button 
-            onClick={onClose} 
-            style={{ 
-              padding: '10px 20px', 
-              background: '#f0f0f0', 
-              border: 'none', 
-              borderRadius: '8px', 
-              cursor: 'pointer' 
-            }}
-          >
-            Annulla
-          </button>
-          <button 
-            onClick={salva} 
-            disabled={salvando || !nome.trim()}
-            style={{ 
-              padding: '10px 20px', 
-              background: (salvando || !nome.trim()) ? '#ccc' : '#34C759', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
-              cursor: (salvando || !nome.trim()) ? 'not-allowed' : 'pointer', 
-              fontWeight: 'bold' 
-            }}
-          >
-            {salvando ? 'Salvataggio...' : (categoria ? 'Salva' : 'Crea')}
-          </button>
+          <div className="modal-actions">
+            <button className="btn-cancel" onClick={onClose}>
+              Annulla
+            </button>
+            <button
+              className="btn-save"
+              onClick={salva}
+              disabled={salvando || !nome.trim()}
+              style={{ opacity: (salvando || !nome.trim()) ? 0.5 : 1, cursor: (salvando || !nome.trim()) ? 'not-allowed' : 'pointer' }}
+            >
+              {salvando ? 'Salvataggio...' : (categoria ? 'Salva' : 'Crea')}
+            </button>
+          </div>
         </div>
       </div>
     </div>
