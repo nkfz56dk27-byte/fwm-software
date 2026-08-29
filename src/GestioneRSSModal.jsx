@@ -321,42 +321,10 @@ function GestioneRSSModal({ onClose }) {
   }
 
   return (
-    <div className="grss-overlay" style={{ 
-      position: "fixed", 
-      top: 0, 
-      left: 0, 
-      right: 0, 
-      bottom: 0, 
-      backgroundColor: "rgba(0, 0, 0, 0.5)", 
-      display: "flex", 
-      alignItems: "center", 
-      justifyContent: "center", 
-      zIndex: 1000 
-    }}>
-      <div className="grss-modal" style={{ 
-        backgroundColor: "#fff", 
-        borderRadius: "12px", 
-        padding: "20px", 
-        width: "90%", 
-        maxWidth: "500px", 
-        maxHeight: "80vh", 
-        display: "flex", 
-        flexDirection: "column",
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)"
-      }}>
+    <div className="modal-container grss-overlay">
+      <div className="modal-card grss-modal" style={{ maxWidth: 520 }}>
         <style>{`
           @media (max-width: 768px) {
-            .grss-overlay {
-              align-items: flex-start;
-            }
-            .grss-modal {
-              width: 100%;
-              max-width: 100%;
-              height: 100dvh;
-              max-height: 100dvh;
-              border-radius: 0;
-              padding: 12px;
-            }
             .grss-controls {
               display: flex;
               flex-direction: column;
@@ -373,48 +341,30 @@ function GestioneRSSModal({ onClose }) {
             }
           }
         `}</style>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-          <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>Gestione Feed RSS</h2>
-          <button 
-            onClick={onClose}
-            style={{ 
-              background: "none", 
-              border: "none", 
-              fontSize: "24px", 
-              cursor: "pointer",
-              padding: 0,
-              color: "#ff1744"
-            }}
-          >
-            ✕
-          </button>
+        <div className="modal-header">
+          <h2 style={{ fontSize: 18 }}>Gestione feed RSS</h2>
+          <button className="btn-close" onClick={onClose}>✕</button>
         </div>
 
+        <div className="modal-form" style={{ paddingBottom: 12, flex: '0 0 auto', overflowY: 'visible' }}>
         <div className="grss-controls" style={{ marginBottom: "15px" }}>
           <input 
             type="text"
             value={newFeed}
             onChange={e => setNewFeed(e.target.value)}
             placeholder="URL del feed RSS..."
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "6px",
-              border: "1px solid #ddd",
-              fontSize: "14px",
-              boxSizing: "border-box",
-              marginBottom: "8px"
-            }}
+            className="form-input"
+            style={{ marginBottom: '8px' }}
           />
           <div 
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             style={{ 
-              padding: "8px", 
-              borderRadius: "6px", 
-              border: isDragging ? "2px dashed #34C759" : "2px dashed #ddd",
-              backgroundColor: isDragging ? "#e8f5e9" : "#fafafa",
+              padding: "10px", 
+              borderRadius: "14px", 
+              border: isDragging ? "2px dashed #34C759" : "2px dashed rgba(120,120,128,0.3)",
+              backgroundColor: isDragging ? "rgba(52,199,89,0.08)" : "rgba(120,120,128,0.06)",
               textAlign: "center",
               marginBottom: "8px"
             }}
@@ -422,7 +372,7 @@ function GestioneRSSModal({ onClose }) {
             <div style={{ fontSize: "11px", color: "#666", marginBottom: "4px" }}>
               Carica logo qui oppure
             </div>
-            <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
               <input 
                 type="text" 
                 value={newLogo} 
@@ -430,19 +380,20 @@ function GestioneRSSModal({ onClose }) {
                 placeholder="URL logo..." 
                 style={{ 
                   flex: 1, 
-                  padding: "4px", 
-                  borderRadius: "4px", 
-                  border: "1px solid #ddd", 
+                  padding: "8px 10px", 
+                  borderRadius: "10px", 
+                  border: "1px solid rgba(120,120,128,0.25)", 
                   fontSize: "12px" 
                 }} 
               />
               <label style={{ 
-                padding: "4px 8px", 
+                padding: "8px 12px", 
                 background: "#34C759", 
                 color: "#fff", 
-                borderRadius: "4px", 
+                borderRadius: "100px", 
                 cursor: "pointer",
                 fontSize: "12px",
+                fontWeight: 600,
                 whiteSpace: "nowrap"
               }}>
                 Scegli file
@@ -498,8 +449,9 @@ function GestioneRSSModal({ onClose }) {
               onChange={e => setCategoriaSelezionata(e.target.value)}
               style={{ 
                 padding: "10px", 
-                borderRadius: "6px", 
-                border: "1px solid #ddd",
+                borderRadius: "10px", 
+                border: "1px solid rgba(120,120,128,0.25)",
+                background: "rgba(120,120,128,0.06)",
                 fontSize: "14px"
               }}
             >
@@ -515,8 +467,9 @@ function GestioneRSSModal({ onClose }) {
               onChange={e => setCardSelezionata(e.target.value)}
               style={{
                 padding: "10px",
-                borderRadius: "6px",
-                border: "1px solid #ddd",
+                borderRadius: "10px",
+                border: "1px solid rgba(120,120,128,0.25)",
+                background: "rgba(120,120,128,0.06)",
                 fontSize: "14px"
               }}
             >
@@ -535,7 +488,7 @@ function GestioneRSSModal({ onClose }) {
                 color: "#fff", 
                 padding: "10px 16px", 
                 border: "none", 
-                borderRadius: "6px", 
+                borderRadius: "100px", 
                 cursor: uploadingLogo ? "not-allowed" : "pointer",
                 fontSize: "14px",
                 fontWeight: "600",
@@ -552,7 +505,9 @@ function GestioneRSSModal({ onClose }) {
           </div>
         </div>
 
-        <div className="grss-list" style={{ flex: 1, overflow: "auto" }}>
+        </div>
+
+        <div className="grss-list" style={{ flex: 1, overflow: "auto", padding: "0 25px 20px" }}>
           {loading ? (
             <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>
               Caricamento...
@@ -562,7 +517,7 @@ function GestioneRSSModal({ onClose }) {
               Nessun feed RSS inserito.
             </div>
           ) : (
-            <ul style={{ listStyle: "none", padding: "0", margin: "0" }}>
+            <ul style={{ listStyle: "none", padding: "0", margin: "0", display: "flex", flexDirection: "column", gap: "10px" }}>
               {feeds.map(feed => (
                 <li 
                   key={feed.id} 
@@ -570,10 +525,9 @@ function GestioneRSSModal({ onClose }) {
                     display: "flex", 
                     alignItems: "flex-start", 
                     justifyContent: "space-between", 
-                    marginBottom: "8px", 
-                    padding: "8px", 
-                    background: "#f9f9f9", 
-                    borderRadius: "6px",
+                    padding: "12px", 
+                    background: "rgba(120,120,128,0.06)", 
+                    borderRadius: "14px",
                     gap: "8px"
                   }}
                 >
@@ -821,14 +775,15 @@ function GestioneRSSModal({ onClose }) {
                   <button 
                     onClick={() => rimuoviFeed(feed.id)} 
                     style={{ 
-                      background: "#FF3B30", 
-                      color: "#fff", 
+                      background: "rgba(255,59,48,0.12)", 
+                      color: "#FF3B30", 
                       border: "none", 
-                      borderRadius: "6px", 
-                      padding: "4px 10px", 
+                      borderRadius: "100px", 
+                      padding: "6px 12px", 
                       cursor: "pointer", 
                       flexShrink: 0,
-                      fontSize: "12px"
+                      fontSize: "12px",
+                      fontWeight: 600
                     }}
                   >
                     Rimuovi
