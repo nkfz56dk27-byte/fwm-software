@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import heic2any from "heic2any";
 import { supabase } from "./supabaseClient";
 
@@ -320,9 +321,8 @@ function GestioneRSSModal({ onClose }) {
     }
   }
 
-  return (
-    <div className="modal-container grss-overlay">
-      <div className="modal-card grss-modal" style={{ maxWidth: 520 }}>
+  return createPortal(
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(180deg, #eef0f4 0%, #e4e6ec 100%)', zIndex: 100000, display: 'flex', flexDirection: 'column' }}>
         <style>{`
           @media (max-width: 768px) {
             .grss-controls {
@@ -341,12 +341,17 @@ function GestioneRSSModal({ onClose }) {
             }
           }
         `}</style>
-        <div className="modal-header">
-          <h2 style={{ fontSize: 18 }}>Gestione feed RSS</h2>
-          <button className="btn-close" onClick={onClose}>✕</button>
+        <div className="gestione-header" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)', paddingBottom: 12, minHeight: 70 }}>
+          <div className="gestione-navbar" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }}>
+            <button className="btn-back" onClick={onClose}>
+              <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+              Indietro
+            </button>
+            <h1 className="gestione-title">Gestione feed RSS</h1>
+          </div>
         </div>
 
-        <div className="modal-form" style={{ paddingBottom: 12, flex: '0 0 auto', overflowY: 'visible' }}>
+        <div style={{ maxWidth: 640, width: '100%', margin: '0 auto', padding: '20px', flexShrink: 0 }}>
         <div className="grss-controls" style={{ marginBottom: "15px" }}>
           <input 
             type="text"
@@ -507,7 +512,7 @@ function GestioneRSSModal({ onClose }) {
 
         </div>
 
-        <div className="grss-list" style={{ flex: 1, overflow: "auto", padding: "0 25px 20px" }}>
+        <div className="grss-list" style={{ flex: 1, overflow: "auto", padding: "0 20px 30px", maxWidth: 640, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
           {loading ? (
             <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>
               Caricamento...
@@ -793,8 +798,8 @@ function GestioneRSSModal({ onClose }) {
             </ul>
           )}
         </div>
-      </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
