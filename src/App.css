@@ -1,3 +1,26 @@
+/* ===== LIQUID GLASS DESIGN TOKENS (iOS 26/27) ===== */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-strong: rgba(255, 255, 255, 0.75);
+  --glass-bg-dark: rgba(28, 28, 30, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-border-soft: rgba(255, 255, 255, 0.35);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 1px 0 rgba(255, 255, 255, 0.4) inset;
+  --glass-blur: blur(24px) saturate(180%);
+  --glass-blur-strong: blur(40px) saturate(200%);
+  --glass-radius-lg: 28px;
+  --glass-radius-md: 20px;
+  --glass-radius-sm: 14px;
+  --glass-radius-pill: 100px;
+  --glass-accent-blue: #0A84FF;
+  --glass-accent-green: #30D158;
+  --glass-accent-red: #FF453A;
+  --glass-accent-orange: #FF9F0A;
+  --glass-accent-purple: #BF5AF2;
+  --glass-text-primary: #1c1c1e;
+  --glass-text-secondary: rgba(60, 60, 67, 0.6);
+}
+
 @media (max-width: 768px) {
   .home-container {
     padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
@@ -396,32 +419,120 @@ body {
 }
 .gestione-header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 12px;
   padding: 20px 30px;
   background: white;
   flex-shrink: 0;
 }
+.gestione-navbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  width: 100%;
+}
 .btn-back {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #007AFF;
+  gap: 2px;
+  flex: 0 0 auto;
   background: none;
   border: none;
+  color: #007AFF;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 6px 4px;
   cursor: pointer;
-  padding: 8px;
+  white-space: nowrap;
 }
+.btn-back:active { opacity: 0.5; }
 .btn-back .icon {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 .gestione-title {
-  font-size: 24px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 19px;
   font-weight: 700;
   color: #000;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 60px;
+}
+.btn-gear {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: none;
+  background: rgba(120, 120, 128, 0.12);
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-gear:hover { background: rgba(120, 120, 128, 0.2); }
+.gestione-actions {
+  display: flex;
+  gap: 10px;
+}
+.btn-nuovo-primary {
+  flex: 1;
+  justify-content: center;
+  background: #34C759;
+}
+.btn-nuovo-secondary {
+  flex: 1;
+  justify-content: center;
+  background: rgba(120, 120, 128, 0.12);
+  color: #333;
+}
+
+/* ===== ACTION SHEET "STRUMENTI" ===== */
+.sheet-list-card { max-width: 420px; }
+.sheet-list {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 16px 20px;
+}
+.sheet-list-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 4px;
+  background: none;
+  border: none;
+  border-bottom: 0.5px solid rgba(60, 60, 67, 0.15);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.sheet-list-item:last-child { border-bottom: none; }
+.sheet-list-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sheet-list-label {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 500;
+  color: #1c1c1e;
+}
+.sheet-list-chevron {
+  color: #c7c7cc;
+  flex-shrink: 0;
 }
 .btn-nuovo {
   display: flex;
@@ -513,9 +624,25 @@ body {
 }
 .utente-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
   margin-left: auto;
 }
+.btn-more {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: none;
+  background: rgba(120, 120, 128, 0.12);
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn-more:hover { background: rgba(120, 120, 128, 0.2); }
 .btn-action {
   display: flex;
   align-items: center;
@@ -583,6 +710,19 @@ body {
   font-size: 22px;
   font-weight: 700;
   color: #000;
+}
+.modal-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #007AFF;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 2px;
 }
 .btn-close {
   width: 32px;
@@ -788,34 +928,27 @@ body {
     font-size: 9px !important;
   }
   
-  /* ===== GESTIONE UTENTI MOBILE - BOTTONI PIÙ SCURI ===== */
+  /* ===== GESTIONE UTENTI MOBILE - navbar compatta su una riga ===== */
   .gestione-header {
-    flex-direction: column;
-    padding: 10px;
-    gap: 10px;
-    align-items: stretch;
+    padding: 0px 12px 10px;
+    gap: 36px;
+    isolation: isolate;
   }
-  .btn-back {
-    align-self: flex-start;
-    font-size: 15px;
-    padding: 10px 0;
-    min-height: 44px;
+  .gestione-navbar {
+    padding-top: 8px;
+    margin-top: -20px;
   }
-  .gestione-title {
-    font-size: 18px;
-    text-align: center;
-    padding: 5px 0;
+  .btn-gear {
+    width: 40px;
+    height: 40px;
   }
-  
-  /* Bottoni gestione - PIÙ SCURI */
-  .gestione-header > div {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+
+  /* Solo 2 azioni visibili, affiancate: Nuovo utente + Strumenti */
+  .gestione-actions {
     width: 100%;
+    gap: 8px;
   }
   .btn-nuovo {
-    width: 100%;
     justify-content: center;
     padding: 12px;
     font-size: 14px;
@@ -827,6 +960,7 @@ body {
     width: 18px;
     height: 18px;
   }
+  .sheet-list-label { font-size: 15px; }
   
   .gestione-content {
     padding: 10px;
@@ -862,23 +996,24 @@ body {
     height: 14px;
   }
   
-  /* Actions - 3 colonne verticali con testo sotto icona */
+  /* Actions - 1 pulsante principale + menu overflow */
   .utente-actions {
     width: 100%;
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 6px;
+    display: flex;
+    gap: 10px;
     margin-left: 0;
   }
   .btn-action {
-    width: 100%;
+    flex: 1;
     justify-content: center;
     padding: 10px 4px;
-    font-size: 10px;
-    min-height: 52px;
-    flex-direction: column;
-    gap: 4px;
+    font-size: 13px;
+    min-height: 44px;
     font-weight: 600;
+  }
+  .btn-more {
+    width: 44px;
+    height: 44px;
   }
   .icon-small {
     width: 18px;
@@ -946,6 +1081,193 @@ body {
     padding: 14px;
     min-height: 48px;
   }
+}
+
+/* ===== LIQUID GLASS REDESIGN — GESTIONE + MODALI (mobile) ===== */
+@media (max-width: 768px) {
+
+  /* Sfondo neutro e pulito dietro al vetro (niente più foto che sporca i colori) */
+  .gestione-container {
+    background: linear-gradient(180deg, #eef0f4 0%, #e4e6ec 100%);
+  }
+  .gestione-container::before {
+    content: none;
+  }
+  .gestione-header, .gestione-content, .divider { position: relative; z-index: 1; }
+
+  /* Header flottante in vetro, ancorato in alto, con angoli concentrici */
+  .gestione-header {
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: 0 0 var(--glass-radius-lg) var(--glass-radius-lg);
+    box-shadow: var(--glass-shadow);
+    border: none;
+    border-bottom: 0.5px solid var(--glass-border-soft);
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px) * 0);
+  }
+  .divider { display: none; }
+
+  .btn-back {
+    color: var(--glass-accent-blue);
+  }
+  .gestione-title {
+    color: var(--glass-text-primary);
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+  .btn-gear {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 0.5px solid var(--glass-border);
+    color: var(--glass-text-secondary);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+
+  /* Bottoni azione: pillole di vetro, non più blocchi pieni */
+  .btn-nuovo {
+    background: var(--glass-bg) !important;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    color: var(--glass-text-primary) !important;
+    border-radius: var(--glass-radius-pill);
+    border: 0.5px solid var(--glass-border);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,0.5) inset !important;
+    font-weight: 600;
+  }
+  .btn-nuovo:active { transform: scale(0.97); }
+  .btn-nuovo-primary {
+    background: rgba(48, 209, 88, 0.18) !important;
+    color: #1a7a34 !important;
+    border-color: rgba(48, 209, 88, 0.4);
+  }
+  .btn-nuovo-secondary {
+    background: var(--glass-bg) !important;
+    color: var(--glass-text-primary) !important;
+  }
+
+  /* Menu "Strumenti" come bottom sheet in vetro */
+  .sheet-list-item { border-bottom-color: rgba(60, 60, 67, 0.13); }
+  .sheet-list-label { color: var(--glass-text-primary); }
+
+  /* Contenuto */
+  .gestione-content { padding: 12px 14px 40px; }
+
+  /* Lista utenti come "grouped list" iOS: un unico contenitore di vetro con righe separate da hairline */
+  .utenti-list {
+    gap: 0;
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: var(--glass-radius-md);
+    border: 0.5px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    overflow: hidden;
+  }
+  .utente-row {
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+    border-bottom: 0.5px solid rgba(60, 60, 67, 0.15);
+    padding: 16px 14px;
+  }
+  .utente-row:last-child { border-bottom: none; }
+
+  .utente-info { display: flex; align-items: center; gap: 12px; }
+  .utente-icon {
+    width: 40px;
+    height: 40px;
+    padding: 8px;
+    border-radius: 50%;
+    background: rgba(10, 132, 255, 0.12);
+    flex-shrink: 0;
+  }
+  .utente-nome { color: var(--glass-text-primary); }
+  .utente-username { color: var(--glass-text-secondary); }
+  .utente-ruolo {
+    color: var(--glass-text-secondary);
+    font-weight: 600;
+    background: rgba(120, 120, 128, 0.12);
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: var(--glass-radius-pill);
+    width: fit-content;
+  }
+  .utente-password { color: var(--glass-text-secondary); }
+
+  /* Azioni utente: icon-pill di vetro invece di blocchi colorati pieni */
+  .utente-actions { gap: 8px; }
+  .btn-action {
+    background: rgba(120, 120, 128, 0.1) !important;
+    backdrop-filter: blur(10px);
+    border-radius: var(--glass-radius-sm);
+    min-height: 44px;
+  }
+  .btn-blue { color: var(--glass-accent-blue) !important; }
+  .btn-green { color: var(--glass-accent-green) !important; }
+  .btn-orange { color: var(--glass-accent-orange) !important; }
+  .btn-more {
+    background: rgba(120, 120, 128, 0.12);
+    backdrop-filter: blur(10px);
+    color: var(--glass-text-secondary);
+  }
+
+  /* Modali → bottom sheet in vetro con maniglia, non più box centrato */
+  .modal-container {
+    background: rgba(0, 0, 0, 0.32);
+    backdrop-filter: blur(4px);
+    align-items: flex-end;
+  }
+  .modal-card {
+    width: 100vw !important;
+    height: auto !important;
+    max-height: 92vh !important;
+    border-radius: var(--glass-radius-lg) var(--glass-radius-lg) 0 0 !important;
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--glass-blur-strong);
+    -webkit-backdrop-filter: var(--glass-blur-strong);
+    box-shadow: 0 -8px 40px rgba(0,0,0,0.25);
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+  }
+  .modal-card::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(120,120,128,0.35);
+    margin: 10px auto 0;
+  }
+  .modal-header {
+    border-bottom: 0.5px solid rgba(60,60,67,0.15);
+    background: transparent;
+  }
+  .modal-header h2 { color: var(--glass-text-primary); }
+  .btn-close {
+    background: rgba(120,120,128,0.16);
+    color: var(--glass-text-secondary);
+  }
+  .form-input {
+    background: rgba(120, 120, 128, 0.1);
+    border-radius: var(--glass-radius-sm);
+  }
+  .btn-cancel {
+    background: rgba(120,120,128,0.14);
+    border-radius: var(--glass-radius-pill);
+  }
+  .btn-save {
+    background: var(--glass-accent-green);
+    border-radius: var(--glass-radius-pill);
+    box-shadow: 0 4px 14px rgba(48, 209, 88, 0.35);
+  }
+  .modal-actions button { border-radius: var(--glass-radius-pill) !important; }
+}
+
+@media (min-width: 769px) {
+  .gestione-title { font-size: 24px; }
+  .btn-back { font-size: 18px; }
+  .btn-back .icon { width: 26px; height: 26px; }
 }
 
 /* ===== DESKTOP LARGE (1920px+) ===== */
