@@ -402,19 +402,14 @@ export default function MonitorUrlModal({ userId, onClose }) {
   }
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.35)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'white', borderRadius: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.22)', padding: 40, minWidth: 420, minHeight: 300, position: 'relative', maxWidth: '90vw' }}>
-        <button
-          style={{ position: 'absolute', top: 18, right: 18, background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 32, color: '#e74c3c', fontWeight: 'bold', lineHeight: 1 }}
-          onClick={onClose}
-          title="Chiudi"
-        >
-          ×
-        </button>
+    <div className="modal-container">
+      <div className="modal-card" style={{ maxWidth: 480 }}>
+        <div className="modal-header">
+          <h2>Link web monitorati</h2>
+          <button className="btn-close" onClick={onClose} title="Chiudi">✕</button>
+        </div>
 
-        <h2 style={{ marginTop: 0, marginBottom: 28, fontSize: 28, textAlign: 'center', letterSpacing: 0.2 }}>Monitoraggio Link Web</h2>
-
-        <form onSubmit={addUrl} style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+        <form onSubmit={addUrl} className="modal-form" style={{ gap: 12 }}>
           <style>{`
             @media (max-width: 600px) {
               .monitor-url-controls {
@@ -432,13 +427,13 @@ export default function MonitorUrlModal({ userId, onClose }) {
               }
             }
           `}</style>
-          <label style={{ fontWeight: 'bold', marginBottom: 2 }}>Link da monitorare</label>
+          <label className="form-label">Link da monitorare</label>
           <input
             type="url"
             value={url}
             onChange={e => setUrl(e.target.value)}
             placeholder="https://sito.com"
-            style={{ padding: 8, borderRadius: 6, border: '1px solid #ccc', marginBottom: 8 }}
+            className="form-input"
           />
 
           <div
@@ -446,26 +441,25 @@ export default function MonitorUrlModal({ userId, onClose }) {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             style={{
-              padding: '8px',
-              borderRadius: '6px',
-              border: isDragging ? '2px dashed #34C759' : '2px dashed #ddd',
-              backgroundColor: isDragging ? '#e8f5e9' : '#fafafa',
-              textAlign: 'center',
-              marginBottom: '8px'
+              padding: '10px',
+              borderRadius: '14px',
+              border: isDragging ? '2px dashed #34C759' : '2px dashed rgba(120,120,128,0.3)',
+              backgroundColor: isDragging ? 'rgba(52,199,89,0.08)' : 'rgba(120,120,128,0.06)',
+              textAlign: 'center'
             }}
           >
             <div style={{ fontSize: '11px', color: '#666', marginBottom: '4px' }}>
               Trascina logo qui oppure
             </div>
-            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <input
                 type="text"
                 value={logoUrl}
                 onChange={e => setLogoUrl(e.target.value)}
                 placeholder="URL logo..."
-                style={{ flex: 1, padding: '4px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '12px' }}
+                style={{ flex: 1, padding: '8px 10px', borderRadius: '10px', border: '1px solid rgba(120,120,128,0.25)', fontSize: '12px' }}
               />
-              <label style={{ padding: '4px 8px', background: '#34C759', color: '#fff', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', whiteSpace: 'nowrap' }}>
+              <label style={{ padding: '8px 12px', background: '#34C759', color: '#fff', borderRadius: '100px', cursor: 'pointer', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 Scegli file
                 <input
                   type="file"
@@ -478,7 +472,7 @@ export default function MonitorUrlModal({ userId, onClose }) {
           </div>
 
           {logoFile && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#34C759', fontWeight: '600', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#34C759', fontWeight: '600' }}>
               <span>✓ {logoFile.name}</span>
               <button
                 type="button"
@@ -490,11 +484,11 @@ export default function MonitorUrlModal({ userId, onClose }) {
             </div>
           )}
 
-          <div className="monitor-url-controls" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <div className="monitor-url-controls" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <select
               value={categoriaId}
               onChange={e => setCategoriaId(e.target.value)}
-              style={{ padding: 10, borderRadius: 6, border: '1px solid #ddd', fontSize: 14, flex: 1 }}
+              style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(120,120,128,0.25)', fontSize: 14, flex: 1, background: 'rgba(120,120,128,0.06)' }}
             >
               <option value="">Tutte le categorie</option>
               {categorie.length === 0 && (
@@ -507,37 +501,37 @@ export default function MonitorUrlModal({ userId, onClose }) {
             <select
               value={cardTarget}
               onChange={e => setCardTarget(e.target.value)}
-              style={{ padding: 10, borderRadius: 6, border: '1px solid #ddd', fontSize: 14, flex: 1 }}
+              style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(120,120,128,0.25)', fontSize: 14, flex: 1, background: 'rgba(120,120,128,0.06)' }}
             >
               {CARD_OPTIONS.map(opt => (
                 <option key={opt.id} value={opt.id}>{opt.label}</option>
               ))}
             </select>
-            <button type="submit" style={{ background: '#007AFF', color: 'white', border: 'none', borderRadius: 6, padding: '10px 0', fontWeight: 'bold', fontSize: 16, minWidth: 110 }}>
+            <button type="submit" style={{ background: '#007AFF', color: 'white', border: 'none', borderRadius: 100, padding: '10px 0', fontWeight: 'bold', fontSize: 15, minWidth: 110 }}>
               Aggiungi
             </button>
           </div>
         </form>
 
-        {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
-        {success && <div style={{ color: 'green', marginBottom: 8 }}>{success}</div>}
+        {error && <div className="error-message" style={{ margin: '0 25px' }}>{error}</div>}
+        {success && <div style={{ color: '#248A3D', margin: '0 25px', fontSize: 14 }}>{success}</div>}
 
-        <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+        <div style={{ maxHeight: 260, overflowY: 'auto', padding: '0 25px 20px' }}>
           {loading ? 'Caricamento...' : urls.length === 0 ? (
-            <div>Nessun link monitorato</div>
+            <div style={{ color: 'var(--glass-text-secondary, #999)', fontSize: 14, textAlign: 'center', padding: '20px 0' }}>Nessun link monitorato</div>
           ) : (
-            <ul style={{ padding: 0, margin: 0, listStyle: 'none' }}>
+            <ul style={{ padding: 0, margin: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {urls.map(u => {
                 const categoria = categorie.find(c => c.id === u.categoria_id);
                 const cardLabel = CARD_OPTIONS.find(opt => opt.id === u.card_target)?.label || 'Auto (titolo)';
                 return (
-                  <li key={u.id} style={{ marginBottom: 12, background: '#f7f7f7', borderRadius: 8, padding: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 'bold', fontSize: 15, marginBottom: 2 }}>{u.url}</div>
-                      <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>
+                  <li key={u.id} style={{ background: 'rgba(120,120,128,0.06)', borderRadius: 14, padding: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 'bold', fontSize: 14, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.url}</div>
+                      <div style={{ fontSize: 12, color: '#888', marginBottom: 2 }}>
                         {categoria ? (categoria.emoji ? categoria.emoji + ' ' : '') + categoria.nome : 'Tutte le categorie'}
                       </div>
-                      <div style={{ fontSize: 13, color: '#888', marginBottom: 2 }}>Card: {cardLabel}</div>
+                      <div style={{ fontSize: 12, color: '#888', marginBottom: 2 }}>Card: {cardLabel}</div>
                       {u.logo_url && (
                         <div style={{ marginTop: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
                           <img
@@ -552,15 +546,15 @@ export default function MonitorUrlModal({ userId, onClose }) {
                               e.currentTarget.src = '/logo_filtro.png';
                             }}
                             style={{
-                              width: "22px",
-                              height: "22px",
-                              borderRadius: "4px",
+                              width: "20px",
+                              height: "20px",
+                              borderRadius: "6px",
                               objectFit: "contain",
                               background: "#f6f6f6",
                               border: "1px solid #eee"
                             }}
                           />
-                          <span style={{ fontSize: "12px", color: "#666" }}>
+                          <span style={{ fontSize: "11px", color: "#666" }}>
                             Logo impostato
                           </span>
                         </div>
@@ -569,14 +563,15 @@ export default function MonitorUrlModal({ userId, onClose }) {
                     <button
                       onClick={() => handleRemove(u.id)}
                       style={{
-                        background: "#FF3B30",
-                        color: "#fff",
+                        background: "rgba(255,59,48,0.12)",
+                        color: "#FF3B30",
                         border: "none",
-                        borderRadius: "6px",
-                        padding: "4px 10px",
+                        borderRadius: "100px",
+                        padding: "6px 12px",
                         cursor: "pointer",
                         flexShrink: 0,
-                        fontSize: "12px"
+                        fontSize: "12px",
+                        fontWeight: 600
                       }}
                     >
                       Rimuovi
