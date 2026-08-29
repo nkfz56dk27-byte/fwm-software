@@ -4836,6 +4836,7 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
   const [showNuovo, setShowNuovo] = useState(false)
   const [editUtente, setEditUtente] = useState(null)
   const [permessiUtente, setPermessiUtente] = useState(null) // utente di cui si stanno modificando i permessi
+  const [azioniUtente, setAzioniUtente] = useState(null) // utente di cui si sta mostrando il menu azioni
 
   // Elenco dei permessi speciali disponibili: per aggiungerne uno nuovo in futuro basta
   // aggiungere una riga qui, senza toccare il database (è già pronto a contenerne altri).
@@ -4857,6 +4858,7 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
   const [showTemplateArticoli, setShowTemplateArticoli] = useState(false)
   const [showGestioneRSS, setShowGestioneRSS] = useState(false);
   const [showMonitorUrl, setShowMonitorUrl] = useState(false);
+  const [showStrumenti, setShowStrumenti] = useState(false);
   
   // Determina se l'utente corrente è admin
   const isAdmin = utenti.some(u => u.ruolo === 'admin');
@@ -4900,89 +4902,87 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
   return (
     <div className="gestione-container" style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' } : {}}>
       <div className="gestione-header">
-        <button className="btn-back" onClick={onClose} style={typeof window !== 'undefined' && window.innerWidth <= 768 ? { marginTop: 40 } : { marginTop: 0 }}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>Indietro</button>
-        <h1 className="gestione-title" style={typeof window !== 'undefined' && window.innerWidth <= 768 ? { marginTop: 40 } : { marginTop: 0 }}>Gestione Utenti</h1>
-        <div
-          style={
-            isMobile
-              ? { display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch', width: '100%', marginTop: 8, marginBottom: 4 }
-              : { display: 'flex', gap: '10px', alignItems: 'center' }
-          }
-        >
-          {/* Bottone tondo rosso con ingranaggio */}
-          <button
-            style={
-              isMobile
-                ? {
-                    width: '100%',
-                    height: 44,
-                    borderRadius: 8,
-                    background: '#e74c3c',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                    cursor: 'pointer',
-                    marginBottom: 0,
-                  }
-                : {
-                    width: 44,
-                    height: 44,
-                    borderRadius: '50%',
-                    background: '#e74c3c',
-                    border: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                    cursor: 'pointer',
-                  }
-            }
-            onClick={() => setShowImpostazioni(true)}
-            title="Impostazioni"
-          >
-            <svg viewBox="0 0 24 24" fill="white" width="28" height="28">
-              <path d="M19.14,12.94a7.07,7.07,0,0,0,0-1.88l2.11-1.65a.5.5,0,0,0,.12-.63l-2-3.46a.5.5,0,0,0-.61-.22l-2.49,1a6.93,6.93,0,0,0-1.62-.94l-.38-2.65A.5.5,0,0,0,13,2h-4a.5.5,0,0,0-.5.42l-.38,2.65a6.93,6.93,0,0,0-1.62.94l-2.49-1a.5.5,0,0,0-.61.22l-2,3.46a.5.5,0,0,0,.12.63l2.11,1.65a7.07,7.07,0,0,0,0,1.88L2.37,14.59a.5.5,0,0,0-.12.63l2,3.46a.5.5,0,0,0,.61.22l2.49-1a6.93,6.93,0,0,0,1.62.94l.38,2.65A.5.5,0,0,0,9,22h4a.5.5,0,0,0,.5-.42l.38-2.65a6.93,6.93,0,0,0,1.62-.94l2.49,1a.5.5,0,0,0,.61-.22l2-3.46a.5.5,0,0,0-.12-.63ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/>
-            </svg>
+        <div className="gestione-navbar">
+          <button className="btn-back" onClick={onClose} aria-label="Indietro">
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            Indietro
           </button>
-          {isAdmin && (
-            <button className="btn-nuovo" style={{ background: '#8e44ad', marginRight: 0 }} onClick={onOpenMonitorUrl}>
-              Link Web
-            </button>
-          )}
-          {isAdmin && (
-            <button className="btn-nuovo" style={{ background: '#8e44ad' }} onClick={() => setShowGestioneRSS(true)}>
-              <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3A2 2 0 0 1 21 5v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14zm0 2H5v14h14V5zm-7 2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4zm0 6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h4z"/></svg>
-              Gestisci RSS
-            </button>
-          )}
-          {showGestioneRSS && <GestioneRSSModal onClose={() => setShowGestioneRSS(false)} />}
-          <button className="btn-nuovo" style={{ background: '#007AFF' }} onClick={() => setShowCategorie(true)}>
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
-            Categorie
+          <h1 className="gestione-title">Gestione Utenti</h1>
+        </div>
+        <div className="gestione-actions">
+          <button className="btn-nuovo btn-nuovo-primary" onClick={() => setShowNuovo(true)}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+            Nuovo utente
           </button>
-          <button className="btn-nuovo" style={{ background: '#FF9500' }} onClick={() => setShowTemplateArticoli(true)}>
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
-            Template
+          <button className="btn-nuovo btn-nuovo-secondary" onClick={() => setShowStrumenti(true)}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4z"/></svg>
+            Strumenti
           </button>
-          <button className="btn-nuovo" onClick={() => setShowNuovo(true)}><svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>Nuovo</button>
         </div>
       </div>
+      {showGestioneRSS && <GestioneRSSModal onClose={() => setShowGestioneRSS(false)} />}
+      {showStrumenti && (
+        <div className="modal-container" onClick={() => setShowStrumenti(false)}>
+          <div className="modal-card sheet-list-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Strumenti</h2>
+              <button className="btn-close" onClick={() => setShowStrumenti(false)}>✕</button>
+            </div>
+            <div className="sheet-list">
+              <button className="sheet-list-item" onClick={() => { setShowStrumenti(false); setShowImpostazioni(true) }}>
+                <span className="sheet-list-icon" style={{ background: 'rgba(120,120,128,0.16)', color: 'var(--glass-text-secondary, #666)' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14,12.94a7.07,7.07,0,0,0,0-1.88l2.11-1.65a.5.5,0,0,0,.12-.63l-2-3.46a.5.5,0,0,0-.61-.22l-2.49,1a6.93,6.93,0,0,0-1.62-.94l-.38-2.65A.5.5,0,0,0,13,2h-4a.5.5,0,0,0-.5.42l-.38,2.65a6.93,6.93,0,0,0-1.62.94l-2.49-1a.5.5,0,0,0-.61.22l-2,3.46a.5.5,0,0,0,.12.63l2.11,1.65a7.07,7.07,0,0,0,0,1.88L2.37,14.59a.5.5,0,0,0-.12.63l2,3.46a.5.5,0,0,0,.61.22l2.49-1a6.93,6.93,0,0,0,1.62.94l.38,2.65A.5.5,0,0,0,9,22h4a.5.5,0,0,0,.5-.42l.38-2.65a6.93,6.93,0,0,0,1.62-.94l2.49,1a.5.5,0,0,0,.61-.22l2-3.46a.5.5,0,0,0-.12-.63ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/></svg>
+                </span>
+                <span className="sheet-list-label">Impostazioni</span>
+                <svg className="sheet-list-chevron" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              <button className="sheet-list-item" onClick={() => { setShowStrumenti(false); setShowCategorie(true) }}>
+                <span className="sheet-list-icon" style={{ background: 'rgba(10,132,255,0.14)', color: 'var(--glass-accent-blue, #0A84FF)' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                </span>
+                <span className="sheet-list-label">Categorie</span>
+                <svg className="sheet-list-chevron" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              <button className="sheet-list-item" onClick={() => { setShowStrumenti(false); setShowTemplateArticoli(true) }}>
+                <span className="sheet-list-icon" style={{ background: 'rgba(255,149,0,0.14)', color: 'var(--glass-accent-orange, #FF9F0A)' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                </span>
+                <span className="sheet-list-label">Template articoli</span>
+                <svg className="sheet-list-chevron" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+              </button>
+              {isAdmin && (
+                <button className="sheet-list-item" onClick={() => { setShowStrumenti(false); setShowGestioneRSS(true) }}>
+                  <span className="sheet-list-icon" style={{ background: 'rgba(191,90,242,0.14)', color: 'var(--glass-accent-purple, #BF5AF2)' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3A2 2 0 0 1 21 5v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14zm0 2H5v14h14V5zm-7 2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4zm0 6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h4z"/></svg>
+                  </span>
+                  <span className="sheet-list-label">Gestisci RSS</span>
+                  <svg className="sheet-list-chevron" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+              )}
+              {isAdmin && (
+                <button className="sheet-list-item" onClick={() => { setShowStrumenti(false); onOpenMonitorUrl() }}>
+                  <span className="sheet-list-icon" style={{ background: 'rgba(191,90,242,0.14)', color: 'var(--glass-accent-purple, #BF5AF2)' }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+                  </span>
+                  <span className="sheet-list-label">Link Web</span>
+                  <svg className="sheet-list-chevron" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
             {showImpostazioni && (
-              <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.35)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ background: 'white', borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.18)', padding: '32px', minWidth: 320, minHeight: 180, position: 'relative' }}>
-                  <h2 style={{ marginBottom: 24 }}>Impostazioni</h2>
-                  <button style={{ position: 'absolute', top: 12, right: 12, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} onClick={() => setShowImpostazioni(false)} title="Chiudi">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="12" fill="#fff"/>
-                      <path d="M7 7l10 10M17 7l-10 10" stroke="#e74c3c" strokeWidth="2.5" strokeLinecap="round"/>
-                    </svg>
-                  </button>
-                  <div style={{ marginTop: 16, color: '#888', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+              <div className="modal-container" style={{ zIndex: 99999 }}>
+                <div className="modal-card" style={{ maxWidth: 420, position: 'relative' }}>
+                  <div className="modal-header">
+                    <h2>Impostazioni</h2>
+                    <button className="btn-close" onClick={() => setShowImpostazioni(false)} title="Chiudi">✕</button>
+                  </div>
+                  <div className="modal-form" style={{ gap: 24 }}>
                     {/* Bottone DEBUG Player ID OneSignal */}
                     <button
-                      style={{ background: '#FF3B30', color: 'white', border: 'none', borderRadius: 24, padding: '12px 24px', fontWeight: 'bold', fontSize: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                      style={{ width: '100%', background: '#FF3B30', color: 'white', border: 'none', borderRadius: 12, padding: '14px 24px', fontWeight: 'bold', fontSize: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.12)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                       onClick={async () => {
                         try {
                           if (window.OneSignal) {
@@ -5036,12 +5036,45 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
                 </div>
                 <div className="utente-actions">
                   <button className="btn-action btn-green" onClick={() => setEditUtente(utente)}><svg className="icon-small" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>Modifica</button>
-                  <button className="btn-action btn-blue" onClick={() => cambiaRuolo(utente)}><svg className="icon-small" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>Cambia Ruolo</button>
-                  <button className="btn-action btn-orange" onClick={() => resetPassword(utente)}><svg className="icon-small" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/></svg>Reset Password</button>
-                  <button className="btn-action" style={{ background: '#8e44ad', color: '#fff' }} onClick={() => setPermessiUtente(utente)}>🔐 Permessi</button>
+                  <button className="btn-more" onClick={() => setAzioniUtente(utente)} title="Altre azioni" aria-label="Altre azioni">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+                  </button>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        {azioniUtente && (
+          <div className="modal-container" onClick={() => setAzioniUtente(null)}>
+            <div className="modal-card sheet-list-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2 style={{ fontSize: 18 }}>{azioniUtente.nome_completo}</h2>
+                <button className="btn-close" onClick={() => setAzioniUtente(null)}>✕</button>
+              </div>
+              <div className="sheet-list">
+                <button className="sheet-list-item" onClick={() => { cambiaRuolo(azioniUtente); setAzioniUtente(null) }}>
+                  <span className="sheet-list-icon" style={{ background: 'rgba(10,132,255,0.14)', color: 'var(--glass-accent-blue, #0A84FF)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                  </span>
+                  <span className="sheet-list-label">Cambia ruolo</span>
+                  <svg className="sheet-list-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+                <button className="sheet-list-item" onClick={() => { resetPassword(azioniUtente); setAzioniUtente(null) }}>
+                  <span className="sheet-list-icon" style={{ background: 'rgba(255,159,10,0.14)', color: 'var(--glass-accent-orange, #FF9F0A)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/></svg>
+                  </span>
+                  <span className="sheet-list-label">Reset password</span>
+                  <svg className="sheet-list-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+                <button className="sheet-list-item" onClick={() => { setPermessiUtente(azioniUtente); setAzioniUtente(null) }}>
+                  <span className="sheet-list-icon" style={{ background: 'rgba(191,90,242,0.14)', color: 'var(--glass-accent-purple, #BF5AF2)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17a2 2 0 100-4 2 2 0 000 4zm6-9h-1V6a5 5 0 00-10 0v2H6a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V10a2 2 0 00-2-2zM9 6a3 3 0 016 0v2H9z"/></svg>
+                  </span>
+                  <span className="sheet-list-label">Permessi speciali</span>
+                  <svg className="sheet-list-chevron" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 6l6 6-6 6"/></svg>
+                </button>
+              </div>
+            </div>
           </div>
         )}
         {/* Modal MonitorUrl SOLO qui, non duplicato altrove */}
@@ -5049,44 +5082,46 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
 
         {/* Modale permessi speciali */}
         {permessiUtente && (
-          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div style={{ background: 'white', borderRadius: '16px', padding: '30px', maxWidth: '440px', width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div className="modal-container" style={{ zIndex: 99999 }}>
+            <div className="modal-card" style={{ maxWidth: 440 }}>
+              <div className="modal-header">
                 <h2 style={{ margin: 0, fontSize: '20px' }}>Permessi speciali</h2>
-                <button onClick={() => setPermessiUtente(null)} style={{ background: 'none', border: 'none', fontSize: '22px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
+                <button className="btn-close" onClick={() => setPermessiUtente(null)}>✕</button>
               </div>
-              <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
+              <div className="modal-form">
+              <p style={{ color: 'var(--glass-text-secondary, #666)', fontSize: '14px', marginTop: 0, marginBottom: '4px' }}>
                 Per <strong>{permessiUtente.nome_completo}</strong> (@{permessiUtente.username})
               </p>
               {permessiUtente.ruolo === 'admin' && (
-                <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px', marginBottom: '14px', fontSize: '13px', color: '#8a6d00' }}>
+                <div style={{ background: 'rgba(255, 159, 10, 0.14)', border: '0.5px solid rgba(255, 159, 10, 0.35)', borderRadius: 'var(--glass-radius-sm, 14px)', padding: '12px', marginBottom: '14px', fontSize: '13px', color: '#8a5200' }}>
                   ⭐ Questo utente è <strong>admin</strong>: ha già accesso a tutto automaticamente, indipendentemente dalle spunte qui sotto.
                 </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {PERMESSI_DISPONIBILI.map((p) => {
                   const isAdmin = permessiUtente.ruolo === 'admin'
                   return isAdmin ? (
-                    <div key={p.chiave} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: '#f0f0f0', borderRadius: '10px', opacity: 0.7 }}>
+                    <div key={p.chiave} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(120,120,128,0.1)', borderRadius: 'var(--glass-radius-sm, 14px)', opacity: 0.7 }}>
                       <span style={{ fontSize: '18px' }}>✅</span>
                       <span style={{ fontSize: '14px', fontWeight: '600' }}>{p.label} <span style={{ fontWeight: '400', color: '#888' }}>(sempre attivo, admin)</span></span>
                     </div>
                   ) : (
-                    <label key={p.chiave} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', background: '#f8f9fa', borderRadius: '10px' }}>
+                    <label key={p.chiave} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', padding: '12px', background: 'rgba(120,120,128,0.08)', borderRadius: 'var(--glass-radius-sm, 14px)' }}>
                       <input
                         type="checkbox"
                         checked={!!(permessiUtente.permessi_speciali && permessiUtente.permessi_speciali[p.chiave])}
                         onChange={() => togglePermesso(permessiUtente, p.chiave)}
-                        style={{ width: '20px', height: '20px' }}
+                        style={{ width: '20px', height: '20px', accentColor: 'var(--glass-accent-blue, #0A84FF)' }}
                       />
                       <span style={{ fontSize: '14px', fontWeight: '600' }}>{p.label}</span>
                     </label>
                   )
                 })}
               </div>
-              <p style={{ fontSize: '12px', color: '#999', marginTop: '18px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--glass-text-secondary, #999)', marginTop: '18px' }}>
                 Nota: se l'utente ha già una sessione aperta, deve rifare il login per vedere il nuovo permesso attivo.
               </p>
+              </div>
             </div>
           </div>
         )}
@@ -5126,16 +5161,16 @@ function NuovoUtenteView({ onClose, onSave }) {
   return (
     <div className="modal-container">
       <div className="modal-card">
-        <div className="modal-header" style={isMobile ? { marginTop: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' } : { display: 'flex', alignItems: 'center', position: 'relative' }}>
+        <div className="modal-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {isMobile ? (
-            <button onClick={onClose} style={{ position: 'absolute', left: 0, top: 0, height: '100%', background: 'none', border: 'none', color: '#007AFF', fontSize: '22px', fontWeight: 'bold', cursor: 'pointer', boxShadow: 'none', borderRadius: 0, padding: '0 16px', display: 'flex', alignItems: 'center' }}>
-              <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px', marginRight: 4 }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            <button onClick={onClose} className="modal-back-btn">
+              <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '22px', height: '22px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
               Indietro
             </button>
           ) : null}
-          <h2 style={{ flex: 1, textAlign: isMobile ? 'center' : 'left', margin: 0, marginTop: isMobile ? 40 : 0 }}>Nuovo Utente</h2>
+          <h2 style={{ flex: 1, textAlign: isMobile ? 'center' : 'left', margin: 0 }}>Nuovo Utente</h2>
           {!isMobile && (
-            <button className="btn-close" onClick={onClose} style={{ position: 'absolute', right: '10px', top: 0, height: '100%', background: 'none', border: 'none', color: '#e53935', fontSize: '28px', fontWeight: 'bold', cursor: 'pointer', boxShadow: 'none', borderRadius: 0, padding: '0 16px' }}>✕</button>
+            <button className="btn-close" onClick={onClose}>✕</button>
           )}
         </div>
         <form onSubmit={handleSave} className="modal-form">
