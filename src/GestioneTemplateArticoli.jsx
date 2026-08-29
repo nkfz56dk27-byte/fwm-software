@@ -116,52 +116,30 @@ export default function GestioneTemplateArticoli({ onClose }) {
   }
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#f5f5f7', zIndex: 1000 }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(180deg, #eef0f4 0%, #e4e6ec 100%)', zIndex: 1000 }}>
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            background: 'white',
-            borderBottom: '1px solid #e0e0e0',
-            transition: 'padding 0.2s',
-            ...(isMobile
-              ? {
-                  padding: `calc(env(safe-area-inset-top, 0px) + 57px) 30px 20px 30px`,
-                  paddingTop: `calc(env(safe-area-inset-top, 0px) + 57px)`
-                }
-              : { padding: '20px 30px', paddingTop: '20px' }),
-            // iPhone 17/17 Max specific: usa media query JS per device
-            ...(typeof window !== 'undefined' && window.navigator.userAgent.match(/iPhone\s*17/) ? {
-              paddingTop: `calc(env(safe-area-inset-top, 0px) + 77px)`,
-              padding: `calc(env(safe-area-inset-top, 0px) + 77px) 30px 20px 30px`
-            } : {})
-          }}
-        >
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
-          <div style={{
-            fontSize: isMobile ? '26px' : '24px',
-            fontWeight: 'bold',
-            flex: isMobile ? '1 1 0%' : undefined,
-            marginLeft: 0,
-            marginRight: 0,
-            textAlign: 'center',
-            width: isMobile ? '100%' : undefined,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>Template Articoli</div>
-          <button onClick={() => setShowNuovo(true)} style={{ padding: '10px 20px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>Nuovo Template</button>
+        <div className="gestione-header" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 28px)' }}>
+          <div className="gestione-navbar">
+            <button className="btn-back" onClick={onClose}>
+              <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+              Indietro
+            </button>
+            <h1 className="gestione-title">Template articoli</h1>
+          </div>
+          <div className="gestione-actions">
+            <button className="btn-nuovo btn-nuovo-primary" onClick={() => setShowNuovo(true)} style={{ flex: 1 }}>
+              <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+              Nuovo template
+            </button>
+          </div>
         </div>
 
         {/* Contenuto */}
         <div style={{
           flex: 1,
           overflow: 'auto',
-          padding: isMobile ? '30px 30px 30px 30px' : '30px',
-          paddingTop: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 30px)' : '30px'
+          padding: '20px'
         }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: '100px', color: '#666' }}>Caricamento...</div>
@@ -169,10 +147,10 @@ export default function GestioneTemplateArticoli({ onClose }) {
             <div style={{ textAlign: 'center', padding: '100px' }}>
               <div style={{ fontSize: '60px', marginBottom: '20px' }}>📋</div>
               <div style={{ fontSize: '20px', color: '#666' }}>Nessun template creato</div>
-              <button onClick={() => setShowNuovo(true)} style={{ marginTop: '20px', padding: '12px 24px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>Crea il primo template</button>
+              <button onClick={() => setShowNuovo(true)} style={{ marginTop: '20px', padding: '12px 24px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '100px', cursor: 'pointer', fontWeight: 'bold' }}>Crea il primo template</button>
             </div>
           ) : (
-            <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {templates.map(template => {
                 const search = searchByTemplate[template.id]?.toLowerCase() || '';
                 const filteredArticoli = search
@@ -182,7 +160,7 @@ export default function GestioneTemplateArticoli({ onClose }) {
                     )
                   : template.articoli;
                 return (
-                  <div key={template.id} style={{ background: 'white', borderRadius: '15px', padding: '25px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', border: template.categoria ? `4px solid ${template.categoria.colore}` : '4px solid #8E8E93' }}>
+                  <div key={template.id} style={{ background: 'white', borderRadius: '20px', padding: '25px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', borderLeft: template.categoria ? `6px solid ${template.categoria.colore}` : '6px solid #8E8E93' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '15px' }}>
                       <div>
                         <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{template.nome}</div>
@@ -194,9 +172,9 @@ export default function GestioneTemplateArticoli({ onClose }) {
                           )}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button onClick={() => setTemplateEdit(template)} style={{ padding: '8px 16px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Modifica</button>
-                        <button onClick={() => eliminaTemplate(template.id)} style={{ padding: '8px 16px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Elimina</button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => setTemplateEdit(template)} style={{ padding: '8px 15px', background: 'rgba(0,122,255,0.12)', color: '#007AFF', border: 'none', borderRadius: '100px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Modifica</button>
+                        <button onClick={() => eliminaTemplate(template.id)} style={{ padding: '8px 15px', background: 'rgba(255,59,48,0.12)', color: '#FF3B30', border: 'none', borderRadius: '100px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Elimina</button>
                       </div>
                     </div>
                     {/* Search bar per articoli */}
@@ -205,7 +183,7 @@ export default function GestioneTemplateArticoli({ onClose }) {
                       placeholder="Cerca tra gli articoli..."
                       value={searchByTemplate[template.id] || ''}
                       onChange={e => handleSearchChange(template.id, e.target.value)}
-                      style={{ width: '100%', marginBottom: 12, padding: 8, borderRadius: 8, border: '1px solid #ddd', fontSize: 15 }}
+                      style={{ width: '100%', marginBottom: 12, padding: 10, borderRadius: 12, border: '1px solid rgba(120,120,128,0.25)', background: 'rgba(120,120,128,0.06)', fontSize: 15 }}
                     />
                     <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
                       {filteredArticoli.length} articoli
@@ -216,7 +194,7 @@ export default function GestioneTemplateArticoli({ onClose }) {
                         <div style={{ color: '#999', fontStyle: 'italic', padding: '10px' }}>Nessun articolo trovato</div>
                       )}
                       {filteredArticoli.slice(0, 5).map((art, idx) => (
-                        <div key={idx} style={{ padding: '10px', background: '#f8f8f8', borderRadius: '8px' }}>
+                        <div key={idx} style={{ padding: '10px 14px', background: 'rgba(120,120,128,0.06)', borderRadius: '12px' }}>
                           <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
                             {renderTextWithBold(art.titolo, art.range_grassetto || [])}
                           </div>
@@ -226,7 +204,7 @@ export default function GestioneTemplateArticoli({ onClose }) {
                         </div>
                       ))}
                       {filteredArticoli.length > 5 && (
-                        <div style={{ padding: '10px', background: '#e0e0e0', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
+                        <div style={{ padding: '10px', background: 'rgba(120,120,128,0.1)', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}>
                           +{filteredArticoli.length - 5} altri articoli
                         </div>
                       )}
@@ -330,34 +308,35 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
   }
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-      <div style={{ background: 'white', borderRadius: '15px', width: '900px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{template ? 'Modifica Template' : 'Nuovo Template'}</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
+    <div className="modal-container">
+      <div className="modal-card" style={{ maxWidth: 900 }}>
+        <div className="modal-header">
+          <h2>{template ? 'Modifica template' : 'Nuovo template'}</h2>
+          <button className="btn-close" onClick={onClose}>✕</button>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
+        <div className="modal-form">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             {/* Nome */}
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Nome Template</div>
+            <div className="form-group">
+              <label className="form-label">Nome template</label>
               <input
                 type="text"
                 placeholder="es: Formula E - Venerdì e Sabato"
                 value={nome}
                 onChange={e => setNome(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }}
+                className="form-input"
               />
             </div>
 
             {/* Categoria */}
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Categoria</div>
+            <div className="form-group">
+              <label className="form-label">Categoria</label>
               <select
                 value={categoriaId || ''}
                 onChange={e => setCategoriaId(e.target.value || null)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px', background: 'white', cursor: 'pointer' }}
+                className="form-input"
+                style={{ cursor: 'pointer' }}
               >
                 <option value="">Nessuna categoria (generico)</option>
                 {categorie.map(cat => (
@@ -366,13 +345,13 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
               </select>
             </div>
 
-            <div style={{ height: '1px', background: '#e0e0e0' }}></div>
+            <div style={{ height: '1px', background: 'rgba(60,60,67,0.15)' }}></div>
 
             {/* Articoli */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <div style={{ fontSize: '16px', fontWeight: 'bold' }}>📄 Articoli ({articoli.length})</div>
-                <button onClick={() => { setEditIndex(null); setShowAggiungi(true) }} style={{ padding: '8px 16px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>Aggiungi Articolo</button>
+                <button onClick={() => { setEditIndex(null); setShowAggiungi(true) }} style={{ padding: '8px 16px', background: 'rgba(52,199,89,0.14)', color: '#248A3D', border: 'none', borderRadius: '100px', cursor: 'pointer', fontWeight: 'bold' }}>+ Aggiungi articolo</button>
               </div>
 
               {/* Lista articoli ordinata per giorno e categoria */}
@@ -382,7 +361,8 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
                 placeholder="Cerca tra gli articoli..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                style={{ width: '100%', marginBottom: 12, padding: 8, borderRadius: 8, border: '1px solid #ddd', fontSize: 15 }}
+                className="form-input"
+                style={{ marginBottom: 12 }}
               />
               {articoli.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -401,7 +381,7 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
                       return a.categoria.localeCompare(b.categoria)
                     })
                     .map((art, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: art.critico ? '#FF3B3015' : '#f8f8f8', borderRadius: '8px', border: art.critico ? '1px solid #FF3B30' : 'none' }}>
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: art.critico ? 'rgba(255,59,48,0.08)' : 'rgba(120,120,128,0.06)', borderRadius: '14px', border: art.critico ? '1px solid rgba(255,59,48,0.3)' : 'none' }}>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
                             {renderTextWithBold(art.titolo, art.range_grassetto || [])}
@@ -419,9 +399,9 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
                             }}
                             style={{
                               padding: '6px 10px',
-                              background: art.critico ? '#FF3B30' : '#f0f0f0',
+                              background: art.critico ? '#FF3B30' : 'rgba(120,120,128,0.12)',
                               border: 'none',
-                              borderRadius: '6px',
+                              borderRadius: '50%',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
@@ -431,10 +411,10 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
                             }}
                             title={art.critico ? 'Rimuovi da critici' : 'Aggiungi a critici'}
                           >
-                            <img src={alertSvg} alt="⚠️" style={{ width: '20px', height: '20px' }} />
+                            <img src={alertSvg} alt="⚠️" style={{ width: '18px', height: '18px', filter: art.critico ? 'brightness(0) invert(1)' : 'none' }} />
                           </button>
-                          <button onClick={() => modificaArticolo(articoli.indexOf(art))} style={{ padding: '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✏️</button>
-                          <button onClick={() => rimuoviArticolo(articoli.indexOf(art))} style={{ padding: '6px 12px', background: '#FF3B30', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                          <button onClick={() => modificaArticolo(articoli.indexOf(art))} style={{ padding: '6px 12px', background: 'rgba(0,122,255,0.12)', color: '#007AFF', border: 'none', borderRadius: '100px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Modifica</button>
+                          <button onClick={() => rimuoviArticolo(articoli.indexOf(art))} style={{ width: '30px', height: '30px', background: 'rgba(255,59,48,0.12)', color: '#FF3B30', border: 'none', borderRadius: '50%', cursor: 'pointer', fontSize: '13px' }}>✕</button>
                         </div>
                       </div>
                     ))}
@@ -444,18 +424,18 @@ function TemplateModal({ template, categorie, onClose, onSave }) {
           </div>
         </div>
 
-        <div style={{ padding: '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+        <div className="modal-actions" style={{ justifyContent: 'space-between', padding: '20px 25px' }}>
           <div>
             {template && (
-              <button onClick={copiaTemplate} disabled={salvando} style={{ padding: '10px 20px', background: '#AF52DE', color: 'white', border: 'none', borderRadius: '10px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: salvando ? 0.5 : 1 }}>
-                📋 Copia Template
+              <button onClick={copiaTemplate} disabled={salvando} style={{ padding: '10px 20px', background: 'rgba(175,82,222,0.14)', color: '#8944AB', border: 'none', borderRadius: '100px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: salvando ? 0.5 : 1 }}>
+                Copia template
               </button>
             )}
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
-            <button onClick={salva} disabled={salvando} style={{ padding: '10px 20px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', opacity: salvando ? 0.5 : 1 }}>
-              {salvando ? 'Salvataggio...' : template ? 'Salva Modifiche' : 'Crea Template'}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button className="btn-cancel" onClick={onClose}>Annulla</button>
+            <button className="btn-save" onClick={salva} disabled={salvando} style={{ opacity: salvando ? 0.5 : 1 }}>
+              {salvando ? 'Salvataggio...' : template ? 'Salva modifiche' : 'Crea template'}
             </button>
           </div>
         </div>
@@ -498,25 +478,26 @@ function ArticoloModal({ articolo, onClose, onSave }) {
   }
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000 }}>
-      <div style={{ background: 'white', borderRadius: '15px', width: '700px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{articolo ? 'Modifica Articolo' : 'Nuovo Articolo'}</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
+    <div className="modal-container" style={{ zIndex: 20000 }}>
+      <div className="modal-card" style={{ maxWidth: 700 }}>
+        <div className="modal-header">
+          <h2 style={{ fontSize: 18 }}>{articolo ? 'Modifica articolo' : 'Nuovo articolo'}</h2>
+          <button className="btn-close" onClick={onClose}>✕</button>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
+        <div className="modal-form">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Editor Titolo con Grassetto */}
             <RichTextEditor text={titolo} rangeGrassetto={rangeGrassetto} onChange={setTitolo} onRangesChange={setRangeGrassetto} />
 
             {/* Categoria */}
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px' }}>Categoria</div>
+            <div className="form-group">
+              <label className="form-label">Categoria</label>
               <select
                 value={categoria}
                 onChange={e => setCategoria(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', background: 'white', cursor: 'pointer' }}
+                className="form-input"
+                style={{ cursor: 'pointer' }}
               >
                 {CATEGORIE.map(c => (
                   <option key={c.id} value={c.id}>{c.nome}</option>
@@ -525,12 +506,13 @@ function ArticoloModal({ articolo, onClose, onSave }) {
             </div>
 
             {/* Giorno */}
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px' }}>Giorno</div>
+            <div className="form-group">
+              <label className="form-label">Giorno</label>
               <select
                 value={giorno}
                 onChange={e => setGiorno(e.target.value)}
-                style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', background: 'white', cursor: 'pointer' }}
+                className="form-input"
+                style={{ cursor: 'pointer' }}
               >
                 {GIORNI.map(g => (
                   <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>
@@ -540,9 +522,9 @@ function ArticoloModal({ articolo, onClose, onSave }) {
           </div>
         </div>
 
-        <div style={{ padding: '20px 30px', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-          <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
-          <button onClick={salva} style={{ padding: '10px 20px', background: '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>
+        <div className="modal-actions" style={{ padding: '20px 25px' }}>
+          <button className="btn-cancel" onClick={onClose}>Annulla</button>
+          <button className="btn-save" onClick={salva}>
             {articolo ? 'Salva' : 'Aggiungi'}
           </button>
         </div>
@@ -584,28 +566,28 @@ function RichTextEditor({ text, rangeGrassetto, onChange, onRangesChange }) {
 
   return (
     <div>
-      <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '5px' }}>Titolo Articolo</div>
-      <textarea value={text} onChange={e => onChange(e.target.value)} placeholder="Scrivi il titolo..." style={{ width: '100%', minHeight: '80px', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical' }} />
+      <label className="form-label" style={{ display: 'block', marginBottom: 8 }}>Titolo articolo</label>
+      <textarea value={text} onChange={e => onChange(e.target.value)} placeholder="Scrivi il titolo..." className="form-input" style={{ minHeight: '80px', resize: 'vertical' }} />
       
       {text && (
         <>
-          <div style={{ fontSize: '12px', fontWeight: '600', marginTop: '10px', marginBottom: '5px' }}>👁️ Anteprima:</div>
-          <div style={{ padding: '10px', background: '#007AFF1A', borderRadius: '8px', fontSize: '14px', marginBottom: '10px' }}>
+          <div style={{ fontSize: '12px', fontWeight: '600', marginTop: '14px', marginBottom: '6px', color: 'var(--glass-text-secondary, #666)' }}>Anteprima</div>
+          <div style={{ padding: '12px 14px', background: 'rgba(0,122,255,0.08)', borderRadius: '14px', fontSize: '14px', marginBottom: '14px' }}>
             {renderTextWithBold(text, rangeGrassetto)}
           </div>
           
-          <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '8px' }}>
-            🔤 Clicca per mettere in grassetto:
+          <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: 10, color: 'var(--glass-text-secondary, #666)' }}>
+            Clicca per mettere in grassetto
             {rangeGrassetto.length > 0 && (
-              <button onClick={() => onRangesChange([])} style={{ marginLeft: '10px', padding: '4px 8px', background: '#FF3B301A', color: '#FF3B30', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer' }}>
-                ✕ Rimuovi tutto
+              <button onClick={() => onRangesChange([])} style={{ padding: '4px 10px', background: 'rgba(255,59,48,0.12)', color: '#FF3B30', border: 'none', borderRadius: '100px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                Rimuovi tutto
               </button>
             )}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
             {words.map(word => (
-              <button key={word} onClick={() => toggleWord(word)} style={{ padding: '6px 12px', background: isWordBold(word) ? '#007AFF' : '#f0f0f0', color: isWordBold(word) ? 'white' : '#333', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: isWordBold(word) ? 'bold' : 'normal' }}>
-                {isWordBold(word) ? '✓' : '○'} {word}
+              <button key={word} onClick={() => toggleWord(word)} style={{ padding: '6px 14px', background: isWordBold(word) ? '#007AFF' : 'rgba(120,120,128,0.1)', color: isWordBold(word) ? 'white' : '#333', border: 'none', borderRadius: '100px', cursor: 'pointer', fontSize: '12px', fontWeight: isWordBold(word) ? 'bold' : 'normal' }}>
+                {word}
               </button>
             ))}
           </div>
