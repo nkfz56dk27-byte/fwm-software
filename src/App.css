@@ -426,8 +426,10 @@ body {
   flex-shrink: 0;
 }
 .gestione-navbar {
-  display: flex;
-  align-items: center;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
   gap: 4px;
   min-height: 44px;
   width: 100%;
@@ -1213,10 +1215,9 @@ body {
     color: var(--glass-text-secondary);
   }
 
-  /* Modali → bottom sheet in vetro con maniglia, non più box centrato */
+  /* Modali → bottom sheet solido con maniglia, non più box centrato. Sfondo opaco per evitare che schermate impilate si mescolino visivamente */
   .modal-container {
-    background: rgba(0, 0, 0, 0.32);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.55);
     align-items: flex-end;
   }
   .modal-card {
@@ -1224,9 +1225,7 @@ body {
     height: auto !important;
     max-height: 92vh !important;
     border-radius: var(--glass-radius-lg) var(--glass-radius-lg) 0 0 !important;
-    background: var(--glass-bg-strong);
-    backdrop-filter: var(--glass-blur-strong);
-    -webkit-backdrop-filter: var(--glass-blur-strong);
+    background: #ffffff;
     box-shadow: 0 -8px 40px rgba(0,0,0,0.25);
     padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
   }
