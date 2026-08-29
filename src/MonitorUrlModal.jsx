@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from './supabaseClient';
 
 export default function MonitorUrlModal({ userId, onClose }) {
@@ -401,15 +402,19 @@ export default function MonitorUrlModal({ userId, onClose }) {
     else fetchUrls();
   }
 
-  return (
-    <div className="modal-container">
-      <div className="modal-card" style={{ maxWidth: 480 }}>
-        <div className="modal-header">
-          <h2>Link web monitorati</h2>
-          <button className="btn-close" onClick={onClose} title="Chiudi">✕</button>
+  return createPortal(
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(180deg, #eef0f4 0%, #e4e6ec 100%)', zIndex: 100000, display: 'flex', flexDirection: 'column' }}>
+        <div className="gestione-header" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)', paddingBottom: 12, minHeight: 70 }}>
+          <div className="gestione-navbar" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }}>
+            <button className="btn-back" onClick={onClose}>
+              <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+              Indietro
+            </button>
+            <h1 className="gestione-title">Link web monitorati</h1>
+          </div>
         </div>
 
-        <form onSubmit={addUrl} className="modal-form" style={{ gap: 12 }}>
+        <form onSubmit={addUrl} className="modal-form" style={{ gap: 12, flex: '0 0 auto', overflowY: 'visible', padding: '20px', maxWidth: 640, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
           <style>{`
             @media (max-width: 600px) {
               .monitor-url-controls {
@@ -513,10 +518,10 @@ export default function MonitorUrlModal({ userId, onClose }) {
           </div>
         </form>
 
-        {error && <div className="error-message" style={{ margin: '0 25px' }}>{error}</div>}
-        {success && <div style={{ color: '#248A3D', margin: '0 25px', fontSize: 14 }}>{success}</div>}
+        {error && <div className="error-message" style={{ margin: '0 20px 12px', maxWidth: 640, marginLeft: 'auto', marginRight: 'auto' }}>{error}</div>}
+        {success && <div style={{ color: '#248A3D', margin: '0 20px 12px', maxWidth: 640, marginLeft: 'auto', marginRight: 'auto', fontSize: 14 }}>{success}</div>}
 
-        <div style={{ maxHeight: 260, overflowY: 'auto', padding: '0 25px 20px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 30px', maxWidth: 640, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
           {loading ? 'Caricamento...' : urls.length === 0 ? (
             <div style={{ color: 'var(--glass-text-secondary, #999)', fontSize: 14, textAlign: 'center', padding: '20px 0' }}>Nessun link monitorato</div>
           ) : (
@@ -582,7 +587,7 @@ export default function MonitorUrlModal({ userId, onClose }) {
             </ul>
           )}
         </div>
-      </div>
-    </div>
+    </div>,
+    document.body
   );
 }
