@@ -61,7 +61,7 @@ const OVERLAY_GRAPHICS = Object.entries(overlayModules)
 // copia i 4 valori mostrati nel popup dentro una nuova riga qui sotto (usando la key giusta).
 // "default" è la posizione usata quando una grafica non ha una voce dedicata.
 const TESTO_POSIZIONE_PER_GRAFICA = {
-  default: { sx: 62, dx: 1020, alto: 864, basso: 1269, spaziaturaRighe: 7 },
+  default: { sx: 62, dx: 1044, alto: 864, basso: 1269, spaziaturaRighe: 7 },
   'BREAKING NEWS': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
   'SPECIALE': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
   'SPECIALE FE': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
@@ -199,6 +199,13 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
 
   const zoomedWidth = containerWidth * zoomLevel // dimensione REALE (non visiva) del contenuto quando sei zoomato
   const zoomedHeight = containerHeight * zoomLevel
+  // In POST SOCIAL la foto vive solo nella fascia 0-1030px reali (vedi il contenitore di
+  // ritaglio più sotto): "photoFrameHeight" è l'altezza da usare per TUTTI i calcoli della
+  // foto (copertura, centro, limiti di trascinamento) — esattamente come farebbe Canva quando
+  // lavori dentro una cornice/ritaglio, che considera la cornice come il "canvas" per quello
+  // scopo, non l'intera pagina. Nelle altre modalità resta l'altezza piena del canvas, invariata.
+  const PHOTO_FRAME_HEIGHT_REALE = 1030
+  const photoFrameHeight = projectMode === 'postsocial' ? PHOTO_FRAME_HEIGHT_REALE * displayScale : containerHeight
   const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 }) // per far seguire i righelli allo scorrimento
   const [photoSnapGuides, setPhotoSnapGuides] = useState({ v: false, h: false }) // linee blu di centraggio automatico della foto
 
@@ -222,13 +229,13 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
     const imgEl = containerRef.current.querySelector('img')
     if (!imgEl || !imgEl.naturalWidth) return
     const imgAspect = imgEl.naturalWidth / imgEl.naturalHeight
-    const containerAspect = containerWidth / containerHeight
+    const containerAspect = containerWidth / photoFrameHeight
     if (imgAspect > containerAspect) {
       setMobileImgStyle({ width: 'auto', height: '100%' })
     } else {
       setMobileImgStyle({ width: '100%', height: 'auto' })
     }
-  }, [containerWidth, containerHeight, projectMode, selectedImage])
+  }, [containerWidth, photoFrameHeight, projectMode, selectedImage])
 
   // Riscala PROPORZIONALMENTE anche lo spostamento della foto (imageOffset) quando cambia la
   // dimensione della finestra. Senza questo, uno spostamento fatto trascinando su schermo grande
@@ -800,12 +807,12 @@ const TESTO_BASSO_REALE = posCfg.basso
     }
 
     const imgAspect = imgElement.naturalWidth / imgElement.naturalHeight
-    const containerAspect = containerWidth / containerHeight
+    const containerAspect = containerWidth / photoFrameHeight
 
     let actualImgHeight, actualImgWidth
 
     if (imgAspect > containerAspect) {
-      actualImgHeight = containerHeight * scale
+      actualImgHeight = photoFrameHeight * scale
       actualImgWidth = actualImgHeight * imgAspect
     } else {
       actualImgWidth = containerWidth * scale
@@ -813,7 +820,7 @@ const TESTO_BASSO_REALE = posCfg.basso
     }
 
     const maxOffsetX = Math.max(0, (actualImgWidth - containerWidth) / 2)
-    const maxOffsetY = Math.max(0, (actualImgHeight - containerHeight) / 2)
+    const maxOffsetY = Math.max(0, (actualImgHeight - photoFrameHeight) / 2)
 
     const boundedX = Math.min(maxOffsetX, Math.max(-maxOffsetX, newX))
     const boundedY = Math.min(maxOffsetY, Math.max(-maxOffsetY, newY))
@@ -1062,16 +1069,21 @@ const TESTO_BASSO_REALE = posCfg.basso
         
         ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
       } else {
-        // Logica NORMALE: cover + offset X/Y (allineata all’anteprima)
+        // Logica NORMALE: cover + offset X/Y (allineata all'anteprima). In POST SOCIAL,
+        // "copertura" e centro fanno riferimento alla fascia foto (0-1030px reali, vedi
+        // PHOTO_FRAME_HEIGHT_REALE) invece che al canvas intero — coerente con l'anteprima,
+        // esattamente come farebbe Canva dentro una cornice/ritaglio.
         const imgAspect = img.width / img.height
-        const canvasAspect = canvas.width / canvas.height
+        const frameHeightReal = projectMode === 'postsocial' ? PHOTO_FRAME_HEIGHT_REALE : canvas.height
+        const frameHeightScreen = projectMode === 'postsocial' ? photoFrameHeight : containerHeight
+        const canvasAspect = canvas.width / frameHeightReal
 
         let drawW, drawH, scaleToCanvas
         if (imgAspect > canvasAspect) {
           // Immagine più larga: scala per altezza (+ zoom)
-          drawH = canvas.height * imageScale
+          drawH = frameHeightReal * imageScale
           drawW = drawH * imgAspect
-          scaleToCanvas = canvas.height / containerHeight
+          scaleToCanvas = frameHeightReal / frameHeightScreen
         } else {
           // Immagine più alta: scala per larghezza (+ zoom)
           drawW = canvas.width * imageScale
@@ -1080,13 +1092,25 @@ const TESTO_BASSO_REALE = posCfg.basso
         }
 
         const baseX = (canvas.width - drawW) / 2
-        const baseY = (canvas.height - drawH) / 2
+        const baseY = (frameHeightReal - drawH) / 2
         const offsetX = imageOffset.x * scaleToCanvas
         const offsetY = imageOffset.y * scaleToCanvas
 
         ctx.fillStyle = "#ffffff"
         ctx.fillRect(0, 0, canvas.width, canvas.height)
-        ctx.drawImage(img, baseX + offsetX, baseY + offsetY, drawW, drawH)
+
+        if (projectMode === 'postsocial') {
+          // Ritaglia la foto alla stessa fascia fissa usata in anteprima (larghezza intera,
+          // da 0 a 1030px reali di altezza) — il resto del canvas resta libero per grafica/sfondo.
+          ctx.save()
+          ctx.beginPath()
+          ctx.rect(0, 0, canvas.width, PHOTO_FRAME_HEIGHT_REALE)
+          ctx.clip()
+          ctx.drawImage(img, baseX + offsetX, baseY + offsetY, drawW, drawH)
+          ctx.restore()
+        } else {
+          ctx.drawImage(img, baseX + offsetX, baseY + offsetY, drawW, drawH)
+        }
       }
 
      // --- GRAFICA SOVRAPPOSTA + TESTO (solo POST SOCIAL) ---
@@ -2221,7 +2245,43 @@ const TESTO_BASSO_REALE = posCfg.basso
                                 justifyContent: 'center'
                               }}
                             >
-                              {/* Immagine normale */}
+                              {/* Immagine normale — in modalità POST SOCIAL è racchiusa in un
+                              contenitore che la RITAGLIA a una fascia fissa in alto (0-1030px
+                              reali di altezza, larghezza intera), invece di lasciarla coprire
+                              tutto il canvas: sotto i 1030px resta libero per grafica/sfondo.
+                              Il contenitore interno ha le stesse dimensioni del canvas intero,
+                              così il centraggio/trascinamento della foto (basato su percentuali)
+                              continua a funzionare esattamente come prima — viene solo tagliato
+                              fuori quello che sta sotto i 1030px, non ricalcolato. */}
+                              {projectMode === 'postsocial' ? (
+                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${1030 * displayScale}px`, overflow: 'hidden', pointerEvents: 'none' }}>
+                                  <div style={{ position: 'relative', width: '100%', height: `${zoomedHeight}px` }}>
+                                    <img
+                                      src={selectedImage}
+                                      draggable={false}
+                                      onLoad={(e) => {
+                                        const img = e.target
+                                        const imgAspect = img.naturalWidth / img.naturalHeight
+                                        const containerAspect = containerWidth / photoFrameHeight
+                                        if (imgAspect > containerAspect) {
+                                          setMobileImgStyle({ width: 'auto', height: '100%' })
+                                        } else {
+                                          setMobileImgStyle({ width: '100%', height: 'auto' })
+                                        }
+                                      }}
+                                      style={{
+                                        position: 'absolute',
+                                        maxWidth: 'none',
+                                        ...mobileImgStyle,
+                                        left: '50%',
+                                        top: '50%',
+                                        transform: `translate(calc(-50% + ${imageOffset.x * zoomLevel}px), calc(-50% + ${imageOffset.y * zoomLevel}px)) scale(${imageScale})`,
+                                        pointerEvents: 'none'
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
                               <img 
                                 src={selectedImage} 
                                 draggable={false}
@@ -2229,7 +2289,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                                   if (projectMode === 'normale' || projectMode === 'postsocial') {
                                     const img = e.target
                                     const imgAspect = img.naturalWidth / img.naturalHeight
-                                    const containerAspect = containerWidth / containerHeight
+                                    const containerAspect = containerWidth / photoFrameHeight
                                     
                                     if (imgAspect > containerAspect) {
                                       setMobileImgStyle({ width: 'auto', height: '100%' })
@@ -2257,6 +2317,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                                   display: projectMode === 'cover' ? 'none' : 'block'
                                 }} 
                               />
+                              )}
                               
                               {/* Immagine cover - solo per cover */}
                               {projectMode === 'cover' && (
@@ -2318,7 +2379,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                               <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '1px', background: '#007AFF', zIndex: 25, pointerEvents: 'none', boxShadow: '0 0 4px rgba(0,122,255,0.8)' }} />
                             )}
                             {(projectMode === 'normale' || projectMode === 'postsocial') && photoSnapGuides.h && (
-                              <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: '#007AFF', zIndex: 25, pointerEvents: 'none', boxShadow: '0 0 4px rgba(0,122,255,0.8)' }} />
+                              <div style={{ position: 'absolute', top: projectMode === 'postsocial' ? `${(photoFrameHeight * zoomLevel) / 2}px` : '50%', left: 0, right: 0, height: '1px', background: '#007AFF', zIndex: 25, pointerEvents: 'none', boxShadow: '0 0 4px rgba(0,122,255,0.8)' }} />
                             )}
 
                             {/* Cornice di selezione + maniglie agli angoli */}
