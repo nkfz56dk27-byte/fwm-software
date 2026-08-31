@@ -199,12 +199,12 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
 
   const zoomedWidth = containerWidth * zoomLevel // dimensione REALE (non visiva) del contenuto quando sei zoomato
   const zoomedHeight = containerHeight * zoomLevel
-  // In POST SOCIAL la foto vive solo nella fascia 0-1030px reali (vedi il contenitore di
+  // In POST SOCIAL la foto vive solo nella fascia 0-1060px reali (vedi il contenitore di
   // ritaglio più sotto): "photoFrameHeight" è l'altezza da usare per TUTTI i calcoli della
   // foto (copertura, centro, limiti di trascinamento) — esattamente come farebbe Canva quando
   // lavori dentro una cornice/ritaglio, che considera la cornice come il "canvas" per quello
   // scopo, non l'intera pagina. Nelle altre modalità resta l'altezza piena del canvas, invariata.
-  const PHOTO_FRAME_HEIGHT_REALE = 1030
+  const PHOTO_FRAME_HEIGHT_REALE = 1060
   const photoFrameHeight = projectMode === 'postsocial' ? PHOTO_FRAME_HEIGHT_REALE * displayScale : containerHeight
   const [scrollOffset, setScrollOffset] = useState({ x: 0, y: 0 }) // per far seguire i righelli allo scorrimento
   const [photoSnapGuides, setPhotoSnapGuides] = useState({ v: false, h: false }) // linee blu di centraggio automatico della foto
@@ -1070,7 +1070,7 @@ const TESTO_BASSO_REALE = posCfg.basso
         ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
       } else {
         // Logica NORMALE: cover + offset X/Y (allineata all'anteprima). In POST SOCIAL,
-        // "copertura" e centro fanno riferimento alla fascia foto (0-1030px reali, vedi
+        // "copertura" e centro fanno riferimento alla fascia foto (0-1060px reali, vedi
         // PHOTO_FRAME_HEIGHT_REALE) invece che al canvas intero — coerente con l'anteprima,
         // esattamente come farebbe Canva dentro una cornice/ritaglio.
         const imgAspect = img.width / img.height
@@ -1101,7 +1101,7 @@ const TESTO_BASSO_REALE = posCfg.basso
 
         if (projectMode === 'postsocial') {
           // Ritaglia la foto alla stessa fascia fissa usata in anteprima (larghezza intera,
-          // da 0 a 1030px reali di altezza) — il resto del canvas resta libero per grafica/sfondo.
+          // da 0 a 1060px reali di altezza) — il resto del canvas resta libero per grafica/sfondo.
           ctx.save()
           ctx.beginPath()
           ctx.rect(0, 0, canvas.width, PHOTO_FRAME_HEIGHT_REALE)
@@ -2246,15 +2246,15 @@ const TESTO_BASSO_REALE = posCfg.basso
                               }}
                             >
                               {/* Immagine normale — in modalità POST SOCIAL è racchiusa in un
-                              contenitore che la RITAGLIA a una fascia fissa in alto (0-1030px
+                              contenitore che la RITAGLIA a una fascia fissa in alto (0-1060px
                               reali di altezza, larghezza intera), invece di lasciarla coprire
-                              tutto il canvas: sotto i 1030px resta libero per grafica/sfondo.
+                              tutto il canvas: sotto i 1060px resta libero per grafica/sfondo.
                               Il contenitore interno ha le stesse dimensioni del canvas intero,
                               così il centraggio/trascinamento della foto (basato su percentuali)
                               continua a funzionare esattamente come prima — viene solo tagliato
-                              fuori quello che sta sotto i 1030px, non ricalcolato. */}
+                              fuori quello che sta sotto i 1060px, non ricalcolato. */}
                               {projectMode === 'postsocial' ? (
-                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${1030 * displayScale}px`, overflow: 'hidden', pointerEvents: 'none' }}>
+                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${PHOTO_FRAME_HEIGHT_REALE * displayScale}px`, overflow: 'hidden', pointerEvents: 'none' }}>
                                   <div style={{ position: 'relative', width: '100%', height: `${zoomedHeight}px` }}>
                                     <img
                                       src={selectedImage}
