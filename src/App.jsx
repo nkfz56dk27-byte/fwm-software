@@ -4559,7 +4559,12 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
         <h1 className="title-main">FWM Software</h1>
       </div>
 
-      <div className="home-cards-wrapper" style={{ marginTop: isMobile ? '20px' : undefined }}>
+      <div className="home-cards-wrapper" style={{ marginTop: isMobile ? '20px' : undefined, position: 'relative' }}>
+        {!isMobile && (
+          <div className="prossimo-evento-box">
+            <ProssimoEvento />
+          </div>
+        )}
         {/* RIGA 1 - Classifiche + Ritaglio */}
         <div className="home-cards-row">
           <div className="home-card card-blue" onClick={onOpenClassificheMainMenu} style={{ cursor: 'pointer' }}>
@@ -4696,16 +4701,6 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
             <h3 className="card-title">PANNELLO FONTI</h3>
           </div>
         </div>
-      </div>
-
-      {/* PROSSIMO EVENTO BOX */}
-      <div style={{
-        position: 'absolute',
-        left: '1000px',
-        top: '173px',
-        zIndex: 10
-      }}>
-        <ProssimoEvento />
       </div>
 
       <div className="home-footer">
