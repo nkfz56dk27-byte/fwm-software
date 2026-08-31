@@ -2249,13 +2249,15 @@ const TESTO_BASSO_REALE = posCfg.basso
                               contenitore che la RITAGLIA a una fascia fissa in alto (0-1060px
                               reali di altezza, larghezza intera), invece di lasciarla coprire
                               tutto il canvas: sotto i 1060px resta libero per grafica/sfondo.
-                              Il contenitore interno ha le stesse dimensioni del canvas intero,
-                              così il centraggio/trascinamento della foto (basato su percentuali)
-                              continua a funzionare esattamente come prima — viene solo tagliato
-                              fuori quello che sta sotto i 1060px, non ricalcolato. */}
+                              IMPORTANTE: il contenitore interno di riferimento per il centraggio
+                              ha l'altezza della FASCIA (photoFrameHeight), non del canvas intero
+                              — altrimenti "height:100%" sull'immagine si sarebbe riempita
+                              rispetto ai 1350px pieni invece che ai 1060px della fascia,
+                              risultando più grande e diversa da quanto disegnato nell'export
+                              (che usa 1060px espliciti). */}
                               {projectMode === 'postsocial' ? (
-                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${PHOTO_FRAME_HEIGHT_REALE * displayScale}px`, overflow: 'hidden', pointerEvents: 'none' }}>
-                                  <div style={{ position: 'relative', width: '100%', height: `${zoomedHeight}px` }}>
+                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${photoFrameHeight * zoomLevel}px`, overflow: 'hidden', pointerEvents: 'none' }}>
+                                  <div style={{ position: 'relative', width: '100%', height: `${photoFrameHeight * zoomLevel}px` }}>
                                     <img
                                       src={selectedImage}
                                       draggable={false}
