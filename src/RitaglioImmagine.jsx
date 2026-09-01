@@ -50,25 +50,13 @@ const OVERLAY_GRAPHICS = Object.entries(overlayModules)
     return a.label.localeCompare(b.label)
   })
 
-// Posizione FISSA della casella di testo per ciascuna grafica sovrapposta (chiave = "key" di
-// OVERLAY_GRAPHICS, cioè il nome del file in src/assets/overlays/ senza estensione). Aggiungendo
-// una nuova grafica basta aggiungere qui una nuova riga con i suoi 4 numeri: nessun if/else da
-// far crescere a mano.
-//
-// Come trovare i numeri per una nuova grafica: seleziona quella grafica, trascina/ridimensiona
-// la casella di testo dove deve stare SEMPRE per quella grafica, poi attiva temporaneamente
-// SHOW_POSITION_BUTTON in TestoPost.jsx (mettilo a true), clicca "📍 Posizione" sulla casella e
-// copia i 4 valori mostrati nel popup dentro una nuova riga qui sotto (usando la key giusta).
-// "default" è la posizione usata quando una grafica non ha una voce dedicata.
-const TESTO_POSIZIONE_PER_GRAFICA = {
-  default: { sx: 62, dx: 1044, alto: 864, basso: 1269, spaziaturaRighe: 7 },
-  'BREAKING NEWS': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
-  'SPECIALE': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
-  'SPECIALE FE': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
-  'ROMPI PADDOCK': { sx: 62, dx: 1022, alto: 903, basso: 1239, spaziaturaRighe: 7 },
-  // esempio — aggiungi una riga così per ogni grafica:
-  // 'nome-file-grafica': { sx: 40, dx: 900, alto: 700, basso: 1100, spaziaturaRighe: 7 },
-}
+// Posizione di DEFAULT della casella di testo, usata solo quando una grafica non ha ancora
+// una posizione "bloccata" salvata. Le posizioni per singola grafica non sono più scritte a
+// mano qui: si salvano dall'editor con la spunta "🔒 Blocca questa posizione", sulla tabella
+// Supabase posizioni_testo_grafiche (chiave = overlay_key, cioè lo stesso "key" di
+// OVERLAY_GRAPHICS — quindi corrisponde SEMPRE alla grafica giusta, niente più mismatch tra
+// nome file e nome scritto a mano).
+const DEFAULT_TESTO_POS = { sx: 62, dx: 1044, alto: 864, basso: 1269, spaziaturaRighe: 7 }
 
 export default function RitaglioImmagine({ user, onClose }) {
   const [view, setView] = useState('menu')
@@ -127,6 +115,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
   const [textBoxes, setTextBoxes] = useState([]) // Caselle di testo (solo NORMALE/COVER)
   const [guideLines, setGuideLines] = useState([]) // Linee guida viola (solo POST SOCIAL)
   const [selectedOverlay, setSelectedOverlay] = useState(OVERLAY_GRAPHICS[0]?.key || null) // Grafica sovrapposta (solo POST SOCIAL)
+  const [posizioniTestoPerGrafica, setPosizioniTestoPerGrafica] = useState({}) // { overlay_key: {sx,dx,alto,basso,spaziaturaRighe} } — posizioni "bloccate" caricate da Supabase (tabella posizioni_testo_grafiche)
   const overlayImagesRef = useRef({}) // Cache delle immagini precaricate, per l'export
   const [zoomLevel, setZoomLevel] = useState(1) // Zoom "vero" dell'area di lavoro (1 = 100%), gestito da noi
   const [showRulers, setShowRulers] = useState(true) // Righelli fissi (visibili solo in POST SOCIAL)
@@ -491,6 +480,51 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
     if (error) console.log('DEBUG NOTE - errore cancellazione:', error)
   }
 
+  // Posizioni testo "bloccate" per grafica (condivise tra tutti, come note e linee guida).
+  const fetchPosizioniTesto = async () => {
+    const { data, error } = await supabase.from('posizioni_testo_grafiche').select('*')
+    if (error) { console.log('DEBUG POSIZIONI TESTO - errore caricamento:', error); return }
+    const map = {}
+    ;(data || []).forEach((row) => {
+      map[row.overlay_key] = {
+        sx: row.sx, dx: row.dx, alto: row.alto, basso: row.basso,
+        spaziaturaRighe: row.spaziatura_righe ?? 7
+      }
+    })
+    setPosizioniTestoPerGrafica(map)
+  }
+
+  // Salva (o aggiorna se già esiste) la posizione bloccata per la grafica indicata.
+  const salvaPosizioneTesto = async (overlayKey, pos) => {
+    if (!overlayKey) return
+    const payload = {
+      overlay_key: overlayKey,
+      sx: Math.round(pos.sx),
+      dx: Math.round(pos.dx),
+      alto: Math.round(pos.alto),
+      basso: Math.round(pos.basso),
+      spaziatura_righe: Math.round(pos.spaziaturaRighe ?? 7)
+    }
+    const { error } = await supabase.from('posizioni_testo_grafiche').upsert([payload], { onConflict: 'overlay_key' })
+    if (error) { console.log('DEBUG POSIZIONI TESTO - errore salvataggio:', error); return }
+    setPosizioniTestoPerGrafica((prev) => ({
+      ...prev,
+      [overlayKey]: { sx: payload.sx, dx: payload.dx, alto: payload.alto, basso: payload.basso, spaziaturaRighe: payload.spaziatura_righe }
+    }))
+  }
+
+  // Rimuove il blocco: la grafica torna a usare DEFAULT_TESTO_POS finché non viene ribloccata.
+  const rimuoviPosizioneTesto = async (overlayKey) => {
+    if (!overlayKey) return
+    const { error } = await supabase.from('posizioni_testo_grafiche').delete().eq('overlay_key', overlayKey)
+    if (error) { console.log('DEBUG POSIZIONI TESTO - errore rimozione:', error); return }
+    setPosizioniTestoPerGrafica((prev) => {
+      const next = { ...prev }
+      delete next[overlayKey]
+      return next
+    })
+  }
+
   // Carica linee guida e note ogni volta che si entra nell'editor di un progetto POST SOCIAL,
   // O CAMBIA LA GRAFICA ATTIVA (selectedOverlay è ora tra le dipendenze) — così cambiando
   // grafica cambiano automaticamente anche le linee e le note mostrate.
@@ -501,13 +535,22 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
     }
   }, [projectMode, view, dimensions.width, dimensions.height, selectedOverlay])
 
+  // Le posizioni testo bloccate valgono per tutte le dimensioni/progetti (chiave = solo overlay_key),
+  // quindi si caricano una volta sola quando si entra nell'editor POST SOCIAL.
+  useEffect(() => {
+    if (projectMode === 'postsocial' && view === 'editor') {
+      fetchPosizioniTesto()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectMode, view])
+
   // Se si cambia grafica mentre c'è ANCORA solo la casella di testo di default (nessun'altra
-  // casella aggiunta a mano), la riposiziona secondo TESTO_POSIZIONE_PER_GRAFICA per la nuova
-  // grafica — così "casella si sposta da sola cambiando grafica" senza toccare caselle extra
-  // che l'utente ha aggiunto manualmente.
+  // casella aggiunta a mano), la riposiziona secondo la posizione bloccata (Supabase) per la
+  // nuova grafica — così "casella si sposta da sola cambiando grafica" senza toccare caselle
+  // extra che l'utente ha aggiunto manualmente.
   useEffect(() => {
     if (projectMode === 'postsocial' && view === 'editor' && textBoxes.length === 1) {
-      const posCfg = TESTO_POSIZIONE_PER_GRAFICA[selectedOverlay] || TESTO_POSIZIONE_PER_GRAFICA.default
+      const posCfg = posizioniTestoPerGrafica[selectedOverlay] || DEFAULT_TESTO_POS
       const s = displayScale || 1
       const larghezza = posCfg.dx - posCfg.sx
       const altezza = posCfg.basso - posCfg.alto
@@ -521,7 +564,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
       }])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedOverlay])
+  }, [selectedOverlay, posizioniTestoPerGrafica])
 
   const startNewProject = async (width, height, nome) => {
     if (projectMode === 'griglia') {
@@ -594,10 +637,10 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
         setMobileImgStyle({ width: '100%', height: 'auto' })
         if (projectMode === 'postsocial') {
           // Quattro "punti" (in PIXEL REALI dell'immagine finale, non dello schermo) che
-          // definiscono i bordi della casella di testo — presi dalla configurazione
-          // TESTO_POSIZIONE_PER_GRAFICA in base alla grafica attualmente selezionata, con
-          // fallback su "default" se questa grafica non ha ancora una voce dedicata.
-          const posCfg = TESTO_POSIZIONE_PER_GRAFICA[selectedOverlay] || TESTO_POSIZIONE_PER_GRAFICA.default
+          // definiscono i bordi della casella di testo — presi dalla posizione bloccata su
+          // Supabase per la grafica attualmente selezionata, con fallback su DEFAULT_TESTO_POS
+          // se questa grafica non è ancora stata bloccata.
+          const posCfg = posizioniTestoPerGrafica[selectedOverlay] || DEFAULT_TESTO_POS
           const TESTO_SX_REALE = posCfg.sx
 const TESTO_DX_REALE = posCfg.dx  // oppure: dimensions.width - posCfg.sx
 const TESTO_ALTO_REALE = posCfg.alto
@@ -2446,6 +2489,12 @@ const TESTO_BASSO_REALE = posCfg.basso
                                 displayScale={displayScale}
                                 zoomLevel={zoomLevel}
                                 baseContainerWidth={containerWidth}
+                                overlayLabel={OVERLAY_GRAPHICS.find((g) => g.key === selectedOverlay)?.label || 'questa grafica'}
+                                isPositionLocked={!!posizioniTestoPerGrafica[selectedOverlay]}
+                                onToggleLock={(locked, pos) => {
+                                  if (locked) salvaPosizioneTesto(selectedOverlay, pos)
+                                  else rimuoviPosizioneTesto(selectedOverlay)
+                                }}
                               />
                             )}
 
