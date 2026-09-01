@@ -684,7 +684,7 @@ function PositionField({ label, value, onCommit }) {
   )
 }
 
-export default function TextOverlay({ containerWidth, containerHeight, textBoxes, onChange, isMobile = false, displayScale = 1, zoomLevel = 1, baseContainerWidth = null }) {
+export default function TextOverlay({ containerWidth, containerHeight, textBoxes, onChange, isMobile = false, displayScale = 1, zoomLevel = 1, baseContainerWidth = null, overlayLabel = 'questa grafica', isPositionLocked = false, onToggleLock = null }) {
   useRobotoReady() // forza un re-render (e quindi un ricalcolo di fitText ovunque) nel momento esatto in cui Roboto diventa davvero pronto — senza, una misurazione fatta col font di riserva del browser restava sbagliata per sempre
   const [activeId, setActiveId] = useState(null)
   const [showPositionInfo, setShowPositionInfo] = useState(null) // id della casella di cui mostrare la posizione, o null
@@ -1680,7 +1680,37 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                   />
                 </div>
               )}
-              <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700', marginBottom: '4px' }}>Pronto da incollare in RitaglioImmagine.jsx:</div>
+              {onToggleLock && (
+                <label
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px',
+                    padding: '12px', borderRadius: '10px', cursor: 'pointer',
+                    background: isPositionLocked ? '#e8f9ee' : '#f2f2f7',
+                    border: isPositionLocked ? '1px solid #34c759' : '1px solid #e5e5ea'
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isPositionLocked}
+                    onChange={(e) => onToggleLock(e.target.checked, { sx: x, dx: x + w, alto: y, basso: y + h, spaziaturaRighe: 7 })}
+                    style={{ width: '18px', height: '18px', flexShrink: 0 }}
+                  />
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: isPositionLocked ? '#248a3d' : '#1c1c1e' }}>
+                    {isPositionLocked
+                      ? `🔒 Posizione bloccata per "${overlayLabel}" — si riapplica sempre da sola`
+                      : `🔓 Blocca questa posizione per "${overlayLabel}"`}
+                  </span>
+                </label>
+              )}
+              {onToggleLock && isPositionLocked && (
+                <button
+                  onClick={() => onToggleLock(true, { sx: x, dx: x + w, alto: y, basso: y + h, spaziaturaRighe: 7 })}
+                  style={{ width: '100%', marginTop: '-6px', marginBottom: '14px', padding: '8px', borderRadius: '10px', border: '1px solid #007AFF', background: '#fff', color: '#007AFF', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}
+                >
+                  🔄 Hai spostato la casella? Aggiorna la posizione bloccata con quella attuale
+                </button>
+              )}
+              <div style={{ fontSize: '10px', color: '#8e8e93', fontWeight: '700', marginBottom: '4px' }}>Solo per uso avanzato — pronto da incollare nel codice se serve:</div>
               <textarea
                 readOnly
                 value={testo}
