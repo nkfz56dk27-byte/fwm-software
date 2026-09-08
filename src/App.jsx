@@ -1103,7 +1103,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                       puntiPos = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                     }
                     // Punti pole SEMPRE se pole_id, tranne DNS
-                    const isPole = classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS';
+                    const isPole = classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS' && gara.tipo_gara !== 'f2sprint';
                     const isGiroVeloce = classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS';
                     if (isPole) puntiPole = classifica.punti_pole_valore || 3;
                     if (isGiroVeloce) puntiGiroVeloce = classifica.giro_veloce_valore || 1;
@@ -1531,7 +1531,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
             }
           }
           // Punti pole SEMPRE se pole_id, tranne DNS
-          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS') {
+          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS' && gara.tipo_gara !== 'f2sprint') {
             punti += classifica.punti_pole_valore || 3;
           }
           // Punti giro veloce SEMPRE se giro_veloce_id, tranne DNS
@@ -1653,7 +1653,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
           if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') return;
           const pos = info.posizione;
           let punti = pronosticoCampionato.calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
-          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
+          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && gara.tipo_gara !== 'f2sprint') {
             punti += classifica.punti_pole_valore || 3;
           }
           if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
@@ -1990,7 +1990,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
       </div>
 
       {classifica.punti_pole_attivo && (
-        classifica.formato !== 'f2' || (garaAttuale && garaAttuale.tipo_gara === 'featureRace' && garaAttuale.tipo_gara !== 'f2sprint')
+        !garaAttuale || garaAttuale.tipo_gara !== 'f2sprint'
       ) && (
         <div style={{ marginBottom: '20px' }}>
           <h3 style={{ marginBottom: '10px', fontWeight: '600' }}>Pole Position:</h3>
@@ -2261,7 +2261,7 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
                 punti += pronosticoCampionato.calcolaPuntiPosizione(pos, gara.tipo_gara, classificaAggiornata, gara)
               }
             }
-            if (classificaAggiornata.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS') {
+            if (classificaAggiornata.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS' && gara.tipo_gara !== 'f2sprint') {
               punti += classificaAggiornata.punti_pole_valore || 3
             }
             if (classificaAggiornata.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS') {
@@ -3150,7 +3150,7 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
                         } else {
                           puntiGara = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                         }
-                        if (classifica.punti_pole_attivo && String(gara.pole_id) === String(item.id)) {
+                        if (classifica.punti_pole_attivo && String(gara.pole_id) === String(item.id) && gara.tipo_gara !== 'f2sprint') {
                           puntiGara += classifica.punti_pole_valore || 3;
                         }
                         if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(item.id)) {
@@ -3172,7 +3172,7 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
                           } else {
                             puntiGara = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                           }
-                          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
+                          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && gara.tipo_gara !== 'f2sprint') {
                             puntiGara += classifica.punti_pole_valore || 3;
                           }
                           if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
@@ -3197,7 +3197,7 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
                           } else {
                             puntiGara = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                           }
-                          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId)) {
+                          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && gara.tipo_gara !== 'f2sprint') {
                             puntiGara += classifica.punti_pole_valore || 3;
                           }
                           if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
