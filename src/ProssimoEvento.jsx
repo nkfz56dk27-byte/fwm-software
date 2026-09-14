@@ -419,18 +419,38 @@ export default function ProssimoEvento() {
     )
   }
 
+  const haAccreditoUrgente = (prossimoEvento.eventiStessoGiorno || []).some(ev => {
+    const giorni = prossimoEvento.giorniMancanti
+    if (typeof giorni !== 'number') return false
+    if (ev.accredito_status === 'da_richiedere') return giorni <= 90
+    if (ev.accredito_status === 'richiesto') return giorni <= 21
+    return false
+  })
+
   return (
     <div style={{
       background: 'rgba(0, 0, 0, 0.85)',
-      border: '2px solid rgba(51, 51, 51, 0.8)',
+      border: haAccreditoUrgente ? '2px solid #FF3B30' : '2px solid rgba(51, 51, 51, 0.8)',
       borderRadius: '12px',
       padding: '12px',
       minWidth: '280px',
       maxWidth: '320px',
       maxHeight: '80vh',
       overflowY: 'auto',
-      marginTop: '-40px'
+      animation: haAccreditoUrgente ? 'pulseUrgenteBordo 1.3s ease-in-out infinite' : 'none'
     }}>
+      <style>{`
+        @keyframes pulseUrgenteAccredito {
+          0% { opacity: 1; }
+          50% { opacity: 0.6; }
+          100% { opacity: 1; }
+        }
+        @keyframes pulseUrgenteBordo {
+          0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.6); }
+          70% { box-shadow: 0 0 0 6px rgba(255, 59, 48, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+        }
+      `}</style>
       <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#FFF', marginBottom: '6px' }}>
         {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
          prossimoEvento.giorniMancanti === 1 ? 'DOMANI!' : 
@@ -484,10 +504,12 @@ export default function ProssimoEvento() {
             <div style={{ marginBottom: '4px' }}>
               {(() => {
                 if (evento.accredito_status === 'da_richiedere') {
+                  const giorniMancantiEvento = prossimoEvento.giorniMancanti
+                  const urgente = typeof giorniMancantiEvento === 'number' && giorniMancantiEvento <= 90
                   return (
                     <div style={{ 
-                      background: '#FFD60A', 
-                      color: '#000', 
+                      background: urgente ? '#FF3B30' : '#FFD60A', 
+                      color: urgente ? '#FFF' : '#000', 
                       padding: '4px 8px', 
                       borderRadius: '6px',
                       fontSize: '10px',
@@ -496,15 +518,18 @@ export default function ProssimoEvento() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '4px'
+                      gap: '4px',
+                      animation: urgente ? 'pulseUrgenteAccredito 1.3s ease-in-out infinite' : 'none'
                     }}>
-                      🟡 DOVREMMO RICHIEDERLO
+                      {urgente ? `⚠️ DA RICHIEDERE — mancano ${giorniMancantiEvento} giorni!` : '🟡 DOVREMMO RICHIEDERLO'}
                     </div>
                   )
                 } else if (evento.accredito_status === 'richiesto') {
+                  const giorniMancantiEvento = prossimoEvento.giorniMancanti
+                  const urgente = typeof giorniMancantiEvento === 'number' && giorniMancantiEvento <= 21
                   return (
                     <div style={{ 
-                      background: '#FF9500', 
+                      background: urgente ? '#FF3B30' : '#FF9500', 
                       color: '#FFF', 
                       padding: '4px 8px', 
                       borderRadius: '6px',
@@ -514,9 +539,10 @@ export default function ProssimoEvento() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '4px'
+                      gap: '4px',
+                      animation: urgente ? 'pulseUrgenteAccredito 1.3s ease-in-out infinite' : 'none'
                     }}>
-                      📨 RICHIESTO
+                      {urgente ? `⚠️ RICHIESTO, SOLLECITA — mancano ${giorniMancantiEvento} giorni!` : '📨 RICHIESTO'}
                     </div>
                   )
                 } else if (evento.accredito_status === 'accettato') {
@@ -592,7 +618,12 @@ export default function ProssimoEvento() {
             PROSSIMI EVENTI
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-            {prossimoEvento.prossimiEventi.map((evento, i) => (
+            {prossimoEvento.prossimiEventi.map((evento, i) => {
+              const urgentePross = typeof evento.giorniMancanti === 'number' && (
+                (evento.accredito_status === 'da_richiedere' && evento.giorniMancanti <= 90) ||
+                (evento.accredito_status === 'richiesto' && evento.giorniMancanti <= 21)
+              )
+              return (
               <div key={i} style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
@@ -601,7 +632,8 @@ export default function ProssimoEvento() {
                 color: '#FFF',
                 padding: '2px 4px',
                 borderRadius: '4px',
-                background: 'rgba(255,255,255,0.1)'
+                background: urgentePross ? 'rgba(255,59,48,0.25)' : 'rgba(255,255,255,0.1)',
+                border: urgentePross ? '1px solid #FF3B30' : 'none'
               }}>
                 <span style={{ fontSize: '13px' }}>{evento.emojiCampionato}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -614,6 +646,11 @@ export default function ProssimoEvento() {
                   <div style={{ fontSize: '9px', color: '#FFF' }}>
                     {evento.giorniMancanti === 1 ? 'DOMANI' : `+${evento.giorniMancanti} giorni`} • {evento.dataBreve}
                   </div>
+                  {urgentePross && (
+                    <div style={{ fontSize: '9px', color: '#FF9494', fontWeight: 'bold', marginTop: '2px' }}>
+                      {evento.accredito_status === 'da_richiedere' ? '⚠️ Accredito da richiedere' : '⚠️ Accredito richiesto, sollecita'}
+                    </div>
+                  )}
                   {evento.sessioniPerGiorno && evento.sessioniPerGiorno.length > 0 && (
                     <>
                       <div style={{ height: '1px', backgroundColor: '#00D9FF', margin: '2px 0', opacity: '0.5' }}></div>
@@ -633,7 +670,8 @@ export default function ProssimoEvento() {
                   )}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
