@@ -1199,7 +1199,8 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
         .select('notifica_id')
         .eq('username', username);
       const idsLette = new Set((lette || []).map(l => String(l.notifica_id)));
-      const notificheConStato = (tutteNotifiche || []).map(n => ({
+      const notificheVisibili = (tutteNotifiche || []).filter(n => !n.solo_admin || isAdmin);
+      const notificheConStato = notificheVisibili.map(n => ({
         ...n,
         letta: idsLette.has(String(n.id))
       }));
@@ -1217,7 +1218,8 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
   }
   
   // Inserisce una notifica interna calendario (solo tabella, nessun push)
-  async function creaNotificaCalendario(messaggio, evento_id = null) {
+  // soloAdmin: se true, la notifica viene mostrata solo agli utenti admin (es. avanzamento stato accredito)
+  async function creaNotificaCalendario(messaggio, evento_id = null, soloAdmin = false) {
     try {
       // Supporta sia ID numerico legacy che UUID stringa
       let eventoIdCompatibile = null;
@@ -1225,8 +1227,20 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
         eventoIdCompatibile = evento_id;
       }
       // Campo obbligatorio tipo: imposto sempre 'evento'
-      const payload = { tipo: 'evento', messaggio, evento_id: eventoIdCompatibile };
-      const { error } = await supabase.from('notifiche_calendario').insert(payload);
+      const payload = { tipo: 'evento', messaggio, evento_id: eventoIdCompatibile, solo_admin: soloAdmin };
+      let { error } = await supabase.from('notifiche_calendario').insert(payload);
+      if (error) {
+        // Se la colonna solo_admin non esiste ancora su Supabase (migrazione non eseguita),
+        // riprova senza quel campo per non perdere comunque la notifica.
+        const messaggioErrore = String(error.message || '').toLowerCase();
+        const colonnaMancante = messaggioErrore.includes('solo_admin') || error.code === '42703' || error.code === 'PGRST204';
+        if (colonnaMancante) {
+          console.warn('Colonna solo_admin non trovata su notifiche_calendario: eseguire la migrazione SQL. Notifica inviata senza restrizione admin.');
+          const payloadFallback = { tipo: 'evento', messaggio, evento_id: eventoIdCompatibile };
+          const retry = await supabase.from('notifiche_calendario').insert(payloadFallback);
+          error = retry.error;
+        }
+      }
       if (error) {
         console.error('Errore inserimento notifica calendario:', error, payload);
       } else {
@@ -1257,6 +1271,15 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
     } catch (err) {
       console.error('Errore segnaComeLettaCalendario:', err);
     }
+  }
+
+  // Click su un evento in calendario: se ha un badge "stato accredito aggiornato" (solo admin) non ancora letto, lo segna come letto
+  function handleClickEventoCalendario(evento) {
+    const notificaStatoDaLeggere = (notifiche || []).find(n => n.solo_admin && String(n.evento_id) === String(evento.id) && !n.letta)
+    if (notificaStatoDaLeggere) {
+      segnaComeLettaCalendario(notificaStatoDaLeggere.id)
+    }
+    setEventoSelezionato(evento)
   }
   
   async function segnaTutteComeLette() {
@@ -1400,9 +1423,9 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
       {/* CONTENUTO CALENDARIO */}
       <div style={{ flex: 1, padding: isMobile ? '10px' : '20px 30px', overflow: 'auto' }}>
         {isMobile ? (
-          <ListaGiorniMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} notifiche={notifiche} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
+          <ListaGiorniMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} notifiche={notifiche} onEventoClick={handleClickEventoCalendario} isMobile={isMobile} />
         ) : (
-          <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} notifiche={notifiche} onEventoClick={e => setEventoSelezionato(e)} isMobile={isMobile} />
+          <CalendarioMensile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} notifiche={notifiche} onEventoClick={handleClickEventoCalendario} isMobile={isMobile} />
         )}
       </div>
       
@@ -1473,7 +1496,7 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
           accettato: 'ACCETTATO'
         }
         const statoLabel = statoLabelMap[accreditoStatusSafe] || String(accreditoStatusSafe || '').toUpperCase()
-        await creaNotificaCalendario(`Stato richiesta accredito ${titolo}: ${statoLabel}`, eventoId)
+        await creaNotificaCalendario(`Stato richiesta accredito ${titolo}: ${statoLabel}`, eventoId, true)
       }
 
       caricaDati();
@@ -1563,7 +1586,9 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
                 const dataFormattata = formatData(eventoSelezionato.data_inizio);
                 messaggioDaInviare = `${notificaMsg} il ${dataFormattata}`;
               }
-              await creaNotificaCalendario(messaggioDaInviare, eventoSelezionato.id); 
+              // Le notifiche di avanzamento stato accredito sono riservate agli admin
+              const soloAdmin = tipoNotifica === 'accredito';
+              await creaNotificaCalendario(messaggioDaInviare, eventoSelezionato.id, soloAdmin); 
             } 
             caricaDati(); 
           }} 
@@ -1725,6 +1750,8 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, 
                   if (evento.note.trim() !== '') hasNotifiche = true;
                 }
               }
+              // Badge "stato accredito aggiornato" — solo per gli admin (già filtrato a monte in notifiche)
+              const statoAvanzatoNonLetto = (notifiche || []).some(n => n.solo_admin && String(n.evento_id) === String(evento.id) && !n.letta)
               return (
                 <div key={evento.id} onClick={() => onEventoClick(evento)} style={{ 
                   padding: '10px', 
@@ -1752,6 +1779,26 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, 
                       boxShadow: '0 2px 4px rgba(255, 59, 48, 0.4)'
                     }}>
                       📝
+                    </div>
+                  )}
+                  {/* Badge dorato: stato accredito avanzato, visibile solo agli admin */}
+                  {statoAvanzatoNonLetto && (
+                    <div title="Stato accredito aggiornato — clicca per verificare" style={{
+                      position: 'absolute',
+                      top: '5px',
+                      left: '5px',
+                      background: '#D4AF37',
+                      color: 'white',
+                      borderRadius: '50%',
+                      width: '20px',
+                      height: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      boxShadow: '0 2px 4px rgba(212, 175, 55, 0.5)'
+                    }}>
+                      🔔
                     </div>
                   )}
                   <div style={{ fontSize: '14px', fontWeight: 'bold', color: isOggi ? 'white' : '#333' }}>
@@ -2020,6 +2067,9 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
             }
           }
 
+          // Badge "stato accredito aggiornato" — solo per gli admin (già filtrato a monte in notifiche)
+          const statoAvanzatoNonLetto = (notifiche || []).some(n => n.solo_admin && String(n.evento_id) === String(evento.id) && !n.letta)
+
           return (
             <div key={evento.id} onClick={() => onEventoClick(evento)} title={evento.titolo} style={{ 
               padding: '8px', 
@@ -2051,6 +2101,26 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
                   boxShadow: '0 2px 4px rgba(255, 59, 48, 0.4)'
                 }}>
                   📝
+                </div>
+              )}
+              {/* Badge dorato: stato accredito avanzato, visibile solo agli admin */}
+              {statoAvanzatoNonLetto && (
+                <div title="Stato accredito aggiornato — clicca per verificare" style={{
+                  position: 'absolute',
+                  top: '3px',
+                  left: '3px',
+                  background: '#D4AF37',
+                  color: 'white',
+                  borderRadius: '50%',
+                  width: '20px',
+                  height: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '11px',
+                  boxShadow: '0 2px 4px rgba(212, 175, 55, 0.5)'
+                }}>
+                  🔔
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
@@ -3189,9 +3259,15 @@ function NotificheModal({ notifiche, eventi = [], onClose, onSegnaLetta, onSegna
                   <div style={{
                     fontSize: '14px',
                     fontWeight: n.letta ? 'normal' : 'bold',
-                    marginBottom: '5px'
+                    marginBottom: '5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
                   }}>
-                    {n.messaggio}
+                    {n.solo_admin && (
+                      <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#FF9500', border: '1px solid #FF9500', borderRadius: '4px', padding: '1px 5px' }}>ADMIN</span>
+                    )}
+                    <span>{n.messaggio}</span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#666' }}>
                     {new Date(n.created_at).toLocaleString('it-IT')}
