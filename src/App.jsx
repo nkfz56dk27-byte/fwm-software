@@ -224,7 +224,11 @@ function App() {
 
       const idsLette = new Set((lette || []).map(l => l.notifica_id))
 
-      const nonLette = (notifiche || []).filter(n => !idsLette.has(n.id))
+      // Le notifiche marcate "solo_admin" (es. avanzamento stato accredito) sono riservate agli admin
+      const isAdminUtente = user?.ruolo === 'admin'
+      const notificheVisibili = (notifiche || []).filter(n => !n.solo_admin || isAdminUtente)
+
+      const nonLette = notificheVisibili.filter(n => !idsLette.has(n.id))
 
       setNotificheNonLetteCalendario(nonLette.length)
     } catch (e) {
