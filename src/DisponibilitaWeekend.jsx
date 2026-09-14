@@ -1325,16 +1325,13 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         </div>
         <div style={{ padding: '20px 30px', background: 'white', borderTop: '1px solid #e0e0e0', borderRadius: '0 0 15px 15px' }}>
           <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '15px', textAlign: 'center' }}>✅ Hai selezionato {articoliSelezionati.size} articoli</div>
-          <div style={{ display: 'flex', gap: '15px', justifyContent: 'space-between' }}>
-            <button onClick={onClose} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>Annulla</button>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowTabella(true)} style={{ padding: '10px 20px', background: '#AF52DE', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>Mostra Tabella</button>
-              <button onClick={() => salvaArticoli(true)} disabled={salvando} style={{ padding: '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>Conferma Selezione</button>
-            </div>
+          <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end' }}>
+            <button onClick={() => setShowTabella(true)} style={{ padding: '10px 20px', background: '#AF52DE', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>Mostra Tabella</button>
+            <button onClick={() => salvaArticoli(true)} disabled={salvando} style={{ padding: '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>Conferma Selezione</button>
           </div>
         </div>
-        {showTabella && <TabellaWeekendView weekend={weekend} articoli={articoli} onClose={() => setShowTabella(false)} isMobile={isMobile} />}
-        {showAdminView && <AdminWeekendView weekend={weekend} articoli={articoli} onClose={() => setShowAdminView(false)} onRefresh={caricaArticoli} isMobile={isMobile} />}
+        {showTabella && <TabellaWeekendView weekend={weekend} articoli={articoli} onClose={() => setShowTabella(false)} isMobile={isMobile} nomeRedattore={nomeRedattore} />}
+        {showAdminView && <AdminWeekendView weekend={weekend} articoli={articoli} onClose={() => setShowAdminView(false)} onRefresh={caricaArticoli} isMobile={isMobile} nomeRedattore={nomeRedattore} />}
       </div>
     </div>
   )
@@ -1410,7 +1407,7 @@ function ArticoloCheckbox({ articolo, isSelected, nomeRedattore, onToggle, selez
   );
 }
 
-function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
+function TabellaWeekendView({ weekend, articoli, onClose, isMobile, nomeRedattore }) {
   const [zoom, setZoom] = useState(1)
   const redattoriOrdinati = [...(weekend.redattori || [])].sort()
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ giorno: g, articoli: articoli.filter(a => a.giorno === g.id) }))
@@ -1434,9 +1431,12 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
             <thead>
               <tr>
                 <th style={{ border: '1px solid black', padding: '10px', background: '#ddd', fontWeight: 'bold', fontSize: '12px', minWidth: '110px', width: '140px' }}>GIORNO</th>
-                {redattoriOrdinati.map(r => (
-                  <th key={r} style={{ border: '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '12px', minWidth: '160px', width: '180px' }}>{r}</th>
-                ))}
+                {redattoriOrdinati.map(r => {
+                  const isMia = r === nomeRedattore
+                  return (
+                    <th key={r} style={{ border: isMia ? '3px solid #D4AF37' : '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '12px', minWidth: '160px', width: '180px' }}>{r}</th>
+                  )
+                })}
                 <th style={{ border: '1px solid black', padding: '10px', background: '#FFE5CC', fontWeight: 'bold', fontSize: '12px', minWidth: '160px', width: '180px' }}>Liberi</th>
               </tr>
             </thead>
@@ -1451,8 +1451,9 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
                     </td>
                     {redattoriOrdinati.map(r => {
                       const articoliRedattore = arts.filter(a => a.assegnato_a === r)
+                      const isMia = r === nomeRedattore
                       return (
-                        <td key={r} style={{ border: '1px solid #ccc', padding: '8px 8px', background: giorno.colore.replace('0.3', '0.15'), fontSize: '13px', verticalAlign: 'top', minWidth: '160px', width: '180px', minHeight: '32px', height: '120px', overflow: 'auto' }}>
+                        <td key={r} style={{ border: isMia ? '3px solid #D4AF37' : '1px solid #ccc', padding: '8px 8px', background: giorno.colore.replace('0.3', '0.15'), fontSize: '13px', verticalAlign: 'top', minWidth: '160px', width: '180px', minHeight: '32px', height: '120px', overflow: 'auto' }}>
                           {articoliRedattore.map(a => (
                             <div key={a.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', gap: '10px', minHeight: '22px' }}>
                               <span style={{ color: '#111', fontSize: '30px', lineHeight: 1, marginRight: '0.5ch', display: 'inline-block', verticalAlign: 'middle' }}>•</span>
@@ -1477,7 +1478,8 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
                 <td style={{ border: '1px solid black', padding: '10px', background: '#ddd', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>TOT</td>
                 {redattoriOrdinati.map(r => {
                   const tot = articoli.filter(a => a.assegnato_a === r).length
-                  return (<td key={r} style={{ border: '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>{tot}</td>)
+                  const isMia = r === nomeRedattore
+                  return (<td key={r} style={{ border: isMia ? '3px solid #D4AF37' : '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>{tot}</td>)
                 })}
                 <td style={{ border: '1px solid black', padding: '10px', background: '#FFE5CC', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>{articoli.filter(a => a.stato === 'libero').length}</td>
               </tr>
@@ -1492,7 +1494,7 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile }) {
 
 // ===== ADMIN WEEKEND VIEW =====
 
-function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
+function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile, nomeRedattore }) {
   const [selectedTab, setSelectedTab] = useState('riepilogo')
   const [showModifica, setShowModifica] = useState(false)
   const [showExport, setShowExport] = useState(false)
@@ -1615,7 +1617,7 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile }) {
         {/* CONTENT */}
         <div style={{ flex: 1, overflow: 'auto' }}>
           {selectedTab === 'riepilogo' && <AdminRiepilogoTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
-          {selectedTab === 'tabella' && <AdminTabellaTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
+          {selectedTab === 'tabella' && <AdminTabellaTab weekend={weekend} articoli={articoli} isMobile={isMobile} nomeRedattore={nomeRedattore} />}
           {selectedTab === 'nonAssegnati' && <AdminNonAssegnatiTab weekend={weekend} articoli={articoli} isMobile={isMobile} />}
         </div>
 
@@ -1704,7 +1706,7 @@ function AdminRiepilogoTab({ weekend, articoli, isMobile }) {
   )
 }
 
-function AdminTabellaTab({ weekend, articoli, isMobile }) {
+function AdminTabellaTab({ weekend, articoli, isMobile, nomeRedattore }) {
   const [zoom, setZoom] = useState(1)
   const redattoriOrdinati = [...(weekend.redattori || [])].sort()
   const articoliPerGiorno = GIORNI_WEEKEND.map(g => ({ giorno: g, articoli: articoli.filter(a => a.giorno === g.id) }))
@@ -1722,9 +1724,12 @@ function AdminTabellaTab({ weekend, articoli, isMobile }) {
           <thead>
             <tr>
               <th style={{ border: '1px solid black', padding: '10px', background: '#ddd', fontWeight: 'bold', fontSize: '12px', width: '120px' }}>GIORNO</th>
-              {redattoriOrdinati.map(r => (
-                <th key={r} style={{ border: '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '11px', width: '120px' }}>{r}</th>
-              ))}
+              {redattoriOrdinati.map(r => {
+                const isMia = r === nomeRedattore
+                return (
+                  <th key={r} style={{ border: isMia ? '3px solid #D4AF37' : '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '11px', width: '120px' }}>{r}</th>
+                )
+              })}
               <th style={{ border: '1px solid black', padding: '10px', background: '#FFE5CC', fontWeight: 'bold', fontSize: '12px', width: '120px' }}>Liberi</th>
             </tr>
           </thead>
@@ -1739,8 +1744,9 @@ function AdminTabellaTab({ weekend, articoli, isMobile }) {
                   </td>
                   {redattoriOrdinati.map(r => {
                     const articoliRedattore = arts.filter(a => a.assegnato_a === r)
+                    const isMia = r === nomeRedattore
                     return (
-                      <td key={r} style={{ border: '1px solid #ccc', padding: '8px', background: giorno.colore.replace('0.3', '0.15'), fontSize: '9px', verticalAlign: 'top', height: '120px', overflow: 'auto' }}>
+                      <td key={r} style={{ border: isMia ? '3px solid #D4AF37' : '1px solid #ccc', padding: '8px', background: giorno.colore.replace('0.3', '0.15'), fontSize: '9px', verticalAlign: 'top', height: '120px', overflow: 'auto' }}>
                         {articoliRedattore.map(a => (
                           <div key={a.id} style={{ marginBottom: '4px' }}>{renderTextWithBold(a.titolo, a.range_grassetto)}</div>
                         ))}
@@ -1759,7 +1765,8 @@ function AdminTabellaTab({ weekend, articoli, isMobile }) {
               <td style={{ border: '1px solid black', padding: '10px', background: '#ddd', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>TOT</td>
               {redattoriOrdinati.map(r => {
                 const tot = articoli.filter(a => a.assegnato_a === r).length
-                return (<td key={r} style={{ border: '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>{tot}</td>)
+                const isMia = r === nomeRedattore
+                return (<td key={r} style={{ border: isMia ? '3px solid #D4AF37' : '1px solid black', padding: '10px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>{tot}</td>)
               })}
               <td style={{ border: '1px solid black', padding: '10px', background: '#FFE5CC', fontWeight: 'bold', fontSize: '12px', textAlign: 'center' }}>{articoli.filter(a => a.stato === 'libero').length}</td>
             </tr>
