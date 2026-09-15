@@ -306,14 +306,15 @@ export default function EventiMobileMenu({ onClose }) {
 
   if (loading) {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '16px', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', boxSizing: 'border-box' }}>
         <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: '12px',
+          background: 'rgba(28, 28, 30, 0.92)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '20px',
+          padding: '16px',
           minWidth: '280px',
-          maxWidth: '320px'
+          maxWidth: '340px',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", sans-serif'
         }}>
           <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#FFF' }}>
             Caricamento...
@@ -325,17 +326,30 @@ export default function EventiMobileMenu({ onClose }) {
 
   if (!prossimoEvento) {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '16px', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', boxSizing: 'border-box' }}>
         <div style={{
-          background: 'rgba(0, 0, 0, 0.85)',
-          border: '2px solid rgba(51, 51, 51, 0.8)',
-          borderRadius: '12px',
-          padding: '12px',
+          background: 'rgba(28, 28, 30, 0.92)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '20px',
+          padding: '16px',
           minWidth: '280px',
-          maxWidth: '320px'
+          maxWidth: '340px',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", sans-serif'
         }}>
-          <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#FFF' }}>
-            Nessun evento
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#FFF' }}>
+              Nessun evento
+            </div>
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose() }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.12)', border: 'none', color: 'rgba(255,255,255,0.85)',
+                fontSize: '13px', cursor: 'pointer', width: '26px', height: '26px', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', borderRadius: '50%', flexShrink: 0
+              }}
+            >
+              ✕
+            </button>
           </div>
         </div>
       </div>
@@ -345,7 +359,22 @@ export default function EventiMobileMenu({ onClose }) {
   const haAccreditoUrgente = (prossimoEvento.accreditiUrgenti || []).length > 0
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '16px' }}>
+    <div style={{
+      position: 'fixed',
+      top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.45)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 10000,
+      padding: '16px',
+      paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
+      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
+      paddingLeft: 'calc(env(safe-area-inset-left, 0px) + 16px)',
+      paddingRight: 'calc(env(safe-area-inset-right, 0px) + 16px)',
+      boxSizing: 'border-box'
+    }}>
       <div style={{
         background: 'rgba(28, 28, 30, 0.92)',
         backdropFilter: 'blur(20px)',
@@ -356,10 +385,14 @@ export default function EventiMobileMenu({ onClose }) {
         minWidth: '290px',
         maxWidth: '340px',
         width: '100%',
+        maxHeight: '100%',
+        display: 'flex',
+        flexDirection: 'column',
         position: 'relative',
         boxShadow: '0 20px 50px rgba(0,0,0,0.45)',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", sans-serif',
-        animation: haAccreditoUrgente ? 'pulseUrgenteBordo 1.6s ease-in-out infinite' : 'none'
+        animation: haAccreditoUrgente ? 'pulseUrgenteBordo 1.6s ease-in-out infinite' : 'none',
+        overflow: 'hidden'
       }}>
         <style>{`
           @keyframes pulseUrgenteAccredito {
@@ -374,8 +407,8 @@ export default function EventiMobileMenu({ onClose }) {
           }
         `}</style>
 
-        {/* HEADER: titolo + chiusura, in flusso, senza sovrapposizioni */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+        {/* HEADER: titolo + chiusura, SEMPRE visibile e raggiungibile (non scrolla via) */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexShrink: 0 }}>
           <div style={{ fontSize: '17px', fontWeight: '700', color: '#FFF', letterSpacing: '-0.2px' }}>
             📅 Eventi
           </div>
@@ -406,6 +439,9 @@ export default function EventiMobileMenu({ onClose }) {
             ✕
           </button>
         </div>
+        
+        {/* CORPO SCROLLABILE: banner + lista eventi, l'header resta sempre fisso sopra */}
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
         
         {/* BANNER RIEPILOGO: accrediti da gestire, indipendentemente da quale sia il "prossimo evento" */}
         {prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
@@ -480,13 +516,7 @@ export default function EventiMobileMenu({ onClose }) {
           background: 'rgba(255, 255, 255, 0.1)', 
           borderRadius: '8px', 
           padding: '12px',
-          marginBottom: '8px',
-          // SOLO SU MOBILE: aggiungi scroll verticale
-          ...(isMobile && {
-            maxHeight: '70vh',
-            overflowY: 'auto',
-            WebkitOverflowScrolling: 'touch'
-          })
+          marginBottom: '8px'
         }}>
           <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#FFF', marginBottom: '8px' }}>
             {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
@@ -651,6 +681,7 @@ export default function EventiMobileMenu({ onClose }) {
         }}>
           <span></span>
           <span style={{ fontSize: 'Opx' }}></span>
+        </div>
         </div>
       </div>
     </div>
