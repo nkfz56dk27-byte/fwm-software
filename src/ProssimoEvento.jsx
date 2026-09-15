@@ -358,6 +358,22 @@ export default function ProssimoEvento() {
       console.log('ProssimoEvento - Prossimi eventi:', prossimiEventi.length)
       console.log('ProssimoEvento - Eventi stesso giorno:', eventiStessoGiorno.length)
       
+      // Scansiona TUTTI gli eventi futuri (non solo il "prossimo" cronologico) per segnalare
+      // accrediti da gestire con urgenza, anche se lontani nel tempo (es. entro 3 mesi/3 settimane)
+      const accreditiUrgenti = eventiFuturi
+        .map(ev => {
+          const dataEv = new Date(ev.data_inizio)
+          dataEv.setHours(0, 0, 0, 0)
+          const giorniMancantiEv = Math.floor((dataEv.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
+          return { ...ev, giorniMancantiEv }
+        })
+        .filter(ev => {
+          if (ev.accredito_status === 'da_richiedere') return ev.giorniMancantiEv <= 90
+          if (ev.accredito_status === 'richiesto') return ev.giorniMancantiEv <= 21
+          return false
+        })
+        .sort((a, b) => a.giorniMancantiEv - b.giorniMancantiEv)
+      
       setProssimoEvento({
         ...prossimo,
         giorniMancanti: giorniMancantiProssimo,
@@ -374,7 +390,8 @@ export default function ProssimoEvento() {
         richiesti: richiesti.length,
         prenotatiConNomi,
         prossimiEventi,
-        eventiStessoGiorno
+        eventiStessoGiorno,
+        accreditiUrgenti
       })
       
     } catch (error) {
@@ -419,13 +436,7 @@ export default function ProssimoEvento() {
     )
   }
 
-  const haAccreditoUrgente = (prossimoEvento.eventiStessoGiorno || []).some(ev => {
-    const giorni = prossimoEvento.giorniMancanti
-    if (typeof giorni !== 'number') return false
-    if (ev.accredito_status === 'da_richiedere') return giorni <= 90
-    if (ev.accredito_status === 'richiesto') return giorni <= 21
-    return false
-  })
+  const haAccreditoUrgente = (prossimoEvento.accreditiUrgenti || []).length > 0
 
   return (
     <div style={{
@@ -451,6 +462,30 @@ export default function ProssimoEvento() {
           100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
         }
       `}</style>
+      {/* BANNER RIEPILOGO: accrediti da gestire, indipendentemente da quale sia il "prossimo evento" */}
+      {prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
+        <div style={{
+          background: '#FF3B30',
+          borderRadius: '8px',
+          padding: '8px 10px',
+          marginBottom: '10px',
+          animation: 'pulseUrgenteAccredito 1.3s ease-in-out infinite'
+        }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#FFF', marginBottom: '4px' }}>
+            ⚠️ {prossimoEvento.accreditiUrgenti.length} accredit{prossimoEvento.accreditiUrgenti.length === 1 ? 'o' : 'i'} da gestire
+          </div>
+          {prossimoEvento.accreditiUrgenti.slice(0, 4).map(ev => (
+            <div key={ev.id} style={{ fontSize: '10px', color: '#FFF', opacity: 0.95, marginBottom: '2px' }}>
+              • {ev.titolo} — {ev.giorniMancantiEv <= 0 ? 'in corso/oggi' : `${ev.giorniMancantiEv}gg`} (<strong>{ev.accredito_status === 'da_richiedere' ? 'da richiedere' : 'in attesa di risposta'}</strong>)
+            </div>
+          ))}
+          {prossimoEvento.accreditiUrgenti.length > 4 && (
+            <div style={{ fontSize: '10px', color: '#FFF', opacity: 0.85 }}>
+              + altri {prossimoEvento.accreditiUrgenti.length - 4}
+            </div>
+          )}
+        </div>
+      )}
       <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#FFF', marginBottom: '6px' }}>
         {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
          prossimoEvento.giorniMancanti === 1 ? 'DOMANI!' : 
@@ -542,7 +577,7 @@ export default function ProssimoEvento() {
                       gap: '4px',
                       animation: urgente ? 'pulseUrgenteAccredito 1.3s ease-in-out infinite' : 'none'
                     }}>
-                      {urgente ? `⚠️ RICHIESTO, SOLLECITA — mancano ${giorniMancantiEvento} giorni!` : '📨 RICHIESTO'}
+                      {urgente ? `⚠️ RICHIESTO, IN ATTESA DI RISPOSTA — mancano ${giorniMancantiEvento} giorni!` : '📨 RICHIESTO'}
                     </div>
                   )
                 } else if (evento.accredito_status === 'accettato') {
@@ -648,7 +683,7 @@ export default function ProssimoEvento() {
                   </div>
                   {urgentePross && (
                     <div style={{ fontSize: '9px', color: '#FF9494', fontWeight: 'bold', marginTop: '2px' }}>
-                      {evento.accredito_status === 'da_richiedere' ? '⚠️ Accredito da richiedere' : '⚠️ Accredito richiesto, sollecita'}
+                      {evento.accredito_status === 'da_richiedere' ? '⚠️ Accredito da richiedere' : '⚠️ Accredito richiesto, in attesa di risposta'}
                     </div>
                   )}
                   {evento.sessioniPerGiorno && evento.sessioniPerGiorno.length > 0 && (
