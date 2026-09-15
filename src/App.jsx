@@ -4485,9 +4485,26 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
       dataProssimo.setHours(0, 0, 0, 0)
       const giorniMancanti = Math.floor((dataProssimo.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
       
+      // Scansiona TUTTI gli eventi futuri per segnalare accrediti da gestire con urgenza
+      // (stessa logica di ProssimoEvento.jsx: da_richiedere entro 90gg, richiesto entro 21gg)
+      const accreditiUrgenti = eventiFuturi
+        .map(ev => {
+          const dataEv = new Date(ev.data_inizio)
+          dataEv.setHours(0, 0, 0, 0)
+          const giorniMancantiEv = Math.floor((dataEv.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
+          return { ...ev, giorniMancantiEv }
+        })
+        .filter(ev => {
+          if (ev.accredito_status === 'da_richiedere') return ev.giorniMancantiEv <= 90
+          if (ev.accredito_status === 'richiesto') return ev.giorniMancantiEv <= 21
+          return false
+        })
+        .sort((a, b) => a.giorniMancantiEv - b.giorniMancantiEv)
+      
       setProssimoEvento({
         ...prossimo,
-        giorniMancanti
+        giorniMancanti,
+        accreditiUrgenti
       })
       
     } catch (error) {
@@ -4521,7 +4538,35 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
             </svg>
           </button>
           {isMobile && (
-            <button className="btn-header" onClick={onOpenEventiMobile}>
+            <button className="btn-header" onClick={onOpenEventiMobile} style={{ position: 'relative' }}>
+              <style>{`
+                @keyframes pulseUrgenteAccreditoMobile {
+                  0% { opacity: 1; transform: scale(1); }
+                  50% { opacity: 0.6; transform: scale(1.15); }
+                  100% { opacity: 1; transform: scale(1); }
+                }
+              `}</style>
+              {prossimoEvento && prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  background: '#FF3B30',
+                  color: '#FFF',
+                  borderRadius: '50%',
+                  width: '16px',
+                  height: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  animation: 'pulseUrgenteAccreditoMobile 1.3s ease-in-out infinite',
+                  zIndex: 2
+                }}>
+                  {prossimoEvento.accreditiUrgenti.length}
+                </div>
+              )}
               {prossimoEvento ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
                   <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
