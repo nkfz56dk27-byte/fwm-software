@@ -175,6 +175,7 @@ function App() {
 
   const [toastNotification, setToastNotification] = useState(null) // Toast fallback per notifiche
   const [showNuovaSchermata, setShowNuovaSchermata] = useState(false) // Stato per la nuova schermata
+  const [showProfileSheet, setShowProfileSheet] = useState(false) // Foglio profilo tab bar mobile (persistente su tutte le schermate)
   
   // Detect mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
@@ -627,6 +628,30 @@ function App() {
     setShowClassifica(false)
   }
 
+  // Riporta l'utente alla Home da qualsiasi schermata (usato dal tab "Home" della tab bar persistente)
+  function handleGoHome() {
+    setShowGestione(false)
+    setShowDispositiviNotifiche(false)
+    setShowClassificheMainMenu(false)
+    setShowClassificheMenu(false)
+    setShowClassifica(false)
+    setClassificaId(null)
+    setShowNuovaPagina(false)
+    setShowOrdinaTabellaClassifica(false)
+    setShowStatistiche(false)
+    setShowPannelloFonti(false)
+    setShowRitaglioImmagine(false)
+    setShowVidaMenu(false)
+    setShowEventiMobile(false)
+    setShowCalendario(false)
+    setShowDisponibilita(null)
+    setShowNuovaSchermata(false)
+    setShowProfileSheet(false)
+  }
+
+  // Tutta la logica di routing tra le schermate, isolata in una funzione così la tab bar
+  // mobile può restare fissa "sopra" a qualsiasi schermata venga renderizzata qui sotto.
+  function renderScreen() {
   if (!user) {
     return <LoginView username={username} setUsername={setUsername} password={password} setPassword={setPassword} showPassword={showPassword} setShowPassword={setShowPassword} loginError={loginError} loading={loading} handleLogin={handleLogin} />
   }
@@ -760,6 +785,61 @@ function App() {
       {/* {showNotificationPrompt && <NotificationPrompt username={user.username} onClose={() => setShowNotificationPrompt(false)} />} */}
       {toastNotification && <ToastNotification notification={toastNotification} onClose={() => setToastNotification(null)} />}
       {/* End disabled notification */}
+    </>
+  )
+  } // fine renderScreen()
+
+  const mostraTabBarPersistente = isMobile && user && !mustChangePassword
+
+  return (
+    <>
+      {renderScreen()}
+
+      {/* ===== TAB BAR PERSISTENTE (mobile, stile iOS) — resta fissa su TUTTE le schermate ===== */}
+      {mostraTabBarPersistente && (
+        <nav className="bottom-tab-bar">
+          <button className={`tab-bar-item${!showGestione && !showProfileSheet ? ' active' : ''}`} onClick={handleGoHome}>
+            <span className="tab-bar-icon">🏠</span>
+            <span className="tab-bar-label">Home</span>
+          </button>
+
+          {user.ruolo === 'admin' && (
+            <button className={`tab-bar-item${showGestione ? ' active' : ''}`} onClick={() => { setShowProfileSheet(false); setShowGestione(true) }}>
+              <span className="tab-bar-icon">⚙️</span>
+              <span className="tab-bar-label">Gestione</span>
+            </button>
+          )}
+
+          <button className={`tab-bar-item${showProfileSheet ? ' active' : ''}`} onClick={() => setShowProfileSheet(true)}>
+            <span className="tab-bar-icon">👤</span>
+            <span className="tab-bar-label">Profilo</span>
+          </button>
+        </nav>
+      )}
+
+      {/* ===== FOGLIO PROFILO (aperto dal tab "Profilo"), disponibile ovunque ===== */}
+      {mostraTabBarPersistente && showProfileSheet && (
+        <div className="profile-sheet-overlay" onClick={() => setShowProfileSheet(false)}>
+          <div className="profile-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="profile-sheet-user">
+              <div className="profile-sheet-avatar">
+                {(user.nome_completo || '?').trim().charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div className="profile-sheet-name">{user.nome_completo}</div>
+                <div className="profile-sheet-role">{user.ruolo}</div>
+              </div>
+            </div>
+
+            <button className="profile-sheet-item danger" onClick={() => { setShowProfileSheet(false); handleLogout() }}>
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+              </svg>
+              Esci
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }
@@ -4519,7 +4599,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
   
   return (
     <div className="home-container">
-      <div className="home-header">
+      <div className="home-header" style={{ display: isMobile ? 'none' : 'flex' }}>
         <div className="header-left">
           {user.ruolo === 'admin' && (
             <button className="btn-header" onClick={onOpenGestione}>
@@ -4537,74 +4617,78 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
               <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
             </svg>
           </button>
-          {isMobile && (
-            <button className="btn-header" onClick={onOpenEventiMobile} style={{ position: 'relative' }}>
-              <style>{`
-                @keyframes pulseUrgenteAccreditoMobile {
-                  0% { opacity: 1; transform: scale(1); }
-                  50% { opacity: 0.6; transform: scale(1.15); }
-                  100% { opacity: 1; transform: scale(1); }
-                }
-              `}</style>
-              {prossimoEvento && prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
-                <div style={{
-                  position: 'absolute',
-                  top: '-4px',
-                  right: '-4px',
-                  background: '#FF3B30',
-                  color: '#FFF',
-                  borderRadius: '50%',
-                  width: '16px',
-                  height: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '10px',
-                  fontWeight: 'bold',
-                  animation: 'pulseUrgenteAccreditoMobile 1.3s ease-in-out infinite',
-                  zIndex: 2
-                }}>
-                  {prossimoEvento.accreditiUrgenti.length}
-                </div>
-              )}
-              {prossimoEvento ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '12px' }}>▼</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', opacity: 0.8, whiteSpace: 'nowrap' }}>
-                      {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
-                       prossimoEvento.giorniMancanti === 1 ? 'DOMANI!' : 
-                       `Tra ${prossimoEvento.giorniMancanti} giorni`}
-                    </div>
-                    <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
-                      {prossimoEvento.titolo}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '12px' }}>▼</span>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
-                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '12px' }}>▼</span>
-                  </div>
-                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
-                    📅 Eventi
-                  </div>
-                  <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: '12px' }}>▼</span>
-                  </div>
-                </div>
-              )}
-            </button>
-          )}
         </div>
       </div>
 
-      <div className="home-title" style={{ marginTop: (isMobile ? '30px' : '0px') }}>
+      {/* PROSSIMO GP: resta in alto anche su mobile (non è nella tab bar) */}
+      {isMobile && (
+        <div style={{ padding: '10px 10px 0', marginTop: '15px' }}>
+          <button className="btn-header" onClick={onOpenEventiMobile} style={{ position: 'relative', width: '100%' }}>
+            <style>{`
+              @keyframes pulseUrgenteAccreditoMobile {
+                0% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.6; transform: scale(1.15); }
+                100% { opacity: 1; transform: scale(1); }
+              }
+            `}</style>
+            {prossimoEvento && prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                background: '#FF3B30',
+                color: '#FFF',
+                borderRadius: '50%',
+                width: '16px',
+                height: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                animation: 'pulseUrgenteAccreditoMobile 1.3s ease-in-out infinite',
+                zIndex: 2
+              }}>
+                {prossimoEvento.accreditiUrgenti.length}
+              </div>
+            )}
+            {prossimoEvento ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '12px' }}>▼</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', opacity: 0.8, whiteSpace: 'nowrap' }}>
+                    {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
+                     prossimoEvento.giorniMancanti === 1 ? 'DOMANI!' : 
+                     `Tra ${prossimoEvento.giorniMancanti} giorni`}
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
+                    {prossimoEvento.titolo}
+                  </div>
+                </div>
+                <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '12px' }}>▼</span>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', justifyContent: 'space-between' }}>
+                <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '12px' }}>▼</span>
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', whiteSpace: 'nowrap' }}>
+                  📅 Eventi
+                </div>
+                <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: '12px' }}>▼</span>
+                </div>
+              </div>
+            )}
+          </button>
+        </div>
+      )}
+
+      <div className="home-title" style={{ marginTop: (isMobile ? '14px' : '0px') }}>
         <h1 className="title-main">FWM Software</h1>
       </div>
 
@@ -4761,10 +4845,10 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
         onClick={onOpenNuovaSchermata}
         style={{
           position: 'fixed',
-          bottom: '30px',
+          bottom: isMobile ? 'calc(78px + env(safe-area-inset-bottom, 0px))' : '30px',
           right: '30px',
-          width: '60px',
-          height: '60px',
+          width: isMobile ? '52px' : '60px',
+          height: isMobile ? '52px' : '60px',
           borderRadius: '50%',
           background: 'rgba(0, 0, 0, 0.35)',
           border: '1px solid rgba(255, 255, 255, 0.25)',
