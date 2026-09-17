@@ -1404,54 +1404,109 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: '18px', color: '#666' }}>Caricamento...</div>;
   
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
+    <div className="fwm-cal-root" style={{ display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
       <style>{`
         @keyframes pulseUrgenteAccredito {
           0% { opacity: 1; }
           50% { opacity: 0.6; }
           100% { opacity: 1; }
         }
+        /* Altezza reale della viewport: 100dvh evita che la barra del browser
+           mobile "mangi" il fondo della pagina (ultimi giorni del mese) */
+        .fwm-cal-root { height: 100vh; height: 100dvh; }
+        .fwm-cal-toolbar-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          padding: 6px 2px;
+          min-height: 46px;
+          border: none;
+          border-radius: 10px;
+          color: white;
+          font-weight: 700;
+          font-size: 10.5px;
+          line-height: 1.1;
+          letter-spacing: -0.2px;
+          cursor: pointer;
+          position: relative;
+          text-align: center;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .fwm-cal-toolbar-btn .fwm-ico { font-size: 15px; line-height: 1; }
       `}</style>
       {/* HEADER */}
       <button className="page-back-button" onClick={onClose}>Indietro</button>
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'flex-start' : 'flex-end', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 70px) 10px 10px' : '15px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0', position: 'relative' }}>
-        <div style={{ position: isMobile ? 'static' : 'absolute', left: 0, right: 0, textAlign: 'center', order: isMobile ? -1 : 0, padding: isMobile ? '10px 0' : '0', pointerEvents: 'none' }}>
-          <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold' }}>Calendario Accrediti</div>
-          <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#666' }}>Gare ed Eventi</div>
+      {isMobile ? (
+        /* ===== HEADER MOBILE COMPATTO ===== */
+        <div style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top, 0px) + 56px) 10px 8px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
+          <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', lineHeight: 1.1 }}>Calendario Accrediti</div>
+            <div style={{ fontSize: '9px', color: '#888', marginTop: '1px' }}>Gare ed Eventi</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${isAdmin ? 4 : 3}, minmax(0, 1fr))`, gap: '6px' }}>
+            <button className="fwm-cal-toolbar-btn" onClick={() => setShowNotifiche(true)} style={{ background: '#007AFF' }}>
+              <span className="fwm-ico">🔔</span>
+              <span>Notifiche</span>
+              {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#FF3B30', color: 'white', borderRadius: '50%', minWidth: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold', border: '2px solid white' }}>{notificheNonLette}</span>}
+            </button>
+            <button className="fwm-cal-toolbar-btn" onClick={() => setShowGestioneAccrediti(true)} style={{ background: '#8e44ad' }}>
+              <span className="fwm-ico">🎫</span>
+              <span>Accrediti</span>
+            </button>
+            {isAdmin && (
+              <button className="fwm-cal-toolbar-btn" onClick={() => setShowGestioneCampionati(true)} style={{ background: '#FF9500' }}>
+                <span className="fwm-ico">🏁</span>
+                <span>Categorie</span>
+              </button>
+            )}
+            <button className="fwm-cal-toolbar-btn" onClick={() => setShowNuovoEvento(true)} style={{ background: '#34C759' }}>
+              <span className="fwm-ico">➕</span>
+              <span>Nuovo</span>
+            </button>
+          </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '8px' : '10px', position: 'relative', zIndex: 2 }}>
-          <button onClick={() => setShowNotifiche(true)} style={{ position: 'relative', padding: isMobile ? '12px' : '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
-            🔔 Notifiche
-            {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
-          </button>
-          {/* Bottone Gestione Accrediti visibile su tutti i dispositivi */}
-          <button onClick={() => setShowGestioneAccrediti(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
-            Gestione Accrediti
-          </button>
-          {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Categorie</button>}
-          <button onClick={() => setShowNuovoEvento(true)} style={{ padding: isMobile ? '12px' : '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>Nuovo</button>
+      ) : (
+        /* ===== HEADER DESKTOP (invariato) ===== */
+        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', padding: '15px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: '0', position: 'relative' }}>
+          <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', order: 0, padding: '0', pointerEvents: 'none' }}>
+            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Calendario Accrediti</div>
+            <div style={{ fontSize: '11px', color: '#666' }}>Gare ed Eventi</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', position: 'relative', zIndex: 2 }}>
+            <button onClick={() => setShowNotifiche(true)} style={{ position: 'relative', padding: '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>
+              🔔 Notifiche
+              {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
+            </button>
+            <button onClick={() => setShowGestioneAccrediti(true)} style={{ padding: '6px 12px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>
+              Gestione Accrediti
+            </button>
+            {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>Categorie</button>}
+            <button onClick={() => setShowNuovoEvento(true)} style={{ padding: '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>Nuovo</button>
+          </div>
         </div>
-      </div>
+      )}
       {/* Modale Gestione Accrediti */}
       <GestioneAccreditiModal open={showGestioneAccrediti} onClose={() => setShowGestioneAccrediti(false)} caricaDati={caricaDati} />
       
       {/* NAVIGAZIONE MESE */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '10px' : '12px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
-        <button onClick={() => cambiaMese(-1)} style={{ padding: isMobile ? '10px 16px' : '6px 14px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '16px' : '13px', minHeight: isMobile ? '44px' : 'auto' }}>←</button>
-        <div style={{ fontSize: isMobile ? '15px' : '18px', fontWeight: 'bold' }}>{MESI_ITALIANO[meseCorrente.getMonth()]} {meseCorrente.getFullYear()}</div>
-        <button onClick={() => cambiaMese(1)} style={{ padding: isMobile ? '10px 16px' : '6px 14px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '16px' : '13px', minHeight: isMobile ? '44px' : 'auto' }}>→</button>
+      <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '6px 10px' : '12px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
+        <button onClick={() => cambiaMese(-1)} style={{ padding: isMobile ? '0 14px' : '6px 14px', height: isMobile ? '34px' : 'auto', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '15px' : '13px', minHeight: isMobile ? '34px' : 'auto' }}>←</button>
+        <div style={{ fontSize: isMobile ? '14px' : '18px', fontWeight: 'bold' }}>{MESI_ITALIANO[meseCorrente.getMonth()]} {meseCorrente.getFullYear()}</div>
+        <button onClick={() => cambiaMese(1)} style={{ padding: isMobile ? '0 14px' : '6px 14px', height: isMobile ? '34px' : 'auto', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '15px' : '13px', minHeight: isMobile ? '34px' : 'auto' }}>→</button>
       </div>
       
       {/* LEGENDA */}
-      <div style={{ padding: isMobile ? '8px 10px' : '10px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
-        <div style={{ display: 'flex', flexWrap: isMobile ? 'nowrap' : 'wrap', gap: '12px', fontSize: isMobile ? '10px' : '11px', minWidth: isMobile ? 'max-content' : 'auto' }}>
-          {campionati.map(c => <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', background: c.colore, flexShrink: 0 }}></div><span>{c.emoji} {c.nome}</span></div>)}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#666', flexShrink: 0 }}></div><span>Eventi</span></div>
+      <div style={{ flexShrink: 0, padding: isMobile ? '5px 10px' : '10px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ display: 'flex', flexWrap: isMobile ? 'nowrap' : 'wrap', gap: isMobile ? '10px' : '12px', fontSize: isMobile ? '9px' : '11px', minWidth: isMobile ? 'max-content' : 'auto' }}>
+          {campionati.map(c => <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><div style={{ width: isMobile ? '9px' : '12px', height: isMobile ? '9px' : '12px', borderRadius: '50%', background: c.colore, flexShrink: 0 }}></div><span>{c.emoji} {c.nome}</span></div>)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><div style={{ width: isMobile ? '9px' : '12px', height: isMobile ? '9px' : '12px', borderRadius: '50%', background: '#666', flexShrink: 0 }}></div><span>Eventi</span></div>
         </div>
       </div>
       
       {/* CONTENUTO CALENDARIO */}
-      <div style={{ flex: 1, padding: isMobile ? '10px' : '20px 30px', overflow: 'auto' }}>
+      <div style={{ flex: 1, minHeight: 0, padding: isMobile ? '10px 10px 0' : '20px 30px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {isMobile ? (
           <ListaGiorniMobile mese={meseCorrente} eventi={getEventiMese()} campionati={campionati} prenotazioni={prenotazioni} notifiche={notifiche} onEventoClick={handleClickEventoCalendario} isMobile={isMobile} />
         ) : (
@@ -1723,7 +1778,7 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, 
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', paddingBottom: '30px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 110px)' }}>
       {tuttiIGiorni.map(({ data, giorno, nomeGiorno, isOggi, eventi: eventiGiorno }) => (
         <div key={data} style={{ 
           background: isOggi ? '#007AFF' : 'white', 
