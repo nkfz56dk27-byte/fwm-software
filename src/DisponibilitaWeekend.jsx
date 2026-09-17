@@ -378,7 +378,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
       <button className="page-back-button" onClick={onClose}>Indietro</button>
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'flex-start' : 'flex-end', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 70px) 10px 10px' : '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0', position: 'relative' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'flex-start' : 'flex-end', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? '60px 10px 10px' : '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0', position: 'relative' }}>
         <div style={{ position: isMobile ? 'static' : 'absolute', left: 0, right: 0, textAlign: 'center', order: isMobile ? -1 : 0, padding: isMobile ? '10px 0' : '0', pointerEvents: 'none' }}>
           <div style={{ fontSize: isMobile ? '17px' : '24px', fontWeight: 'bold', whiteSpace: isMobile ? 'normal' : 'nowrap' }}>
             Disponibilità Weekend
