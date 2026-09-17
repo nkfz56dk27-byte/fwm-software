@@ -11,6 +11,27 @@ function safeRender(val) {
   return val;
 }
 
+// Utility: giorni mancanti (interi) da oggi a una data (stringa data_inizio evento)
+function calcolaGiorniMancanti(dataInizio) {
+  if (!dataInizio) return null;
+  const oggi = new Date();
+  oggi.setHours(0, 0, 0, 0);
+  const data = new Date(dataInizio);
+  data.setHours(0, 0, 0, 0);
+  if (Number.isNaN(data.getTime())) return null;
+  return Math.floor((data.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Utility: determina se lo stato accredito è "urgente" in base ai giorni mancanti
+// da_richiedere -> urgente entro 3 mesi (90 giorni) — nessuna azione ancora presa
+// richiesto -> urgente entro 3 settimane (21 giorni) — richiesta già inviata, serve sollecito
+function isStatoAccreditoUrgente(accreditoStatus, giorniMancanti) {
+  if (typeof giorniMancanti !== 'number') return false;
+  if (accreditoStatus === 'da_richiedere') return giorniMancanti <= 90;
+  if (accreditoStatus === 'richiesto') return giorniMancanti <= 21;
+  return false;
+}
+
 // Utility: Estrai e formatta le sessioni per un giorno specifico
 function estraiSessioniGiornata(programmazione_weekend, giornoKey) {
   // giornoKey: es. "sabato", "domenica", "lun", "mar", ...
@@ -932,8 +953,10 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
               const prenotati = prenotazioniEvento.length;
               const liberi = (ev.max_accrediti || 0) - prenotati;
               let statoBadge = null;
-              if (ev.accredito_status === 'da_richiedere') statoBadge = { text: 'Da richiedere', color: '#FFD60A', textColor: '#000' };
-              else if (ev.accredito_status === 'richiesto') statoBadge = { text: 'Richiesto', color: '#FF9500', textColor: '#fff' };
+              const giorniMancantiEv = calcolaGiorniMancanti(ev.data_inizio);
+              const urgenteEv = isStatoAccreditoUrgente(ev.accredito_status, giorniMancantiEv);
+              if (ev.accredito_status === 'da_richiedere') statoBadge = { text: urgenteEv ? `⚠️ Da richiedere — ${giorniMancantiEv}gg` : 'Da richiedere', color: urgenteEv ? '#FF3B30' : '#FFD60A', textColor: urgenteEv ? '#fff' : '#000' };
+              else if (ev.accredito_status === 'richiesto') statoBadge = { text: urgenteEv ? `⚠️ Richiesto, in attesa di risposta — ${giorniMancantiEv}gg` : 'Richiesto', color: urgenteEv ? '#FF3B30' : '#FF9500', textColor: '#fff' };
               else if (ev.accredito_status === 'accettato') statoBadge = { text: 'Accettato', color: '#34C759', textColor: '#fff' };
               // Trova utenti accreditati
               // Mostra il nome reale se disponibile, altrimenti username
@@ -960,7 +983,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
                         )}
                       </div>
                       {statoBadge && (
-                        <span style={{ background: statoBadge.color, color: statoBadge.textColor, borderRadius: 6, padding: '2px 10px', fontWeight: 700, fontSize: 12, marginLeft: 12, whiteSpace: 'nowrap' }}>{statoBadge.text}</span>
+                        <span style={{ background: statoBadge.color, color: statoBadge.textColor, borderRadius: 6, padding: '2px 10px', fontWeight: 700, fontSize: 12, marginLeft: 12, whiteSpace: 'nowrap', animation: urgenteEv ? 'pulseUrgenteAccredito 1.3s ease-in-out infinite' : 'none' }}>{statoBadge.text}</span>
                       )}
                     </div>
                   </div>
@@ -1382,14 +1405,21 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
   
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
+      <style>{`
+        @keyframes pulseUrgenteAccredito {
+          0% { opacity: 1; }
+          50% { opacity: 0.6; }
+          100% { opacity: 1; }
+        }
+      `}</style>
       {/* HEADER */}
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? '10px' : '15px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0' }}>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '14px' : '16px', fontWeight: 'bold', cursor: 'pointer', alignSelf: isMobile ? 'flex-start' : 'auto', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0', textAlign: 'left' }}>← Indietro</button>
-        <div style={{ textAlign: 'center', order: isMobile ? -1 : 0, padding: isMobile ? '10px 0' : '0' }}>
+      <button className="page-back-button" onClick={onClose}>Indietro</button>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'flex-start' : 'flex-end', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 70px) 10px 10px' : '15px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0', position: 'relative' }}>
+        <div style={{ position: isMobile ? 'static' : 'absolute', left: 0, right: 0, textAlign: 'center', order: isMobile ? -1 : 0, padding: isMobile ? '10px 0' : '0', pointerEvents: 'none' }}>
           <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold' }}>Calendario Accrediti</div>
           <div style={{ fontSize: isMobile ? '10px' : '11px', color: '#666' }}>Gare ed Eventi</div>
         </div>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '8px' : '10px' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '8px' : '10px', position: 'relative', zIndex: 2 }}>
           <button onClick={() => setShowNotifiche(true)} style={{ position: 'relative', padding: isMobile ? '12px' : '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', fontSize: isMobile ? '14px' : '13px', fontWeight: '600', cursor: 'pointer', minHeight: isMobile ? '48px' : 'auto' }}>
             🔔 Notifiche
             {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
@@ -1808,6 +1838,35 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, 
                         {safeRender(evento.orario)}
                       </span>
                     )}
+                    {(() => {
+                      const giorniMancantiLGM = calcolaGiorniMancanti(evento.data_inizio)
+                      const urgenteLGM = isStatoAccreditoUrgente(evento.accredito_status, giorniMancantiLGM)
+                      let badgeAccreditoLGM = null
+                      if (evento.accredito_status === 'da_richiedere') badgeAccreditoLGM = urgenteLGM
+                        ? { icon: '⚠️', text: `DA RICHIEDERE — ${giorniMancantiLGM}gg`, bg: '#FF3B30', color: '#FFF' }
+                        : { icon: '🟡', text: 'DA RICHIEDERE', bg: '#FFD60A', color: '#000' }
+                      else if (evento.accredito_status === 'richiesto') badgeAccreditoLGM = urgenteLGM
+                        ? { icon: '⚠️', text: `RICHIESTO, IN ATTESA DI RISPOSTA — ${giorniMancantiLGM}gg`, bg: '#FF3B30', color: '#FFF' }
+                        : { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
+                      else if (evento.accredito_status === 'accettato') badgeAccreditoLGM = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
+                      if (!badgeAccreditoLGM) return null
+                      return (
+                        <div style={{
+                          display: 'block',
+                          marginTop: '4px',
+                          fontSize: '10px',
+                          fontWeight: '900',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          width: 'fit-content',
+                          background: badgeAccreditoLGM.bg,
+                          color: badgeAccreditoLGM.color,
+                          animation: urgenteLGM ? 'pulseUrgenteAccredito 1.3s ease-in-out infinite' : 'none'
+                        }}>
+                          {badgeAccreditoLGM.icon} {badgeAccreditoLGM.text}
+                        </div>
+                      )
+                    })()}
                     {evento.programmazione_weekend && (
                       <div style={{ marginTop: '4px', fontSize: '11px', fontWeight: 'normal', color: isOggi ? 'rgba(255,255,255,0.7)' : '#666' }}>
                         <button
@@ -2046,8 +2105,14 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
 
           // Gestione Badge Stato
           let badge = null;
-          if (evento.accredito_status === 'da_richiedere') badge = { icon: '🟡', text: 'DA RICHIEDERE', bg: '#FFD60A', color: '#000' };
-          else if (evento.accredito_status === 'richiesto') badge = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' };
+          const giorniMancantiGC = calcolaGiorniMancanti(evento.data_inizio);
+          const urgenteGC = isStatoAccreditoUrgente(evento.accredito_status, giorniMancantiGC);
+          if (evento.accredito_status === 'da_richiedere') badge = urgenteGC
+            ? { icon: '⚠️', text: `DA RICHIEDERE — ${giorniMancantiGC}gg`, bg: '#FF3B30', color: '#FFF', pulse: true }
+            : { icon: '🟡', text: 'DA RICHIEDERE', bg: '#FFD60A', color: '#000' };
+          else if (evento.accredito_status === 'richiesto') badge = urgenteGC
+            ? { icon: '⚠️', text: `RICHIESTO, IN ATTESA DI RISPOSTA — ${giorniMancantiGC}gg`, bg: '#FF3B30', color: '#FFF', pulse: true }
+            : { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' };
           else if (evento.accredito_status === 'accettato') badge = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' };
 
           // Mostra il badge se l'evento ha una nota (logica robusta come su mobile)
@@ -2199,7 +2264,8 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
                   fontWeight: '900', 
                   textAlign: 'center',
                   marginTop: '2px',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                  animation: badge.pulse ? 'pulseUrgenteAccredito 1.3s ease-in-out infinite' : 'none'
                 }}>
                   {badge.icon} {badge.text}
                 </div>
@@ -2920,8 +2986,14 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
   }
   
   let b = null
-  if (evento.accredito_status === 'da_richiedere') b = { icon: '🟡', text: 'DOVREMMO RICHIEDERE', bg: '#FFD60A', color: '#000' }
-  else if (evento.accredito_status === 'richiesto') b = { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
+  const giorniMancantiDett = calcolaGiorniMancanti(evento.data_inizio)
+  const urgenteDett = isStatoAccreditoUrgente(evento.accredito_status, giorniMancantiDett)
+  if (evento.accredito_status === 'da_richiedere') b = urgenteDett
+    ? { icon: '⚠️', text: `DOVREMMO RICHIEDERE — mancano ${giorniMancantiDett} giorni!`, bg: '#FF3B30', color: '#FFF', pulse: true }
+    : { icon: '🟡', text: 'DOVREMMO RICHIEDERE', bg: '#FFD60A', color: '#000' }
+  else if (evento.accredito_status === 'richiesto') b = urgenteDett
+    ? { icon: '⚠️', text: `RICHIESTO, IN ATTESA DI RISPOSTA — mancano ${giorniMancantiDett} giorni!`, bg: '#FF3B30', color: '#FFF', pulse: true }
+    : { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
   else if (evento.accredito_status === 'accettato') b = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
   
   const slots = Array.from({ length: maxAccrediti }, (_, i) => prenotazioniEvento[i] || null)
@@ -2935,7 +3007,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '30px' }}>
           <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>{evento.titolo}</div>
-          {b && <div style={{ marginBottom: '20px', padding: '15px', background: b.bg, color: b.color, borderRadius: '10px', fontWeight: 'bold' }}>{b.icon} {b.text}</div>}
+          {b && <div style={{ marginBottom: '20px', padding: '15px', background: b.bg, color: b.color, borderRadius: '10px', fontWeight: 'bold', animation: b.pulse ? 'pulseUrgenteAccredito 1.3s ease-in-out infinite' : 'none' }}>{b.icon} {b.text}</div>}
           <div style={{ marginBottom: '20px' }}>
             {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
             {evento.data_fine && ` - ${new Date(evento.data_fine).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}`}
