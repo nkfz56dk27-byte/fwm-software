@@ -24,6 +24,10 @@
 @media (max-width: 768px) {
   .home-container {
     padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+    /* L'immagine è larga (16:9) e il rosso si trova sul lato sinistro/basso:
+       su schermi stretti "cover" centrato lo tagliava via. Ancoriamo il
+       ritaglio in basso a sinistra così il rosso resta visibile. */
+    background-position: left bottom !important;
   }
   .home-cards-wrapper {
     padding-bottom: max(32px, env(safe-area-inset-bottom, 0px));
@@ -546,6 +550,42 @@ body {
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 0 2px rgba(20, 20, 22, 0.85);
+}
+
+/* ===== TAB BAR MOBILE — versione slim, stile "IG attuale" =====
+   Meno padding, hairline sottile invece dell'ombra pesante, icone
+   e etichette più piccole: bar decisamente meno ingombrante. */
+@media (max-width: 768px) {
+  .bottom-tab-bar {
+    background: rgba(15, 15, 17, 0.88);
+    border-top: 0.5px solid rgba(255, 255, 255, 0.08);
+    box-shadow: none;
+    padding-top: 6px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+  }
+  .tab-bar-item {
+    gap: 2px;
+    padding: 2px 2px;
+  }
+  .tab-bar-icon {
+    width: 22px;
+    height: 22px;
+    font-size: 19px;
+  }
+  .tab-bar-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  .tab-bar-label {
+    font-size: 9px;
+    letter-spacing: -0.1px;
+  }
+  .tab-bar-badge {
+    top: -1px;
+    min-width: 14px;
+    height: 14px;
+    font-size: 9px;
+  }
 }
 
 /* ===== PROFILO: bottom sheet aperto dal tab "Profilo" ===== */
