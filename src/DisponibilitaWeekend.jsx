@@ -377,9 +377,9 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f7' }}>
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? '10px' : '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0' }}>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '14px' : '18px', fontWeight: 'bold', cursor: 'pointer', alignSelf: isMobile ? 'flex-start' : 'auto', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0', textAlign: 'left' }}>← Indietro</button>
-        <div style={{ textAlign: 'center', order: isMobile ? -1 : 0, padding: isMobile ? '10px 0' : '0' }}>
+      <button className="page-back-button" onClick={onClose}>Indietro</button>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: isMobile ? 'flex-start' : 'flex-end', alignItems: isMobile ? 'stretch' : 'center', padding: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 70px) 10px 10px' : '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: isMobile ? '10px' : '0', position: 'relative' }}>
+        <div style={{ position: isMobile ? 'static' : 'absolute', left: 0, right: 0, textAlign: 'center', order: isMobile ? -1 : 0, padding: isMobile ? '10px 0' : '0', pointerEvents: 'none' }}>
           <div style={{ fontSize: isMobile ? '17px' : '24px', fontWeight: 'bold', whiteSpace: isMobile ? 'normal' : 'nowrap' }}>
             Disponibilità Weekend
             {categoria && <span style={{ color: categoria.colore, marginLeft: isMobile ? '0' : '10px', display: isMobile ? 'block' : 'inline', fontSize: isMobile ? '14px' : '24px', marginTop: isMobile ? '5px' : '0' }}>- {categoria.nome}</span>}
@@ -387,7 +387,7 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
           {isAdmin && <div style={{ fontSize: '12px', color: '#FF9500' }}>Admin</div>}
         </div>
         {isAdmin ? (
-          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '8px' : '12px' }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '8px' : '12px', position: 'relative', zIndex: 2 }}>
             <button
               onClick={() => setShowNotifiche(true)} 
               style={{ 
@@ -1225,7 +1225,10 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
       <div style={{ background: '#f5f5f7', borderRadius: '15px', width: '900px', height: '700px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', borderRadius: '15px 15px 0 0' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
+          <button className="dialog-back-link" onClick={onClose}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            Indietro
+          </button>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
             <div style={{ fontSize: '13px', color: '#666' }}>{weekend.data}</div>
@@ -1416,7 +1419,10 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile, nomeRedattor
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000 }}>
       <div style={{ background: 'white', borderRadius: '15px', width: '90vw', height: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
+          <button className="dialog-back-link" onClick={onClose}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            Indietro
+          </button>
           <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Tabella {weekend.nome_gp}</div>
           <div style={{ width: '90px' }}></div>
         </div>
@@ -1515,19 +1521,9 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile, nom
           borderRadius: isMobile ? '0' : '15px 15px 0 0'
         }}>
           {/* Bottone Indietro */}
-          <button 
-            onClick={onClose} 
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              color: '#007AFF', 
-              fontSize: isMobile ? '18px' : '18px', 
-              fontWeight: 'bold', 
-              cursor: 'pointer',
-              padding: 0
-            }}
-          >
-            ← Indietro
+          <button className="dialog-back-link" onClick={onClose}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            Indietro
           </button>
           
           {/* Titolo centrato */}
