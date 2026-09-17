@@ -667,31 +667,70 @@ body {
   flex-direction: row !important;
   flex-wrap: nowrap !important;
   align-items: center !important;
+  justify-content: flex-end !important;
   gap: 4px;
   min-height: 44px;
   width: 100%;
+  position: relative;
 }
-.btn-back {
+/* =====================================================================
+   TASTO INDIETRO — UNICO STANDARD PER TUTTA L'APP (stile piatto blu,
+   come RitaglioImmagine.jsx). Posizione fissa, IDENTICA su ogni
+   schermata e su ogni breakpoint (desktop/mobile) — nessuna variante.
+   .btn-back, .page-back-button, .dialog-back-link, .modal-back-btn,
+   .btn-back-glass sono tutti alias della stessa identica regola.
+   ===================================================================== */
+.btn-back,
+.page-back-button,
+.dialog-back-link,
+.modal-back-btn,
+.btn-back-glass {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 18px);
+  left: 18px;
+  z-index: 700;
   display: flex;
   align-items: center;
-  gap: 2px;
-  flex: 0 0 auto;
+  gap: 4px;
   background: none;
   border: none;
   color: #007AFF;
-  font-size: 16px;
-  font-weight: 600;
-  padding: 6px 4px;
+  font-size: 17px;
+  font-weight: 700;
+  padding: 10px 8px;
+  margin: -10px -8px;
   cursor: pointer;
   white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
 }
-.btn-back:active { opacity: 0.5; }
-.btn-back .icon {
-  width: 22px;
-  height: 22px;
+.btn-back:active,
+.page-back-button:active,
+.dialog-back-link:active,
+.modal-back-btn:active,
+.btn-back-glass:active {
+  opacity: 0.4;
+}
+.btn-back::before,
+.page-back-button::before,
+.dialog-back-link::before,
+.modal-back-btn::before,
+.btn-back-glass::before {
+  content: '←';
+  font-size: 18px;
+  line-height: 1;
+}
+/* Icona freccia SVG non più usata (testo semplice "← Indietro" come standard) */
+.btn-back .icon,
+.page-back-button .icon,
+.dialog-back-link .icon,
+.modal-back-btn .icon,
+.btn-back-glass .icon {
+  display: none;
 }
 .gestione-title {
-  flex: 1 1 auto;
+  position: absolute;
+  left: 0;
+  right: 0;
   min-width: 0;
   margin: 0;
   font-size: 19px;
@@ -701,7 +740,8 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding-right: 60px;
+  padding: 0 60px;
+  pointer-events: none;
 }
 .btn-gear {
   width: 36px;
@@ -716,6 +756,8 @@ body {
   justify-content: center;
   cursor: pointer;
   transition: background 0.2s;
+  position: relative;
+  z-index: 2;
 }
 .btn-gear:hover { background: rgba(120, 120, 128, 0.2); }
 .gestione-actions {
@@ -949,19 +991,6 @@ body {
   font-size: 22px;
   font-weight: 700;
   color: #000;
-}
-.modal-back-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  color: #007AFF;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 4px 2px;
 }
 .btn-close {
   width: 32px;
@@ -1356,7 +1385,7 @@ body {
   .divider { display: none; }
 
   .btn-back {
-    color: var(--glass-accent-blue);
+    /* stile unico ereditato dalla regola condivisa, nessun override qui */
   }
   .gestione-title {
     color: var(--glass-text-primary);
@@ -1510,8 +1539,6 @@ body {
 
 @media (min-width: 769px) {
   .gestione-title { font-size: 24px; }
-  .btn-back { font-size: 18px; }
-  .btn-back .icon { width: 26px; height: 26px; }
   .bottom-tab-bar, .profile-sheet-overlay { display: none !important; }
 }
 
