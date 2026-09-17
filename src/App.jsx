@@ -1013,12 +1013,10 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
     <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '40px' }}>
         {/* HEADER */}
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '10px' : '15px', marginBottom: '20px', padding: isMobile ? '15px' : '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', position: 'relative' }}>
-          <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-start', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>
-            ← Indietro
-          </button>
-          <h1 style={{ fontSize: isMobile ? '22px' : '34px', fontWeight: 'bold', margin: 0, flex: 1, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0 }}>{classifica.nome}</h1>
-          <div style={{ display: 'flex', gap: '10px', alignSelf: isMobile ? 'flex-end' : 'auto', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', justifyContent: isMobile ? 'flex-start' : 'flex-end', gap: isMobile ? '10px' : '15px', marginBottom: '20px', padding: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 60px) 15px 15px' : '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', position: 'relative' }}>
+          <button className="page-back-button" onClick={onBack}>Indietro</button>
+          <h1 style={{ position: isMobile ? 'static' : 'absolute', left: 0, right: 0, fontSize: isMobile ? '22px' : '34px', fontWeight: 'bold', margin: 0, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0, pointerEvents: 'none' }}>{classifica.nome}</h1>
+          <div style={{ display: 'flex', gap: '10px', alignSelf: isMobile ? 'flex-end' : 'auto', alignItems: 'center', position: 'relative', zIndex: 2 }}>
             {isAdmin && (
               <button onClick={() => setShowImpostazioni(true)}
                 style={{
@@ -1775,7 +1773,10 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
   if (step === 0) {
     return (
       <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px' }}>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Indietro</button>
+        <button className="dialog-back-link" onClick={onClose}>
+          <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          Indietro
+        </button>
         <h1 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>Aggiungi nuovo GP</h1>
         
         <div style={{ marginBottom: '20px' }}>
@@ -1865,7 +1866,10 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
 
   return (
     <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
-      <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Annulla</button>
+      <button className="dialog-back-link" onClick={onClose} style={{ marginBottom: '20px' }}>
+        <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        Annulla
+      </button>
       <h1 style={{ fontSize: '28px', marginBottom: '10px', textAlign: 'center' }}>GP: {gp.nome}</h1>
       {tabLabels.length > 0 && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '0', marginBottom: '28px', marginTop: '8px', borderBottom: '3px solid #e0eaff', width: '100%' }}>
@@ -2498,7 +2502,10 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
   return (
     <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>← Indietro</button>
+        <button className="dialog-back-link" onClick={onClose}>
+          <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          Indietro
+        </button>
         <h1 style={{ fontSize: '28px', margin: 0 }}>Impostazioni: {classifica.nome}</h1>
         <div style={{ width: '100px' }}></div>
       </div>
@@ -2628,7 +2635,10 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         {showModificaFotoPiloti && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.25)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ background: 'white', borderRadius: '20px', padding: '30px', minWidth: '350px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto' }}>
-              <button onClick={() => setShowModificaFotoPiloti(false)} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Indietro</button>
+              <button className="dialog-back-link" onClick={() => setShowModificaFotoPiloti(false)}>
+                <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                Indietro
+              </button>
               <h2 style={{ fontSize: '24px', marginBottom: '25px' }}>Modifica foto piloti</h2>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {dati.piloti.map(p => (
@@ -2951,7 +2961,10 @@ function CambiaPilotaView({ classifica, onClose, onSave }) {
 
   return (
     <div style={{ padding: '40px', maxWidth: '640px', margin: '0 auto', background: '#f5f5f7', borderRadius: '20px', maxHeight: '90vh', overflowY: 'auto' }}>
-      <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>← Indietro</button>
+      <button className="dialog-back-link" onClick={onClose} style={{ marginBottom: '20px' }}>
+        <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        Indietro
+      </button>
       <h1 style={{ fontSize: '28px', marginBottom: '25px' }}>Cambia Pilota</h1>
 
       <div style={{ display: 'grid', gap: '10px', marginBottom: '30px' }}>
@@ -3161,11 +3174,9 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
     <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '20px' }}>
         {/* HEADER */}
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '10px' : '15px', marginBottom: '20px', padding: isMobile ? '15px' : '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-start', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>
-            ← Indietro
-          </button>
-          <h1 style={{ fontSize: isMobile ? '20px' : '34px', fontWeight: 'bold', margin: 0, flex: 1, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0 }}>Grafico Pronostico Campionato</h1>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '10px' : '15px', marginBottom: '20px', padding: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 60px) 15px 15px' : '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', position: 'relative' }}>
+          <button className="page-back-button" onClick={onClose}>Indietro</button>
+          <h1 style={{ position: isMobile ? 'static' : 'absolute', left: 0, right: 0, fontSize: isMobile ? '20px' : '34px', fontWeight: 'bold', margin: 0, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0, pointerEvents: 'none' }}>Grafico Pronostico Campionato</h1>
         </div>
 
         {/* TAB */}
@@ -3922,8 +3933,9 @@ const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
   return (
     <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
       <div style={{ marginBottom: '30px' }}>
-        <button onClick={step === 0 ? onBack : () => setStep(step - 1)} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          ← Indietro
+        <button className="dialog-back-link" onClick={step === 0 ? onBack : () => setStep(step - 1)}>
+          <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          Indietro
         </button>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
           {[0, 1, 2].map(idx => <div key={idx} style={{ width: '12px', height: '12px', borderRadius: '50%', background: step === idx ? '#007AFF' : '#ddd' }} />)}
@@ -4384,11 +4396,11 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '20px' : '40px' }}>
-      <div style={{ position: 'absolute', top: isMobile ? '85px' : '20px', left: isMobile ? '10px' : '20px', right: isMobile ? '10px' : '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
-        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: isMobile ? '16px' : '18px', fontWeight: 'bold', cursor: 'pointer', minHeight: isMobile ? '44px' : 'auto', padding: isMobile ? '8px 0' : '0' }}>
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: isMobile ? '20px' : '24px', height: isMobile ? '20px' : '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-          Indietro
-        </button>
+      <button className="page-back-button" onClick={onBack}>
+        <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        Indietro
+      </button>
+      <div style={{ position: 'absolute', top: isMobile ? '85px' : '20px', left: isMobile ? '10px' : '20px', right: isMobile ? '10px' : '20px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', zIndex: 100 }}>
         {isAdmin && (
           <button
             onClick={() => {
@@ -5385,12 +5397,10 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
   const backBtnTop = isMobile ? 40 : 20;
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', minHeight: '100vh' }}>
-      <div style={{ position: 'absolute', top: isMobile ? '80px' : '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', zIndex: 100 }}>
-        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-          Indietro
-        </button>
-      </div>
+      <button className="page-back-button" onClick={onBack}>
+        <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        Indietro
+      </button>
       {/* Cards row */}
       <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '40px', marginTop: '55px' }}>
         <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
@@ -5869,8 +5879,8 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', overflow: 'auto', zIndex: 999 }}>
         <div style={{ background: 'white', borderRadius: '20px', padding: '30px', maxWidth: '600px', width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', position: 'relative' }}>
-          <button onClick={() => setShowCreaZero(false)} style={{ position: 'absolute', top: window.innerWidth < 768 ? '32px' : '30px', left: '20px', display: 'flex', alignItems: 'center', gap: '8px', background: 'none', color: '#007AFF', border: 'none', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
-            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '20px', height: '20px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          <button className="dialog-back-link" onClick={() => setShowCreaZero(false)}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
             Indietro
           </button>
           <button onClick={salvaCampionatoNuovo} style={{ position: 'absolute', top: '20px', right: '20px', background: '#34C759', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
@@ -5960,8 +5970,8 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 998 }}>
         <div style={{ background: 'white', borderRadius: '20px', padding: '30px', maxWidth: '600px', width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
-          <button onClick={() => setShowImportaClassifica(false)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', color: '#007AFF', border: 'none', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px' }}>
-            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '20px', height: '20px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          <button className="dialog-back-link" onClick={() => setShowImportaClassifica(false)} style={{ marginBottom: '20px' }}>
+            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
             Indietro
           </button>
 
@@ -6189,12 +6199,10 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '40px 20px', overflow: 'hidden', zIndex: 996, paddingTop: window.innerWidth < 768 ? '100px' : '40px' }}>
         {/* Nessun pulsante aggiungi penalità qui */}
-        <div style={{ position: 'absolute', top: window.innerWidth < 768 ? '42px' : '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
-          <button onClick={() => setCampionatoSelezionato(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
-            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            Indietro
-          </button>
-        </div>
+        <button className="page-back-button" onClick={() => setCampionatoSelezionato(null)}>
+          <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          Indietro
+        </button>
 
         <h2 style={{ color: 'white', marginBottom: '40px', marginTop: '20px', fontSize: '28px', fontWeight: '700', textShadow: '0 2px 5px rgba(0,0,0,0.5)', position: 'relative', zIndex: 10 }}>{campionatoSelezionato.nome}</h2>
 
@@ -6339,12 +6347,10 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
             Ban Scontato
           </button>
         )}
-        <div style={{ position: 'absolute', top: (20 + topOffset + (isMobile ? -4 : 0)), left: '20px', right: '20px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', zIndex: 100 }}>
-          <button onClick={() => setPilotaSelezionato(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
-            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            Indietro
-          </button>
-        </div>
+        <button className="page-back-button" onClick={() => setPilotaSelezionato(null)}>
+          <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          Indietro
+        </button>
         <div style={{ marginTop: `${80 + topOffset + upOffset}px`, maxWidth: '600px', width: '100%' }}>
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <h2 style={{ color: 'white', margin: '0', fontSize: '28px', fontWeight: '700', textShadow: '0 2px 5px rgba(0,0,0,0.5)', position: 'relative', top: `${upOffset}px` }}>{pilotaSelezionato.nome}</h2>
@@ -6470,11 +6476,11 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-      <div style={{ position: 'absolute', top: isMobile ? '80px' : '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 100 }}>
-        <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: isMobile ? '24px' : '24px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-          Indietro
-        </button>
+      <button className="page-back-button" onClick={onClose}>
+        <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        Indietro
+      </button>
+      <div style={{ position: 'absolute', top: isMobile ? '80px' : '20px', left: '20px', right: '20px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', zIndex: 100 }}>
         {(userLocal?.ruolo === 'admin') && (
           <button onClick={() => setShowAggiungiMenu(true)} style={{ background: '#34C759', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(52, 199, 89, 0.3)' }}>
             Aggiungi Campionato
