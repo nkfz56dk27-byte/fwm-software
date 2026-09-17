@@ -1440,7 +1440,7 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
       <button className="page-back-button" onClick={onClose}>Indietro</button>
       {isMobile ? (
         /* ===== HEADER MOBILE COMPATTO ===== */
-        <div style={{ flexShrink: 0, padding: 'calc(env(safe-area-inset-top, 0px) + 56px) 10px 8px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
+        <div style={{ flexShrink: 0, padding: '60px 10px 8px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
           <div style={{ textAlign: 'center', marginBottom: '8px' }}>
             <div style={{ fontSize: '15px', fontWeight: 'bold', lineHeight: 1.1 }}>Calendario Accrediti</div>
             <div style={{ fontSize: '9px', color: '#888', marginTop: '1px' }}>Gare ed Eventi</div>
