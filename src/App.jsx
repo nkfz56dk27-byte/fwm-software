@@ -1772,11 +1772,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
 
   if (step === 0) {
     return (
-      <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px' }}>
-        <button className="dialog-back-link" onClick={onClose}>
-          <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-          Indietro
-        </button>
+      <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', position: 'relative' }}>
+        <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         <h1 style={{ fontSize: '28px', marginBottom: '30px', textAlign: 'center' }}>Aggiungi nuovo GP</h1>
         
         <div style={{ marginBottom: '20px' }}>
@@ -1865,11 +1862,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
   ] : [];
 
   return (
-    <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
-      <button className="dialog-back-link" onClick={onClose} style={{ marginBottom: '20px' }}>
-        <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-        Annulla
-      </button>
+    <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto', position: 'relative' }}>
+      <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
       <h1 style={{ fontSize: '28px', marginBottom: '10px', textAlign: 'center' }}>GP: {gp.nome}</h1>
       {tabLabels.length > 0 && (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '0', marginBottom: '28px', marginTop: '8px', borderBottom: '3px solid #e0eaff', width: '100%' }}>
@@ -1940,7 +1934,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
                   <div style={{ background: 'white', borderRadius: '16px', padding: '32px', minWidth: 340, maxWidth: 420, width: '90%', boxShadow: '0 4px 24px rgba(0,0,0,0.13)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
                       <h2 style={{ margin: 0, fontSize: '20px', color: '#2563eb' }}>Sessioni Timing71</h2>
-                      <button onClick={() => setShowSyncPanel(false)} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '22px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+                      <button onClick={() => setShowSyncPanel(false)} style={{ background: 'none', border: 'none', color: '#FF3B30', fontSize: '22px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
                     </div>
                     {syncLoading ? (
                       <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>Caricamento...</div>
@@ -2501,13 +2495,11 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
 
   return (
     <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <button className="dialog-back-link" onClick={onClose}>
-          <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-          Indietro
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', position: 'relative' }}>
+        <div style={{ width: '100px' }}></div>
         <h1 style={{ fontSize: '28px', margin: 0 }}>Impostazioni: {classifica.nome}</h1>
         <div style={{ width: '100px' }}></div>
+        <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: '-10px', right: '0', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
       </div>
 
       <div style={{ marginBottom: '30px', padding: '20px', background: '#f0f8ff', borderRadius: '10px' }}>
@@ -2634,11 +2626,8 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         {/* Modale Modifica Foto Piloti */}
         {showModificaFotoPiloti && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.25)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: 'white', borderRadius: '20px', padding: '30px', minWidth: '350px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto' }}>
-              <button className="dialog-back-link" onClick={() => setShowModificaFotoPiloti(false)}>
-                <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-                Indietro
-              </button>
+            <div style={{ background: 'white', borderRadius: '20px', padding: '30px', minWidth: '350px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
+              <button onClick={() => setShowModificaFotoPiloti(false)} aria-label="Chiudi" style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
               <h2 style={{ fontSize: '24px', marginBottom: '25px' }}>Modifica foto piloti</h2>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {dati.piloti.map(p => (
@@ -2960,11 +2949,8 @@ function CambiaPilotaView({ classifica, onClose, onSave }) {
   )
 
   return (
-    <div style={{ padding: '40px', maxWidth: '640px', margin: '0 auto', background: '#f5f5f7', borderRadius: '20px', maxHeight: '90vh', overflowY: 'auto' }}>
-      <button className="dialog-back-link" onClick={onClose} style={{ marginBottom: '20px' }}>
-        <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-        Indietro
-      </button>
+    <div style={{ padding: '40px', maxWidth: '640px', margin: '0 auto', background: '#f5f5f7', borderRadius: '20px', maxHeight: '90vh', overflowY: 'auto', position: 'relative' }}>
+      <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
       <h1 style={{ fontSize: '28px', marginBottom: '25px' }}>Cambia Pilota</h1>
 
       <div style={{ display: 'grid', gap: '10px', marginBottom: '30px' }}>
@@ -3933,9 +3919,8 @@ const [weekendIdCorrente, setWeekendIdCorrente] = useState(null)
   return (
     <div style={{ padding: '40px', maxWidth: '800px', margin: '0 auto', background: 'white', borderRadius: '20px', maxHeight: '90vh', overflow: 'auto' }}>
       <div style={{ marginBottom: '30px' }}>
-        <button className="dialog-back-link" onClick={step === 0 ? onBack : () => setStep(step - 1)}>
-          <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-          Indietro
+        <button onClick={step === 0 ? onBack : () => setStep(step - 1)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: '#007AFF', fontSize: '17px', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+          ← Indietro
         </button>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px' }}>
           {[0, 1, 2].map(idx => <div key={idx} style={{ width: '12px', height: '12px', borderRadius: '50%', background: step === idx ? '#007AFF' : '#ddd' }} />)}
@@ -4504,7 +4489,7 @@ function NuovaClassificaModal({ onClose, onSave }) {
       <div className="modal-card" style={{ width: '450px' }}>
         <div className="modal-header">
           <h2>Crea nuova classifica</h2>
-          <button className="btn-close" onClick={onClose}>✕</button>
+          <button  onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
         <form onSubmit={handleSave} className="modal-form">
           <div className="form-group">
@@ -5041,12 +5026,16 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
 
   return (
     <div className="gestione-container" style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' } : {}}>
+      {/* Il tasto Indietro sta FUORI da .gestione-header apposta: l'header
+          ha backdrop-filter su mobile, e un antenato con backdrop-filter
+          "intrappola" i figli position:fixed facendoli scorrere con lui
+          invece di restare ancorati al viewport. */}
+      <button className="btn-back" onClick={onClose} aria-label="Indietro">
+        <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        Indietro
+      </button>
       <div className="gestione-header">
         <div className="gestione-navbar">
-          <button className="btn-back" onClick={onClose} aria-label="Indietro">
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            Indietro
-          </button>
           <h1 className="gestione-title">Gestione Utenti</h1>
         </div>
         <div className="gestione-actions">
@@ -5054,10 +5043,42 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
             <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
             Nuovo utente
           </button>
-          <button className="btn-nuovo btn-nuovo-secondary" onClick={() => setShowStrumenti(true)}>
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4z"/></svg>
-            Strumenti
-          </button>
+          {isMobile ? (
+            <button className="btn-nuovo btn-nuovo-secondary" onClick={() => setShowStrumenti(true)}>
+              <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4zm0 6a2 2 0 100-4 2 2 0 000 4z"/></svg>
+              Strumenti
+            </button>
+          ) : (
+            /* Desktop: le voci di "Strumenti" escono direttamente in testata,
+               affiancate, invece di stare dentro un elenco a comparsa —
+               c'è spazio per mostrarle tutte senza bisogno di nasconderle. */
+            <>
+              <button className="btn-nuovo btn-nuovo-tool" onClick={() => setShowImpostazioni(true)} style={{ background: 'rgba(120,120,128,0.12)', color: '#333' }}>
+                <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14,12.94a7.07,7.07,0,0,0,0-1.88l2.11-1.65a.5.5,0,0,0,.12-.63l-2-3.46a.5.5,0,0,0-.61-.22l-2.49,1a6.93,6.93,0,0,0-1.62-.94l-.38-2.65A.5.5,0,0,0,13,2h-4a.5.5,0,0,0-.5.42l-.38,2.65a6.93,6.93,0,0,0-1.62.94l-2.49-1a.5.5,0,0,0-.61.22l-2,3.46a.5.5,0,0,0,.12.63l2.11,1.65a7.07,7.07,0,0,0,0,1.88L2.37,14.59a.5.5,0,0,0-.12.63l2,3.46a.5.5,0,0,0,.61.22l2.49-1a6.93,6.93,0,0,0,1.62.94l.38,2.65A.5.5,0,0,0,9,22h4a.5.5,0,0,0,.5-.42l.38-2.65a6.93,6.93,0,0,0,1.62-.94l2.49,1a.5.5,0,0,0,.61-.22l2-3.46a.5.5,0,0,0-.12-.63ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/></svg>
+                Impostazioni
+              </button>
+              <button className="btn-nuovo btn-nuovo-tool" onClick={() => setShowCategorie(true)} style={{ background: 'rgba(10,132,255,0.12)', color: '#0A84FF' }}>
+                <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                Categorie
+              </button>
+              <button className="btn-nuovo btn-nuovo-tool" onClick={() => setShowTemplateArticoli(true)} style={{ background: 'rgba(255,149,0,0.12)', color: '#FF9500' }}>
+                <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                Template articoli
+              </button>
+              {isAdmin && (
+                <button className="btn-nuovo btn-nuovo-tool" onClick={() => setShowGestioneRSS(true)} style={{ background: 'rgba(191,90,242,0.12)', color: '#BF5AF2' }}>
+                  <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3A2 2 0 0 1 21 5v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14zm0 2H5v14h14V5zm-7 2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4zm0 6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1h4z"/></svg>
+                  Gestisci RSS
+                </button>
+              )}
+              {isAdmin && (
+                <button className="btn-nuovo btn-nuovo-tool" onClick={onOpenMonitorUrl} style={{ background: 'rgba(191,90,242,0.12)', color: '#BF5AF2' }}>
+                  <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+                  Link Web
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
       {showGestioneRSS && <GestioneRSSModal onClose={() => setShowGestioneRSS(false)} />}
@@ -5066,7 +5087,7 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
           <div className="modal-card sheet-list-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Strumenti</h2>
-              <button className="btn-close" onClick={() => setShowStrumenti(false)}>✕</button>
+              <button  onClick={() => setShowStrumenti(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
             </div>
             <div className="sheet-list">
               <button className="sheet-list-item" onClick={() => { setShowStrumenti(false); setShowImpostazioni(true) }}>
@@ -5117,7 +5138,7 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
                 <div className="modal-card" style={{ maxWidth: 420, position: 'relative' }}>
                   <div className="modal-header">
                     <h2>Impostazioni</h2>
-                    <button className="btn-close" onClick={() => setShowImpostazioni(false)} title="Chiudi">✕</button>
+                    <button  onClick={() => setShowImpostazioni(false)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }} title="Chiudi">✕</button>
                   </div>
                   <div className="modal-form" style={{ gap: 24 }}>
                     {/* Bottone DEBUG Player ID OneSignal */}
@@ -5189,7 +5210,7 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
             <div className="modal-card sheet-list-card" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <h2 style={{ fontSize: 18 }}>{azioniUtente.nome_completo}</h2>
-                <button className="btn-close" onClick={() => setAzioniUtente(null)}>✕</button>
+                <button  onClick={() => setAzioniUtente(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
               </div>
               <div className="sheet-list">
                 <button className="sheet-list-item" onClick={() => { cambiaRuolo(azioniUtente); setAzioniUtente(null) }}>
@@ -5226,7 +5247,7 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
             <div className="modal-card" style={{ maxWidth: 440 }}>
               <div className="modal-header">
                 <h2 style={{ margin: 0, fontSize: '20px' }}>Permessi speciali</h2>
-                <button className="btn-close" onClick={() => setPermessiUtente(null)}>✕</button>
+                <button  onClick={() => setPermessiUtente(null)} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
               </div>
               <div className="modal-form">
               <p style={{ color: 'var(--glass-text-secondary, #666)', fontSize: '14px', marginTop: 0, marginBottom: '4px' }}>
@@ -5302,16 +5323,8 @@ function NuovoUtenteView({ onClose, onSave }) {
     <div className="modal-container">
       <div className="modal-card">
         <div className="modal-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {isMobile ? (
-            <button onClick={onClose} className="modal-back-btn">
-              <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '22px', height: '22px' }}><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-              Indietro
-            </button>
-          ) : null}
           <h2 style={{ flex: 1, textAlign: isMobile ? 'center' : 'left', margin: 0 }}>Nuovo Utente</h2>
-          {!isMobile && (
-            <button className="btn-close" onClick={onClose}>✕</button>
-          )}
+          <button onClick={onClose} aria-label="Chiudi" style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
         <form onSubmit={handleSave} className="modal-form">
           <div className="form-group">
@@ -5369,7 +5382,7 @@ function ModificaUtenteView({ utente, onClose, onSave }) {
       <div className="modal-card">
         <div className="modal-header">
           <h2>Modifica Utente</h2>
-          <button className="btn-close" onClick={onClose}>✕</button>
+          <button  onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
         <form onSubmit={handleSave} className="modal-form">
           <div className="form-group">
@@ -5879,10 +5892,7 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', overflow: 'auto', zIndex: 999 }}>
         <div style={{ background: 'white', borderRadius: '20px', padding: '30px', maxWidth: '600px', width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', position: 'relative' }}>
-          <button className="dialog-back-link" onClick={() => setShowCreaZero(false)}>
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            Indietro
-          </button>
+          <button onClick={() => setShowCreaZero(false)} aria-label="Chiudi" style={{ position: 'absolute', top: '20px', left: '20px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
           <button onClick={salvaCampionatoNuovo} style={{ position: 'absolute', top: '20px', right: '20px', background: '#34C759', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>
             Salva
           </button>
@@ -5969,11 +5979,8 @@ function NuovaPaginaView({ onClose, user, isMobile }) {
   if (showImportaClassifica) {
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', zIndex: 998 }}>
-        <div style={{ background: 'white', borderRadius: '20px', padding: '30px', maxWidth: '600px', width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}>
-          <button className="dialog-back-link" onClick={() => setShowImportaClassifica(false)} style={{ marginBottom: '20px' }}>
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            Indietro
-          </button>
+        <div style={{ background: 'white', borderRadius: '20px', padding: '30px', maxWidth: '600px', width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', position: 'relative' }}>
+          <button onClick={() => setShowImportaClassifica(false)} aria-label="Chiudi" style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
 
           <h2 style={{ color: '#333', marginBottom: '20px' }}>Seleziona Classifica</h2>
 
