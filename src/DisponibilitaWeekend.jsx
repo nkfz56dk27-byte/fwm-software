@@ -831,7 +831,7 @@ function NuovoWeekendModal({ categoria, onClose, onCreated, onCreaNotifica }) {
       <div style={{ background: 'white', borderRadius: '15px', width: '700px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>Nuova Tabella Weekend</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '30px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
@@ -1224,11 +1224,8 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
       <div style={{ background: '#f5f5f7', borderRadius: '15px', width: '900px', height: '700px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', borderRadius: '15px 15px 0 0' }}>
-          <button className="dialog-back-link" onClick={onClose}>
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            Indietro
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 55px 20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', borderRadius: '15px 15px 0 0', position: 'relative' }}>
+          <div style={{ width: '90px' }}></div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
             <div style={{ fontSize: '13px', color: '#666' }}>{weekend.data}</div>
@@ -1238,6 +1235,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
           ) : (
             <div style={{ width: '90px' }}></div>
           )}
+          <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: '18px', right: '15px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
         <div style={{ padding: '15px 30px', textAlign: 'center', background: 'white' }}>
           <div style={{ fontSize: '16px', marginBottom: '5px', fontWeight: 'bold' }}>👤 Ciao {nomeRedattore}</div>
@@ -1418,13 +1416,11 @@ function TabellaWeekendView({ weekend, articoli, onClose, isMobile, nomeRedattor
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20000 }}>
       <div style={{ background: 'white', borderRadius: '15px', width: '90vw', height: '90vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
-          <button className="dialog-back-link" onClick={onClose}>
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            Indietro
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0', position: 'relative' }}>
+          <div style={{ width: '90px' }}></div>
           <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Tabella {weekend.nome_gp}</div>
           <div style={{ width: '90px' }}></div>
+          <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: '18px', right: '20px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', padding: '12px', background: '#f5f5f7', borderBottom: '1px solid #e0e0e0' }}>
           <span style={{ fontSize: '13px', color: '#666', fontWeight: 'bold' }}>🔍 Zoom: {Math.round(zoom * 100)}%</span>
@@ -1515,16 +1511,13 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile, nom
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
-          padding: isMobile ? '60px 15px 20px 15px' : '20px 30px', 
+          padding: isMobile ? '60px 15px 20px 15px' : '20px 55px 20px 30px', 
           background: 'white', 
           borderBottom: '1px solid #e0e0e0',
-          borderRadius: isMobile ? '0' : '15px 15px 0 0'
+          borderRadius: isMobile ? '0' : '15px 15px 0 0',
+          position: 'relative'
         }}>
-          {/* Bottone Indietro */}
-          <button className="dialog-back-link" onClick={onClose}>
-            <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-            Indietro
-          </button>
+          <div style={{ width: '90px' }}></div>
           
           {/* Titolo centrato */}
           <div style={{ textAlign: 'center' }}>
@@ -1573,6 +1566,7 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile, nom
               </div>
             )}
           </div>
+          <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: isMobile ? '65px' : '28px', right: isMobile ? '15px' : '20px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
 
         {/* TAB BAR - MIGLIORAMENTO 1: Rimozione tab Log */}
@@ -1843,7 +1837,7 @@ function ModificaTabellaModal({ weekend, articoli, onClose }) {
       <div style={{ background: 'white', borderRadius: '15px', width: '900px', height: '700px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>Modifica Tabella</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', padding: '15px 30px', borderBottom: '1px solid #e0e0e0' }}>
@@ -2335,7 +2329,7 @@ function AggiornaGrassettoModal({ weekend, articoli, onClose }) {
       <div style={{ background: 'white', borderRadius: '15px', width: '600px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
           <div style={{ fontSize: '24px', fontWeight: 'bold' }}>🔤 Aggiorna Grassetto</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
 
         <div style={{ padding: '30px' }}>
@@ -2854,7 +2848,7 @@ function NotificheModal({ notifiche, onClose, onSegnaLetta, onSegnaTutteLette })
               border: 'none', 
               fontSize: '24px', 
               cursor: 'pointer', 
-              color: '#666' 
+              color: '#FF3B30' 
             }}
           >
             ✕
