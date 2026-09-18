@@ -298,35 +298,6 @@ body {
   height: 16px;
 }
 
-/* Pulsante Indietro di vetro standalone (schermate su foto), non si allarga mai */
-.btn-back-glass {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: 100px;
-  cursor: pointer;
-  color: white;
-  background: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(0, 0, 0, 0.85);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25), 0 1px 0 rgba(255,255,255,0.15) inset;
-  transition: all 0.2s ease;
-  min-height: 44px;
-  flex-shrink: 0;
-}
-.btn-back-glass:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
-.btn-back-glass .icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
 /* Pulsante solido scuro semplice, per le card Classifiche (F1/FE/Altre) */
 .btn-solid-dark {
   display: flex;
@@ -473,25 +444,24 @@ body {
   flex-shrink: 0;
 }
 
-/* ===== BOTTOM TAB BAR (mobile, stile iOS) ===== */
+/* ===== BOTTOM TAB BAR (mobile) — capsula fluttuante stile 2027 ===== */
 .bottom-tab-bar {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 14px;
+  right: 14px;
+  bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) + 10px));
   z-index: 500;
   display: flex;
   align-items: stretch;
   justify-content: space-around;
-  background: rgba(20, 20, 22, 0.72);
-  backdrop-filter: var(--glass-blur-strong);
-  -webkit-backdrop-filter: var(--glass-blur-strong);
-  border-top: 0.5px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
-  padding-top: 8px;
-  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  background: rgba(30, 30, 32, 0.72);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
+  border-radius: 30px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.38), 0 1px 0 rgba(255, 255, 255, 0.08) inset;
+  padding: 8px;
+  gap: 4px;
 }
 .tab-bar-item {
   flex: 1;
@@ -499,21 +469,23 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 4px 2px;
+  gap: 2px;
+  padding: 8px 4px;
   border: none;
+  border-radius: 20px;
   background: transparent;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.5);
   position: relative;
   -webkit-tap-highlight-color: transparent;
-  transition: color 0.15s ease, transform 0.15s ease;
+  transition: color 0.18s ease, background 0.18s ease, transform 0.12s ease;
 }
 .tab-bar-item:active {
-  transform: scale(0.92);
+  transform: scale(0.9);
 }
 .tab-bar-item.active {
   color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
 }
 .tab-bar-icon {
   width: 24px;
@@ -521,7 +493,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 21px;
+  font-size: 20px;
   line-height: 1;
 }
 .tab-bar-icon svg {
@@ -536,8 +508,8 @@ body {
 }
 .tab-bar-badge {
   position: absolute;
-  top: -2px;
-  right: 18%;
+  top: 2px;
+  right: 14%;
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -549,23 +521,20 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 0 2px rgba(20, 20, 22, 0.85);
+  box-shadow: 0 0 0 2px rgba(30, 30, 32, 0.9);
 }
 
-/* ===== TAB BAR MOBILE — versione slim, stile "IG attuale" =====
-   Meno padding, hairline sottile invece dell'ombra pesante, icone
-   e etichette più piccole: bar decisamente meno ingombrante. */
 @media (max-width: 768px) {
   .bottom-tab-bar {
-    background: rgba(15, 15, 17, 0.88);
-    border-top: 0.5px solid rgba(255, 255, 255, 0.08);
-    box-shadow: none;
-    padding-top: 6px;
-    padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+    left: 10px;
+    right: 10px;
+    bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+    padding: 6px;
+    border-radius: 26px;
   }
   .tab-bar-item {
-    gap: 2px;
-    padding: 2px 2px;
+    padding: 6px 2px;
+    border-radius: 18px;
   }
   .tab-bar-icon {
     width: 22px;
@@ -581,7 +550,7 @@ body {
     letter-spacing: -0.1px;
   }
   .tab-bar-badge {
-    top: -1px;
+    top: 0px;
     min-width: 14px;
     height: 14px;
     font-size: 9px;
@@ -717,14 +686,13 @@ body {
    TASTO INDIETRO — UNICO STANDARD PER TUTTA L'APP (stile piatto blu,
    come RitaglioImmagine.jsx). Posizione fissa, IDENTICA su ogni
    schermata e su ogni breakpoint (desktop/mobile) — nessuna variante.
-   .btn-back, .page-back-button, .dialog-back-link, .modal-back-btn,
-   .btn-back-glass sono tutti alias della stessa identica regola.
+   Usata SOLO per le pagine a tutto schermo. I popup/modali usano invece
+   una X rossa (✕, color #FF3B30) posizionata in alto a destra DENTRO
+   la propria card — mai fixed al viewport, per non "galleggiare" fuori
+   da modali centrati più piccoli dello schermo.
    ===================================================================== */
 .btn-back,
-.page-back-button,
-.dialog-back-link,
-.modal-back-btn,
-.btn-back-glass {
+.page-back-button {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 18px);
   left: 18px;
@@ -744,28 +712,28 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .btn-back:active,
-.page-back-button:active,
-.dialog-back-link:active,
-.modal-back-btn:active,
-.btn-back-glass:active {
+.page-back-button:active {
   opacity: 0.4;
 }
 .btn-back::before,
-.page-back-button::before,
-.dialog-back-link::before,
-.modal-back-btn::before,
-.btn-back-glass::before {
+.page-back-button::before {
   content: '←';
   font-size: 18px;
   line-height: 1;
 }
 /* Icona freccia SVG non più usata (testo semplice "← Indietro" come standard) */
 .btn-back .icon,
-.page-back-button .icon,
-.dialog-back-link .icon,
-.modal-back-btn .icon,
-.btn-back-glass .icon {
+.page-back-button .icon {
   display: none;
+}
+/* Caso particolare: dentro "Disponibilità Weekend", il modale di
+   dettaglio (Tabella GP / selezione articoli / vista Admin) si apre
+   SOPRA alla pagina che resta montata sotto — compreso il suo Indietro
+   fisso. Per rispettare la regola qui sopra (i modali non mostrano un
+   Indietro fisso, solo la propria X), lo nascondiamo mentre il modale
+   è aperto. */
+body:has(.weekend-detail-overlay) .page-back-button {
+  display: none !important;
 }
 .gestione-title {
   position: absolute;
@@ -805,13 +773,9 @@ body {
   gap: 10px;
 }
 .btn-nuovo-primary {
-  flex: 1;
-  justify-content: center;
   background: #34C759;
 }
 .btn-nuovo-secondary {
-  flex: 1;
-  justify-content: center;
   background: rgba(120, 120, 128, 0.12);
   color: #333;
 }
@@ -1031,24 +995,6 @@ body {
   font-size: 22px;
   font-weight: 700;
   color: #000;
-}
-.btn-close {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: #f0f0f0;
-  color: #666;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.2s;
-  flex-shrink: 0;
-}
-.btn-close:hover {
-  background: #e0e0e0;
 }
 .modal-form {
   padding: 25px;
@@ -1351,11 +1297,6 @@ body {
   .modal-header h2 {
     font-size: 17px;
   }
-  .btn-close {
-    width: 36px;
-    height: 36px;
-    font-size: 22px;
-  }
   .modal-form {
     padding: 15px;
   }
@@ -1454,11 +1395,15 @@ body {
   }
   .btn-nuovo:active { transform: scale(0.97); }
   .btn-nuovo-primary {
+    flex: 1;
+    justify-content: center;
     background: rgba(48, 209, 88, 0.18) !important;
     color: #1a7a34 !important;
     border-color: rgba(48, 209, 88, 0.4);
   }
   .btn-nuovo-secondary {
+    flex: 1;
+    justify-content: center;
     background: var(--glass-bg) !important;
     color: var(--glass-text-primary) !important;
   }
@@ -1557,10 +1502,6 @@ body {
     background: transparent;
   }
   .modal-header h2 { color: var(--glass-text-primary); }
-  .btn-close {
-    background: rgba(120,120,128,0.16);
-    color: var(--glass-text-secondary);
-  }
   .form-input {
     background: rgba(120, 120, 128, 0.1);
     border-radius: var(--glass-radius-sm);
@@ -1580,6 +1521,21 @@ body {
 @media (min-width: 769px) {
   .gestione-title { font-size: 24px; }
   .bottom-tab-bar, .profile-sheet-overlay { display: none !important; }
+
+  /* Bottoni azione di Gestione Utenti: su desktop niente più pillole
+     enormi a tutta larghezza — dimensione compatta, come gli altri
+     bottoni di testata nell'app (Notifiche/Accrediti/Categorie/Nuovo). */
+  .gestione-actions { justify-content: flex-end; flex-wrap: wrap; }
+  .btn-nuovo {
+    padding: 7px 14px;
+    font-size: 13px;
+    border-radius: 8px;
+    gap: 5px;
+  }
+  .btn-nuovo .icon {
+    width: 16px;
+    height: 16px;
+  }
 }
 
 /* ===== DESKTOP LARGE (1920px+) ===== */
