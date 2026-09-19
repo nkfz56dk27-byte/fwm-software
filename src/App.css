@@ -772,7 +772,7 @@ body {
   content: '';
   display: block;
   flex-shrink: 0;
-  width: 60px;
+  width: 40px;
   height: 90px;
   background-color: #007AFF;
   -webkit-mask-image: url('/back-arrow.svg');
