@@ -535,6 +535,211 @@ async function sendPenaltyScadutiReminders() {
   }
 }
 
+/* ===================== 4. ACCREDITI DA GESTIRE (SOLO ADMIN) ===================== */
+
+const SOGLIA_GIORNI_ACCREDITI = {
+  da_richiedere: 90,
+  richiesto: 21
+};
+
+async function sendAccreditiAdminReminders() {
+  try {
+    console.log('[INFO] Inizio controllo accrediti da gestire (admin)...');
+    const supabase = getSupabaseClient();
+
+    const oggi = new Date();
+    oggi.setHours(0, 0, 0, 0);
+
+    const { data: eventi, error: errEventi } = await supabase
+      .from('eventi_calendario')
+      .select('id, titolo, data_inizio, accredito_status')
+      .in('accredito_status', ['da_richiedere', 'richiesto']);
+
+    if (errEventi) {
+      throw new Error(`Errore query eventi: ${errEventi.message}`);
+    }
+
+    console.log(`[INFO] Trovati ${eventi?.length || 0} eventi con accredito da gestire`);
+
+    if (!eventi || eventi.length === 0) {
+      return {
+        message: 'Nessun accredito da gestire',
+        eventsFound: 0,
+        inviate: 0,
+        results: []
+      };
+    }
+
+    const eventiInSoglia = eventi
+      .map(ev => {
+        const dataEv = new Date(ev.data_inizio);
+        dataEv.setHours(0, 0, 0, 0);
+        const giorniMancanti = Math.floor((dataEv.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24));
+        return { ...ev, giorniMancanti };
+      })
+      .filter(ev => giorniMancanti <= (SOGLIA_GIORNI_ACCREDITI[ev.accredito_status] ?? -1));
+
+    console.log(`[INFO] ${eventiInSoglia.length} eventi entro soglia (90gg da_richiedere / 21gg richiesto)`);
+
+    if (eventiInSoglia.length === 0) {
+      return {
+        message: 'Nessun accredito entro soglia',
+        eventsFound: eventi.length,
+        inviate: 0,
+        results: []
+      };
+    }
+
+    // Escludi eventi già notificati in precedenza (stessa soglia)
+    const { data: giaInviate, error: errLog } = await supabase
+      .from('notifiche_accrediti_log')
+      .select('evento_id, tipo_soglia')
+      .in('evento_id', eventiInSoglia.map(ev => ev.id));
+
+    if (errLog) {
+      throw new Error(`Errore query log notifiche: ${errLog.message}`);
+    }
+
+    const giaInviateSet = new Set((giaInviate || []).map(r => `${r.evento_id}_${r.tipo_soglia}`));
+    const eventiDaNotificare = eventiInSoglia.filter(
+      ev => !giaInviateSet.has(`${ev.id}_${ev.accredito_status}`)
+    );
+
+    if (eventiDaNotificare.length === 0) {
+      console.log('[INFO] Tutti gli accrediti entro soglia erano già stati notificati');
+      return {
+        message: 'Tutti già notificati in precedenza',
+        eventsFound: eventi.length,
+        inviate: 0,
+        results: []
+      };
+    }
+
+    // Trova i dispositivi push degli admin (SOLO admin, non "All")
+    const { data: admins, error: errAdmins } = await supabase
+      .from('utenti')
+      .select('username')
+      .eq('ruolo', 'admin');
+
+    if (errAdmins) {
+      throw new Error(`Errore query admin: ${errAdmins.message}`);
+    }
+
+    if (!admins || admins.length === 0) {
+      console.log('[SKIP] Nessun admin trovato');
+      return {
+        message: 'Nessun admin trovato',
+        eventsFound: eventi.length,
+        inviate: 0,
+        results: []
+      };
+    }
+
+    const { data: dispositivi, error: errDispositivi } = await supabase
+      .from('push_devices')
+      .select('player_id, username')
+      .in('username', admins.map(a => a.username))
+      .eq('attivo', true)
+      .not('player_id', 'is', null);
+
+    if (errDispositivi) {
+      throw new Error(`Errore query dispositivi admin: ${errDispositivi.message}`);
+    }
+
+    const playerIds = [...new Set((dispositivi || []).map(d => d.player_id).filter(Boolean))];
+
+    if (playerIds.length === 0) {
+      console.log('[SKIP] Nessun admin con dispositivo push registrato');
+      return {
+        message: 'Nessun admin con dispositivo push registrato',
+        eventsFound: eventi.length,
+        inviate: 0,
+        results: []
+      };
+    }
+
+    try {
+      // UNA SOLA notifica digest per non consumare il limite del piano OneSignal
+      const dettagli = eventiDaNotificare.map(ev => {
+        const dataFormattata = new Date(ev.data_inizio).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' });
+        const statoTesto = ev.accredito_status === 'da_richiedere' ? 'da richiedere' : 'in attesa di risposta';
+        return `${ev.titolo} (${dataFormattata}) — ${statoTesto}`;
+      });
+
+      const titolo = `⚠️ ${eventiDaNotificare.length} accredit${eventiDaNotificare.length === 1 ? 'o' : 'i'} da gestire`;
+      const bodyText = dettagli.slice(0, 5).join(' • ') + (dettagli.length > 5 ? ` • +${dettagli.length - 5} altri` : '');
+
+      const notificationPayload = {
+        app_id: ONESIGNAL_APP_ID,
+        include_player_ids: playerIds,
+        headings: { it: titolo, en: titolo },
+        contents: { it: bodyText, en: bodyText },
+        url: 'https://fwm-software.vercel.app/',
+        data: {
+          type: 'accrediti_da_gestire_digest',
+          evento_ids: eventiDaNotificare.map(ev => ev.id)
+        },
+        chrome_web_icon: '/icona_notifiche.png',
+        chrome_web_badge: '/icona_notifiche.png'
+      };
+
+      console.log(`[SEND] Inviando digest accrediti a ${playerIds.length} admin (${eventiDaNotificare.length} eventi)`);
+      await sendOneSignalNotification(notificationPayload);
+
+      // Segna come notificati SOLO dopo l'invio riuscito
+      const righeLog = eventiDaNotificare.map(ev => ({
+        evento_id: ev.id,
+        tipo_soglia: ev.accredito_status
+      }));
+
+      const { error: errInsertLog } = await supabase
+        .from('notifiche_accrediti_log')
+        .insert(righeLog);
+
+      if (errInsertLog) {
+        console.error('[WARN] Digest inviato ma log non salvato (rischio duplicati domani):', errInsertLog.message);
+      }
+
+      console.log(`[SUCCESS] Digest accrediti inviato: ${eventiDaNotificare.length} eventi, ${playerIds.length} admin`);
+
+      return {
+        message: 'Digest accrediti inviato',
+        eventsFound: eventi.length,
+        inviate: eventiDaNotificare.length,
+        destinatari: playerIds.length,
+        results: eventiDaNotificare.map(ev => ({
+          eventoId: ev.id,
+          titolo: ev.titolo,
+          tipoSoglia: ev.accredito_status,
+          status: 'sent'
+        }))
+      };
+
+    } catch (error) {
+      console.error('[ERROR] Errore invio digest accrediti:', error.message);
+      return {
+        message: 'Errore invio digest accrediti',
+        eventsFound: eventi.length,
+        inviate: 0,
+        error: error.message,
+        results: eventiDaNotificare.map(ev => ({
+          eventoId: ev.id,
+          titolo: ev.titolo,
+          tipoSoglia: ev.accredito_status,
+          status: 'error'
+        }))
+      };
+    }
+
+  } catch (error) {
+    console.error('[FATAL ACCREDITI ADMIN]', error);
+    return {
+      error: 'Errore durante il controllo accrediti admin',
+      message: error?.stack || error.message
+    };
+  }
+}
+
 /* ===================== HANDLER PRINCIPALE (Vercel) ===================== */
 
 export default async function handler(req, res) {
@@ -559,11 +764,13 @@ export default async function handler(req, res) {
   const calendarioResult = await sendCalendarioReminders();
   const articoliCriticiResult = await sendArticoliCriticiReminders();
   const penaltyResult = await sendPenaltyScadutiReminders();
+  const accreditiAdminResult = await sendAccreditiAdminReminders();
 
   res.status(200).json({
     version: VERSION,
     calendario: calendarioResult,
     articoliCritici: articoliCriticiResult,
-    penaltyScaduti: penaltyResult
+    penaltyScaduti: penaltyResult,
+    accreditiAdmin: accreditiAdminResult
   });
 }
