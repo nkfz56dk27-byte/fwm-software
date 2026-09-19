@@ -1380,7 +1380,7 @@ const TESTO_BASSO_REALE = posCfg.basso
     <div 
       onDragOver={(e) => e.preventDefault()} 
       onDrop={handleDrop}
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: isMobile ? 'calc(39px + max(6px, env(safe-area-inset-bottom, 0px)))' : 0, background: '#fff', minHeight: '100vh', paddingTop: isMobile ? 0 : 'env(safe-area-inset-top)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif', overflow: isMobile ? 'auto' : 'hidden' }}
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 84px)' : 0, background: '#fff', paddingTop: isMobile ? 0 : 'env(safe-area-inset-top)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif', overflow: isMobile ? 'auto' : 'hidden' }}
     >
       {/* Su MOBILE il tasto Indietro usa la stessa classe/posizione di Calendario Accrediti */}
       {isMobile && (
