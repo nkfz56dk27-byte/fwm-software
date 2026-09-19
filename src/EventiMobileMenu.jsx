@@ -57,19 +57,10 @@ function formatOrario(orario) {
   return orario.substring(0, 5)
 }
 
-// Utility: determina se lo stato accredito è "urgente" in base ai giorni mancanti
-// da_richiedere -> urgente entro 3 mesi (90 giorni) — nessuna azione ancora presa
-// richiesto -> urgente entro 3 settimane (21 giorni) — richiesta già inviata, in attesa di risposta
-function isStatoAccreditoUrgente(accreditoStatus, giorniMancanti) {
-  if (typeof giorniMancanti !== 'number') return false
-  if (accreditoStatus === 'da_richiedere') return giorniMancanti <= 90
-  if (accreditoStatus === 'richiesto') return giorniMancanti <= 21
-  return false
-}
-
-export default function EventiMobileMenu({ onClose }) {
+export default function EventiMobileMenu({ onClose, user }) {
   const [prossimoEvento, setProssimoEvento] = useState(null)
   const [loading, setLoading] = useState(true)
+  const isAdmin = user?.ruolo === 'admin'
   
   // Detect mobile
   const isMobile = typeof window !== 'undefined' ? window.innerWidth <= 768 : false
@@ -127,22 +118,6 @@ export default function EventiMobileMenu({ onClose }) {
         setLoading(false)
         return
       }
-      
-      // Scansiona TUTTI gli eventi futuri (non solo i prossimi 6 mostrati) per segnalare
-      // accrediti da gestire con urgenza, anche se lontani nel tempo
-      const accreditiUrgenti = eventiFuturi
-        .map(ev => {
-          const dataEv = new Date(ev.data_inizio)
-          dataEv.setHours(0, 0, 0, 0)
-          const giorniMancantiEv = Math.floor((dataEv.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
-          return { ...ev, giorniMancantiEv }
-        })
-        .filter(ev => {
-          if (ev.accredito_status === 'da_richiedere') return ev.giorniMancantiEv <= 90
-          if (ev.accredito_status === 'richiesto') return ev.giorniMancantiEv <= 21
-          return false
-        })
-        .sort((a, b) => a.giorniMancantiEv - b.giorniMancantiEv)
       
       const prossimo = eventiFuturi[0]
       
@@ -273,6 +248,18 @@ export default function EventiMobileMenu({ onClose }) {
         }
       })
       
+      // Accrediti da gestire: SEMPRE tutti gli eventi futuri con questo stato,
+      // senza limiti di giorni (le soglie 90/21gg valgono solo per le notifiche push)
+      const accreditiUrgenti = eventiFuturi
+        .filter(ev => ev.accredito_status === 'da_richiedere' || ev.accredito_status === 'richiesto')
+        .map(ev => {
+          const dataEv = new Date(ev.data_inizio)
+          dataEv.setHours(0, 0, 0, 0)
+          const giorniMancantiEv = Math.floor((dataEv.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24))
+          return { ...ev, giorniMancantiEv }
+        })
+        .sort((a, b) => a.giorniMancantiEv - b.giorniMancantiEv)
+
       console.log('DEBUG EventiMobileMenu - eventiProssimi5Giorni:', eventiProssimi5Giorni)
       console.log('DEBUG EventiMobileMenu - tuttiEventiFuturi:', tuttiEventiFuturi)
       
@@ -306,15 +293,14 @@ export default function EventiMobileMenu({ onClose }) {
 
   if (loading) {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '16px', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', boxSizing: 'border-box' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
         <div style={{
-          background: 'rgba(28, 28, 30, 0.92)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '20px',
-          padding: '16px',
+          background: 'rgba(0, 0, 0, 0.85)',
+          border: '2px solid rgba(51, 51, 51, 0.8)',
+          borderRadius: '12px',
+          padding: '12px',
           minWidth: '280px',
-          maxWidth: '340px',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", sans-serif'
+          maxWidth: '320px'
         }}>
           <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#FFF' }}>
             Caricamento...
@@ -326,197 +312,83 @@ export default function EventiMobileMenu({ onClose }) {
 
   if (!prossimoEvento) {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '16px', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)', boxSizing: 'border-box' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
         <div style={{
-          background: 'rgba(28, 28, 30, 0.92)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: '20px',
-          padding: '16px',
+          background: 'rgba(0, 0, 0, 0.85)',
+          border: '2px solid rgba(51, 51, 51, 0.8)',
+          borderRadius: '12px',
+          padding: '12px',
           minWidth: '280px',
-          maxWidth: '340px',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", sans-serif'
+          maxWidth: '320px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#FFF' }}>
-              Nessun evento
-            </div>
-            <button
-              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onClose() }}
-              style={{
-                background: 'rgba(255, 255, 255, 0.12)', border: 'none', color: 'rgba(255,255,255,0.85)',
-                fontSize: '13px', cursor: 'pointer', width: '26px', height: '26px', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', borderRadius: '50%', flexShrink: 0
-              }}
-            >
-              ✕
-            </button>
+          <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#FFF' }}>
+            Nessun evento
           </div>
         </div>
       </div>
     )
   }
 
-  const haAccreditoUrgente = (prossimoEvento.accreditiUrgenti || []).length > 0
-
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(0,0,0,0.45)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 10000,
-      padding: '16px',
-      paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
-      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)',
-      paddingLeft: 'calc(env(safe-area-inset-left, 0px) + 16px)',
-      paddingRight: 'calc(env(safe-area-inset-right, 0px) + 16px)',
-      boxSizing: 'border-box'
-    }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
       <div style={{
-        background: 'rgba(28, 28, 30, 0.92)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: haAccreditoUrgente ? '1px solid rgba(255, 69, 58, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '20px',
-        padding: '16px',
-        minWidth: '290px',
-        maxWidth: '340px',
-        width: '100%',
-        maxHeight: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-        boxShadow: '0 20px 50px rgba(0,0,0,0.45)',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", sans-serif',
-        animation: haAccreditoUrgente ? 'pulseUrgenteBordo 1.6s ease-in-out infinite' : 'none',
-        overflow: 'hidden'
+        background: 'rgba(0, 0, 0, 0.85)',
+        border: '2px solid rgba(51, 51, 51, 0.8)',
+        borderRadius: '12px',
+        padding: '12px',
+        minWidth: '280px',
+        maxWidth: '320px',
+        position: 'relative'
       }}>
-        <style>{`
-          @keyframes pulseUrgenteAccredito {
-            0% { opacity: 1; }
-            50% { opacity: 0.65; }
-            100% { opacity: 1; }
-          }
-          @keyframes pulseUrgenteBordo {
-            0% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0.45); }
-            70% { box-shadow: 0 0 0 8px rgba(255, 69, 58, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 69, 58, 0); }
-          }
-        `}</style>
-
-        {/* HEADER: titolo + chiusura, SEMPRE visibile e raggiungibile (non scrolla via) */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexShrink: 0 }}>
-          <div style={{ fontSize: '17px', fontWeight: '700', color: '#FFF', letterSpacing: '-0.2px' }}>
-            📅 Eventi
-          </div>
-          <button 
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onClose()
-            }}
-            style={{
-              background: 'rgba(255, 255, 255, 0.12)',
-              border: 'none',
-              color: 'rgba(255, 255, 255, 0.85)',
-              fontSize: '14px',
-              cursor: 'pointer',
-              width: '28px',
-              height: '28px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '50%',
-              flexShrink: 0,
-              transition: 'background 0.2s ease'
-            }}
-            onMouseEnter={(e) => { e.target.style.background = 'rgba(255, 69, 58, 0.85)' }}
-            onMouseLeave={(e) => { e.target.style.background = 'rgba(255, 255, 255, 0.12)' }}
-          >
-            ✕
-          </button>
-        </div>
-        
-        {/* CORPO SCROLLABILE: banner + lista eventi, l'header resta sempre fisso sopra */}
-        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
-        
-        {/* BANNER RIEPILOGO: accrediti da gestire, indipendentemente da quale sia il "prossimo evento" */}
-        {prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
-          <div style={{
-            background: 'rgba(255, 69, 58, 0.14)',
-            border: '1px solid rgba(255, 69, 58, 0.35)',
-            borderRadius: '14px',
-            padding: '12px 14px',
-            marginBottom: '14px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <div style={{
-                width: '22px',
-                height: '22px',
-                borderRadius: '50%',
-                background: '#FF453A',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '12px',
-                flexShrink: 0,
-                animation: 'pulseUrgenteAccredito 1.6s ease-in-out infinite'
-              }}>
-                ⚠️
-              </div>
-              <div style={{ fontSize: '13px', fontWeight: '700', color: '#FF6961' }}>
-                {prossimoEvento.accreditiUrgenti.length} accredit{prossimoEvento.accreditiUrgenti.length === 1 ? 'o' : 'i'} da gestire
-              </div>
-            </div>
-            <div>
-              {prossimoEvento.accreditiUrgenti.slice(0, 4).map((ev, idx) => (
-                <div key={ev.id} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '8px',
-                  padding: '7px 0',
-                  borderTop: idx > 0 ? '1px solid rgba(255, 255, 255, 0.08)' : 'none'
-                }}>
-                  <div style={{ fontSize: '12.5px', fontWeight: '600', color: '#FFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {ev.titolo}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                    <span style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.55)', fontWeight: '500' }}>
-                      {ev.giorniMancantiEv <= 0 ? 'oggi' : `${ev.giorniMancantiEv}gg`}
-                    </span>
-                    <span style={{
-                      fontSize: '9.5px',
-                      fontWeight: '700',
-                      padding: '3px 7px',
-                      borderRadius: '20px',
-                      background: 'rgba(255, 69, 58, 0.22)',
-                      color: '#FF6961',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      {ev.accredito_status === 'da_richiedere' ? 'DA RICHIEDERE' : 'IN ATTESA'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {prossimoEvento.accreditiUrgenti.length > 4 && (
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.55)', marginTop: '6px', fontWeight: '500' }}>
-                + altri {prossimoEvento.accreditiUrgenti.length - 4}
-              </div>
-            )}
-          </div>
-        )}
+        {/* PULSANTE X IN ALTO A DESTRA */}
+        <button 
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            console.log('X clicked - closing menu')
+            onClose()
+          }}
+          style={{
+            position: 'absolute',
+            top: '15px',
+            right: '20px',
+            background: '#FF3B30',
+            border: 'none',
+            color: '#FFF',
+            fontSize: '18px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            width: '30px',
+            height: '30px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: '50%',
+            zIndex: 1000,
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.background = '#d9291f'
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.background = '#FF3B30'
+          }}
+        >
+          ✕
+        </button>
         
         {/* CONTENUTO CON RETTANGOLO BIANCO */}
         <div style={{ 
           background: 'rgba(255, 255, 255, 0.1)', 
           borderRadius: '8px', 
           padding: '12px',
-          marginBottom: '8px'
+          marginBottom: '8px',
+          // SOLO SU MOBILE: aggiungi scroll verticale
+          ...(isMobile && {
+            maxHeight: '70vh',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          })
         }}>
           <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#FFF', marginBottom: '8px' }}>
             {prossimoEvento.giorniMancanti === 0 ? 'OGGI!' : 
@@ -527,6 +399,38 @@ export default function EventiMobileMenu({ onClose }) {
           <div style={{ fontSize: '13px', color: '#FFF', marginBottom: '8px' }}>
             {prossimoEvento.dataFormattata}
           </div>
+
+          {/* BANNER RIEPILOGO: accrediti da gestire — SOLO ADMIN, sempre tutti indipendentemente dai giorni mancanti */}
+          {isAdmin && prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
+            <div style={{
+              background: '#FF3B30',
+              borderRadius: '8px',
+              padding: '8px 10px',
+              marginBottom: '10px',
+              animation: 'pulseUrgenteAccreditoMenu 1.3s ease-in-out infinite'
+            }}>
+              <style>{`
+                @keyframes pulseUrgenteAccreditoMenu {
+                  0% { opacity: 1; }
+                  50% { opacity: 0.6; }
+                  100% { opacity: 1; }
+                }
+              `}</style>
+              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#FFF', marginBottom: '4px' }}>
+                ⚠️ {prossimoEvento.accreditiUrgenti.length} accredit{prossimoEvento.accreditiUrgenti.length === 1 ? 'o' : 'i'} da gestire
+              </div>
+              {prossimoEvento.accreditiUrgenti.slice(0, 4).map(ev => (
+                <div key={ev.id} style={{ fontSize: '10px', color: '#FFF', opacity: 0.95, marginBottom: '2px' }}>
+                  • {ev.titolo} — {ev.giorniMancantiEv <= 0 ? 'in corso/oggi' : `${ev.giorniMancantiEv}gg`} (<strong>{ev.accredito_status === 'da_richiedere' ? 'da richiedere' : 'in attesa di risposta'}</strong>)
+                </div>
+              ))}
+              {prossimoEvento.accreditiUrgenti.length > 4 && (
+                <div style={{ fontSize: '10px', color: '#FFF', opacity: 0.85 }}>
+                  + altri {prossimoEvento.accreditiUrgenti.length - 4}
+                </div>
+              )}
+            </div>
+          )}
           
           {/* MOSTRA TUTTI GLI EVENTI FUTURI IN ORDINE CRONOLOGICO */}
           {prossimoEvento.eventiProssimi5Giorni && prossimoEvento.eventiProssimi5Giorni.map((evento, index) => (
@@ -576,57 +480,60 @@ export default function EventiMobileMenu({ onClose }) {
               
               {/* FASCIA STATO ACCREDITO */}
               {evento.accredito_status && evento.accredito_status !== 'nessuno' && (
-                <div style={{ marginBottom: '4px', marginTop: '4px' }}>
+                <div style={{ marginBottom: '4px' }}>
                   {(() => {
-                    const urgenteBadge = isStatoAccreditoUrgente(evento.accredito_status, evento.giorniMancanti)
                     if (evento.accredito_status === 'da_richiedere') {
                       return (
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '5px 10px',
-                          borderRadius: '20px',
-                          background: urgenteBadge ? 'rgba(255, 69, 58, 0.85)' : 'rgba(255, 214, 10, 0.18)',
-                          color: urgenteBadge ? '#FFF' : '#FFD60A',
+                        <div style={{ 
+                          background: '#FFD60A', 
+                          color: '#000', 
+                          padding: '4px 8px', 
+                          borderRadius: '6px',
                           fontSize: '11px',
-                          fontWeight: '700',
-                          animation: urgenteBadge ? 'pulseUrgenteAccredito 1.6s ease-in-out infinite' : 'none'
+                          fontWeight: 'bold',
+                          textAlign: 'center',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px'
                         }}>
-                          {urgenteBadge ? `⚠️ Da richiedere — ${evento.giorniMancanti}gg` : '🟡 Da richiedere'}
+                          🟡 DOVREMMO RICHIEDERLO
                         </div>
                       )
                     } else if (evento.accredito_status === 'richiesto') {
                       return (
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '5px 10px',
-                          borderRadius: '20px',
-                          background: urgenteBadge ? 'rgba(255, 69, 58, 0.85)' : 'rgba(255, 149, 0, 0.18)',
-                          color: urgenteBadge ? '#FFF' : '#FF9F0A',
+                        <div style={{ 
+                          background: '#FF9500', 
+                          color: '#FFF', 
+                          padding: '4px 8px', 
+                          borderRadius: '6px',
                           fontSize: '11px',
-                          fontWeight: '700',
-                          animation: urgenteBadge ? 'pulseUrgenteAccredito 1.6s ease-in-out infinite' : 'none'
+                          fontWeight: 'bold',
+                          textAlign: 'center',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px'
                         }}>
-                          {urgenteBadge ? `⚠️ In attesa di risposta — ${evento.giorniMancanti}gg` : '📨 Richiesto'}
+                          📨 RICHIESTO
                         </div>
                       )
                     } else if (evento.accredito_status === 'accettato') {
                       return (
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '5px',
-                          padding: '5px 10px',
-                          borderRadius: '20px',
-                          background: 'rgba(52, 199, 89, 0.18)',
-                          color: '#30D158',
+                        <div style={{ 
+                          background: '#34C759', 
+                          color: '#FFF', 
+                          padding: '4px 8px', 
+                          borderRadius: '6px',
                           fontSize: '11px',
-                          fontWeight: '700'
+                          fontWeight: 'bold',
+                          textAlign: 'center',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px'
                         }}>
-                          ✅ Accettato
+                          ✅ ACCETTATO
                         </div>
                       )
                     }
@@ -681,7 +588,6 @@ export default function EventiMobileMenu({ onClose }) {
         }}>
           <span></span>
           <span style={{ fontSize: 'Opx' }}></span>
-        </div>
         </div>
       </div>
     </div>
