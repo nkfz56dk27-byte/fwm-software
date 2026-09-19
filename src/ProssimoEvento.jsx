@@ -11,7 +11,8 @@ const CAMPIONATI_DEFAULT = [
   { id: 'fe', nome: 'Formula E', colore: '#0098DB', emoji: '⚡', sigla: 'FE' }
 ]
 
-export default function ProssimoEvento() {
+export default function ProssimoEvento({ user }) {
+  const isAdmin = user?.ruolo === 'admin'
   const [prossimoEvento, setProssimoEvento] = useState(null)
   const [loading, setLoading] = useState(true)
   const [prenotazioni, setPrenotazioni] = useState([])
@@ -368,9 +369,11 @@ export default function ProssimoEvento() {
           return { ...ev, giorniMancantiEv }
         })
         .filter(ev => {
-          if (ev.accredito_status === 'da_richiedere') return ev.giorniMancantiEv <= 90
-          if (ev.accredito_status === 'richiesto') return ev.giorniMancantiEv <= 21
-          return false
+          // Il banner in-app mostra SEMPRE tutti gli accrediti da gestire,
+          // indipendentemente dai giorni mancanti. Le soglie 90gg/21gg si
+          // applicano solo alle notifiche push admin (calendario-reminder.js),
+          // non alla visualizzazione qui.
+          return ev.accredito_status === 'da_richiedere' || ev.accredito_status === 'richiesto'
         })
         .sort((a, b) => a.giorniMancantiEv - b.giorniMancantiEv)
       
@@ -436,7 +439,7 @@ export default function ProssimoEvento() {
     )
   }
 
-  const haAccreditoUrgente = (prossimoEvento.accreditiUrgenti || []).length > 0
+  const haAccreditoUrgente = isAdmin && (prossimoEvento.accreditiUrgenti || []).length > 0
 
   return (
     <div style={{
@@ -462,8 +465,8 @@ export default function ProssimoEvento() {
           100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
         }
       `}</style>
-      {/* BANNER RIEPILOGO: accrediti da gestire, indipendentemente da quale sia il "prossimo evento" */}
-      {prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
+      {/* BANNER RIEPILOGO: accrediti da gestire — SOLO ADMIN, indipendentemente da quale sia il "prossimo evento" */}
+      {isAdmin && prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
         <div style={{
           background: '#FF3B30',
           borderRadius: '8px',
