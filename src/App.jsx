@@ -662,13 +662,11 @@ function App() {
 
   // ...existing code...
     if (showGestione) {
-      // Porta il titolo molto più in alto su mobile (350px)
       return <GestioneUtentiView 
         onClose={() => setShowGestione(false)} 
         onOpenDispositiviNotifiche={() => setShowDispositiviNotifiche(true)} 
         currentUser={user}
         isMobile={isMobile} 
-        titoloMarginTop={isMobile ? 350 : 0} 
       />
     }
     // ...existing code...
@@ -799,19 +797,19 @@ function App() {
       {mostraTabBarPersistente && (
         <nav className="bottom-tab-bar">
           <button className={`tab-bar-item${!showGestione && !showProfileSheet ? ' active' : ''}`} onClick={handleGoHome}>
-            <span className="tab-bar-icon">🏠</span>
+            <span className="tab-bar-icon icon-home"></span>
             <span className="tab-bar-label">Home</span>
           </button>
 
           {user.ruolo === 'admin' && (
             <button className={`tab-bar-item${showGestione ? ' active' : ''}`} onClick={() => { setShowProfileSheet(false); setShowGestione(true) }}>
-              <span className="tab-bar-icon">⚙️</span>
+              <span className="tab-bar-icon icon-gestione"></span>
               <span className="tab-bar-label">Gestione</span>
             </button>
           )}
 
           <button className={`tab-bar-item${showProfileSheet ? ' active' : ''}`} onClick={() => setShowProfileSheet(true)}>
-            <span className="tab-bar-icon">👤</span>
+            <span className="tab-bar-icon icon-profilo"></span>
             <span className="tab-bar-label">Profilo</span>
           </button>
         </nav>
@@ -4946,16 +4944,17 @@ function PasswordChangeView({ newPassword, setNewPassword, confirmPassword, setC
 }
 
 // ==// ===== GESTIONE UTENTI =====
-function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }) {
+function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser, isMobile: isMobileProp }) {
   const [showImpostazioni, setShowImpostazioni] = useState(false);
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+  const [isMobile, setIsMobile] = useState(isMobileProp ?? (typeof window !== 'undefined' ? window.innerWidth <= 768 : false));
   React.useEffect(() => {
+    if (isMobileProp !== undefined) { setIsMobile(isMobileProp); return; }
     function handleResize() {
       setIsMobile(window.innerWidth <= 768);
     }
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [isMobileProp]);
   const [utenti, setUtenti] = useState([])
   const [loading, setLoading] = useState(true)
   const [showNuovo, setShowNuovo] = useState(false)
@@ -5025,15 +5024,12 @@ function GestioneUtentiView({ onClose, onOpenDispositiviNotifiche, currentUser }
   if (showTemplateArticoli) return <GestioneTemplateArticoli onClose={() => setShowTemplateArticoli(false)} />
 
   return (
-    <div className="gestione-container" style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' } : {}}>
+    <div className="gestione-container" style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 56px)' } : {}}>
       {/* Il tasto Indietro sta FUORI da .gestione-header apposta: l'header
           ha backdrop-filter su mobile, e un antenato con backdrop-filter
           "intrappola" i figli position:fixed facendoli scorrere con lui
           invece di restare ancorati al viewport. */}
-      <button className="btn-back" onClick={onClose} aria-label="Indietro">
-        <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-        Indietro
-      </button>
+      <button className="page-back-button" onClick={onClose}>Indietro</button>
       <div className="gestione-header">
         <div className="gestione-navbar">
           <h1 className="gestione-title">Gestione Utenti</h1>
