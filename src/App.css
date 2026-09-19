@@ -722,82 +722,107 @@ body {
   width: 100%;
   position: relative;
 }
-/* =====================================================================
-   TASTO INDIETRO — UNICO STANDARD PER TUTTA L'APP (stile piatto blu,
-   come RitaglioImmagine.jsx). Posizione fissa, IDENTICA su ogni
-   schermata e su ogni breakpoint (desktop/mobile) — nessuna variante.
-   Usata SOLO per le pagine a tutto schermo. I popup/modali usano invece
-   una X rossa (✕, color #FF3B30) posizionata in alto a destra DENTRO
-   la propria card — mai fixed al viewport, per non "galleggiare" fuori
-   da modali centrati più piccoli dello schermo.
+/* ===== TASTO INDIETRO — STRUTTURA CONDIVISA (dimensioni, non posizione) =====
+   La freccia è divisa in due pezzi indipendenti:
+   - ::before = solo la punta (dimensione fissa, non si stira più)
+   - ::after  = coda rettangolare, lunghezza regolabile via --back-shaft-length
+   senza influenzare la punta. Le POSIZIONI (desktop/mobile/ritaglio) sono
+   definite più sotto, separate dalla struttura. */
+:root {
+  --back-icon-size: 50px;
+  --back-shaft-length: 0px;
+  --back-shaft-width: 0px;
+  --back-color: #007AFF;
+}
 
-   L'icona è impostata con `mask-size: 100% 100%` (deforma per riempire
-   il box, non `contain`): per questo `width`/`height` qui sotto — sia
-   sul box cliccabile che sul ::before — vanno SEMPRE tenuti UGUALI tra
-   loro come rapporto proporzione desiderato, mai con differenze
-   estreme (es. mai 800px vs 8000px) o il crop visibile finisce fuori
-   dallo schermo. `align-items: flex-start` mantiene l'icona ancorata
-   al `top` del box, così allargare il box (per allungarla) non la
-   sposta mai più in basso.
-   ===================================================================== */
 .btn-back,
 .page-back-button {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 18px);
-  left: 18px;
   z-index: 700;
   display: flex;
-  align-items: flex-start;
-  justify-content: flex-start;
-  width: 36px;
-  height: 98px;
+  flex-direction: column;
+  align-items: center;
+  width: 40px;
   background: none;
   border: none;
   padding: 0;
   margin: 0;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  /* Il testo "Indietro" resta nel markup (screen reader) ma non è più
-     visibile: al suo posto compare solo l'icona SVG qui sotto */
   font-size: 0;
   line-height: 0;
   color: transparent;
+  /* Posizione di default (desktop): sovrascritta dalle regole sotto */
+  top: 18px;
+  left: 18px;
 }
 .btn-back:active,
 .page-back-button:active {
   opacity: 0.4;
 }
+
 .btn-back::before,
 .page-back-button::before {
   content: '';
   display: block;
   flex-shrink: 0;
-  width: 40px;
-  height: 90px;
-  background-color: #007AFF;
+  width: var(--back-icon-size);
+  height: var(--back-icon-size);
+  background-color: var(--back-color);
   -webkit-mask-image: url('/back-arrow.svg');
   mask-image: url('/back-arrow.svg');
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
+  -webkit-mask-size: contain;
+  mask-size: contain;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-position: center;
   mask-position: center;
 }
-/* Eventuali <svg className="icon"> inline nel markup restano nascoste:
-   l'icona unica è quella impostata sopra via ::before */
+
+.btn-back::after,
+.page-back-button::after {
+  content: '';
+  display: block;
+  width: var(--back-shaft-width);
+  height: var(--back-shaft-length);
+  background-color: var(--back-color);
+  border-radius: calc(var(--back-shaft-width) / 2);
+  margin-top: 6px;
+}
+
 .btn-back .icon,
 .page-back-button .icon {
   display: none;
 }
-/* Caso particolare: dentro "Disponibilità Weekend", il modale di
-   dettaglio (Tabella GP / selezione articoli / vista Admin) si apre
-   SOPRA alla pagina che resta montata sotto — compreso il suo Indietro
-   fisso. Per rispettare la regola qui sopra (i modali non mostrano un
-   Indietro fisso, solo la propria X), lo nascondiamo mentre il modale
-   è aperto. */
+
 body:has(.weekend-detail-overlay) .page-back-button {
   display: none !important;
+}
+
+/* ---- POSIZIONE: DESKTOP (default già impostato sopra: top 18 / left 18) ---- */
+@media (min-width: 769px) {
+  .btn-back,
+  .page-back-button {
+    top: 10px;
+    left: 18px;
+  }
+
+  /* Ritaglio Immagine: posizione diversa SOLO su desktop.
+     Su mobile non c'è nessuna regola per .back-ritaglio, quindi eredita
+     la posizione mobile standard qui sotto */
+  .back-ritaglio {
+    top: 26px;
+    left: 60px;
+  }
+}
+
+/* ---- POSIZIONE: MOBILE ---- */
+@media (max-width: 768px) {
+  .btn-back,
+  .page-back-button {
+    top: calc(env(safe-area-inset-top, 0px) + 18px);
+    left: 18px;
+  }
 }
 .gestione-title {
   position: absolute;
