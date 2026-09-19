@@ -1382,18 +1382,13 @@ const TESTO_BASSO_REALE = posCfg.basso
       onDrop={handleDrop}
       style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 84px)' : 0, background: '#fff', paddingTop: isMobile ? 0 : 'env(safe-area-inset-top)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif', overflow: isMobile ? 'auto' : 'hidden' }}
     >
-      {/* Su MOBILE il tasto Indietro usa la stessa classe/posizione di Calendario Accrediti */}
-      {isMobile && (
-        <button className="page-back-button" style={{ zIndex: 10001 }} onClick={view === 'menu' ? onClose : () => setView('menu')}>Indietro</button>
-      )}
+      {/* Tasto Indietro: stessa struttura/dimensioni standard dell'app, ma con
+          posizione dedicata a questa schermata (classe "back-ritaglio" in CSS,
+          diversa dalle regole standard mobile/desktop) */}
+      <button className="page-back-button back-ritaglio" onClick={view === 'menu' ? onClose : () => setView('menu')}>Indietro</button>
       <div style={{ background: '#F2F2F7', width: isMobile ? '100%' : '95vw', borderRadius: isMobile ? 0 : '28px', overflow: 'hidden', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? 'none' : '95vh', display: 'flex', flexDirection: 'column', boxShadow: isMobile ? 'none' : '0 30px 60px rgba(0,0,0,0.5)' }}>
         
         <div style={{ padding: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 64px) 25px 14px 25px' : '18px 25px', background: '#fff', borderBottom: '1px solid #e5e5ea', display: 'flex', alignItems: 'center', position: 'relative' }}>
-          {!isMobile && (
-            <button onClick={view === 'menu' ? onClose : () => setView('menu')} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', position: 'absolute', left: 18, top: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ← Indietro
-            </button>
-          )}
           <span style={{ fontWeight: '900', fontSize: isMobile ? '15px' : '18px', color: '#1c1c1e', marginTop: 0, whiteSpace: 'nowrap', overflow: 'visible', maxWidth: isMobile ? '100vw' : 'none', textAlign: 'center', width: '100%' }}>EDITOR FOTO FWM</span>
         </div>
 
