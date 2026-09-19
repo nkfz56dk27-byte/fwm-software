@@ -500,6 +500,42 @@ body {
   width: 22px;
   height: 22px;
 }
+/* Icone tab bar sostituite con SVG in maschera: il colore segue sempre
+   currentColor, quindi cambia da solo tra stato attivo (bianco pieno)
+   e inattivo (bianco semi-trasparente), esattamente come faceva
+   l'emoji prima — nessun colore hardcoded qui. */
+.tab-bar-icon.icon-home,
+.tab-bar-icon.icon-gestione,
+.tab-bar-icon.icon-profilo {
+  position: relative;
+}
+.tab-bar-icon.icon-home::before,
+.tab-bar-icon.icon-gestione::before,
+.tab-bar-icon.icon-profilo::before {
+  content: '';
+  display: block;
+  width: 22px;
+  height: 22px;
+  background-color: currentColor;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.tab-bar-icon.icon-home::before {
+  -webkit-mask-image: url('/home.svg');
+  mask-image: url('/home.svg');
+}
+.tab-bar-icon.icon-gestione::before {
+  -webkit-mask-image: url('/settings.svg');
+  mask-image: url('/settings.svg');
+}
+.tab-bar-icon.icon-profilo::before {
+  -webkit-mask-image: url('/profile.svg');
+  mask-image: url('/profile.svg');
+}
 .tab-bar-label {
   font-size: 10px;
   font-weight: 600;
@@ -542,6 +578,12 @@ body {
     font-size: 19px;
   }
   .tab-bar-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+  .tab-bar-icon.icon-home::before,
+  .tab-bar-icon.icon-gestione::before,
+  .tab-bar-icon.icon-profilo::before {
     width: 20px;
     height: 20px;
   }
@@ -656,8 +698,6 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100vw;
-  height: 100vh;
   background: #f5f5f5;
   display: flex;
   flex-direction: column;
@@ -690,6 +730,15 @@ body {
    una X rossa (✕, color #FF3B30) posizionata in alto a destra DENTRO
    la propria card — mai fixed al viewport, per non "galleggiare" fuori
    da modali centrati più piccoli dello schermo.
+
+   L'icona è impostata con `mask-size: 100% 100%` (deforma per riempire
+   il box, non `contain`): per questo `width`/`height` qui sotto — sia
+   sul box cliccabile che sul ::before — vanno SEMPRE tenuti UGUALI tra
+   loro come rapporto proporzione desiderato, mai con differenze
+   estreme (es. mai 800px vs 8000px) o il crop visibile finisce fuori
+   dallo schermo. `align-items: flex-start` mantiene l'icona ancorata
+   al `top` del box, così allargare il box (per allungarla) non la
+   sposta mai più in basso.
    ===================================================================== */
 .btn-back,
 .page-back-button {
@@ -698,18 +747,21 @@ body {
   left: 18px;
   z-index: 700;
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 36px;
+  height: 98px;
   background: none;
   border: none;
-  color: #007AFF;
-  font-size: 17px;
-  font-weight: 700;
-  padding: 10px 8px;
-  margin: -10px -8px;
+  padding: 0;
+  margin: 0;
   cursor: pointer;
-  white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
+  /* Il testo "Indietro" resta nel markup (screen reader) ma non è più
+     visibile: al suo posto compare solo l'icona SVG qui sotto */
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
 }
 .btn-back:active,
 .page-back-button:active {
@@ -717,11 +769,23 @@ body {
 }
 .btn-back::before,
 .page-back-button::before {
-  content: '←';
-  font-size: 18px;
-  line-height: 1;
+  content: '';
+  display: block;
+  flex-shrink: 0;
+  width: 60px;
+  height: 90px;
+  background-color: #007AFF;
+  -webkit-mask-image: url('/back-arrow.svg');
+  mask-image: url('/back-arrow.svg');
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
 }
-/* Icona freccia SVG non più usata (testo semplice "← Indietro" come standard) */
+/* Eventuali <svg className="icon"> inline nel markup restano nascoste:
+   l'icona unica è quella impostata sopra via ::before */
 .btn-back .icon,
 .page-back-button .icon {
   display: none;
@@ -1193,12 +1257,11 @@ body:has(.weekend-detail-overlay) .page-back-button {
   /* ===== GESTIONE UTENTI MOBILE - navbar compatta su una riga ===== */
   .gestione-header {
     padding: 0px 12px 10px;
-    gap: 36px;
+    gap: 10px;
     isolation: isolate;
   }
   .gestione-navbar {
     padding-top: 8px;
-    margin-top: -20px;
   }
   .btn-gear {
     width: 40px;
@@ -1343,22 +1406,26 @@ body:has(.weekend-detail-overlay) .page-back-button {
 /* ===== LIQUID GLASS REDESIGN — GESTIONE + MODALI (mobile) ===== */
 @media (max-width: 768px) {
 
-  /* Sfondo neutro e pulito dietro al vetro (niente più foto che sporca i colori) */
+  /* Sfondo neutro dietro al vetro: bianco pieno, ma leggermente meno
+     luminoso in fondo così il blur dell'header ha qualcosa da "sfocare"
+     e non risulta invisibile (vetro su bianco puro = nessun effetto) */
   .gestione-container {
-    background: linear-gradient(180deg, #eef0f4 0%, #e4e6ec 100%);
+    background: linear-gradient(180deg, #ffffff 0%, #f2f3f6 220px, #eef0f4 100%);
   }
   .gestione-container::before {
     content: none;
   }
   .gestione-header, .gestione-content, .divider { position: relative; z-index: 1; }
 
-  /* Header flottante in vetro, ancorato in alto, con angoli concentrici */
+  /* Header in vetro, ma a tutta larghezza e senza angoli arrotondati:
+     niente più "card" che si stacca nettamente dallo sfondo — il bordo
+     sfumato e il blur creano la transizione, non un bordo netto */
   .gestione-header {
     background: var(--glass-bg-strong);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
-    border-radius: 0 0 var(--glass-radius-lg) var(--glass-radius-lg);
-    box-shadow: var(--glass-shadow);
+    border-radius: 0;
+    box-shadow: 0 1px 20px rgba(0, 0, 0, 0.05);
     border: none;
     border-bottom: 0.5px solid var(--glass-border-soft);
     padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px) * 0);
