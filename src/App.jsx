@@ -715,7 +715,7 @@ function App() {
 
   // ← AGGIUNTO: Render condizionale Eventi Mobile
   if (showEventiMobile) {
-    return <EventiMobileMenu onClose={() => setShowEventiMobile(false)} />
+    return <EventiMobileMenu user={user} onClose={() => setShowEventiMobile(false)} />
   }
 
   if (showCalendario) {
@@ -4570,9 +4570,9 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
           return { ...ev, giorniMancantiEv }
         })
         .filter(ev => {
-          if (ev.accredito_status === 'da_richiedere') return ev.giorniMancantiEv <= 90
-          if (ev.accredito_status === 'richiesto') return ev.giorniMancantiEv <= 21
-          return false
+          // Il badge mobile mostra SEMPRE tutti gli accrediti da gestire,
+          // indipendentemente dai giorni mancanti (soglie 90/21gg solo per le notifiche push)
+          return ev.accredito_status === 'da_richiedere' || ev.accredito_status === 'richiesto'
         })
         .sort((a, b) => a.giorniMancantiEv - b.giorniMancantiEv)
       
@@ -4626,7 +4626,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
                 100% { opacity: 1; transform: scale(1); }
               }
             `}</style>
-            {prossimoEvento && prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
+            {user.ruolo === 'admin' && prossimoEvento && prossimoEvento.accreditiUrgenti && prossimoEvento.accreditiUrgenti.length > 0 && (
               <div style={{
                 position: 'absolute',
                 top: '-4px',
@@ -4690,7 +4690,7 @@ function HomeView({ user, isMobile, onLogout, onOpenGestione, onOpenClassificheM
       <div className="home-cards-wrapper" style={{ marginTop: isMobile ? '20px' : undefined, position: 'relative' }}>
         {!isMobile && (
           <div className="prossimo-evento-box">
-            <ProssimoEvento />
+            <ProssimoEvento user={user} />
           </div>
         )}
         {/* RIGA 1 - Classifiche + Ritaglio */}
@@ -5405,13 +5405,31 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
   console.log('📱 ClassificheMainMenuView - isMobile ricevuto:', isMobile)
   const backBtnTop = isMobile ? 40 : 20;
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', minHeight: '100vh' }}>
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundImage: 'url(/sfondo-fwm.jpg)',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: isMobile ? 'flex-start' : 'center',
+      padding: isMobile ? '16px' : '40px',
+      minHeight: '100vh',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch',
+      paddingBottom: isMobile ? 'calc(100px + env(safe-area-inset-bottom, 0px))' : '40px'
+    }}>
       <button className="page-back-button" onClick={onBack}>
         <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
         Indietro
       </button>
       {/* Cards row */}
-      <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '40px', marginTop: '55px' }}>
+      <div className="home-cards-row" style={{ display: 'flex', gap: isMobile ? '10px' : '40px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: isMobile ? '10px' : '40px', marginTop: isMobile ? '15px' : '55px' }}>
         <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
           <div className="card-icon-wrapper">
             <img src={CoppaSVG} alt="Classifiche" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
@@ -5451,7 +5469,7 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
       </div>
 
       {/* Cards row 2 - Ordina Tabella e Statistiche */}
-      <div style={{ display: 'flex', gap: '40px', justifyContent: 'center', flexWrap: 'wrap' }}>
+      <div className="home-cards-row" style={{ display: 'flex', gap: isMobile ? '10px' : '40px', justifyContent: 'center', flexWrap: 'wrap' }}>
         <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
           <div className="card-icon-wrapper">
             <img src={ClassificaHTML} alt="Tabella HTML" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
