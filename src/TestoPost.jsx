@@ -197,15 +197,109 @@ function computeStructureFast(ctx, text, fontSize, fontWeight, fontFamily, maxWi
 // il bordo. Serve perché la proiezione lineare (dimensione_base * scala) non è garantita essere
 // perfettamente esatta (arrotondamenti del motore di rendering, sub-pixel), quindi senza questa
 // rifinitura le righe potevano finire leggermente più strette del previsto e non toccare i bordi.
+// Quando una riga arriva al limite di font (min o max) e non può più "stirarsi" cambiando
+// dimensione, calcola quanta spaziatura EXTRA tra le lettere serve ad allargarla fino a
+// toccare ESATTAMENTE il bordo — l'ultima risorsa per non lasciare righe corte staccate dal
+// margine destro. Il caso tipico è l'ULTIMA riga di un blocco di testo: essendo spesso la più
+// breve, avrebbe bisogno di un font molto più grande delle altre per stirarsi da sola fino al
+// bordo, ma se quel font supererebbe maxFontSize resta bloccata lì — mentre le righe più lunghe
+// (che richiedono un ingrandimento minore) ci arrivano senza problemi. Da qui l'allineamento a
+// destra incoerente riga per riga, mentre a sinistra è sempre perfetto perché è un punto fisso.
+// Ritorna 0 se il testo ha un solo carattere (nessuna "giunzione" da allargare) o se a quella
+// dimensione il testo è già più largo del box (mai spaziatura negativa qui: comprimerebbe le
+// lettere in modo innaturale invece che nella direzione richiesta).
+// Restituisce quanto la larghezza di AVANZAMENTO dell'ultimo carattere di una riga superi la sua
+// estensione VISIVA reale (l'inchiostro effettivamente disegnato) — la "riserva" invisibile che
+// alcune forme di lettera (tonde o oblique: O, C, G, Q, A, V, W, virgole, punti...) lasciano
+// dopo il proprio disegno, per costruzione del font. Una "I" o una "M", che riempiono quasi
+// tutta la loro casella, hanno una riserva vicina a 0; una "C" o una "O" possono lasciarne
+// diversi px, a seconda della dimensione del font — questo è esattamente ciò che faceva
+// SEMBRARE sbagliato un calcolo che in realtà tornava perfetto sulla larghezza di avanzamento:
+// il bordo "invisibile" del carattere toccava il margine, ma l'inchiostro visibile no.
+// Richiede ctx.font già impostato alla dimensione corretta PRIMA di chiamarla.
+function getTrailingInkBearing(ctx, lineText) {
+  if (!lineText) return 0
+  const chars = Array.from(lineText)
+  const lastCh = chars[chars.length - 1]
+  if (!lastCh || lastCh === ' ') return 0
+  const metrics = ctx.measureText(lastCh)
+  // actualBoundingBoxRight non è supportato in ogni ambiente: se manca, nessuna correzione —
+  // mai un comportamento peggiore di quello di prima, solo eventualmente non migliorato.
+  if (metrics.actualBoundingBoxRight == null || !isFinite(metrics.actualBoundingBoxRight)) return 0
+  const bearing = metrics.width - metrics.actualBoundingBoxRight
+  return bearing > 0 ? bearing : 0
+}
+
+function computeCompensatingSpacing(ctx, lineText, size, fontWeight, fontFamily, maxWidth, baseSpacingPx) {
+  const charCount = Array.from(lineText).length
+  if (charCount <= 1) return 0
+  ctx.font = `${fontWeight} ${size}px ${fontFamily}`
+  const baseWidth = measureTextWithSpacing(ctx, lineText, baseSpacingPx)
+  const deficit = maxWidth - baseWidth
+  if (deficit <= 0) return 0
+  let extra = deficit / (charCount - 1)
+  // CONTROLLO: non fidarsi del calcolo a stima qui sopra. Ricalcola la larghezza REALE che si
+  // otterrebbe con questo "extra" (stesso identico algoritmo usato dal disegno vero, carattere
+  // per carattere) e, se resta un residuo, lo corregge di nuovo — fino a 4 volte, fino a uno
+  // scarto sotto 0,1px. Una singola stima "extra = deficit / gap" presuppone che allargare lo
+  // spazio tra le lettere sposti la larghezza totale in modo perfettamente lineare: di norma è
+  // vero, ma qui verifichiamo invece di darlo per scontato, così un eventuale residuo (di
+  // qualunque origine) viene chiuso comunque anziché lasciato in silenzio.
+  for (let i = 0; i < 4; i++) {
+    const testWidth = measureTextWithSpacing(ctx, lineText, baseSpacingPx + extra)
+    const residual = maxWidth - testWidth
+    if (Math.abs(residual) < 0.1) break
+    extra += residual / (charCount - 1)
+  }
+  return extra
+}
+
+// Restituisce { size, extraSpacingPx }: la dimensione finale della riga e l'eventuale
+// spaziatura lettere aggiuntiva (px, oltre a quella base di LETTER_SPACING_RATIO) necessaria a
+// toccare comunque il bordo destro quando "size" è rimasta bloccata a un limite.
 function refineStretchToWidth(ctx, lineText, predictedSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio) {
+  const finish = (size) => {
+    // Se la dimensione finale NON è al limite, lo stiramento via font-size ha già fatto tutto
+    // il lavoro: nessuna spaziatura extra necessaria.
+    if (size > minFontSize && size < maxFontSize) return { size, extraSpacingPx: 0 }
+    ctx.font = `${fontWeight} ${size}px ${fontFamily}`
+    // Il vero obiettivo è il bordo VISIVO, non quello di avanzamento: se l'ultimo carattere è
+    // tondo/obliquo (C, O, A...) ha una riserva invisibile dopo il suo disegno, quindi bisogna
+    // "stirare" un po' oltre maxWidth di quella riserva perché l'INCHIOSTRO tocchi il bordo.
+    const target = maxWidth + getTrailingInkBearing(ctx, lineText)
+    const baseSpacingPx = size * letterSpacingRatio
+    const extraSpacingPx = computeCompensatingSpacing(ctx, lineText, size, fontWeight, fontFamily, target, baseSpacingPx)
+    return { size, extraSpacingPx }
+  }
   // Se la dimensione prevista è già al limite min/max, resterebbe comunque clampata lì: non ha
-  // senso (e potrebbe essere fuorviante) provare a "correggerla" oltre quel limite.
-  if (predictedSize <= minFontSize || predictedSize >= maxFontSize) return predictedSize
-  ctx.font = `${fontWeight} ${predictedSize}px ${fontFamily}`
-  const actualW = measureTextWithSpacing(ctx, lineText, predictedSize * letterSpacingRatio) || 1
-  if (actualW <= 0) return predictedSize
-  const correctedSize = predictedSize * (maxWidth / actualW)
-  return Math.min(maxFontSize, Math.max(minFontSize, correctedSize))
+  // senso provare a "correggerla" oltre quel limite via font-size — si passa direttamente alla
+  // compensazione con la spaziatura.
+  if (predictedSize <= minFontSize || predictedSize >= maxFontSize) return finish(predictedSize)
+  let size = predictedSize
+  // Itera fino a 6 volte, rimisurando e correggendo ad ogni passo, invece di fermarsi a una
+  // singola correzione lineare: la larghezza del testo non scala mai in modo perfettamente
+  // proporzionale al font-size (arrotondamenti/hinting dei glifi del browser), quindi UNA sola
+  // proiezione lineare lascia spesso un piccolo scarto residuo dal bordo destro (i "pochi px"
+  // notati in anteprima). Ripetendo la misura-e-correggi, ogni passo riduce l'errore residuo
+  // finché non è sotto 0,1px — abbastanza preciso da risultare visivamente perfetto quanto il
+  // margine sinistro, che invece è sempre esatto perché è un punto fisso e non una misura.
+  for (let i = 0; i < 6; i++) {
+    ctx.font = `${fontWeight} ${size}px ${fontFamily}`
+    // Stesso discorso di "finish": lo stiramento via font-size deve puntare al bordo VISIVO
+    // (compensando la riserva dell'ultimo carattere), non a quello di avanzamento.
+    const target = maxWidth + getTrailingInkBearing(ctx, lineText)
+    const actualW = measureTextWithSpacing(ctx, lineText, size * letterSpacingRatio) || 1
+    if (actualW <= 0) break
+    const diff = target - actualW
+    if (Math.abs(diff) < 0.1) break // già preciso al decimo di pixel, non serve continuare
+    size = size * (target / actualW)
+    size = Math.min(maxFontSize, Math.max(minFontSize, size))
+    // Se la correzione ha spinto la dimensione a toccare uno dei due limiti, ulteriori iterazioni
+    // non potrebbero comunque più avvicinarsi al bordo cambiando SOLO il font-size: si esce dal
+    // ciclo e ci pensa "finish" a chiudere lo scarto residuo con la spaziatura.
+    if (size <= minFontSize || size >= maxFontSize) break
+  }
+  return finish(size)
 }
 
 // Calcola la struttura delle righe a una data dimensione di riferimento, poi stira SUBITO
@@ -213,7 +307,7 @@ function refineStretchToWidth(ctx, lineText, predictedSize, fontWeight, fontFami
 function computeStretchedAtSize(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio = 0) {
   const lines = computeStructure(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, letterSpacingRatio)
   return lines.map((line) => {
-    if (!line) return { text: '', fontSize }
+    if (!line) return { text: '', fontSize, extraSpacingPx: 0 }
     // IMPORTANTE: ctx.font va reimpostato alla dimensione BASE qui, per OGNI riga — non basta
     // farlo una volta sola prima del ciclo, perché refineStretchToWidth (chiamata più sotto)
     // lascia ctx.font impostato sulla dimensione RIFINITA di questa riga. Senza reimpostarlo, la
@@ -223,8 +317,8 @@ function computeStretchedAtSize(ctx, text, fontSize, fontWeight, fontFamily, max
     const w = measureTextWithSpacing(ctx, line, fontSize * letterSpacingRatio) || 1
     const scale = maxWidth / w
     const predictedSize = Math.min(maxFontSize, Math.max(minFontSize, fontSize * scale))
-    const size = refineStretchToWidth(ctx, line, predictedSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
-    return { text: line, fontSize: size }
+    const { size, extraSpacingPx } = refineStretchToWidth(ctx, line, predictedSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
+    return { text: line, fontSize: size, extraSpacingPx }
   })
 }
 
@@ -237,7 +331,7 @@ function computeStretchedAtSize(ctx, text, fontSize, fontWeight, fontFamily, max
 function computeStretchedAtSizeFast(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio = 0, refine = true) {
   const lines = computeStructureFast(ctx, text, fontSize, fontWeight, fontFamily, maxWidth, letterSpacingRatio)
   return lines.map((line) => {
-    if (!line) return { text: '', fontSize }
+    if (!line) return { text: '', fontSize, extraSpacingPx: 0 }
     // Stesso motivo del commento in computeStretchedAtSize: reimposta SEMPRE la dimensione BASE
     // prima di misurare questa riga, altrimenti eredita quella (rifinita) lasciata dalla riga
     // precedente nel ciclo.
@@ -246,10 +340,12 @@ function computeStretchedAtSizeFast(ctx, text, fontSize, fontWeight, fontFamily,
     const scale = maxWidth / w
     const sizeGrezza = fontSize * scale
     const predictedSize = Math.min(maxFontSize, Math.max(minFontSize, sizeGrezza))
-    const size = refine
-      ? refineStretchToWidth(ctx, line, predictedSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
-      : predictedSize
-    return { text: line, fontSize: size }
+    // Durante la scansione (refine=false) non serve calcolare la spaziatura extra: qui interessa
+    // solo confrontare le altezze tra tanti candidati, non un risultato pixel-perfect — verrà
+    // ricalcolata comunque nella chiamata finale (refine=true) dopo che "bestSize" è stato scelto.
+    if (!refine) return { text: line, fontSize: predictedSize, extraSpacingPx: 0 }
+    const { size, extraSpacingPx } = refineStretchToWidth(ctx, line, predictedSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
+    return { text: line, fontSize: size, extraSpacingPx }
   })
 }
 
@@ -440,10 +536,43 @@ export function fitText(text, {
 
   // Ricalcolo finale con lo STESSO metodo (veloce) usato durante la scansione.
   const finalLines = computeStretchedAtSizeFast(ctx, text, bestSize, fontWeight, fontFamily, maxWidth, minFontSize, maxFontSize, letterSpacingRatio)
-  const finalMaxLineSize = finalLines.reduce((m, l) => Math.max(m, l.fontSize), 0)
-  return attachAndReturn(finalLines, finalMaxLineSize)
+  // CONTROLLO FINALE, indipendente da tutto il calcolo sopra: rimisura OGNI riga con l'identico
+  // algoritmo usato dal disegno vero (stessa funzione, stesso font, stessa spaziatura) e, se
+  // resta anche un solo pixel di scarto dal bordo destro — per QUALSIASI motivo, non solo i casi
+  // di font bloccato al limite già gestiti sopra — lo chiude con un ultimo aggiustamento della
+  // spaziatura. Una rete di sicurezza a parte: anche se in futuro cambia qualcosa nel calcolo
+  // dello stiramento, o se in qualche caso l'individuazione del "font bloccato" sopra non
+  // scattasse come previsto, il risultato finale viene comunque verificato e corretto qui.
+  const checkedLines = closeResidualGaps(ctx, finalLines, fontWeight, fontFamily, maxWidth, letterSpacingRatio)
+  const finalMaxLineSize = checkedLines.reduce((m, l) => Math.max(m, l.fontSize), 0)
+  return attachAndReturn(checkedLines, finalMaxLineSize)
 }
 
+// Rimisura OGNI riga già calcolata con l'identico algoritmo di misura usato dal disegno finale
+// e, se resta un residuo dal bordo destro (maxWidth), lo chiude allargando la spaziatura tra le
+// lettere — indipendentemente dal fatto che la riga fosse stata segnalata come "al limite"
+// durante il calcolo precedente. Non comprime MAI (nessuna spaziatura negativa): se una riga
+// risultasse già più larga di maxWidth, la lascia com'è invece di stringerla in modo innaturale.
+function closeResidualGaps(ctx, lines, fontWeight, fontFamily, maxWidth, letterSpacingRatio) {
+  return lines.map((line) => {
+    const charCount = Array.from(line.text || '').length
+    if (charCount <= 1) return line
+    ctx.font = `${fontWeight} ${line.fontSize}px ${fontFamily}`
+    // Bordo VISIVO da raggiungere, non quello di avanzamento: se l'ultimo carattere della riga
+    // è tondo/obliquo (C, O, A...) lascia una riserva invisibile dopo il proprio disegno.
+    const target = maxWidth + getTrailingInkBearing(ctx, line.text)
+    let extra = line.extraSpacingPx || 0
+    for (let i = 0; i < 4; i++) {
+      const spacing = line.fontSize * letterSpacingRatio + extra
+      const width = measureTextWithSpacing(ctx, line.text, spacing)
+      const residual = target - width
+      if (Math.abs(residual) < 0.1) break
+      if (residual < 0) break // mai comprimere sotto la spaziatura base
+      extra += residual / (charCount - 1)
+    }
+    return extra === (line.extraSpacingPx || 0) ? line : { ...line, extraSpacingPx: extra }
+  })
+}
 // Calcola l'altezza (spazio verticale) di UNA giunzione tra due righe consecutive, dato il suo
 // valore specifico (già nell'unità giusta: px reali per l'export, px schermo per l'anteprima).
 // gapValue === null → quella giunzione (o l'intera casella, se è null per costruzione) usa il
@@ -510,15 +639,38 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
   // (modalità manuale attiva sulla casella) ma questa specifica giunzione non è stata
   // personalizzata, parte "incollata" (0) e non dal rapporto automatico più largo.
   let cursorY = realY
+  // Raccoglie, riga per riga, i numeri REALI usati per il disegno — NON vengono disegnati sul
+  // canvas (quindi non finiscono mai nell'immagine esportata/salvata): servono solo a chi
+  // chiama questa funzione per mostrarli altrove, ad es. in un pannello di debug nell'editor.
+  const debugLines = []
   lines.forEach((line, i) => {
     ctx.font = `700 ${line.fontSize}px Roboto, sans-serif`
-    const letterSpacingPx = line.fontSize * LETTER_SPACING_RATIO
+    // Se questa riga è rimasta bloccata al limite min/maxFontSize (tipicamente l'ultima riga di
+    // un blocco, la più corta, che avrebbe bisogno di un font troppo grande per stirarsi da
+    // sola fino al bordo), line.extraSpacingPx porta la compensazione calcolata in fitText —
+    // un po' di spazio in più tra le lettere per chiudere lo scarto residuo dal bordo destro.
+    // Nel caso normale (nessun clamp) vale 0 e qui non cambia nulla.
+    const letterSpacingPx = line.fontSize * LETTER_SPACING_RATIO + (line.extraSpacingPx || 0)
 
     // Larghezza totale della riga (per l'allineamento centro/destra): misurata con LO STESSO
     // identico algoritmo (carattere per carattere) usato durante lo stiramento e che verrà
     // usato qui sotto per disegnare — deve combaciare sempre esattamente, altrimenti la riga
     // non tocca i bordi come previsto.
     const totalWidth = measureTextWithSpacing(ctx, line.text, letterSpacingPx)
+    // Riserva invisibile dell'ultimo carattere (0 per lettere "squadrate" come I/M, qualche px
+    // per lettere tonde/oblique come C/O/A) — serve a mostrare lo scarto VISIVO reale, quello
+    // che si vede a occhio, non lo scarto di avanzamento (che ora tocca sempre 0 anche quando
+    // l'inchiostro resta staccato dal bordo).
+    const trailingBearing = getTrailingInkBearing(ctx, line.text)
+    debugLines.push({
+      text: line.text,
+      fontSize: Math.round(line.fontSize * 10) / 10,
+      extraSpacingPx: Math.round((line.extraSpacingPx || 0) * 10) / 10,
+      // Scarto VISIVO dal bordo destro (inchiostro reale, non "casella" del carattere) — se la
+      // correzione ha funzionato dev'essere ~0 per ogni riga (tranne quelle centrate o
+      // allineate a sinistra/destra per scelta, dove "toccare il bordo" non è l'obiettivo).
+      residualPx: Math.round((realWidth - totalWidth + trailingBearing) * 10) / 10
+    })
     let startX = realX
     if (box.align === 'center') startX = realX + (realWidth - totalWidth) / 2
     else if (box.align === 'right') startX = realX + realWidth - totalWidth
@@ -565,6 +717,7 @@ export function drawTextBoxOnCanvas(ctx, box, scale) {
   })
 
   ctx.restore()
+  return debugLines
 }
 
 // Crea un nuovo box di testo con valori di default.
@@ -1468,7 +1621,7 @@ export default function TextOverlay({ containerWidth, containerHeight, textBoxes
                                     (line.fontSize || 16) * previewScale * TIGHT_LINE_HEIGHT_RATIO + gapValueRaw * previewScale
                                   )
                               return (
-                                <div key={i} style={{ fontSize: `${(line.fontSize || 16) * previewScale}px`, letterSpacing: `${(line.fontSize || 16) * previewScale * LETTER_SPACING_RATIO}px`, lineHeight: `${previewLineHeight}px`, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                                <div key={i} style={{ fontSize: `${(line.fontSize || 16) * previewScale}px`, letterSpacing: `${((line.fontSize || 16) * LETTER_SPACING_RATIO + (line.extraSpacingPx || 0)) * previewScale}px`, lineHeight: `${previewLineHeight}px`, whiteSpace: 'normal', wordBreak: 'break-word' }}>
                                   {runs.map((run, ri) => (
                                     <span key={ri} style={{ color: run.color, textDecoration: run.underline ? 'underline' : 'none' }}>
                                       {run.text}
