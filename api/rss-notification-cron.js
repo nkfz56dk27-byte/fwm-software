@@ -74,6 +74,38 @@ function normalizeText(value) {
   return (value || '').toLowerCase();
 }
 
+// fetch() nativo (quello usato su Vercel/Node) IGNORA silenziosamente l'opzione
+// `timeout`: quella funziona solo con la libreria node-fetch. Senza un vero
+// timeout, un feed o un link lento/che non risponde blocca la richiesta senza
+// limiti, ed è la causa più probabile del "Timeout" segnalato dal cron.
+// Questo helper impone un timeout reale via AbortController.
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Esegue fn su ogni elemento di items con al massimo `limit` esecuzioni in
+// parallelo, invece che una alla volta in sequenza (che è ciò che sommava i
+// tempi di tutti i feed/link uno dopo l'altro fino al timeout).
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let index = 0;
+  async function worker() {
+    while (index < items.length) {
+      const current = index++;
+      results[current] = await fn(items[current], current);
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
 function normalizeItemValue(value) {
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object') {
@@ -138,18 +170,18 @@ export default async function handler(req, res) {
     }
 
     const articles = [];
-    for (const feed of feeds) {
-      if (!feed.url) continue;
+    await mapWithConcurrency(feeds, 5, async (feed) => {
+      if (!feed.url) return;
       try {
         console.log(`[RSS CRON] Fetch feed: ${feed.url}`);
-        const response = await fetch(feed.url, {
+        const response = await fetchWithTimeout(feed.url, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (RSS Cron)'
           }
-        });
+        }, 8000);
         if (!response.ok) {
           console.log(`[RSS CRON] Feed non ok: ${feed.url} - Status: ${response.status}`);
-          continue;
+          return;
         }
         const xml = await response.text();
         const items = parseItems(xml).slice(0, 30);
@@ -203,9 +235,8 @@ export default async function handler(req, res) {
         console.log(`[RSS CRON] Feed ${feed.url} - Nuovi: ${countNuovi}, Filtrati: ${countFiltrati}, Upsert OK: ${countUpsertOk}, Upsert ERR: ${countUpsertErr}`);
       } catch (err) {
         console.error(`[RSS CRON] Errore fetch/parsing feed: ${feed.url}`, err);
-        continue;
       }
-    }
+    });
 
     if (!articles || articles.length === 0) {
       return res.status(200).json({ success: true, sent: 0, durationMs: Date.now() - start });
@@ -412,27 +443,26 @@ export default async function handler(req, res) {
       if (monitoredError) throw monitoredError;
 
       if (monitoredLinks && monitoredLinks.length > 0) {
-        for (const link of monitoredLinks) {
+        await mapWithConcurrency(monitoredLinks, 5, async (link) => {
           try {
             if (!link.url) {
               monitoredUrlsStatus.push({ url: 'N/A', status: 'skipped_no_url' });
-              continue;
+              return;
             }
 
-            const response = await fetch(link.url, {
+            const response = await fetchWithTimeout(link.url, {
               headers: { 
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
                 'Referer': 'https://www.google.com/',
                 'Cache-Control': 'max-age=0'
-              },
-              timeout: 10000
-            });
+              }
+            }, 8000);
 
             if (!response.ok) {
               monitoredUrlsStatus.push({ url: link.url, status: `fetch_failed_${response.status}` });
-              continue;
+              return;
             }
 
             const html = await response.text();
@@ -442,13 +472,13 @@ export default async function handler(req, res) {
             if (!link.last_hash) {
               monitoredUrlsStatus.push({ url: link.url, status: 'initial_hash_set' });
               await supabase.from('monitored_urls').update({ last_hash: hash }).eq('id', link.id);
-              continue;
+              return;
             }
 
             // Nessuna modifica
             if (hash === link.last_hash) {
               monitoredUrlsStatus.push({ url: link.url, status: 'no_change' });
-              continue;
+              return;
             }
             monitoredUrlsStatus.push({ url: link.url, status: 'change_detected' });
 
@@ -519,7 +549,7 @@ export default async function handler(req, res) {
             monitoredUrlsStatus.push({ url: link?.url || 'UNKNOWN', status: `error: ${err.message}` });
             console.error('❌ Errore controllo singolo link monitorato:', link?.url, err);
           }
-        }
+        });
       }
     } catch (err) {
       console.error('❌ Errore monitoraggio link web:', err);
