@@ -5405,7 +5405,7 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
   console.log('📱 ClassificheMainMenuView - isMobile ricevuto:', isMobile)
   const backBtnTop = isMobile ? 40 : 20;
   return (
-    <div style={{
+    <div className={isMobile ? 'classifiche-mobile-compact' : ''} style={{
       position: 'fixed',
       top: 0,
       left: 0,
@@ -5428,8 +5428,34 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
         <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
         Indietro
       </button>
+      {isMobile && (
+        <style>{`
+          .classifiche-mobile-compact .home-card {
+            width: 100% !important;
+            max-width: 100% !important;
+            flex: 1 1 0 !important;
+            min-height: 0 !important;
+            padding: 14px !important;
+            gap: 8px !important;
+          }
+          .classifiche-mobile-compact .card-icon-wrapper {
+            width: 56px !important;
+            height: 56px !important;
+          }
+          .classifiche-mobile-compact .card-icon-wrapper img {
+            width: 32px !important;
+            height: 28px !important;
+          }
+          .classifiche-mobile-compact .card-title {
+            font-size: 15px !important;
+          }
+          .classifiche-mobile-compact .card-subtitle {
+            font-size: 11px !important;
+          }
+        `}</style>
+      )}
       {/* Cards row */}
-      <div className="home-cards-row" style={{ display: 'flex', gap: isMobile ? '10px' : '40px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: isMobile ? '10px' : '40px', marginTop: isMobile ? '15px' : '55px' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '10px' : '40px', justifyContent: 'center', flexWrap: isMobile ? 'nowrap' : 'wrap', marginBottom: isMobile ? '10px' : '40px', marginTop: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 90px)' : '55px', width: isMobile ? '100%' : 'auto', flex: isMobile ? 1 : 'unset', minHeight: 0 }}>
         <div className="home-card card-blue" onClick={onOpenClassificheMenu} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
           <div className="card-icon-wrapper">
             <img src={CoppaSVG} alt="Classifiche" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
@@ -5469,7 +5495,7 @@ function ClassificheMainMenuView({ user, isMobile, onBack, onOpenClassificheMenu
       </div>
 
       {/* Cards row 2 - Ordina Tabella e Statistiche */}
-      <div className="home-cards-row" style={{ display: 'flex', gap: isMobile ? '10px' : '40px', justifyContent: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '10px' : '40px', justifyContent: 'center', flexWrap: isMobile ? 'nowrap' : 'wrap', width: isMobile ? '100%' : 'auto', flex: isMobile ? 1 : 'unset', minHeight: 0 }}>
         <div className="home-card card-blue" onClick={() => onOpenOrdinaTabellaClassifica()} style={{ cursor: 'pointer', width: isMobile ? '296px' : '300px', minWidth: isMobile ? '296px' : '300px' }}>
           <div className="card-icon-wrapper">
             <img src={ClassificaHTML} alt="Tabella HTML" style={{ width: "80px", height: "60px", filter: "brightness(0) invert(1)" }} />
