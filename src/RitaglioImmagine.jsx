@@ -1380,19 +1380,17 @@ const TESTO_BASSO_REALE = posCfg.basso
     <div 
       onDragOver={(e) => e.preventDefault()} 
       onDrop={handleDrop}
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 84px)' : 0, background: '#fff', paddingTop: isMobile ? 0 : 'env(safe-area-inset-top)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif', overflow: isMobile ? 'auto' : 'hidden' }}
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: isMobile ? 'calc(39px + max(6px, env(safe-area-inset-bottom, 0px)))' : 0, background: '#fff', paddingTop: isMobile ? 0 : 'env(safe-area-inset-top)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif', overflow: isMobile ? 'auto' : 'hidden' }}
     >
-      {/* Tasto Indietro: stessa struttura/dimensioni standard dell'app.
-          Classe dinamica per poter posizionare la freccia in modo indipendente
-          in ciascuna delle 3 schermate (menu progetti / upload senza immagine /
-          editor con immagine caricata), specialmente su desktop. */}
-      <button
-        className={`page-back-button ${view === 'menu' ? 'back-ritaglio' : (!selectedImage ? 'back-ritaglio-upload' : 'back-ritaglio-editor')}`}
+      {/* Tasto Indietro: stessa classe/posizione standard di tutta l'app, su mobile E desktop */}
+      <button 
+        className={`page-back-button ${view === 'menu' ? 'back-ritaglio' : (selectedImage ? 'back-ritaglio-editor' : 'back-ritaglio-upload')}`}
+        style={{ zIndex: 10001 }} 
         onClick={view === 'menu' ? onClose : () => setView('menu')}
       >
         Indietro
       </button>
-      <div style={{ background: '#F2F2F7', width: isMobile ? '100%' : '95vw', borderRadius: isMobile ? 0 : '28px', overflow: 'hidden', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? 'none' : '95vh', display: 'flex', flexDirection: 'column', boxShadow: isMobile ? 'none' : '0 30px 60px rgba(0,0,0,0.5)' }}>
+      <div style={{ background: '#fff', width: isMobile ? '100%' : '95vw', borderRadius: isMobile ? 0 : '28px', overflow: 'hidden', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? 'none' : '95vh', display: 'flex', flexDirection: 'column', boxShadow: isMobile ? 'none' : '0 30px 60px rgba(0,0,0,0.5)' }}>
         
         <div style={{ padding: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 64px) 25px 14px 25px' : '18px 25px', background: '#fff', borderBottom: '1px solid #e5e5ea', display: 'flex', alignItems: 'center', position: 'relative' }}>
           <span style={{ fontWeight: '900', fontSize: isMobile ? '15px' : '18px', color: '#1c1c1e', marginTop: 0, whiteSpace: 'nowrap', overflow: 'visible', maxWidth: isMobile ? '100vw' : 'none', textAlign: 'center', width: '100%' }}>EDITOR FOTO FWM</span>
@@ -2559,7 +2557,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                               <span style={{ fontSize: '12px', fontWeight: '800', color: '#1c1c1e' }}>
                                 📝 {OVERLAY_GRAPHICS.find((g) => g.key === selectedOverlay)?.label || 'Grafica'}
                               </span>
-                              <button onClick={() => setNotesOpen(false)} style={{ background: 'none', border: 'none', color: '#8e8e93', cursor: 'pointer', fontSize: '16px', padding: 0 }}>✕</button>
+                              <button onClick={() => setNotesOpen(false)} style={{ background: 'none', border: 'none', color: '#FF3B30', cursor: 'pointer', fontSize: '16px', padding: 0 }}>✕</button>
                             </div>
                             {renderNotesList()}
                           </div>
