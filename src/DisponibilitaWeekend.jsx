@@ -258,7 +258,12 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
   }
 
   async function eliminaWeekend(id) {
-    if (!error) caricaWeekends()
+    const { error } = await supabase.from('weekend').delete().eq('id', id)
+    if (error) {
+      console.error('Errore eliminazione weekend:', error)
+      return
+    }
+    caricaWeekends()
   }
 
   async function caricaNotifiche() {
