@@ -806,25 +806,24 @@ body:has(.weekend-detail-overlay) .page-back-button {
     top: 10px;
     left: 18px;
   }
+}
 
-  /* Ritaglio Immagine: posizione diversa SOLO su desktop.
-     Su mobile non c'è nessuna regola per .back-ritaglio, quindi eredita
-     la posizione mobile standard qui sotto */
-  .back-ritaglio {
-    top: 26px;
-    left: 60px;
-  }
-
-  /* Ritaglio Immagine — schermata di caricamento foto (nessuna immagine selezionata) */
-  .back-ritaglio-upload {
-    top: 193px;
-    left: 60px;
-  }
-
-  /* Ritaglio Immagine — schermata di lavoro (immagine caricata, editor attivo) */
+/* Ritaglio Immagine: il modale è centrato e la sua altezza/posizione cambia
+   in base al contenuto e alla finestra — quindi la freccia NON può stare
+   ancorata al viewport (si disallineerebbe). Sta invece dentro l'header
+   del modale stesso (che ha position:relative), centrata verticalmente:
+   si sposta insieme alla card automaticamente, su ogni stato e finestra.
+   Solo desktop: su mobile il modale è a schermo intero, quindi la
+   posizione fissa standard coincide già con l'interno della card. */
+@media (min-width: 769px) {
+  .back-ritaglio,
+  .back-ritaglio-upload,
   .back-ritaglio-editor {
-    top: 44px;
-    left: 60px;
+    position: absolute !important;
+    top: 50% !important;
+    left: 20px !important;
+    transform: translateY(-50%);
+    z-index: 5;
   }
 }
 
