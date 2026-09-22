@@ -49,6 +49,37 @@ function getDomainLabel(url) {
   }
 }
 
+// fetch() nativo IGNORA silenziosamente l'opzione `timeout`. Senza un vero
+// timeout, una chiamata a OneSignal lenta o che non risponde blocca
+// l'esecuzione senza limiti: è la causa più probabile del Timeout segnalato
+// dal cron. Questo helper impone un timeout reale via AbortController.
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Esegue fn su ogni elemento di items con al massimo `limit` esecuzioni in
+// parallelo, invece che una alla volta in sequenza (che è ciò che sommava i
+// tempi di tutte le notifiche una dopo l'altra fino al timeout).
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let index = 0;
+  async function worker() {
+    while (index < items.length) {
+      const current = index++;
+      results[current] = await fn(items[current], current);
+    }
+  }
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
+
 export default async function handler(req, res) {
   const start = Date.now();
   const lockId = `rss-push-${Date.now()}-${Math.random()}`;
@@ -123,7 +154,10 @@ export default async function handler(req, res) {
     let sentCount = 0;
     let failedCount = 0;
 
-    for (const notifica of notifichePending) {
+    // Concorrenza limitata invece di un ciclo sequenziale: se OneSignal è
+    // lento, prima si sommavano i tempi di TUTTE le notifiche una dopo
+    // l'altra fino al timeout della function.
+    await mapWithConcurrency(notifichePending, 5, async (notifica) => {
       try {
         // LOG: Mostra il valore di article_guid e id notifica
         console.log(`[RSS PUSH] Notifica ID: ${notifica.id}, article_guid: ${notifica.article_guid}`);
@@ -156,7 +190,7 @@ export default async function handler(req, res) {
             })
             .eq('id', notifica.id);
           failedCount++;
-          continue;
+          return;
         }
 
         // Trova i device dell'utente (dichiarazione UNA SOLA VOLTA per ciclo)
@@ -185,7 +219,7 @@ export default async function handler(req, res) {
             })
             .eq('id', notifica.id);
           failedCount++;
-          continue;
+          return;
         }
 
         const playerIds = devices.map(d => d.player_id).filter(Boolean);
@@ -222,7 +256,7 @@ export default async function handler(req, res) {
           url: article.link || null
         };
 
-        const oneSignalResponse = await fetch('https://onesignal.com/api/v1/notifications', {
+        const oneSignalResponse = await fetchWithTimeout('https://onesignal.com/api/v1/notifications', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -244,7 +278,7 @@ export default async function handler(req, res) {
             })
             .eq('id', notifica.id);
           failedCount++;
-          continue;
+          return;
         }
 
         console.log(`✅ [RSS PUSH] Notifica ${notifica.id} inviata!`);
@@ -260,9 +294,6 @@ export default async function handler(req, res) {
 
       } catch (error) {
         console.error(`❌ [RSS PUSH] Errore notifica ${notifica.id}:`, error);
-        if (typeof oneSignalPayload !== 'undefined') {
-          console.log(`[RSS PUSH] Payload OneSignal:`, oneSignalPayload);
-        }
         await supabase
           .from('rss_notifications_sent')
           .update({ 
@@ -273,7 +304,7 @@ export default async function handler(req, res) {
           .eq('id', notifica.id);
         failedCount++;
       }
-    }
+    });
 
     console.log(`✅ [RSS PUSH] Completato! Sent: ${sentCount}, Failed: ${failedCount}`);
     
