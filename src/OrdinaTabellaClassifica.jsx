@@ -734,13 +734,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   // ── Vista Editing Dati ────────────────────────────────────────────────────
   if (isEditingData && templateSelezionato) {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', padding: isMobileView ? '20px 0' : '40px 20px', overflowY: 'auto' }}>
-        <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', background: 'white', padding: isMobileView ? '20px' : '30px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-
-          <button onClick={() => { setTemplateSelezionato(null); setIsEditingData(false); setTableData([]); setOutputHtml(''); setShowPreview(false); setIsPosizioniOrdinate(false); setSyncStatus(null); setShowSyncPanel(false) }}
-            style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px', padding: 0 }}>
-            ← Indietro
-          </button>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', padding: isMobileView ? '0 0 20px' : '40px 20px', overflowY: 'auto' }}>
+        <button className="page-back-button" onClick={() => { setTemplateSelezionato(null); setIsEditingData(false); setTableData([]); setOutputHtml(''); setShowPreview(false); setIsPosizioniOrdinate(false); setSyncStatus(null); setShowSyncPanel(false) }}>Indietro</button>
+        <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', background: 'white', padding: isMobileView ? '20px' : '30px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', marginTop: isMobileView ? 'calc(env(safe-area-inset-top, 0px) + 64px)' : 0 }}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
             <h1 style={{ color: '#333', marginTop: 0, marginBottom: 0, fontSize: '28px' }}>
@@ -1108,12 +1104,9 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   // ── Vista ordinamento manuale (Nuovo Template) ────────────────────────────
   return (
     isNuovoTemplate ? (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', padding: '40px 20px', overflowY: 'auto' }}>
-        <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', background: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <button onClick={() => { setTemplateSelezionato(null); setIsNuovoTemplate(false); setInputHtml(''); setOutputHtml(''); setShowPreview(false); setTemplateName(''); setShowSaveForm(false) }}
-            style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', marginBottom: '20px', padding: 0 }}>
-            ← Indietro
-          </button>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: 'url(/sfondo-fwm.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', flexDirection: 'column', padding: isMobileView ? '0 0 20px' : '40px 20px', overflowY: 'auto' }}>
+        <button className="page-back-button" onClick={() => { setTemplateSelezionato(null); setIsNuovoTemplate(false); setInputHtml(''); setOutputHtml(''); setShowPreview(false); setTemplateName(''); setShowSaveForm(false) }}>Indietro</button>
+        <div style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', background: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', marginTop: isMobileView ? 'calc(env(safe-area-inset-top, 0px) + 64px)' : 0 }}>
           <h1 style={{ color: '#2563eb', marginTop: 0, marginBottom: '10px', fontSize: '32px', fontWeight: 700, letterSpacing: '-1px', display: 'flex', alignItems: 'center', gap: '10px' }}>📝 Nuovo Template Timing71</h1>
           <p style={{ color: '#64748b', marginBottom: '24px', fontSize: '17px', fontWeight: 500 }}>Inserisci solo pilota e scuderia. Le altre colonne saranno generate automaticamente.</p>
           <div style={{ marginBottom: '24px' }}>
