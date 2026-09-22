@@ -1380,7 +1380,7 @@ const TESTO_BASSO_REALE = posCfg.basso
     <div 
       onDragOver={(e) => e.preventDefault()} 
       onDrop={handleDrop}
-      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: isMobile ? 'calc(39px + max(6px, env(safe-area-inset-bottom, 0px)))' : 0, background: '#fff', paddingTop: isMobile ? 0 : 'env(safe-area-inset-top)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif', overflow: isMobile ? 'auto' : 'hidden' }}
+      style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: isMobile ? 'calc(max(10px, env(safe-area-inset-bottom, 0px) + 8px) + 72px)' : 0, background: '#fff', paddingTop: isMobile ? 0 : 'env(safe-area-inset-top)', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', zIndex: 10000, fontFamily: '-apple-system, sans-serif', overflow: isMobile ? 'auto' : 'hidden' }}
     >
       <div style={{ background: '#fff', width: isMobile ? '100%' : '95vw', borderRadius: isMobile ? 0 : '28px', overflow: 'hidden', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? 'none' : '95vh', display: 'flex', flexDirection: 'column', boxShadow: isMobile ? 'none' : '0 30px 60px rgba(0,0,0,0.5)' }}>
         
