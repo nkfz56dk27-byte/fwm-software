@@ -4383,9 +4383,10 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
         <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
         Indietro
       </button>
-      <div style={{ position: 'absolute', top: isMobile ? '85px' : '20px', left: isMobile ? '10px' : '20px', right: isMobile ? '10px' : '20px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', zIndex: 100 }}>
+      <div style={{ position: 'absolute', top: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 24px)' : '14px', left: isMobile ? '10px' : '20px', right: isMobile ? '10px' : '20px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', zIndex: 100 }}>
         {isAdmin && (
           <button
+            className="classifica-header-toggle"
             onClick={() => {
               if (modalitaElimina) {
                 setModalitaElimina(false);
@@ -4396,8 +4397,8 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
               }
             }}
             style={{
-              width: isMobile ? '44px' : '48px',
-              height: isMobile ? '44px' : '48px',
+              width: isMobile ? '38px' : '42px',
+              height: isMobile ? '38px' : '42px',
               borderRadius: "50%",
               border: "none",
               background: modalitaElimina ? "#34C759" : "#FF3B30",
@@ -4405,20 +4406,20 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
-              boxShadow: "0 4px 10px rgba(0,0,0,0.3)"
+              boxShadow: modalitaElimina ? "0 4px 14px rgba(52,199,89,0.4)" : "0 4px 14px rgba(255,59,48,0.4)"
             }}
           >
             {modalitaElimina ? (
-              <svg viewBox="0 0 24 24" width={isMobile ? "20" : "24"} height={isMobile ? "20" : "24"} fill="white">
-                <path d="M9 16.2l-3.5-3.5 1.4-1.4L9 13.4l8.1-8.1 1.4 1.4z" />
+              <svg viewBox="0 0 24 24" width={isMobile ? "17" : "19"} height={isMobile ? "17" : "19"} fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12.5l4.5 4.5L19 7" />
               </svg>
             ) : (
               <img
                 src={CestinoSVG}
                 alt="Cestino"
                 style={{
-                  width: isMobile ? "20px" : "24px",
-                  height: isMobile ? "20px" : "24px",
+                  width: isMobile ? "16px" : "18px",
+                  height: isMobile ? "16px" : "18px",
                   filter: "brightness(0) invert(1)"
                 }}
               />
@@ -4426,46 +4427,56 @@ function ClassificheMenuView({ user, isMobile, onBack, onOpenClassifica }) {
           </button>
         )}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '40px' }}>
-          {formula1 && <button onClick={() => onOpenClassifica(formula1.id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula 1</button>}
-          {formulaE && <button onClick={() => onOpenClassifica(formulaE.id)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>Formula E</button>}
+      <div className="classifica-select-wrap" style={{ padding: isMobile ? '0 16px' : 0 }}>
+        <div className="classifica-hero-row">
+          {formula1 && (
+            <button className="classifica-hero-card" onClick={() => onOpenClassifica(formula1.id)}>
+              Formula 1
+            </button>
+          )}
+          {formulaE && (
+            <button className="classifica-hero-card" onClick={() => onOpenClassifica(formulaE.id)}>
+              Formula E
+            </button>
+          )}
         </div>
-        <button onClick={() => setShowAltreClassifiche(!showAltreClassifiche)} style={{ width: '250px', height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>
-          {showAltreClassifiche ? 'Chiudi Altre Classifiche' : 'Altre Classifiche'}
-        </button>
-        {showAltreClassifiche && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '540px' }}>
-            {classifiche.filter(c => c.nome !== "Formula 1" && c.nome !== "Formula E").map((c, idx) => (
-              <div key={typeof c.id === 'object' ? JSON.stringify(c.id) : c.id || idx} style={{ display: 'flex', gap: '10px' }}>
-                {modalitaElimina && <button onClick={() => eliminaClassifica(c.id)} style={{ width: '40px', height: '40px', borderRadius: '50%', border: 'none', background: '#FF3B30', color: 'white', fontSize: '24px', cursor: 'pointer' }}>−</button>}
-                <button onClick={() => !modalitaElimina && onOpenClassifica(c.id)} style={{ flex: 1, height: '80px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '25px', fontSize: '24px', fontWeight: 'bold', cursor: modalitaElimina ? 'default' : 'pointer', opacity: modalitaElimina ? 0.6 : 1, boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{c.nome}</button>
-              </div>
-            ))}
-           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '30px 0' }}>
-  {isAdmin && !modalitaElimina && (
-    <button
-      onClick={() => setShowNuova(true)}
-      style={{
-        width: '320px',
-        height: '90px',
-        background: '#34C759',
-        color: 'white',
-        border: 'none',
-        borderRadius: '30px',
-        fontSize: '28px',
-        fontWeight: 'bold',
-        cursor: 'pointer',
-        boxShadow: '0 4px 15px rgba(0,0,0,0.3)',
-        textAlign: 'center',
-        margin: '0 auto'
-      }}
-    >
-      Nuova Classifica Personalizzata
-    </button>
-  )}
-</div>
 
+        <button
+          className={`classifica-toggle-btn${showAltreClassifiche ? ' is-open' : ''}`}
+          onClick={() => setShowAltreClassifiche(!showAltreClassifiche)}
+        >
+          {showAltreClassifiche ? 'Chiudi altre classifiche' : 'Altre classifiche'}
+          <span className="classifica-toggle-chevron">▾</span>
+        </button>
+
+        {showAltreClassifiche && (
+          <div className="classifica-list-panel">
+            {classifiche.filter(c => c.nome !== "Formula 1" && c.nome !== "Formula E").map((c, idx) => (
+              <button
+                key={typeof c.id === 'object' ? JSON.stringify(c.id) : c.id || idx}
+                className={`classifica-list-row${modalitaElimina ? ' is-disabled' : ''}`}
+                onClick={() => !modalitaElimina && onOpenClassifica(c.id)}
+              >
+                <span className="classifica-list-name">{c.nome}</span>
+                {modalitaElimina ? (
+                  <span
+                    className="classifica-delete-btn"
+                    role="button"
+                    aria-label="Elimina classifica"
+                    onClick={(e) => { e.stopPropagation(); eliminaClassifica(c.id); }}
+                  >
+                    <img src={CestinoSVG} alt="" style={{ width: '14px', height: '14px', filter: 'brightness(0) invert(1)', opacity: 0.85 }} />
+                  </span>
+                ) : (
+                  <span className="classifica-list-chevron">›</span>
+                )}
+              </button>
+            ))}
+            {isAdmin && !modalitaElimina && (
+              <button className="classifica-add-row" onClick={() => setShowNuova(true)}>
+                <span>+ Nuova classifica personalizzata</span>
+              </button>
+            )}
           </div>
         )}
       </div>
