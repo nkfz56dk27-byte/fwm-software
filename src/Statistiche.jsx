@@ -181,6 +181,7 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
   const [careerConstructorStats, setCareerConstructorStats] = useState(null)
   const [expandedDriverMetric, setExpandedDriverMetric] = useState(null)
   const [expandedConstructorMetric, setExpandedConstructorMetric] = useState(null)
+  const [overtakesByRace, setOvertakesByRace] = useState({}) // cache per raceKey: { loading, available, total, byDriver }
   const [driverVsMode, setDriverVsMode] = useState(false)
   const [compareDriverId, setCompareDriverId] = useState(null)
   const [comparedCareerDriverStats, setComparedCareerDriverStats] = useState(null)
@@ -1557,6 +1558,74 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
     }
 
     return emptyPayload
+  }
+
+  // --------------------------------------------------------------------
+  // SORPASSI (OpenF1 - chiamata diretta dal client, nessun proxy: OpenF1
+  // supporta CORS e non richiede API key per i dati storici dal 2023)
+  // --------------------------------------------------------------------
+  const OPENF1_BASE_URL = 'https://api.openf1.org/v1'
+
+  const fetchFromOpenF1 = async (endpoint) => {
+    try {
+      const response = await fetch(`${OPENF1_BASE_URL}${endpoint}`)
+      if (!response.ok) return null
+      return await response.json()
+    } catch (error) {
+      console.error(`Errore fetch da OpenF1 (${endpoint}):`, error)
+      return null
+    }
+  }
+
+  // Trova il session_key OpenF1 della gara (sessione "Race") corrispondente
+  // a una gara Jolpica, abbinando anno + data (i dati OpenF1 partono dal 2023).
+  const findOpenF1RaceSessionKey = async (race) => {
+    const year = race?.season
+    const raceDate = race?.date
+    if (!year || !raceDate) return null
+
+    const sessions = await fetchFromOpenF1(`/sessions?year=${year}&session_name=Race`)
+    if (!Array.isArray(sessions) || sessions.length === 0) return null
+
+    const match = sessions.find(s => String(s?.date_start || '').slice(0, 10) === raceDate)
+    return match?.session_key || null
+  }
+
+  // Conteggio sorpassi totali e per pilota per una singola gara.
+  const fetchOvertakesForRace = async (race) => {
+    const sessionKey = await findOpenF1RaceSessionKey(race)
+    if (!sessionKey) return { available: false }
+
+    const [overtakes, drivers] = await Promise.all([
+      fetchFromOpenF1(`/overtakes?session_key=${sessionKey}`),
+      fetchFromOpenF1(`/drivers?session_key=${sessionKey}`)
+    ])
+
+    if (!Array.isArray(overtakes)) return { available: false }
+
+    const driverNameByNumber = new Map(
+      (Array.isArray(drivers) ? drivers : []).map(d => [
+        d.driver_number,
+        `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.name_acronym || `#${d.driver_number}`
+      ])
+    )
+
+    const countByDriver = new Map()
+    overtakes.forEach(ot => {
+      const num = ot?.overtaking_driver_number
+      if (num === undefined || num === null) return
+      countByDriver.set(num, (countByDriver.get(num) || 0) + 1)
+    })
+
+    const byDriver = Array.from(countByDriver.entries())
+      .map(([num, count]) => ({
+        driverNumber: num,
+        driverName: driverNameByNumber.get(num) || `#${num}`,
+        count
+      }))
+      .sort((a, b) => b.count - a.count)
+
+    return { available: true, total: overtakes.length, byDriver }
   }
 
   // --------------------------------------------------------------------
@@ -3887,38 +3956,13 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '20px',
+        paddingTop: '20px',
+        paddingLeft: '20px',
+        paddingRight: '20px',
+        paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 110px)' : '20px',
         overflowY: 'auto'
       }}>
-        <div style={{
-          position: 'absolute',
-          top: isMobile ? '80px' : '20px',
-          left: '20px',
-          display: 'flex',
-          justifyContent: 'flex-start',
-          alignItems: 'center',
-          zIndex: 100
-        }}>
-          <button
-            onClick={() => setSelectedDriverId(null)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'none',
-              border: 'none',
-              color: '#007AFF',
-              fontSize: '18px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}>
-              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-            </svg>
-            Piloti
-          </button>
-        </div>
+        <button className="page-back-button" onClick={() => setSelectedDriverId(null)}>Piloti</button>
 
         <div style={{
           background: 'linear-gradient(180deg, rgba(12,14,19,0.94) 0%, rgba(8,10,14,0.92) 100%)',
@@ -4429,38 +4473,13 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '20px',
+        paddingTop: '20px',
+        paddingLeft: '20px',
+        paddingRight: '20px',
+        paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 110px)' : '20px',
         overflowY: 'auto'
       }}>
-        <div style={{
-          position: 'absolute',
-          top: isMobile ? '80px' : '20px',
-          left: '20px',
-          display: 'flex',
-          justifyContent: 'flex-start',
-          alignItems: 'center',
-          zIndex: 100
-        }}>
-          <button
-            onClick={() => setSelectedConstructorId(null)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              background: 'none',
-              border: 'none',
-              color: '#007AFF',
-              fontSize: '18px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}>
-              <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-            </svg>
-            Team
-          </button>
-        </div>
+        <button className="page-back-button" onClick={() => setSelectedConstructorId(null)}>Team</button>
 
         <div style={{
           background: 'linear-gradient(180deg, rgba(12,14,19,0.94) 0%, rgba(8,10,14,0.92) 100%)',
@@ -4678,38 +4697,13 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '20px',
+      paddingTop: '20px',
+      paddingLeft: '20px',
+      paddingRight: '20px',
+      paddingBottom: isMobile ? 'calc(env(safe-area-inset-bottom, 0px) + 110px)' : '20px',
       overflowY: 'auto'
     }}>
-      <div style={{
-        position: 'absolute',
-        top: isMobile ? '80px' : '20px',
-        left: '20px',
-        display: 'flex',
-        justifyContent: 'flex-start',
-        alignItems: 'center',
-        zIndex: 100
-      }}>
-        <button
-          onClick={onClose}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: 'none',
-            border: 'none',
-            color: '#007AFF',
-            fontSize: '18px',
-            fontWeight: 'bold',
-            cursor: 'pointer'
-          }}
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" style={{ width: '24px', height: '24px' }}>
-            <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-          </svg>
-          Indietro
-        </button>
-      </div>
+      <button className="page-back-button" onClick={onClose}>Indietro</button>
 
       <div style={{
         background: 'linear-gradient(180deg, rgba(12,14,19,0.94) 0%, rgba(8,10,14,0.92) 100%)',
@@ -5479,6 +5473,90 @@ export default function Statistiche({ onClose, user, isMobile, campionati }) {
           </div>
         </div>
 
+      </div>
+
+      <div style={{
+        maxWidth: '1200px',
+        width: '100%',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: '16px',
+        marginBottom: '20px'
+      }}>
+        <div style={darkPanelStyle(isMobile)}>
+          <h3 style={sectionTitleStyle(isMobile)}>
+            Sorpassi per gara
+          </h3>
+          <div style={{ maxHeight: isMobile ? '300px' : '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {seasonResultsList.map((race, idx) => {
+              const raceKey = `overtakes-${race.season || selectedSeason}-${race.round || idx}-${idx}`
+              const isOpen = selectedRace?.type === 'overtakes' && selectedRace?.key === raceKey
+              const overtakesInfo = overtakesByRace[raceKey]
+
+              return (
+                <div
+                  key={raceKey}
+                  onClick={() => {
+                    const opening = !isOpen
+                    setSelectedRace(opening ? { type: 'overtakes', key: raceKey } : null)
+                    if (opening && !overtakesByRace[raceKey]) {
+                      setOvertakesByRace(prev => ({ ...prev, [raceKey]: { loading: true } }))
+                      fetchOvertakesForRace(race).then(result => {
+                        setOvertakesByRace(prev => ({ ...prev, [raceKey]: { loading: false, ...result } }))
+                      })
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    background: isOpen ? 'rgba(0, 122, 255, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                    border: isOpen ? '1px solid rgba(0, 122, 255, 0.45)' : '1px solid rgba(255, 255, 255, 0.12)',
+                    borderRadius: '10px',
+                    padding: isMobile ? '10px' : '11px',
+                    color: '#FFF',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: '600' }}>{race.raceName || '-'}</div>
+                      <div style={{ color: '#BDBDBD', fontSize: '13px', marginTop: '2px' }}>{formatDateItalian(race.date)}</div>
+                    </div>
+                    {overtakesInfo && !overtakesInfo.loading && overtakesInfo.available && (
+                      <div style={{ color: '#9EC5FF', fontWeight: '800', fontSize: '18px' }}>{overtakesInfo.total}</div>
+                    )}
+                  </div>
+
+                  {isOpen && (
+                    <div style={{ marginTop: '8px', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '8px' }}>
+                      {(!overtakesInfo || overtakesInfo.loading) && (
+                        <div style={{ color: '#999', fontSize: '12px' }}>Caricamento sorpassi…</div>
+                      )}
+                      {overtakesInfo && !overtakesInfo.loading && !overtakesInfo.available && (
+                        <div style={{ color: '#999', fontSize: '12px' }}>Sorpassi non disponibili per questa gara (dato OpenF1 assente, es. gare precedenti al 2023)</div>
+                      )}
+                      {overtakesInfo && !overtakesInfo.loading && overtakesInfo.available && (
+                        <div>
+                          <div style={{ fontWeight: '700', fontSize: '13px', marginBottom: '6px', color: '#9EC5FF' }}>
+                            Sorpassi totali: {overtakesInfo.total}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            {overtakesInfo.byDriver.map(d => (
+                              <div key={d.driverNumber} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                                <span>{d.driverName}</span>
+                                <span style={{ fontWeight: '600' }}>{d.count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
       <div style={{
