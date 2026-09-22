@@ -577,7 +577,7 @@ async function sendAccreditiAdminReminders() {
         const giorniMancanti = Math.floor((dataEv.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24));
         return { ...ev, giorniMancanti };
       })
-      .filter(ev => giorniMancanti <= (SOGLIA_GIORNI_ACCREDITI[ev.accredito_status] ?? -1));
+      .filter(ev => ev.giorniMancanti <= (SOGLIA_GIORNI_ACCREDITI[ev.accredito_status] ?? -1));
 
     console.log(`[INFO] ${eventiInSoglia.length} eventi entro soglia (90gg da_richiedere / 21gg richiesto)`);
 
