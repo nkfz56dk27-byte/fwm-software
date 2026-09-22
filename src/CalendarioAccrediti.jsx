@@ -32,6 +32,23 @@ function isStatoAccreditoUrgente(accreditoStatus, giorniMancanti) {
   return false;
 }
 
+// Utility: stabilisce se un evento è idoneo al rimborso in base al criterio impostato dall'admin
+// (criterio: 'estero' | 'nazionale' | 'entrambi'). Default: 'estero' (comportamento storico).
+function eventoIdoneoPerRimborso(evento, criterio) {
+  const c = criterio || 'estero';
+  if (c === 'entrambi') return true;
+  if (c === 'nazionale') return !evento?.estero;
+  return !!evento?.estero;
+}
+
+// Utility: messaggio da mostrare quando un evento non è idoneo al rimborso col criterio attuale
+function motivoRimborsoNonDisponibile(evento, criterio) {
+  const c = criterio || 'estero';
+  if (c === 'entrambi') return '';
+  if (c === 'nazionale') return evento?.estero ? 'evento estero, non rimborsabile con il criterio attuale' : '';
+  return !evento?.estero ? 'evento nazionale, non rimborsabile con il criterio attuale' : '';
+}
+
 // Utility: Estrai e formatta le sessioni per un giorno specifico
 function estraiSessioniGiornata(programmazione_weekend, giornoKey) {
   // giornoKey: es. "sabato", "domenica", "lun", "mar", ...
@@ -105,6 +122,340 @@ const EMOJI_DISPONIBILI = [
 ]
 
 const MESI_ITALIANO = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
+
+// Modale OBBLIGATORIO: chiede se l'evento (o l'intera stagione) si svolge all'ESTERO o in ITALIA (NAZIONALE).
+// Indicizzare questa informazione fin dalla creazione permette di far dipendere in futuro qualsiasi logica
+// (oggi: solo gli eventi ESTERO sono rimborsabili) senza dover più ritoccare gli eventi già salvati.
+function TipoEventoModal({ onConfirm, onClose, isMobile, titolo = 'Dove si svolge questo evento?', sottotitolo, zIndex = 20000 }) {
+  const [scelta, setScelta] = useState(null); // 'estero' | 'nazionale'
+  return (
+    <div className="fwm-glass-overlay" style={{ zIndex }}>
+      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+          <div style={{ fontWeight: 700, fontSize: 18 }}>🌍 {titolo}</div>
+          <div style={{ fontSize: 12, color: '#666', marginTop: 6 }}>
+            {sottotitolo || "Necessario per sapere se è potenzialmente rimborsabile: solo gli eventi ESTERO lo sono."}
+          </div>
+        </div>
+        <div style={{ padding: '25px', display: 'flex', gap: 12 }}>
+          <button
+            type="button"
+            onClick={() => setScelta('estero')}
+            style={{
+              flex: 1, padding: '20px 10px', borderRadius: 12, textAlign: 'center',
+              border: scelta === 'estero' ? '1px solid #1c1c1e' : '1px solid #e2e2e2',
+              background: scelta === 'estero' ? '#1c1c1e' : '#f7f7f8',
+              color: scelta === 'estero' ? '#fff' : '#555',
+              fontWeight: 600, fontSize: 15, cursor: 'pointer', transition: 'all 0.15s'
+            }}
+          >
+            🌍 Estero
+            <div style={{ fontWeight: 400, fontSize: 11, marginTop: 4, opacity: 0.8 }}>Potenzialmente rimborsabile</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setScelta('nazionale')}
+            style={{
+              flex: 1, padding: '20px 10px', borderRadius: 12, textAlign: 'center',
+              border: scelta === 'nazionale' ? '1px solid #1c1c1e' : '1px solid #e2e2e2',
+              background: scelta === 'nazionale' ? '#1c1c1e' : '#f7f7f8',
+              color: scelta === 'nazionale' ? '#fff' : '#555',
+              fontWeight: 600, fontSize: 15, cursor: 'pointer', transition: 'all 0.15s'
+            }}
+          >
+            🇮🇹 Nazionale
+            <div style={{ fontWeight: 400, fontSize: 11, marginTop: 4, opacity: 0.8 }}>Non rimborsabile</div>
+          </button>
+        </div>
+        <div style={{ padding: '0 25px 25px', display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: 10, border: '2px solid #000', background: '#fff', fontWeight: 800, cursor: 'pointer' }}>ANNULLA</button>
+          <button
+            onClick={() => scelta && onConfirm(scelta === 'estero')}
+            disabled={!scelta}
+            style={{ flex: 2, padding: '14px', borderRadius: 10, border: 'none', background: scelta ? '#34C759' : '#ccc', color: '#fff', fontWeight: 800, cursor: scelta ? 'pointer' : 'not-allowed' }}
+          >
+            CONFERMA E SALVA
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Modale "Menu Admin": raggruppa in un unico posto le opzioni amministrative.
+// Pensato per essere facilmente estendibile: basta aggiungere una voce all'array `opzioni`.
+function AdminMenuModal({ onClose, onCategorie, onRimborsi, onCriterioRimborso, onTuttiEventi, rimborsiUsati, totaleRimborsabili, rimborsiDisponibili, criterioRimborsoLabel, numeroEventi, isMobile }) {
+  const opzioni = [
+    { icon: '🏁', label: 'Categorie', sub: 'Gestisci campionati, colori ed emoji', onClick: onCategorie },
+    { icon: '💶', label: 'Rimborsi Accrediti', sub: `${rimborsiUsati}/${totaleRimborsabili} usati quest'anno · ${rimborsiDisponibili} disponibili`, onClick: onRimborsi },
+    { icon: '🌍', label: 'Criterio Rimborso', sub: `Attuale: ${criterioRimborsoLabel}`, onClick: onCriterioRimborso },
+    { icon: '📋', label: 'Eventi Futuri', sub: `${numeroEventi} in programma · modificali tutti da qui`, onClick: onTuttiEventi }
+    // Nuove opzioni admin (es. logiche future) possono essere aggiunte qui come nuove voci.
+  ];
+  return (
+    <div className="fwm-glass-overlay">
+      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '420px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <b>⚙️ Menu Admin</b>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
+        </div>
+        <div style={{ padding: '18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {opzioni.map((o, i) => (
+            <button
+              key={i}
+              onClick={o.onClick}
+              style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, border: '1px solid #eee', background: '#f8f9fa', cursor: 'pointer', textAlign: 'left' }}
+            >
+              <span style={{ fontSize: 24, flexShrink: 0 }}>{o.icon}</span>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontWeight: 700, fontSize: 14, color: '#222' }}>{o.label}</span>
+                <span style={{ fontSize: 12, color: '#666' }}>{o.sub}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Modale Admin (a parte, separato dal budget): imposta se la logica deve considerare rimborsabili
+// gli eventi ESTERO, i NAZIONALI, o ENTRAMBI. Vale per anno solare, come il budget rimborsi.
+function CriterioRimborsoModal({ anno, criterioAttuale, onClose, onUpdate, isMobile }) {
+  const [criterio, setCriterio] = useState(criterioAttuale || 'estero');
+  const [salvando, setSalvando] = useState(false);
+
+  const opzioni = [
+    { value: 'estero', label: '🌍 Solo Estero', desc: 'Sono rimborsabili solo gli eventi che si svolgono all\'estero (default).' },
+    { value: 'nazionale', label: '🇮🇹 Solo Nazionale', desc: 'Sono rimborsabili solo gli eventi che si svolgono in Italia.' },
+    { value: 'entrambi', label: '🌍🇮🇹 Entrambi', desc: 'Tutti gli eventi sono rimborsabili, indipendentemente da dove si svolgono.' }
+  ];
+
+  async function salva() {
+    setSalvando(true);
+    try {
+      const payload = { anno, criterio_rimborso: criterio };
+      const { error } = await supabase.from('impostazioni_rimborsi_accrediti').upsert(payload, { onConflict: 'anno' });
+      if (error) throw error;
+      if (typeof onUpdate === 'function') await onUpdate();
+      onClose();
+    } catch (e) {
+      alert('Errore salvataggio criterio rimborso: ' + (e.message || e));
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="fwm-glass-overlay">
+      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '440px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <b>🌍 Criterio Rimborso {anno}</b>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
+        </div>
+        <div style={{ padding: '20px' }}>
+          <div style={{ fontSize: 13, color: '#666', marginBottom: 16 }}>
+            Scegli quali eventi la logica deve considerare rimborsabili per l'anno {anno}. Puoi cambiare questa impostazione in qualsiasi momento senza dover rifare la logica.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {opzioni.map(o => (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => setCriterio(o.value)}
+                style={{
+                  textAlign: 'left', padding: '14px 16px', borderRadius: 12,
+                  border: criterio === o.value ? '2px solid #8e44ad' : '1px solid #ddd',
+                  background: criterio === o.value ? '#8e44ad' : '#fff',
+                  color: criterio === o.value ? '#fff' : '#333',
+                  cursor: 'pointer', transition: 'all 0.15s'
+                }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{o.label}</div>
+                <div style={{ fontSize: 12, marginTop: 3, opacity: 0.9 }}>{o.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ padding: '20px', borderTop: '1px solid #e0e0e0', display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '12px', borderRadius: 8, border: '2px solid #000', background: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>Annulla</button>
+          <button onClick={salva} disabled={salvando} style={{ flex: 2, padding: '12px', borderRadius: 8, border: 'none', background: '#34C759', color: '#fff', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: salvando ? 0.7 : 1 }}>
+            {salvando ? 'Salvataggio...' : 'Salva Criterio'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Modale SOLO ADMIN: elenco di TUTTI gli eventi in calendario, per modificarli (o eliminarli)
+// in un unico posto, senza doverli cercare uno per uno nel calendario.
+function GestioneEventiModal({ eventi, campionati, isMobile, onClose, caricaDati }) {
+  const [ricerca, setRicerca] = useState('');
+  // Modifiche in sospeso: { [eventoId]: { campo: valore, ... } }. Ogni riga è sempre modificabile;
+  // le modifiche restano solo in memoria finché non si preme "Salva Tutte le Modifiche".
+  const [modifiche, setModifiche] = useState({});
+  const [salvando, setSalvando] = useState(false);
+
+  // Mostra solo eventi futuri o ancora in corso (esclude quelli già conclusi)
+  const oggi = new Date();
+  const inizioOggi = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate());
+  const eventiOrdinati = [...eventi]
+    .filter(e => {
+      const fineEvento = e.data_fine || e.data_inizio;
+      if (!fineEvento) return true;
+      return new Date(fineEvento) >= inizioOggi;
+    })
+    .filter(e => !ricerca || (e.titolo || '').toLowerCase().includes(ricerca.toLowerCase()))
+    .sort((a, b) => new Date(a.data_inizio || 0) - new Date(b.data_inizio || 0));
+
+  // Valore corrente di un campo per una riga: modifica in sospeso se presente, altrimenti valore originale
+  function valoreCampo(ev, campo) {
+    return modifiche[ev.id] && modifiche[ev.id][campo] !== undefined ? modifiche[ev.id][campo] : ev[campo];
+  }
+  function setCampo(ev, campo, valore) {
+    setModifiche(prev => ({
+      ...prev,
+      [ev.id]: { ...(prev[ev.id] || {}), [campo]: valore }
+    }));
+  }
+
+  const numeroModifiche = Object.keys(modifiche).length;
+
+  // Salva TUTTE le righe modificate in un unico colpo
+  async function salvaTutteLeModifiche() {
+    if (numeroModifiche === 0) return;
+    setSalvando(true);
+    try {
+      const risultati = await Promise.all(
+        Object.entries(modifiche).map(([id, campi]) =>
+          supabase.from('eventi_calendario').update({
+            ...(campi.titolo !== undefined ? { titolo: campi.titolo } : {}),
+            ...(campi.data_inizio !== undefined ? { data_inizio: campi.data_inizio } : {}),
+            ...(campi.data_fine !== undefined ? { data_fine: campi.data_fine || null } : {}),
+            ...(campi.estero !== undefined ? { estero: !!campi.estero } : {}),
+            ...(campi.max_accrediti !== undefined ? { max_accrediti: Number(campi.max_accrediti) || 0 } : {}),
+            ...(campi.accredito_status !== undefined ? { accredito_status: campi.accredito_status || 'nessuno' } : {})
+          }).eq('id', id)
+        )
+      );
+      const errori = risultati.filter(r => r.error);
+      if (errori.length > 0) {
+        alert(`Alcune modifiche non sono state salvate (${errori.length}/${risultati.length}). Riprova.`);
+      }
+      if (typeof caricaDati === 'function') await caricaDati();
+      setModifiche({});
+    } catch (e) {
+      alert('Errore durante il salvataggio: ' + (e.message || e));
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  function annullaTutteLeModifiche() {
+    setModifiche({});
+  }
+
+  async function eliminaRiga(ev) {
+    if (!window.confirm(`Eliminare definitivamente "${ev.titolo}"? L'operazione non è reversibile.`)) return;
+    try {
+      const { error } = await supabase.from('eventi_calendario').delete().eq('id', ev.id);
+      if (error) throw error;
+      setModifiche(prev => {
+        const copia = { ...prev };
+        delete copia[ev.id];
+        return copia;
+      });
+      if (typeof caricaDati === 'function') await caricaDati();
+    } catch (e) {
+      alert('Errore eliminazione: ' + (e.message || e));
+    }
+  }
+
+  const sInpRiga = { width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid #ddd', fontSize: 12 };
+  const sLabRiga = { fontSize: 10, fontWeight: 600, color: '#888', display: 'block', marginBottom: 2 };
+
+  return (
+    <div className="fwm-glass-overlay">
+      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '720px', maxHeight: isMobile ? '100vh' : '88vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <b style={{ fontSize: 18 }}>📋 Eventi Futuri ({eventiOrdinati.length})</b>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
+        </div>
+        <div style={{ padding: '14px 24px', borderBottom: '1px solid #eee' }}>
+          <input
+            type="text"
+            placeholder="🔎 Cerca per titolo..."
+            value={ricerca}
+            onChange={e => setRicerca(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid #ddd', fontSize: 14 }}
+          />
+          <div style={{ fontSize: 11, color: '#999', marginTop: 8 }}>Modifica direttamente i campi qui sotto: le modifiche restano in sospeso finché non premi "Salva Tutte le Modifiche" in fondo.</div>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 24px' }}>
+          {eventiOrdinati.length === 0 && <div style={{ color: '#888', fontSize: 14, textAlign: 'center', padding: '20px 0' }}>Nessun evento trovato.</div>}
+          {eventiOrdinati.map(ev => {
+            const campionato = campionati.find(c => c.id === ev.campionato_id);
+            const modificata = !!modifiche[ev.id];
+            return (
+              <div key={ev.id} style={{ border: modificata ? '1.5px solid #34C759' : '1px solid #eee', borderRadius: 12, padding: '12px 14px', marginBottom: 10, background: modificata ? '#f4fdf6' : '#fff' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#999', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {campionato?.emoji ? `${campionato.emoji} ` : ''}{campionato?.nome || ''}
+                    {modificata && <span style={{ fontSize: 10, fontWeight: 700, color: '#34C759' }}>● modificato</span>}
+                  </div>
+                  <button onClick={() => eliminaRiga(ev)} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: '#fdeceb', color: '#FF3B30', fontWeight: 600, fontSize: 11, cursor: 'pointer' }}>Elimina</button>
+                </div>
+                <label style={sLabRiga}>Titolo</label>
+                <input value={valoreCampo(ev, 'titolo') || ''} onChange={e => setCampo(ev, 'titolo', e.target.value)} style={{ ...sInpRiga, marginBottom: 8 }} />
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={sLabRiga}>Inizio</label>
+                    <input type="date" value={valoreCampo(ev, 'data_inizio') || ''} onChange={e => setCampo(ev, 'data_inizio', e.target.value)} style={sInpRiga} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={sLabRiga}>Fine</label>
+                    <input type="date" value={valoreCampo(ev, 'data_fine') || ''} onChange={e => setCampo(ev, 'data_fine', e.target.value)} style={sInpRiga} />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <button type="button" onClick={() => setCampo(ev, 'estero', true)} style={{ flex: 1, padding: '7px', borderRadius: 6, border: valoreCampo(ev, 'estero') ? '1px solid #1c1c1e' : '1px solid #e2e2e2', background: valoreCampo(ev, 'estero') ? '#1c1c1e' : '#f7f7f8', color: valoreCampo(ev, 'estero') ? '#fff' : '#555', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>🌍 Estero</button>
+                  <button type="button" onClick={() => setCampo(ev, 'estero', false)} style={{ flex: 1, padding: '7px', borderRadius: 6, border: !valoreCampo(ev, 'estero') ? '1px solid #1c1c1e' : '1px solid #e2e2e2', background: !valoreCampo(ev, 'estero') ? '#1c1c1e' : '#f7f7f8', color: !valoreCampo(ev, 'estero') ? '#fff' : '#555', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>🇮🇹 Nazionale</button>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={sLabRiga}>Max Pass</label>
+                    <input type="number" min="0" value={valoreCampo(ev, 'max_accrediti') || 0} onChange={e => setCampo(ev, 'max_accrediti', parseInt(e.target.value) || 0)} style={sInpRiga} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={sLabRiga}>Stato Badge</label>
+                    <select value={valoreCampo(ev, 'accredito_status') || 'nessuno'} onChange={e => setCampo(ev, 'accredito_status', e.target.value)} style={sInpRiga}>
+                      <option value="nessuno">Nessuno</option>
+                      <option value="da_richiedere">🟡 Da richiedere</option>
+                      <option value="richiesto">📨 Richiesto</option>
+                      <option value="accettato">✅ Accettato</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid #e0e0e0', display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ fontSize: 12, color: '#666', flex: 1 }}>
+            {numeroModifiche > 0 ? `${numeroModifiche} event${numeroModifiche === 1 ? 'o modificato' : 'i modificati'}` : 'Nessuna modifica in sospeso'}
+          </div>
+          <button onClick={annullaTutteLeModifiche} disabled={numeroModifiche === 0 || salvando} style={{ padding: '12px 18px', borderRadius: 8, border: '1px solid #ddd', background: '#fff', fontWeight: 600, fontSize: 13, cursor: numeroModifiche === 0 ? 'not-allowed' : 'pointer', opacity: numeroModifiche === 0 ? 0.5 : 1 }}>
+            Annulla Tutto
+          </button>
+          <button onClick={salvaTutteLeModifiche} disabled={numeroModifiche === 0 || salvando} style={{ padding: '12px 22px', borderRadius: 8, border: 'none', background: numeroModifiche === 0 ? '#a8dab5' : '#34C759', color: '#fff', fontWeight: 700, fontSize: 13, cursor: numeroModifiche === 0 || salvando ? 'not-allowed' : 'pointer' }}>
+            {salvando ? 'Salvataggio...' : `💾 Salva Tutte le Modifiche${numeroModifiche > 0 ? ` (${numeroModifiche})` : ''}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Componente per la gestione delle sessioni del weekend
 function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgrammazioneWeekend, zIndex = 10000 }) {
@@ -493,14 +844,14 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: zIndex }}>
-      <div style={{ background: 'white', borderRadius: '15px', width: isMobile ? '100vw' : '600px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Programmazione Weekend</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+    <div className="fwm-glass-overlay" style={{ zIndex: zIndex }}>
+      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '600px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="fwm-glass-header">
+          <div style={{ fontSize: '18px', fontWeight: '700' }}>Programmazione Weekend</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
         
-        <div style={{ padding: '20px', fontSize: '14px', color: '#666', borderBottom: '1px solid #e0e0e0' }}>
+        <div style={{ padding: '20px', fontSize: '14px', color: '#666', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
           Seleziona le sessioni e scegli il giorno per ciascuna:
           {giorniWeekend.length > 0 && (
             <div style={{ fontSize: '12px', color: '#999', marginTop: '5px' }}>
@@ -569,7 +920,7 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
                           width: '100%', 
                           padding: '8px', 
                           borderRadius: '5px', 
-                          border: '1px solid #ddd',
+                          border: '0.5px solid rgba(60,60,67,0.25)',
                           background: '#fff',
                           color: '#333',
                           fontSize: '14px'
@@ -590,7 +941,7 @@ function SessioniWeekendModal({ onClose, onSave, isMobile, eventoData, setProgra
                     <label style={{ fontSize: '12px', color: '#333', display: 'block', marginBottom: '5px', fontWeight: '600' }}>Orario</label>
                     <input
                       type="time"
-                      style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ddd' }}
+                      style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '0.5px solid rgba(60,60,67,0.25)' }}
                       value={sessione.orario_sessione}
                       onChange={(e) => aggiornaSessione(index, 'orario_sessione', e.target.value)}
                     />
@@ -658,6 +1009,7 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
   const [showSessioniModal, setShowSessioniModal] = useState(false);
   const [eventoCorrenteSessioni, setEventoCorrenteSessioni] = useState(null);
   const [programmazioneWeekend, setProgrammazioneWeekend] = useState(null);
+  const [estero, setEstero] = useState(null); // NUOVO: true=estero, false=nazionale, null=non ancora scelto (obbligatorio, vale per tutta la stagione)
 
   // Aggiunge un nuovo evento alla lista
   const aggiungiEvento = () => {
@@ -682,7 +1034,8 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
     setEventi(eventi.map(e => e.id === id ? { ...e, [campo]: valore } : e));
   };
 
-  // Salva il campionato completo
+  // Salva il campionato completo. `estero` viene applicato a tutti gli eventi della stagione
+  // (scelto una sola volta nel form, prima del salvataggio del batch).
   const salvaCampionato = async () => {
     if (!campionatoSelezionato) {
       alert('Seleziona un campionato!');
@@ -692,7 +1045,14 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
       alert('Aggiungi almeno un evento!');
       return;
     }
-
+    if (!eventi.some(e => e.titolo && e.data_inizio)) {
+      alert('Compila almeno titolo e data inizio per gli eventi della stagione!');
+      return;
+    }
+    if (estero === null) {
+      alert('Seleziona se questa stagione è Estera o Nazionale');
+      return;
+    }
     setSalvando(true);
     try {
       // Crea tutti gli eventi
@@ -709,7 +1069,8 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
           orario: evento.orario || null,
           programmazione_weekend: evento.programmazione_weekend || null,
           max_accrediti: 0,
-          accredito_status: 'nessuno'
+          accredito_status: 'nessuno',
+          estero: !!estero
         }).select().single();
 
         if (error) {
@@ -753,17 +1114,17 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-      <div style={{ background: 'white', borderRadius: '15px', width: isMobile ? '100vw' : '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Configura Stagione</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+    <div className="fwm-glass-overlay">
+      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="fwm-glass-header">
+          <div style={{ fontSize: '18px', fontWeight: '700' }}>Configura Stagione</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
 
-        <div style={{ padding: '20px', borderBottom: '1px solid #e0e0e0' }}>
+        <div style={{ padding: '20px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
           <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '8px' }}>Seleziona Campionato</label>
           <select
-            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '16px' }}
+            style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '16px' }}
             value={campionatoSelezionato}
             onChange={(e) => setCampionatoSelezionato(e.target.value)}
           >
@@ -772,6 +1133,36 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
               <option key={c.id} value={c.id}>{c.emoji} {c.nome}</option>
             ))}
           </select>
+          <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', display: 'block', marginTop: '16px', marginBottom: '2px' }}>🌍 Estero o Nazionale (obbligatorio)</label>
+          <div style={{ fontSize: 11, color: '#999', marginBottom: 8 }}>Si applica a tutti gli eventi di questa stagione. Solo gli eventi ESTERO sono rimborsabili (a meno di diversa impostazione admin).</div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={() => setEstero(true)}
+              style={{
+                flex: 1, padding: '10px', borderRadius: '8px',
+                border: estero === true ? '1px solid #1c1c1e' : '1px solid #e2e2e2',
+                background: estero === true ? '#1c1c1e' : '#f7f7f8',
+                color: estero === true ? '#fff' : '#555',
+                fontWeight: 600, cursor: 'pointer', fontSize: '15px', transition: 'all 0.2s'
+              }}
+            >
+              🌍 Estero
+            </button>
+            <button
+              type="button"
+              onClick={() => setEstero(false)}
+              style={{
+                flex: 1, padding: '10px', borderRadius: '8px',
+                border: estero === false ? '1px solid #1c1c1e' : '1px solid #e2e2e2',
+                background: estero === false ? '#1c1c1e' : '#f7f7f8',
+                color: estero === false ? '#fff' : '#555',
+                fontWeight: 600, cursor: 'pointer', fontSize: '15px', transition: 'all 0.2s'
+              }}
+            >
+              🇮🇹 Nazionale
+            </button>
+          </div>
         </div>
 
         <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
@@ -798,7 +1189,7 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '5px' }}>Titolo</label>
                 <input
                   type="text"
-                  style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ddd', fontSize: '14px' }}
+                  style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '14px' }}
                   value={evento.titolo}
                   onChange={(e) => aggiornaEvento(evento.id, 'titolo', e.target.value)}
                   placeholder="es. GP Monaco"
@@ -810,7 +1201,7 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '5px' }}>Inizio</label>
                   <input
                     type="date"
-                    style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ddd', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '14px' }}
                     value={evento.data_inizio}
                     onChange={(e) => aggiornaEvento(evento.id, 'data_inizio', e.target.value)}
                   />
@@ -819,7 +1210,7 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
                   <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '5px' }}>Fine</label>
                   <input
                     type="date"
-                    style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ddd', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '14px' }}
                     value={evento.data_fine}
                     onChange={(e) => aggiornaEvento(evento.id, 'data_fine', e.target.value)}
                   />
@@ -830,7 +1221,7 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#333', display: 'block', marginBottom: '5px' }}>Orario (opzionale)</label>
                 <input
                   type="time"
-                  style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ddd', fontSize: '14px' }}
+                  style={{ width: '100%', padding: '8px', borderRadius: '5px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '14px' }}
                   value={evento.orario}
                   onChange={(e) => aggiornaEvento(evento.id, 'orario', e.target.value)}
                 />
@@ -902,21 +1293,23 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     return eventi.filter(e => (e.max_accrediti && e.max_accrediti > 0) || (e.accredito_status && e.accredito_status !== 'nessuno'));
   }
   // --- MODALE GESTIONE ACCREDITI ---
-  function GestioneAccreditiModal({ open, onClose, caricaDati }) {
-        // Prenotazione accredito per evento
-        async function handlePrenota(evento) {
+  function GestioneAccreditiModal({ open, onClose, caricaDati, annoCorrente, rimborsiDisponibili, rimborsiUsati, totaleRimborsabili, maxRimborsiPerUtente, getRimborsiUsatiDaUtente, criterioRimborso }) {
+        // Prenotazione accredito per evento (retribuito = richiesta di rimborso, verificata contro il budget)
+        async function handlePrenota(evento, retribuito) {
           if (!utenteCorrente || !evento?.id) return;
           try {
             // Chiamata API o inserimento diretto su supabase
             const { data, error } = await supabase.from('prenotazioni_accrediti').insert({
               evento_id: evento.id,
               utente_id: utenteCorrente.id,
-              username: utenteCorrente.username
+              username: utenteCorrente.username,
+              retribuito: !!retribuito,
+              anno: annoCorrente
             });
             if (error) {
               alert('Errore nella prenotazione: ' + error.message);
             } else {
-              alert('Prenotazione effettuata!');
+              alert(retribuito ? 'Prenotazione effettuata! Rimborso richiesto.' : 'Prenotazione effettuata!');
               // Aggiorna lo stato globale delle prenotazioni (richiama caricaDati se disponibile)
               if (typeof caricaDati === 'function') caricaDati();
             }
@@ -924,6 +1317,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
             alert('Errore nella prenotazione.');
           }
         }
+    const [richiesteRimborso, setRichiesteRimborso] = useState({}); // NUOVO: eventoId -> richiede rimborso? (checkbox)
     if (!open) return null;
     // Filtra solo eventi futuri o in corso e ordina per data_inizio (cronologico)
     const now = new Date();
@@ -940,11 +1334,11 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
         return dataA - dataB;
       });
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ background: 'white', borderRadius: 14, minWidth: 420, maxWidth: 600, maxHeight: '80vh', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', padding: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', padding: '18px 28px', borderBottom: '1px solid #eee' }}>
+      <div className="fwm-glass-overlay">
+        <div className="fwm-glass-card" style={{ borderRadius: 22, minWidth: 420, maxWidth: 600, maxHeight: '80vh', padding: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', padding: '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
             <div style={{ fontWeight: 700, fontSize: 20, margin: '0 auto' }}>Gestione Accrediti</div>
-            <button onClick={onClose} style={{ position: 'absolute', right: 28, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', fontSize: 26, color: '#FF3B30', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+            <button onClick={onClose} className="fwm-glass-close" style={{ position: 'absolute', right: 24, top: '50%', transform: 'translateY(-50%)', fontSize: 16 }}>✕</button>
           </div>
           <div style={{ padding: '18px 28px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
             {eventiAccrediti.length === 0 && <div style={{ color: '#888', fontSize: 15 }}>Nessun evento con accrediti abilitati.</div>}
@@ -1006,21 +1400,41 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
                       </span>
                     </div>
                   )}
-                  {utentiAccreditati.length > 0 && (
+                  {prenotazioniEvento.length > 0 && (
                     <div style={{ fontSize: 12, color: '#333', marginTop: 6 }}>
-                      <span style={{ fontWeight: 600 }}>Accreditati:</span> {utentiAccreditati.map((nome, i) => (
+                      <span style={{ fontWeight: 600 }}>Accreditati:</span> {prenotazioniEvento.map((p, i) => (
                         <span key={i} style={{ fontWeight: 700 }}>
-                          {nome}{i < utentiAccreditati.length - 1 ? ', ' : ''}
+                          {p.retribuito && '💶 '}{p.nome_completo || p.username || p.utente_id}{i < prenotazioniEvento.length - 1 ? ', ' : ''}
                         </span>
                       ))}
                     </div>
                   )}
                   {/* Pulsante Prenota solo se ci sono posti liberi e l'utente non è già accreditato */}
-                  {liberi > 0 && !prenotazioniEvento.some(p => p.utente_id === utenteCorrente?.id) && (
-                    <button onClick={() => handlePrenota(ev)} style={{ marginTop: 10, alignSelf: 'flex-start', padding: '8px 18px', background: '#007AFF', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', marginRight: 10 }}>
-                      Prenota
-                    </button>
-                  )}
+                  {liberi > 0 && !prenotazioniEvento.some(p => p.utente_id === utenteCorrente?.id) && (() => {
+                    const idoneo = eventoIdoneoPerRimborso(ev, criterioRimborso);
+                    const motivo = motivoRimborsoNonDisponibile(ev, criterioRimborso);
+                    const tettoUtenteRaggiunto = maxRimborsiPerUtente !== null && getRimborsiUsatiDaUtente(utenteCorrente?.username) >= maxRimborsiPerUtente;
+                    const rimborsoDisponibile = idoneo && rimborsiDisponibili > 0 && !tettoUtenteRaggiunto;
+                    const richiedeRimborso = !!richiesteRimborso[ev.id];
+                    return (
+                      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-start' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: rimborsoDisponibile ? '#333' : '#aaa', cursor: rimborsoDisponibile ? 'pointer' : 'not-allowed' }}>
+                          <input
+                            type="checkbox"
+                            disabled={!rimborsoDisponibile}
+                            checked={richiedeRimborso && rimborsoDisponibile}
+                            onChange={e => setRichiesteRimborso({ ...richiesteRimborso, [ev.id]: e.target.checked })}
+                          />
+                          {!idoneo
+                            ? `Rimborso non disponibile (${motivo})`
+                            : `Richiedi rimborso spese ${rimborsoDisponibile ? `(${rimborsiDisponibili} disponibili)` : '(budget esaurito' + (tettoUtenteRaggiunto ? ' per te' : '') + ')'}`}
+                        </label>
+                        <button onClick={() => handlePrenota(ev, richiedeRimborso && rimborsoDisponibile)} style={{ alignSelf: 'flex-start', padding: '8px 18px', background: '#007AFF', color: 'white', border: 'none', borderRadius: 6, fontWeight: 600, fontSize: 13, cursor: 'pointer', marginRight: 10 }}>
+                          Prenota
+                        </button>
+                      </div>
+                    );
+                  })()}
                   {/* Tasto sempre visibile per aprire dettaglio evento */}
                   <button
                     onClick={() => { onClose(); setTimeout(() => setEventoSelezionato(ev), 200); }}
@@ -1053,9 +1467,29 @@ const [eventoDataSessioni, setEventoDataSessioni] = useState(null) // NUOVO: dat
 const [currentSetProgrammazioneWeekend, setCurrentSetProgrammazioneWeekend] = useState(null) // NUOVO: funzione corrente per aggiornare programmazione
 const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOVO: programmazione salvata per persistenza
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1000)
+  const [impostazioniRimborsi, setImpostazioniRimborsi] = useState([]) // NUOVO: budget annuale rimborsi accrediti (una riga per anno)
+  const [showImpostazioniRimborsi, setShowImpostazioniRimborsi] = useState(false) // NUOVO: modale impostazioni rimborsi (solo admin)
+  const [showCriterioRimborso, setShowCriterioRimborso] = useState(false) // NUOVO: modale admin per scegliere se rimborsare ESTERO, NAZIONALE o ENTRAMBI
+  const [showGestioneEventi, setShowGestioneEventi] = useState(false) // NUOVO: modale admin con l'elenco di tutti gli eventi, per modificarli in un unico posto
+  const [showAdminMenu, setShowAdminMenu] = useState(false) // NUOVO: menu admin (ora un modale con più opzioni)
   
   const isAdmin = utenteCorrente?.ruolo === 'admin'
   const isMobile = windowWidth <= 768
+
+  // NUOVO: budget rimborsi accrediti — un tetto totale e uno per utente, impostati dagli admin per anno solare
+  const annoCorrente = new Date().getFullYear()
+  const impostazioniRimborsiAnno = impostazioniRimborsi.find(r => r.anno === annoCorrente) || null
+  const totaleRimborsabili = impostazioniRimborsiAnno?.totale_rimborsabili || 0
+  const maxRimborsiPerUtente = (impostazioniRimborsiAnno?.max_per_utente ?? null) // null = nessun tetto individuale
+  const rimborsiUsati = prenotazioni.filter(p => p.retribuito && p.anno === annoCorrente).length
+  const rimborsiDisponibili = Math.max(0, totaleRimborsabili - rimborsiUsati)
+  // NUOVO: criterio che stabilisce quali eventi sono rimborsabili ('estero' | 'nazionale' | 'entrambi'), impostabile dall'admin
+  const criterioRimborso = impostazioniRimborsiAnno?.criterio_rimborso || 'estero'
+  const CRITERIO_RIMBORSO_LABELS = { estero: '🌍 Solo Estero', nazionale: '🇮🇹 Solo Nazionale', entrambi: '🌍🇮🇹 Entrambi' }
+  const criterioRimborsoLabel = CRITERIO_RIMBORSO_LABELS[criterioRimborso] || criterioRimborso
+  function getRimborsiUsatiDaUtente(username) {
+    return prenotazioni.filter(p => p.retribuito && p.anno === annoCorrente && p.username === username).length
+  }
   
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth)
@@ -1130,10 +1564,15 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
     })
     
     setPrenotazioni(prenotazioniConNomi)
+
+    // 4.1 Caricamento impostazioni budget rimborsi accrediti (una riga per anno)
+    const { data: impostazioniRimborsiDB } = await supabase.from('impostazioni_rimborsi_accrediti').select('*')
+    setImpostazioniRimborsi(impostazioniRimborsiDB || [])
     
     // 5. Caricamento Notifiche e fine loading
     await caricaNotifiche()
     setLoading(false)
+    return eventiOrdinati // NUOVO: permette ai chiamanti di risincronizzare subito eventoSelezionato con i dati freschi dal DB
   }
   
   // Notifiche interne stile DisponibilitaWeekend
@@ -1222,7 +1661,8 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
         .select('notifica_id')
         .eq('username', username);
       const idsLette = new Set((lette || []).map(l => String(l.notifica_id)));
-      const notificheVisibili = (tutteNotifiche || []).filter(n => !n.solo_admin || isAdmin);
+      // NUOVO: tutte le notifiche (incluse quelle di avanzamento stato accredito) sono ora visibili a tutti, non solo agli admin
+      const notificheVisibili = tutteNotifiche || [];
       const notificheConStato = notificheVisibili.map(n => ({
         ...n,
         letta: idsLette.has(String(n.id))
@@ -1423,7 +1863,7 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
           padding: 6px 2px;
           min-height: 46px;
           border: none;
-          border-radius: 10px;
+          border-radius: 14px;
           color: white;
           font-weight: 700;
           font-size: 10.5px;
@@ -1435,70 +1875,232 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
           -webkit-tap-highlight-color: transparent;
         }
         .fwm-cal-toolbar-btn .fwm-ico { font-size: 15px; line-height: 1; }
+        /* ===== Bottone Admin + menu a tendina — stile Liquid Glass iOS 26/27 ===== */
+        .fwm-admin-btn {
+          border: 0.5px solid rgba(255,255,255,0.22);
+          background: rgba(28,28,30,0.55);
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          color: white;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.08) inset;
+          transition: background 0.15s ease, transform 0.1s ease;
+        }
+        .fwm-admin-btn:active { background: rgba(28,28,30,0.72); transform: scale(0.97); }
+        .fwm-admin-chevron { opacity: 0.65; font-size: 10px; margin-left: 2px; }
+        .fwm-admin-menu {
+          background: rgba(255,255,255,0.78);
+          backdrop-filter: blur(26px) saturate(180%);
+          -webkit-backdrop-filter: blur(26px) saturate(180%);
+          border: 0.5px solid rgba(255,255,255,0.6);
+          box-shadow: 0 10px 34px rgba(0,0,0,0.2), 0 1px 0 rgba(255,255,255,0.5) inset;
+        }
+        .fwm-admin-menu-item {
+          width: 100%;
+          text-align: left;
+          background: transparent;
+          border: none;
+          border-bottom: 0.5px solid rgba(60,60,67,0.13);
+          font-weight: 600;
+          color: #1c1c1e;
+          cursor: pointer;
+          transition: background 0.12s ease;
+        }
+        .fwm-admin-menu-item:last-child { border-bottom: none; }
+        .fwm-admin-menu-item:active { background: rgba(120,120,128,0.16); }
+
+        /* ===== Liquid Glass — stili condivisi per TUTTE le schermate di Calendario Accrediti ===== */
+        .fwm-glass-overlay {
+          position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.45);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          display: flex; align-items: center; justify-content: center;
+          z-index: 10000;
+        }
+        .fwm-glass-card {
+          background: rgba(255,255,255,0.82);
+          backdrop-filter: blur(28px) saturate(180%);
+          -webkit-backdrop-filter: blur(28px) saturate(180%);
+          border: 0.5px solid rgba(255,255,255,0.6);
+          box-shadow: 0 14px 44px rgba(0,0,0,0.2), 0 1px 0 rgba(255,255,255,0.5) inset;
+        }
+        .fwm-glass-header {
+          display: flex; justify-content: space-between; align-items: center;
+          padding: 18px 24px;
+          border-bottom: 0.5px solid rgba(60,60,67,0.15);
+          flex-shrink: 0;
+        }
+        .fwm-glass-close {
+          background: rgba(120,120,128,0.14);
+          border: none; border-radius: 50%;
+          width: 30px; height: 30px; flex-shrink: 0;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 16px; font-weight: 700; color: #FF3B30;
+          cursor: pointer;
+          transition: background 0.12s ease;
+        }
+        .fwm-glass-close:active { background: rgba(120,120,128,0.26); }
+        .fwm-btn-pill {
+          border: none; border-radius: 100px;
+          font-weight: 700; cursor: pointer;
+          transition: transform 0.1s ease, opacity 0.15s ease;
+        }
+        .fwm-btn-pill:active { transform: scale(0.97); }
+        .fwm-btn-primary { background: #34C759; color: white; box-shadow: 0 4px 14px rgba(52,199,89,0.35); }
+        .fwm-btn-accent { background: #007AFF; color: white; box-shadow: 0 4px 14px rgba(0,122,255,0.3); }
+        .fwm-btn-danger { background: #FF3B30; color: white; box-shadow: 0 4px 14px rgba(255,59,48,0.3); }
+        .fwm-btn-purple { background: #8e44ad; color: white; box-shadow: 0 4px 14px rgba(142,68,173,0.3); }
+        .fwm-btn-neutral { background: rgba(120,120,128,0.12); color: #1c1c1e; }
+        .fwm-btn-neutral:active { background: rgba(120,120,128,0.22); }
+        .fwm-glass-input {
+          width: 100%;
+          padding: 12px 14px;
+          border-radius: 12px;
+          border: 0.5px solid rgba(60,60,67,0.18);
+          background: rgba(120,120,128,0.08);
+          font-size: 15px;
+          outline: none;
+          box-sizing: border-box;
+          transition: border-color 0.12s ease, background 0.12s ease;
+        }
+        .fwm-glass-input:focus { border-color: rgba(0,122,255,0.5); background: rgba(0,122,255,0.06); }
+        .fwm-glass-toolbar-tint {
+          backdrop-filter: blur(20px) saturate(180%);
+          -webkit-backdrop-filter: blur(20px) saturate(180%);
+          border: 0.5px solid rgba(255,255,255,0.22);
+          box-shadow: 0 4px 14px rgba(0,0,0,0.18), 0 1px 0 rgba(255,255,255,0.08) inset;
+        }
       `}</style>
       {/* HEADER */}
       <button className="page-back-button" onClick={onClose}>Indietro</button>
       {isMobile ? (
         /* ===== HEADER MOBILE COMPATTO ===== */
-        <div style={{ flexShrink: 0, padding: '60px 10px 8px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
-          <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-            <div style={{ fontSize: '15px', fontWeight: 'bold', lineHeight: 1.1 }}>Calendario Accrediti</div>
-            <div style={{ fontSize: '9px', color: '#888', marginTop: '1px' }}>Gare ed Eventi</div>
+        <div style={{ flexShrink: 0, padding: '60px 10px 8px', background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '0.5px solid rgba(60,60,67,0.15)', position: 'relative', zIndex: 60 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: '8px' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '15px', fontWeight: 'bold', lineHeight: 1.1 }}>Calendario Accrediti</div>
+              <div style={{ fontSize: '9px', color: '#888', marginTop: '1px' }}>Gare ed Eventi</div>
+            </div>
+            {/* Numero accrediti rimborsabili ancora disponibili: chip elegante e neutro */}
+            <div title={`Accrediti rimborsabili ancora disponibili: ${rimborsiDisponibili}`} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#fff', border: '1px solid #e2e2e2', borderRadius: '100px', color: '#1c1c1e', position: 'absolute', top: 62, right: 10 }}>
+              <span style={{ fontSize: 13, lineHeight: 1 }}>💶</span>
+              <span style={{ fontSize: 12, fontWeight: 700, lineHeight: 1 }}>{rimborsiDisponibili}</span>
+            </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(${isAdmin ? 4 : 3}, minmax(0, 1fr))`, gap: '6px' }}>
-            <button className="fwm-cal-toolbar-btn" onClick={() => setShowNotifiche(true)} style={{ background: '#007AFF' }}>
+            <button className="fwm-cal-toolbar-btn fwm-glass-toolbar-tint" onClick={() => setShowNotifiche(true)} style={{ background: '#007AFF' }}>
               <span className="fwm-ico">🔔</span>
               <span>Notifiche</span>
               {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#FF3B30', color: 'white', borderRadius: '50%', minWidth: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold', border: '2px solid white' }}>{notificheNonLette}</span>}
             </button>
-            <button className="fwm-cal-toolbar-btn" onClick={() => setShowGestioneAccrediti(true)} style={{ background: '#8e44ad' }}>
+            <button className="fwm-cal-toolbar-btn fwm-glass-toolbar-tint" onClick={() => setShowGestioneAccrediti(true)} style={{ background: '#8e44ad' }}>
               <span className="fwm-ico">🎫</span>
               <span>Accrediti</span>
             </button>
             {isAdmin && (
-              <button className="fwm-cal-toolbar-btn" onClick={() => setShowGestioneCampionati(true)} style={{ background: '#FF9500' }}>
-                <span className="fwm-ico">🏁</span>
-                <span>Categorie</span>
+              <button className="fwm-cal-toolbar-btn fwm-admin-btn" onClick={() => setShowAdminMenu(true)} style={{ width: '100%' }}>
+                <span>⚙️ Admin</span>
               </button>
             )}
-            <button className="fwm-cal-toolbar-btn" onClick={() => setShowNuovoEvento(true)} style={{ background: '#34C759' }}>
+            <button className="fwm-cal-toolbar-btn fwm-glass-toolbar-tint" onClick={() => setShowNuovoEvento(true)} style={{ background: '#34C759' }}>
               <span className="fwm-ico">➕</span>
               <span>Nuovo</span>
             </button>
           </div>
         </div>
       ) : (
-        /* ===== HEADER DESKTOP (invariato) ===== */
-        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', padding: '15px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', gap: '0', position: 'relative' }}>
+        /* ===== HEADER DESKTOP ===== */
+        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', padding: '15px 30px', background: 'rgba(255,255,255,0.72)', backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)', borderBottom: '0.5px solid rgba(60,60,67,0.15)', gap: '0', position: 'relative', zIndex: 60 }}>
           <div style={{ position: 'absolute', left: 0, right: 0, textAlign: 'center', order: 0, padding: '0', pointerEvents: 'none' }}>
             <div style={{ fontSize: '20px', fontWeight: 'bold' }}>Calendario Accrediti</div>
             <div style={{ fontSize: '11px', color: '#666' }}>Gare ed Eventi</div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', position: 'relative', zIndex: 2 }}>
-            <button onClick={() => setShowNotifiche(true)} style={{ position: 'relative', padding: '6px 12px', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '10px', position: 'relative', zIndex: 2 }}>
+            {/* Numero accrediti rimborsabili ancora disponibili: chip elegante e neutro, a sinistra di Notifiche (solo desktop) */}
+            <div title={`Accrediti rimborsabili ancora disponibili: ${rimborsiDisponibili}`} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: '#fff', border: '1px solid #e2e2e2', borderRadius: '100px', color: '#1c1c1e' }}>
+              <span style={{ fontSize: 15, lineHeight: 1 }}>💶</span>
+              <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1 }}>{rimborsiDisponibili}</span>
+            </div>
+            <button className="fwm-glass-toolbar-tint" onClick={() => setShowNotifiche(true)} style={{ position: 'relative', padding: '6px 12px', background: '#007AFF', color: 'white', borderRadius: '100px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>
               🔔 Notifiche
               {notificheNonLette > 0 && <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#FF3B30', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>{notificheNonLette}</span>}
             </button>
-            <button onClick={() => setShowGestioneAccrediti(true)} style={{ padding: '6px 12px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>
+            <button className="fwm-glass-toolbar-tint" onClick={() => setShowGestioneAccrediti(true)} style={{ padding: '6px 12px', background: '#8e44ad', color: 'white', borderRadius: '100px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>
               Gestione Accrediti
             </button>
-            {isAdmin && <button onClick={() => setShowGestioneCampionati(true)} style={{ padding: '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>Categorie</button>}
-            <button onClick={() => setShowNuovoEvento(true)} style={{ padding: '6px 12px', background: '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>Nuovo</button>
+            {isAdmin && (
+              <button className="fwm-admin-btn" onClick={() => setShowAdminMenu(true)} style={{ padding: '6px 14px', borderRadius: 20, fontSize: '13px', fontWeight: '600' }}>
+                ⚙️ Admin
+              </button>
+            )}
+            <button className="fwm-glass-toolbar-tint" onClick={() => setShowNuovoEvento(true)} style={{ padding: '6px 12px', background: '#34C759', color: 'white', borderRadius: '100px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', minHeight: 'auto' }}>Nuovo</button>
           </div>
         </div>
       )}
+      {/* Modale Menu Admin: raggruppa le opzioni amministrative (Categorie, Rimborsi, Criterio Rimborso, Tutti gli Eventi, ed eventuali future) */}
+      {showAdminMenu && isAdmin && (
+        <AdminMenuModal
+          isMobile={isMobile}
+          rimborsiUsati={rimborsiUsati}
+          totaleRimborsabili={totaleRimborsabili}
+          rimborsiDisponibili={rimborsiDisponibili}
+          criterioRimborsoLabel={criterioRimborsoLabel}
+          numeroEventi={eventi.filter(e => { const f = e.data_fine || e.data_inizio; if (!f) return true; const oggi = new Date(); return new Date(f) >= new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate()); }).length}
+          onClose={() => setShowAdminMenu(false)}
+          onCategorie={() => { setShowAdminMenu(false); setShowGestioneCampionati(true); }}
+          onRimborsi={() => { setShowAdminMenu(false); setShowImpostazioniRimborsi(true); }}
+          onCriterioRimborso={() => { setShowAdminMenu(false); setShowCriterioRimborso(true); }}
+          onTuttiEventi={() => { setShowAdminMenu(false); setShowGestioneEventi(true); }}
+        />
+      )}
       {/* Modale Gestione Accrediti */}
-      <GestioneAccreditiModal open={showGestioneAccrediti} onClose={() => setShowGestioneAccrediti(false)} caricaDati={caricaDati} />
+      <GestioneAccreditiModal open={showGestioneAccrediti} onClose={() => setShowGestioneAccrediti(false)} caricaDati={caricaDati} annoCorrente={annoCorrente} rimborsiDisponibili={rimborsiDisponibili} rimborsiUsati={rimborsiUsati} totaleRimborsabili={totaleRimborsabili} maxRimborsiPerUtente={maxRimborsiPerUtente} getRimborsiUsatiDaUtente={getRimborsiUsatiDaUtente} criterioRimborso={criterioRimborso} />
+
+      {/* Modale Impostazioni Rimborsi (solo admin) */}
+      {showImpostazioniRimborsi && isAdmin && (
+        <ImpostazioniRimborsiModal
+          anno={annoCorrente}
+          impostazioniAnno={impostazioniRimborsiAnno}
+          rimborsiUsati={rimborsiUsati}
+          onClose={() => setShowImpostazioniRimborsi(false)}
+          onUpdate={caricaDati}
+          isMobile={isMobile}
+          utenteCorrente={utenteCorrente}
+        />
+      )}
+
+      {/* Modale Criterio Rimborso (solo admin, a parte dal budget): ESTERO / NAZIONALE / ENTRAMBI */}
+      {showCriterioRimborso && isAdmin && (
+        <CriterioRimborsoModal
+          anno={annoCorrente}
+          criterioAttuale={criterioRimborso}
+          onClose={() => setShowCriterioRimborso(false)}
+          onUpdate={caricaDati}
+          isMobile={isMobile}
+        />
+      )}
+
+      {/* Modale Tutti gli Eventi (solo admin): elenco completo, modificabile in un unico posto */}
+      {showGestioneEventi && isAdmin && (
+        <GestioneEventiModal
+          eventi={eventi}
+          campionati={campionati}
+          isMobile={isMobile}
+          onClose={() => setShowGestioneEventi(false)}
+          caricaDati={caricaDati}
+        />
+      )}
       
       {/* NAVIGAZIONE MESE */}
-      <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '6px 10px' : '12px 30px', background: 'white', borderBottom: '1px solid #e0e0e0' }}>
-        <button onClick={() => cambiaMese(-1)} style={{ padding: isMobile ? '0 14px' : '6px 14px', height: isMobile ? '34px' : 'auto', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '15px' : '13px', minHeight: isMobile ? '34px' : 'auto' }}>←</button>
+      <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '6px 10px' : '12px 30px', background: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(16px) saturate(180%)', WebkitBackdropFilter: 'blur(16px) saturate(180%)', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
+        <button className="fwm-glass-toolbar-tint" onClick={() => cambiaMese(-1)} style={{ padding: isMobile ? '0 14px' : '6px 14px', height: isMobile ? '34px' : 'auto', background: '#007AFF', color: 'white', border: 'none', borderRadius: '100px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '15px' : '13px', minHeight: isMobile ? '34px' : 'auto' }}>←</button>
         <div style={{ fontSize: isMobile ? '14px' : '18px', fontWeight: 'bold' }}>{MESI_ITALIANO[meseCorrente.getMonth()]} {meseCorrente.getFullYear()}</div>
-        <button onClick={() => cambiaMese(1)} style={{ padding: isMobile ? '0 14px' : '6px 14px', height: isMobile ? '34px' : 'auto', background: '#007AFF', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '15px' : '13px', minHeight: isMobile ? '34px' : 'auto' }}>→</button>
+        <button className="fwm-glass-toolbar-tint" onClick={() => cambiaMese(1)} style={{ padding: isMobile ? '0 14px' : '6px 14px', height: isMobile ? '34px' : 'auto', background: '#007AFF', color: 'white', border: 'none', borderRadius: '100px', cursor: 'pointer', fontWeight: '600', fontSize: isMobile ? '15px' : '13px', minHeight: isMobile ? '34px' : 'auto' }}>→</button>
       </div>
       
       {/* LEGENDA */}
-      <div style={{ flexShrink: 0, padding: isMobile ? '5px 10px' : '10px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ flexShrink: 0, padding: isMobile ? '5px 10px' : '10px 30px', background: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(16px) saturate(180%)', WebkitBackdropFilter: 'blur(16px) saturate(180%)', borderBottom: '0.5px solid rgba(60,60,67,0.15)', overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
         <div style={{ display: 'flex', flexWrap: isMobile ? 'nowrap' : 'wrap', gap: isMobile ? '10px' : '12px', fontSize: isMobile ? '9px' : '11px', minWidth: isMobile ? 'max-content' : 'auto' }}>
           {campionati.map(c => <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><div style={{ width: isMobile ? '9px' : '12px', height: isMobile ? '9px' : '12px', borderRadius: '50%', background: c.colore, flexShrink: 0 }}></div><span>{c.emoji} {c.nome}</span></div>)}
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}><div style={{ width: isMobile ? '9px' : '12px', height: isMobile ? '9px' : '12px', borderRadius: '50%', background: '#666', flexShrink: 0 }}></div><span>Eventi</span></div>
@@ -1662,6 +2264,13 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
           utenti={utenti} 
           isAdmin={isAdmin} 
           utenteCorrente={utenteCorrente} 
+          annoCorrente={annoCorrente}
+          rimborsiDisponibili={rimborsiDisponibili}
+          rimborsiUsati={rimborsiUsati}
+          totaleRimborsabili={totaleRimborsabili}
+          maxRimborsiPerUtente={maxRimborsiPerUtente}
+          getRimborsiUsatiDaUtente={getRimborsiUsatiDaUtente}
+          criterioRimborso={criterioRimborso}
           onClose={() => setEventoSelezionato(null)} 
           onUpdate={async (notificaMsg, tipoNotifica) => { 
             if (notificaMsg) { 
@@ -1671,11 +2280,17 @@ const [programmazioneSalvata, setProgrammazioneSalvata] = useState(null) // NUOV
                 const dataFormattata = formatData(eventoSelezionato.data_inizio);
                 messaggioDaInviare = `${notificaMsg} il ${dataFormattata}`;
               }
-              // Le notifiche di avanzamento stato accredito sono riservate agli admin
-              const soloAdmin = tipoNotifica === 'accredito';
+              // NUOVO: le notifiche di avanzamento stato accredito sono visibili a tutti, non solo agli admin
+              const soloAdmin = false;
               await creaNotificaCalendario(messaggioDaInviare, eventoSelezionato.id, soloAdmin); 
             } 
-            caricaDati(); 
+            const eventiFreschi = await caricaDati();
+            // NUOVO: aggiorna subito eventoSelezionato con i dati freschi dal DB (non solo lo stato locale del modale),
+            // così la vista di dettaglio riflette la modifica senza dover chiudere e riaprire il modale.
+            if (eventiFreschi && eventoSelezionato) {
+              const aggiornato = eventiFreschi.find(e => e.id === eventoSelezionato.id);
+              if (aggiornato) setEventoSelezionato(aggiornato);
+            }
           }} 
           isMobile={isMobile}
           onOpenSessioniModal={(eventoData, setProgrammazioneWeekend) => {
@@ -1778,7 +2393,7 @@ function ListaGiorniMobile({ mese, eventi, campionati, prenotazioni, notifiche, 
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 110px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 160px)' }}>
       {tuttiIGiorni.map(({ data, giorno, nomeGiorno, isOggi, eventi: eventiGiorno }) => (
         <div key={data} style={{ 
           background: isOggi ? '#007AFF' : 'white', 
@@ -2078,7 +2693,7 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
   if (isMobile) {
     // MOBILE: Visualizza le sessioni con menu a tendina come su desktop
     return (
-      <div style={{ background: 'white', borderRadius: '8px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: '4px', minHeight: '80px', marginBottom: '6px' }}>
+      <div style={{ background: isOggi ? 'rgba(0,122,255,0.08)' : 'rgba(255,255,255,0.6)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', borderRadius: '12px', border: isOggi ? '1.5px solid #007AFF' : '0.5px solid rgba(60,60,67,0.15)', padding: '4px', minHeight: '80px', marginBottom: '6px' }}>
         <div style={{ fontSize: '16px', fontWeight: 'bold', color: isOggi ? '#007AFF' : '#000' }}>{giorno}</div>
         {ordinaEventi(eventi).map(evento => (
           <div key={evento.id} style={{ marginTop: '4px' }}>
@@ -2127,7 +2742,7 @@ function GiornoCell({ giorno, eventi, campionati, prenotazioni, notifiche, isOgg
   }
 
   return (
-    <div style={{ background: 'white', borderRadius: '8px', border: isOggi ? '2px solid #007AFF' : '1px solid #e0e0e0', padding: '4px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: '120px' }}>
+    <div style={{ background: isOggi ? 'rgba(0,122,255,0.08)' : 'rgba(255,255,255,0.6)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', borderRadius: '12px', border: isOggi ? '1.5px solid #007AFF' : '0.5px solid rgba(60,60,67,0.15)', padding: '4px', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: '120px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px', flexShrink: 0 }}>
         <div style={{ fontSize: '16px', fontWeight: 'bold', color: isOggi ? '#007AFF' : '#000' }}>{giorno}</div>
         {/* Mostra numero eventi solo su desktop quando ci sono più eventi */}
@@ -2360,16 +2975,22 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
   const [maxAccrediti, setMaxAccrediti] = useState(0);
   const [accreditoStatus, setAccreditoStatus] = useState("nessuno");
   const [note, setNote] = useState("");
+  const [showTipoEvento, setShowTipoEvento] = useState(false); // NUOVO: modale obbligatorio ESTERO/NAZIONALE prima del salvataggio
 
-  async function salvaEvento() {
+  // Valida i campi obbligatori (titolo/data) e apre il modale obbligatorio ESTERO/NAZIONALE.
+  // Il salvataggio vero e proprio avviene solo dopo la conferma nel modale.
+  function richiediConfermaTipoEvento() {
+    if (!titolo || !dataInizio) {
+      alert('Compila almeno titolo e data inizio');
+      return;
+    }
+    setShowTipoEvento(true);
+  }
+
+  async function salvaEvento(estero) {
+    setShowTipoEvento(false);
     setSalvando(true);
     try {
-      // Validazione base
-      if (!titolo || !dataInizio) {
-        alert('Compila almeno titolo e data inizio');
-        setSalvando(false);
-        return;
-      }
       // Prepara i dati da inviare
       const evento = {
         titolo,
@@ -2382,7 +3003,8 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
         programmazione_weekend: tipo === 'gara' ? programmazioneWeekend : null,
         max_accrediti: maxAccrediti || 0,
         accredito_status: accreditoStatus,
-        note: note || ''
+        note: note || '',
+        estero: !!estero
       };
       // Inserisci l'evento su Supabase
       const { data, error } = await supabase.from('eventi_calendario').insert([evento]).select().single();
@@ -2409,15 +3031,15 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
     }
   }
 
-  const sInp = { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', marginTop: '5px', fontSize: '16px', outline: 'none', boxSizing: 'border-box' };
+  const sInp = { width: '100%', padding: '12px', borderRadius: '10px', border: '0.5px solid rgba(60,60,67,0.25)', marginTop: '5px', fontSize: '16px', outline: 'none', boxSizing: 'border-box' };
   const sLab = { fontSize: '11px', fontWeight: 'bold', color: '#666', letterSpacing: '0.5px', marginTop: '10px', display: 'block' };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
-      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '550px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="fwm-glass-overlay" style={{ padding: isMobile ? '0' : '20px' }}>
+      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '550px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px', borderBottom: '1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <b>Nuovo Evento</b>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '25px' }}>
           <label style={sLab}>TITOLO</label>
@@ -2566,18 +3188,26 @@ function NuovoEventoModal({ campionati, onClose, onSave, utenteCorrente, isMobil
         </div>
         <div style={{ padding: '20px 30px', borderTop: '2px solid #f0f0f0', display: 'flex', gap: '10px' }}>
           <button onClick={onClose} style={{ flex: 1, padding: '15px', borderRadius: '12px', border: '2px solid #000', background: '#fff', fontWeight: '900', cursor: 'pointer' }}>ANNULLA</button>
-          <button onClick={salvaEvento} disabled={salvando} style={{ flex: 2, padding: '15px', borderRadius: '12px', border: 'none', background: '#34C759', color: '#fff', fontWeight: '900', cursor: 'pointer' }}>
+          <button onClick={richiediConfermaTipoEvento} disabled={salvando} style={{ flex: 2, padding: '15px', borderRadius: '12px', border: 'none', background: '#34C759', color: '#fff', fontWeight: '900', cursor: 'pointer' }}>
             {salvando ? 'SALVANDO...' : 'CONFERMA'}
           </button>
         </div>
       </div>
+      {/* Modale obbligatorio: ESTERO o NAZIONALE, richiesto prima di salvare davvero l'evento/gran premio */}
+      {showTipoEvento && (
+        <TipoEventoModal
+          isMobile={isMobile}
+          onClose={() => setShowTipoEvento(false)}
+          onConfirm={(estero) => salvaEvento(estero)}
+        />
+      )}
     </div>
   );
 }
 
 function GestioneCampionatiModal({ campionati, onClose, onUpdate, isMobile }) {
   const [edit, setEdit] = useState(null);
-  const sInp = { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', marginTop: '5px', fontSize: '16px', outline: 'none', boxSizing: 'border-box' };
+  const sInp = { width: '100%', padding: '12px', borderRadius: '10px', border: '0.5px solid rgba(60,60,67,0.25)', marginTop: '5px', fontSize: '16px', outline: 'none', boxSizing: 'border-box' };
   const sLab = { fontSize: '11px', fontWeight: 'bold', color: '#666', letterSpacing: '0.5px', marginTop: '10px', display: 'block' };
 
   async function salva() {
@@ -2611,11 +3241,11 @@ function GestioneCampionatiModal({ campionati, onClose, onUpdate, isMobile }) {
   }
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
-      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '550px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="fwm-glass-overlay" style={{ padding: isMobile ? '0' : '20px' }}>
+      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '550px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px', borderBottom: '1px solid #eee', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <b>Gestione Categorie</b>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '25px' }}>
           {edit ? (
@@ -2666,7 +3296,75 @@ function GestioneCampionatiModal({ campionati, onClose, onUpdate, isMobile }) {
 }
 
 
-function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmin, utenteCorrente, onClose, onUpdate, isMobile, onOpenSessioniModal }) {
+// NUOVO: modale admin per impostare il budget annuale di accrediti rimborsabili
+// (un totale per la testata + un tetto opzionale per singolo utente), per anno solare.
+function ImpostazioniRimborsiModal({ anno, impostazioniAnno, rimborsiUsati, onClose, onUpdate, isMobile, utenteCorrente }) {
+  const [totale, setTotale] = useState(impostazioniAnno?.totale_rimborsabili ?? 0);
+  const [maxPerUtente, setMaxPerUtente] = useState(impostazioniAnno?.max_per_utente ?? '');
+  const [salvando, setSalvando] = useState(false);
+  const sInp = { width: '100%', padding: '12px', borderRadius: '10px', border: '0.5px solid rgba(60,60,67,0.25)', marginTop: '5px', fontSize: '16px', outline: 'none', boxSizing: 'border-box' };
+  const sLab = { fontSize: '11px', fontWeight: 'bold', color: '#666', letterSpacing: '0.5px', marginTop: '10px', display: 'block' };
+
+  async function salva() {
+    const totaleNum = parseInt(totale, 10);
+    if (isNaN(totaleNum) || totaleNum < 0) return alert('Inserisci un numero valido di accrediti rimborsabili (0 o superiore).');
+    const maxPerUtenteNum = maxPerUtente === '' ? null : parseInt(maxPerUtente, 10);
+    if (maxPerUtenteNum !== null && (isNaN(maxPerUtenteNum) || maxPerUtenteNum < 0)) return alert('Il tetto per utente deve essere un numero valido, oppure lascialo vuoto per nessun tetto.');
+    setSalvando(true);
+    try {
+      const payload = {
+        anno,
+        totale_rimborsabili: totaleNum,
+        max_per_utente: maxPerUtenteNum,
+        aggiornato_da: utenteCorrente?.username || null,
+        aggiornato_il: new Date().toISOString()
+      };
+      const { error } = await supabase.from('impostazioni_rimborsi_accrediti').upsert(payload, { onConflict: 'anno' });
+      if (error) throw error;
+      await onUpdate();
+      onClose();
+    } catch (err) {
+      alert('Errore nel salvataggio: ' + err.message);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="fwm-glass-overlay" style={{ padding: isMobile ? '0' : '20px' }}>
+      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '480px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <b>💶 Rimborsi Accrediti {anno}</b>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto', padding: '25px' }}>
+          <div style={{ fontSize: '13px', color: '#666', lineHeight: 1.5, marginBottom: '10px' }}>
+            Chiunque può prenotare un pass, ma solo un numero limitato può essere rimborsato dalla testata. Imposta qui il budget per l'anno {anno}.
+          </div>
+
+          <label style={sLab}>ACCREDITI RIMBORSABILI TOTALI NELL'ANNO</label>
+          <input type="number" min="0" style={sInp} value={totale} onChange={e => setTotale(e.target.value)} placeholder="Es. 50" />
+          <div style={{ fontSize: '12px', color: '#888', marginTop: '6px' }}>
+            Già usati quest'anno: <b>{rimborsiUsati}</b>{totale !== '' && !isNaN(parseInt(totale, 10)) ? ` / ${totale}` : ''}
+          </div>
+
+          <label style={sLab}>TETTO MASSIMO RIMBORSI PER UTENTE (OPZIONALE)</label>
+          <input type="number" min="0" style={sInp} value={maxPerUtente} onChange={e => setMaxPerUtente(e.target.value)} placeholder="Lascia vuoto per nessun tetto individuale" />
+          <div style={{ fontSize: '12px', color: '#888', marginTop: '6px' }}>
+            Ogni utente può comunque prenotare quanti pass vuole: questo tetto limita solo quanti di quei pass possono essere marcati come "retribuiti".
+          </div>
+
+          <button onClick={salva} disabled={salvando} style={{ width: '100%', marginTop: '20px', padding: '12px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: salvando ? 'not-allowed' : 'pointer' }}>
+            {salvando ? 'SALVANDO...' : 'Salva Budget'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmin, utenteCorrente, onClose, onUpdate, isMobile, onOpenSessioniModal, annoCorrente, rimborsiDisponibili, rimborsiUsati, totaleRimborsabili, maxRimborsiPerUtente, getRimborsiUsatiDaUtente, criterioRimborso }) {
+  const [richiedeRimborso, setRichiedeRimborso] = useState(false); // NUOVO: checkbox "richiedi rimborso" al momento della prenotazione
   const [modalita, setModalita] = useState('visualizza')
   const [edit, setEdit] = useState(evento)
   const [salvando, setSalvando] = useState(false)
@@ -2717,8 +3415,10 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
         console.error('Errore trigger push pipeline:', e);
       }
     } else {
-      await supabase.from('prenotazioni_accrediti').insert({ evento_id: evento.id, username: utenteCorrente.username })
-      await onUpdate(`${utenteCorrente.username} si è prenotato per ${evento.titolo}`)
+      const tettoUtenteRaggiunto = maxRimborsiPerUtente !== null && getRimborsiUsatiDaUtente(utenteCorrente.username) >= maxRimborsiPerUtente
+      const rimborsoConcesso = eventoIdoneoPerRimborso(evento, criterioRimborso) && richiedeRimborso && rimborsiDisponibili > 0 && !tettoUtenteRaggiunto
+      await supabase.from('prenotazioni_accrediti').insert({ evento_id: evento.id, username: utenteCorrente.username, retribuito: rimborsoConcesso, anno: annoCorrente })
+      await onUpdate(`${utenteCorrente.username} si è prenotato per ${evento.titolo}${rimborsoConcesso ? ' (rimborso richiesto)' : ''}`)
       // Notifica push prenotazione pass
       const { titolo: titoloPush, messaggio: messaggioPush, tipo } = getPrenotazionePassNotification(
         utenteCorrente.username,
@@ -2786,6 +3486,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
       programmazione_weekend: edit.programmazione_weekend || null,
       max_accrediti: Number(edit.max_accrediti) || 0, 
       accredito_status: edit.accredito_status || 'nessuno', 
+      estero: !!edit.estero,
       note: JSON.stringify(noteAttuali) 
     }).eq('id', edit.id)
 
@@ -2794,6 +3495,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
       ...prev,
       max_accrediti: Number(edit.max_accrediti) || 0,
       accredito_status: edit.accredito_status || 'nessuno',
+      estero: !!edit.estero,
       titolo: edit.titolo,
       data_inizio: edit.data_inizio,
       data_fine: edit.data_fine,
@@ -2923,27 +3625,27 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
   
   if (modalita === 'modifica') {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
-        <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '550px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
+      <div className="fwm-glass-overlay" style={{ padding: isMobile ? '0' : '20px' }}>
+        <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '550px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
             <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold' }}>Modifica Evento</div>
-            <button onClick={() => setModalita('visualizza')} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666', minWidth: '44px', minHeight: '44px' }}>✕</button>
+            <button onClick={() => setModalita('visualizza')} className="fwm-glass-close" style={{ minWidth: 32, minHeight: 32, fontSize: 15 }}>✕</button>
           </div>
           <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '30px' }}>
             <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Titolo</div>
-              <input type="text" value={edit.titolo} onChange={e => setEdit({...edit, titolo: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+              <input type="text" value={edit.titolo} onChange={e => setEdit({...edit, titolo: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '16px' }} />
             </div>
             <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
               <div style={{ flex: 1 }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Inizio</div>
-                <input type="date" value={edit.data_inizio} onChange={e => setEdit({...edit, data_inizio: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+                <input type="date" value={edit.data_inizio} onChange={e => setEdit({...edit, data_inizio: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '16px' }} />
               </div>
               <div style={{ flex: 1 }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Fine</div>
-                <input type="date" value={edit.data_fine || ''} onChange={e => setEdit({...edit, data_fine: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+                <input type="date" value={edit.data_fine || ''} onChange={e => setEdit({...edit, data_fine: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '16px' }} />
               </div>
             </div>
             <div style={{ marginBottom: '20px' }}>
               <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Orario (Opzionale) - Fuso Italia</div>
-              <input type="time" value={edit.orario || ''} onChange={e => setEdit({...edit, orario: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+              <input type="time" value={edit.orario || ''} onChange={e => setEdit({...edit, orario: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '16px' }} />
               <div style={{fontSize: '11px', color: '#999', marginTop: '4px'}}>
                 💡 Lascia vuoto se non conosci l'orario
               </div>
@@ -2986,11 +3688,19 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                 )}
               </div>
             )}
+            {isAdmin && <div style={{ marginTop: '20px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>🌍 Estero o Nazionale</div>
+              <div style={{ fontSize: '11px', color: '#999', marginBottom: '8px' }}>Solo gli eventi ESTERO sono rimborsabili. Puoi correggere questo dato in qualsiasi momento.</div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="button" onClick={() => setEdit({...edit, estero: true})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: edit.estero ? '1px solid #1c1c1e' : '1px solid #e2e2e2', background: edit.estero ? '#1c1c1e' : '#f7f7f8', color: edit.estero ? '#fff' : '#555', fontWeight: 600, cursor: 'pointer' }}>🌍 Estero</button>
+                <button type="button" onClick={() => setEdit({...edit, estero: false})} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: !edit.estero ? '1px solid #1c1c1e' : '1px solid #e2e2e2', background: !edit.estero ? '#1c1c1e' : '#f7f7f8', color: !edit.estero ? '#fff' : '#555', fontWeight: 600, cursor: 'pointer' }}>🇮🇹 Nazionale</button>
+              </div>
+            </div>}
             {isAdmin && <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Numero Pass Disponibili (0 = nessun limite)</div>
-              <input type="number" min="0" value={edit.max_accrediti || 0} onChange={e => setEdit({...edit, max_accrediti: parseInt(e.target.value) || 0})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px' }} />
+              <input type="number" min="0" value={edit.max_accrediti || 0} onChange={e => setEdit({...edit, max_accrediti: parseInt(e.target.value) || 0})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '16px' }} />
             </div>}
             <div style={{ marginBottom: '20px' }}><div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Accredito</div>
-              <select value={edit.accredito_status} onChange={e => setEdit({...edit, accredito_status: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', cursor: 'pointer' }}>
+              <select value={edit.accredito_status} onChange={e => setEdit({...edit, accredito_status: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '16px', cursor: 'pointer' }}>
                 <option value="nessuno">Nessuno</option>
                 <option value="da_richiedere">🟡 Dovremmo richiederlo</option>
                 <option value="richiesto">📨 Richiesto</option>
@@ -3027,7 +3737,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                 value={edit.newNote || ''}
                 onChange={e => setEdit({ ...edit, newNote: e.target.value })}
                 placeholder="Aggiungi una nuova nota..."
-                style={{ width: '100%', minHeight: '60px', padding: '12px', borderRadius: '8px', border: '2px solid #ddd', fontSize: '16px', fontFamily: 'inherit', resize: 'vertical', marginTop: '4px' }}
+                style={{ width: '100%', minHeight: '60px', padding: '12px', borderRadius: '8px', border: '0.5px solid rgba(60,60,67,0.25)', fontSize: '16px', fontFamily: 'inherit', resize: 'vertical', marginTop: '4px' }}
               />
             </div>
           </div>
@@ -3041,40 +3751,67 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
   }
   
   let b = null
-  const giorniMancantiDett = calcolaGiorniMancanti(evento.data_inizio)
-  const urgenteDett = isStatoAccreditoUrgente(evento.accredito_status, giorniMancantiDett)
-  if (evento.accredito_status === 'da_richiedere') b = urgenteDett
+  // NUOVO: usa i dati aggiornati (edit) se disponibili, così dopo un salvataggio la vista si aggiorna
+  // subito senza dover chiudere e riaprire il modale (edit viene aggiornato in salvaModifiche()).
+  const eventoAttuale = (edit && edit.id === evento.id) ? edit : evento
+  const giorniMancantiDett = calcolaGiorniMancanti(eventoAttuale.data_inizio)
+  const urgenteDett = isStatoAccreditoUrgente(eventoAttuale.accredito_status, giorniMancantiDett)
+  if (eventoAttuale.accredito_status === 'da_richiedere') b = urgenteDett
     ? { icon: '⚠️', text: `DOVREMMO RICHIEDERE — mancano ${giorniMancantiDett} giorni!`, bg: '#FF3B30', color: '#FFF', pulse: true }
     : { icon: '🟡', text: 'DOVREMMO RICHIEDERE', bg: '#FFD60A', color: '#000' }
-  else if (evento.accredito_status === 'richiesto') b = urgenteDett
+  else if (eventoAttuale.accredito_status === 'richiesto') b = urgenteDett
     ? { icon: '⚠️', text: `RICHIESTO, IN ATTESA DI RISPOSTA — mancano ${giorniMancantiDett} giorni!`, bg: '#FF3B30', color: '#FFF', pulse: true }
     : { icon: '📨', text: 'RICHIESTO', bg: '#FF9500', color: '#FFF' }
-  else if (evento.accredito_status === 'accettato') b = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
+  else if (eventoAttuale.accredito_status === 'accettato') b = { icon: '✅', text: 'ACCETTATO', bg: '#34C759', color: '#FFF' }
   
   const slots = Array.from({ length: maxAccrediti }, (_, i) => prenotazioniEvento[i] || null)
   
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
-      <div style={{ background: 'white', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '550px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '1px solid #e0e0e0' }}>
+    <div className="fwm-glass-overlay" style={{ padding: isMobile ? '0' : '20px' }}>
+      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '550px', maxHeight: isMobile ? '100vh' : '90vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '12px 15px' : '20px 30px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
           <div style={{ fontSize: isMobile ? '17px' : '20px', fontWeight: 'bold' }}>Dettagli</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666', minWidth: '44px', minHeight: '44px' }}>✕</button>
+          <button onClick={onClose} className="fwm-glass-close" style={{ minWidth: 32, minHeight: 32, fontSize: 15 }}>✕</button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '15px' : '30px' }}>
-          <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '10px' }}>{evento.titolo}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '10px', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{eventoAttuale.titolo}</div>
+            <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 100, background: '#f0f0f0', color: '#555', border: '1px solid #e0e0e0', whiteSpace: 'nowrap' }}>
+              {eventoAttuale.estero ? '🌍 Estero' : '🇮🇹 Nazionale'}
+            </span>
+          </div>
           {b && <div style={{ marginBottom: '20px', padding: '15px', background: b.bg, color: b.color, borderRadius: '10px', fontWeight: 'bold', animation: b.pulse ? 'pulseUrgenteAccredito 1.3s ease-in-out infinite' : 'none' }}>{b.icon} {b.text}</div>}
           <div style={{ marginBottom: '20px' }}>
-            {new Date(evento.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
-            {evento.data_fine && ` - ${new Date(evento.data_fine).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}`}
-            {evento.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}>{evento.orario.split(':').slice(0, 2).join(':')}</span>}
+            {new Date(eventoAttuale.data_inizio).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}
+            {eventoAttuale.data_fine && ` - ${new Date(eventoAttuale.data_fine).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' })}`}
+            {eventoAttuale.orario && <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#007AFF' }}>{eventoAttuale.orario.split(':').slice(0, 2).join(':')}</span>}
           </div>
           {maxAccrediti > 0 && <div style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f7', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>👤 Pass ({numPrenotati}/{maxAccrediti})</div>
             {slots.map((p, i) => (
-              <div key={i} style={{ padding: '8px', background: 'white', borderRadius: '6px', marginBottom: '6px', fontSize: '14px' }}>
-                {p ? `👤 ${p.nome_completo}` : `Posto ${i+1} libero`}
+              <div key={i} style={{ padding: '8px', background: 'rgba(120,120,128,0.08)', border: '0.5px solid rgba(60,60,67,0.1)', borderRadius: '10px', marginBottom: '6px', fontSize: '14px' }}>
+                {p ? `${p.retribuito ? '💶 ' : '👤 '}${p.nome_completo}` : `Posto ${i+1} libero`}
               </div>
             ))}
+            {!prenotatoCorrente && (() => {
+              const idoneo = eventoIdoneoPerRimborso(eventoAttuale, criterioRimborso);
+              const motivo = motivoRimborsoNonDisponibile(eventoAttuale, criterioRimborso);
+              const tettoUtenteRaggiunto = maxRimborsiPerUtente !== null && getRimborsiUsatiDaUtente(utenteCorrente.username) >= maxRimborsiPerUtente
+              const rimborsoDisponibile = idoneo && rimborsiDisponibili > 0 && !tettoUtenteRaggiunto
+              return (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: rimborsoDisponibile ? '#333' : '#aaa', marginTop: '10px', cursor: rimborsoDisponibile ? 'pointer' : 'not-allowed' }}>
+                  <input
+                    type="checkbox"
+                    disabled={!rimborsoDisponibile}
+                    checked={richiedeRimborso && rimborsoDisponibile}
+                    onChange={e => setRichiedeRimborso(e.target.checked)}
+                  />
+                  {!idoneo
+                    ? `Rimborso non disponibile (${motivo})`
+                    : `Richiedi rimborso spese ${rimborsoDisponibile ? `(${rimborsiDisponibili} disponibili quest'anno)` : '(budget esaurito' + (tettoUtenteRaggiunto ? ' per te' : '') + ')'}`}
+                </label>
+              )
+            })()}
             <button onClick={togglePrenotazione} style={{ width: '100%', marginTop: '10px', padding: '12px', background: prenotatoCorrente ? '#FF3B30' : '#34C759', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>
               {prenotatoCorrente ? 'Annulla prenotazione' : 'Prenota pass'}
             </button>
@@ -3084,9 +3821,9 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
             <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#000', marginBottom: '8px' }}>Note:</div>
             {(() => {
               let noteArr = [];
-              if (evento.note) {
+              if (eventoAttuale.note) {
                 try {
-                  const parsed = JSON.parse(evento.note);
+                  const parsed = JSON.parse(eventoAttuale.note);
                   if (Array.isArray(parsed)) {
                     noteArr = parsed;
                   } else if (typeof parsed === 'object' && parsed !== null && parsed.testo) {
@@ -3096,7 +3833,7 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
                   }
                 } catch (e) {
                   // Se non è JSON, fallback a stringa semplice
-                  noteArr = [{ testo: evento.note }];
+                  noteArr = [{ testo: eventoAttuale.note }];
                 }
               }
               if (!noteArr.length || !noteArr[0].testo) {
@@ -3123,14 +3860,14 @@ function DettaglioEventoModal({ evento, campionati, prenotazioni, utenti, isAdmi
               );
             })()}
           </div>
-          {evento.programmazione_weekend && (
-            <div style={{ marginTop: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px', border: '1px solid #ddd' }}>
+          {eventoAttuale.programmazione_weekend && (
+            <div style={{ marginTop: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px', border: '0.5px solid rgba(60,60,67,0.25)' }}>
               <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', marginBottom: '10px' }}>Programmazione Weekend</div>
               {['sab', 'dom', 'lun', 'mar', 'mer', 'gio', 'ven'].map(giornoKey => {
                 const nomiGiorni = {
                   'sab': 'Sabato', 'dom': 'Domenica', 'lun': 'Lunedì', 'mar': 'Martedì', 'mer': 'Mercoledì', 'gio': 'Giovedì', 'ven': 'Venerdì'
                 };
-                const sessioni = estraiSessioniGiornata(evento.programmazione_weekend, giornoKey);
+                const sessioni = estraiSessioniGiornata(eventoAttuale.programmazione_weekend, giornoKey);
                 if (!sessioni.length) return null;
                 return (
                   <div key={giornoKey} style={{ marginBottom: '8px' }}>
@@ -3310,43 +4047,19 @@ function NotificheModal({ notifiche, eventi = [], onClose, onSegnaLetta, onSegna
   };
 
   return (
-    <div style={{ 
-      position: 'fixed', 
-      top: 0, 
-      left: 0, 
-      right: 0, 
-      bottom: 0, 
-      background: 'rgba(0,0,0,0.5)', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      zIndex: 10000 
-    }}>
-      <div style={{ 
-        background: 'white', 
-        borderRadius: '15px', 
+    <div className="fwm-glass-overlay">
+      <div className="fwm-glass-card" style={{ 
+        borderRadius: 22, 
         width: '600px', 
         maxHeight: '90vh', 
         display: 'flex', 
         flexDirection: 'column' 
       }}>
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          padding: '20px 30px', 
-          borderBottom: '1px solid #e0e0e0' 
-        }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold' }}>🔔 Notifiche</div>
+        <div className="fwm-glass-header" style={{ padding: '18px 30px' }}>
+          <div style={{ fontSize: '18px', fontWeight: '700' }}>🔔 Notifiche</div>
           <button 
             onClick={onClose} 
-            style={{ 
-              background: 'none', 
-              border: 'none', 
-              fontSize: '24px', 
-              cursor: 'pointer', 
-              color: '#666' 
-            }}
+            className="fwm-glass-close"
           >
             ✕
           </button>
@@ -3391,9 +4104,6 @@ function NotificheModal({ notifiche, eventi = [], onClose, onSegnaLetta, onSegna
                     alignItems: 'center',
                     gap: '6px'
                   }}>
-                    {n.solo_admin && (
-                      <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#FF9500', border: '1px solid #FF9500', borderRadius: '4px', padding: '1px 5px' }}>ADMIN</span>
-                    )}
                     <span>{n.messaggio}</span>
                   </div>
                   <div style={{ fontSize: '11px', color: '#666' }}>
