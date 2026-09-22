@@ -45,6 +45,23 @@ const CATEGORIE = [
   { id: 'opinioni', nome: '✍️ Opinioni' }
 ]
 
+// ===== HELPER: formatta intervallo date weekend in gg/mm/aaaa =====
+function formattaDataIt(dataIso) {
+  if (!dataIso) return ''
+  const [anno, mese, giorno] = String(dataIso).split('-')
+  if (!anno || !mese || !giorno) return dataIso
+  return `${giorno}/${mese}/${anno}`
+}
+function formattaIntervalloData(weekend) {
+  if (weekend?.data_inizio && weekend?.data_fine) {
+    return `${formattaDataIt(weekend.data_inizio)} - ${formattaDataIt(weekend.data_fine)}`
+  }
+  if (weekend?.data && weekend.data.includes(' - ')) {
+    return weekend.data.split(' - ').map(formattaDataIt).join(' - ')
+  }
+  return weekend?.data || ''
+}
+
 const TEMPLATE_ARTICOLI = [
   { titolo: 'Dichiarazioni piloti/TP', categoria: 'dichiarazioni', giorno: 'giovedi' },
   { titolo: 'Analisi Brembo - Immagini circuito', categoria: 'tecnico', giorno: 'giovedi' },
@@ -558,7 +575,7 @@ function WeekendCard({ weekend, categorie, isAdmin, nomeUtente, modalitaModifica
             <div>
               <div style={{ fontSize: '22px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
               <div style={{ fontSize: '14px', color: '#666' }}>
-                {weekend.data}
+                {formattaIntervalloData(weekend)}
                 {categoriaWeekend && <span style={{ marginLeft: '10px', color: colore, fontWeight: 'bold' }}>• {categoriaWeekend.nome}</span>}
               </div>
             </div>
@@ -1227,20 +1244,20 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
     .sort((a, b) => ordineGiorni.indexOf(a.giorno) - ordineGiorni.indexOf(b.giorno))
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-      <div style={{ background: '#f5f5f7', borderRadius: '15px', width: '900px', height: '700px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 55px 20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', borderRadius: '15px 15px 0 0', position: 'relative' }}>
-          <div style={{ width: '90px' }}></div>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? '0' : '20px' }}>
+      <div style={{ background: '#f5f5f7', borderRadius: isMobile ? '0' : '15px', width: isMobile ? '100vw' : '900px', height: isMobile ? '100vh' : '700px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '60px 20px 15px' : '20px 55px 20px 30px', background: 'white', borderBottom: '1px solid #e0e0e0', borderRadius: isMobile ? '0' : '15px 15px 0 0', position: 'relative', gap: isMobile ? '10px' : 0 }}>
+          {!isMobile && <div style={{ width: '90px' }}></div>}
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
-            <div style={{ fontSize: '13px', color: '#666' }}>{weekend.data}</div>
+            <div style={{ fontSize: isMobile ? '19px' : '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
+            <div style={{ fontSize: '13px', color: '#666' }}>{formattaIntervalloData(weekend)}</div>
           </div>
           {isAdmin ? (
-            <button onClick={() => setShowAdminView(true)} style={{ padding: '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>Tabella Admin</button>
+            <button onClick={() => setShowAdminView(true)} style={{ padding: isMobile ? '10px 18px' : '6px 12px', background: '#FF9500', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}>Tabella Admin</button>
           ) : (
-            <div style={{ width: '90px' }}></div>
+            !isMobile && <div style={{ width: '90px' }}></div>
           )}
-          <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: '18px', right: '15px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
+          <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: isMobile ? '65px' : '18px', right: '15px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
         <div style={{ padding: '15px 30px', textAlign: 'center', background: 'white' }}>
           <div style={{ fontSize: '16px', marginBottom: '5px', fontWeight: 'bold' }}>👤 Ciao {nomeRedattore}</div>
@@ -1514,20 +1531,22 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile, nom
         {/* HEADER - IDENTICO a selezione articoli */}
         <div style={{ 
           display: 'flex', 
+          flexDirection: isMobile ? 'column' : 'row',
           justifyContent: 'space-between', 
           alignItems: 'center', 
-          padding: isMobile ? '60px 15px 20px 15px' : '20px 55px 20px 30px', 
+          padding: isMobile ? '60px 20px 15px' : '20px 55px 20px 30px', 
           background: 'white', 
           borderBottom: '1px solid #e0e0e0',
           borderRadius: isMobile ? '0' : '15px 15px 0 0',
-          position: 'relative'
+          position: 'relative',
+          gap: isMobile ? '10px' : 0
         }}>
-          <div style={{ width: '90px' }}></div>
+          {!isMobile && <div style={{ width: '90px' }}></div>}
           
           {/* Titolo centrato */}
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
-            <div style={{ fontSize: '13px', color: '#666' }}>{weekend.data}</div>
+            <div style={{ fontSize: isMobile ? '19px' : '20px', fontWeight: 'bold' }}>{weekend.nome_gp}</div>
+            <div style={{ fontSize: '13px', color: '#666' }}>{formattaIntervalloData(weekend)}</div>
           </div>
           
           {/* Bottone Menu */}
@@ -1535,7 +1554,7 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile, nom
             <button 
               onClick={() => setShowMenu(!showMenu)} 
               style={{ 
-                padding: isMobile ? '8px 16px' : '8px 16px', 
+                padding: isMobile ? '10px 18px' : '8px 16px', 
                 background: '#007AFF', 
                 color: 'white', 
                 border: 'none', 
@@ -1571,7 +1590,7 @@ function AdminWeekendView({ weekend, articoli, onClose, onRefresh, isMobile, nom
               </div>
             )}
           </div>
-          <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: isMobile ? '65px' : '28px', right: isMobile ? '15px' : '20px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
+          <button onClick={onClose} aria-label="Chiudi" style={{ position: 'absolute', top: isMobile ? '65px' : '28px', right: '15px', background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
         </div>
 
         {/* TAB BAR - MIGLIORAMENTO 1: Rimozione tab Log */}
@@ -1920,7 +1939,7 @@ function ModificaRedattoriSection({ weekend, articoli, onUpdate }) {
       </div>
 
       <button onClick={salvaRedattori} disabled={salvando} style={{ width: '100%', padding: '12px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '16px' }}>
-        {salvando ? 'Salvataggio...' : '💾 Salva Redattori'}
+        {salvando ? 'Salvataggio...' : 'Salva Redattori'}
       </button>
 
       {deleteConfirm && (
@@ -2714,7 +2733,7 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
           <div style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '20px' }}>Esporta Tabella JPEG</div>
           <div style={{ fontSize: '16px', color: '#666', marginBottom: '10px' }}>Crea un'immagine JPEG della tabella weekend</div>
           <div style={{ fontSize: '20px', fontWeight: '600', marginTop: '20px' }}>{weekend.nome_gp}</div>
-          <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>{weekend.data}</div>
+          <div style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>{formattaIntervalloData(weekend)}</div>
           
           {generando && (
             <div style={{ marginTop: '30px', padding: '20px', background: '#f5f5f7', borderRadius: '10px' }}>
@@ -2738,7 +2757,7 @@ function ExportJPEGModal({ weekend, articoli, onClose }) {
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <div style={{ fontSize: '42px', fontWeight: 'bold', marginBottom: '10px', color: '#000' }}>{weekend.nome_gp}</div>
             <div style={{ fontSize: '20px', fontWeight: '600', color: '#666', marginBottom: '8px' }}>DISPONIBILITÀ WEEKEND REDATTORI</div>
-            <div style={{ fontSize: '16px', color: '#999' }}>{weekend.data}</div>
+            <div style={{ fontSize: '16px', color: '#999' }}>{formattaIntervalloData(weekend)}</div>
           </div>
 
           {/* TABELLA */}
