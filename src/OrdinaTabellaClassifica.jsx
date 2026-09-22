@@ -673,23 +673,31 @@ export default function OrdinaTabellaClassifica({ onClose, user }) {
   // ── Vista Lista Template ──────────────────────────────────────────────────
   if (!templateSelezionato) {
     return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'white', display: 'flex', flexDirection: 'column', padding: '20px', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', gap: '10px' }}>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#007AFF', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', padding: 0 }}>← Indietro</button>
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button onClick={openTiming71ExtensionPage}
-              style={{ background: '#16a34a', color: 'white', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: 'bold' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'white', display: 'flex', flexDirection: 'column', padding: isMobileView ? '0 16px 20px' : '20px', overflowY: 'auto' }}>
+        <button className="page-back-button" onClick={onClose}>Indietro</button>
+
+        <div style={{
+          display: 'flex',
+          flexDirection: isMobileView ? 'column' : 'row',
+          justifyContent: isMobileView ? 'flex-start' : 'flex-end',
+          alignItems: 'stretch',
+          gap: '10px',
+          marginBottom: '30px',
+          paddingTop: isMobileView ? 'calc(env(safe-area-inset-top, 0px) + 64px)' : '20px',
+          flexWrap: isMobileView ? 'nowrap' : 'wrap'
+        }}>
+          <button onClick={openTiming71ExtensionPage}
+            style={{ background: '#16a34a', color: 'white', border: 'none', padding: isMobileView ? '13px 18px' : '10px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: isMobileView ? '15px' : '15px', fontWeight: 'bold', width: isMobileView ? '100%' : 'auto' }}>
             Installa estensione Timing71
-            </button>
-            <button onClick={() => setIsModificaMode(!isModificaMode)}
-              style={{ background: isModificaMode ? '#10b981' : '#dc2626', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>
-              Modifica
-            </button>
-            <button onClick={() => { setInputHtml(''); setTemplateSelezionato({ id: 'new' }); setIsNuovoTemplate(true); setOutputHtml(''); setShowPreview(false) }}
-              style={{ background: '#007AFF', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>
-              Aggiungi Template
-            </button>
-          </div>
+          </button>
+          <button onClick={() => setIsModificaMode(!isModificaMode)}
+            style={{ background: isModificaMode ? '#10b981' : '#dc2626', color: 'white', border: 'none', padding: isMobileView ? '13px 20px' : '10px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', width: isMobileView ? '100%' : 'auto' }}>
+            Modifica
+          </button>
+          <button onClick={() => { setInputHtml(''); setTemplateSelezionato({ id: 'new' }); setIsNuovoTemplate(true); setOutputHtml(''); setShowPreview(false) }}
+            style={{ background: '#007AFF', color: 'white', border: 'none', padding: isMobileView ? '13px 20px' : '10px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold', width: isMobileView ? '100%' : 'auto' }}>
+            Aggiungi Template
+          </button>
         </div>
 
         <h1 style={{ color: '#333', marginTop: 0, marginBottom: '30px', fontSize: '28px', textAlign: 'center' }}>Tabella HTML</h1>
