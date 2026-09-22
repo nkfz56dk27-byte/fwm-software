@@ -320,6 +320,172 @@ body {
   transform: scale(0.98);
 }
 
+/* ===== Selezione campionato — Formula 1 / Formula E / Altre classifiche ===== */
+.classifica-select-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+.classifica-hero-row {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+  max-width: 460px;
+}
+.classifica-hero-card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px 10px;
+  border-radius: 16px;
+  border: 2.5px solid rgba(255, 59, 48, 0.75);
+  background: rgba(20, 20, 22, 0.82);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35), 0 0 14px rgba(255, 59, 48, 0.15);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.classifica-hero-card:hover {
+  border-color: rgba(255, 59, 48, 1);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4), 0 0 18px rgba(255, 59, 48, 0.28);
+  transform: translateY(-2px);
+}
+.classifica-hero-card:active {
+  transform: scale(0.97) translateY(0);
+}
+
+.classifica-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  padding: 11px 22px;
+  border-radius: 100px;
+  border: 2.5px solid rgba(255, 59, 48, 0.7);
+  background: rgba(20, 20, 22, 0.82);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3), 0 0 12px rgba(255, 59, 48, 0.12);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.classifica-toggle-btn:hover { border-color: rgba(255, 59, 48, 1); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3), 0 0 16px rgba(255, 59, 48, 0.25); }
+.classifica-toggle-btn:active { transform: scale(0.97); }
+.classifica-toggle-chevron {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  transition: transform 0.25s ease;
+  line-height: 1;
+}
+.classifica-toggle-btn.is-open .classifica-toggle-chevron {
+  transform: rotate(180deg);
+}
+
+.classifica-list-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 460px;
+  margin-top: 18px;
+  gap: 10px;
+}
+.classifica-list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 2.5px solid rgba(255, 59, 48, 0.7);
+  background: rgba(20, 20, 22, 0.82);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3), 0 0 10px rgba(255, 59, 48, 0.1);
+  color: rgba(255, 255, 255, 0.94);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.classifica-list-row:hover { border-color: rgba(255, 59, 48, 1); }
+.classifica-list-row:active { transform: scale(0.98); }
+.classifica-list-row.is-disabled { cursor: default; }
+.classifica-list-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.classifica-list-chevron {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.35);
+  line-height: 1;
+}
+.classifica-delete-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid rgba(255, 59, 48, 0.55);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+.classifica-delete-btn:hover { background: rgba(255, 59, 48, 0.18); border-color: rgba(255, 59, 48, 0.9); color: #ff9089; }
+.classifica-delete-btn:active { transform: scale(0.9); }
+
+.classifica-add-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 2.5px solid rgba(255, 59, 48, 0.7);
+  background: rgba(20, 20, 22, 0.82);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3), 0 0 10px rgba(255, 59, 48, 0.1);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.classifica-add-row:hover { border-color: rgba(255, 59, 48, 1); }
+.classifica-add-row:active { transform: scale(0.98); }
+
+@media (max-width: 480px) {
+  .classifica-hero-card { padding: 18px 8px; border-radius: 14px; font-size: 15px; }
+  .classifica-toggle-btn { padding: 10px 20px; font-size: 13px; }
+  .classifica-list-row { padding: 13px 14px; }
+  .classifica-list-name { font-size: 15px; }
+  .classifica-add-row { padding: 13px 14px; font-size: 14px; }
+}
+
+.classifica-header-toggle {
+  transition: transform 0.15s ease;
+}
+.classifica-header-toggle:active { transform: scale(0.92); }
+
 /* Box "Prossimo evento" in home: allineato in alto con la prima riga di card, si adatta alla larghezza schermo */
 .prossimo-evento-box {
   position: absolute;
