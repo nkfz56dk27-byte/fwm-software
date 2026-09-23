@@ -552,7 +552,7 @@ async function sendAccreditiAdminReminders() {
 
     const { data: eventi, error: errEventi } = await supabase
       .from('eventi_calendario')
-      .select('id, titolo, data_inizio, accredito_status')
+      .select('id, titolo, data_inizio, data_fine, accredito_status')
       .in('accredito_status', ['da_richiedere', 'richiesto']);
 
     if (errEventi) {
@@ -572,11 +572,18 @@ async function sendAccreditiAdminReminders() {
 
     const eventiInSoglia = eventi
       .map(ev => {
-        const dataEv = new Date(ev.data_inizio);
+        // Usa data_fine se presente (come fa già il resto dell'app per capire se un evento è concluso),
+        // altrimenti ricade su data_inizio
+        const dataRiferimento = ev.data_fine || ev.data_inizio;
+        const dataEv = new Date(dataRiferimento);
         dataEv.setHours(0, 0, 0, 0);
         const giorniMancanti = Math.floor((dataEv.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24));
         return { ...ev, giorniMancanti };
       })
+      // Esclude eventi già conclusi: senza questo filtro un evento passato con accredito
+      // mai risolto ha giorniMancanti negativo, che soddisfa sempre "<= soglia" e finisce
+      // per essere ri-segnalato all'infinito come "da gestire"
+      .filter(ev => ev.giorniMancanti >= 0)
       .filter(ev => ev.giorniMancanti <= (SOGLIA_GIORNI_ACCREDITI[ev.accredito_status] ?? -1));
 
     console.log(`[INFO] ${eventiInSoglia.length} eventi entro soglia (90gg da_richiedere / 21gg richiesto)`);
