@@ -1348,7 +1348,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         </div>
         <div style={{ padding: '20px 30px', background: 'white', borderTop: '1px solid #e0e0e0', borderRadius: '0 0 15px 15px' }}>
           <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '15px', textAlign: 'center' }}>✅ Hai selezionato {articoliSelezionati.size} articoli</div>
-          <div style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
             <button onClick={() => setShowTabella(true)} style={{ padding: '10px 20px', background: '#AF52DE', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold' }}>Mostra Tabella</button>
             <button onClick={() => salvaArticoli(true)} disabled={salvando} style={{ padding: '10px 20px', background: salvando ? '#ccc' : '#34C759', color: 'white', border: 'none', borderRadius: '10px', cursor: salvando ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>Conferma Selezione</button>
           </div>
