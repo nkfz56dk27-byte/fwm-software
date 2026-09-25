@@ -781,10 +781,18 @@ export default async function handler(req, res) {
     });
   }
 
-  const calendarioResult = await sendCalendarioReminders();
-  const articoliCriticiResult = await sendArticoliCriticiReminders();
-  const penaltyResult = await sendPenaltyScadutiReminders();
-  const accreditiAdminResult = await sendAccreditiAdminReminders();
+  // I 4 blocchi sono indipendenti (tabelle e notifiche diverse), quindi li
+  // eseguiamo in parallelo invece che in sequenza: il tempo totale diventa
+  // quello del blocco più lento anziché la somma di tutti e quattro. Con
+  // cron-job.org che chiude a 30s fissi (non configurabile), è la leva
+  // principale per restare sotto quel tetto.
+  const [calendarioResult, articoliCriticiResult, penaltyResult, accreditiAdminResult] =
+    await Promise.all([
+      sendCalendarioReminders(),
+      sendArticoliCriticiReminders(),
+      sendPenaltyScadutiReminders(),
+      sendAccreditiAdminReminders()
+    ]);
 
   res.status(200).json({
     version: VERSION,
