@@ -12,6 +12,14 @@ const VERSION = '2026-08-09-1';
 const ONESIGNAL_APP_ID = process.env.ONESIGNAL_APP_ID;
 const ONESIGNAL_API_KEY = process.env.ONESIGNAL_API_KEY;
 
+// Senza questa config, Vercel applica il maxDuration di default del piano
+// (10s su Hobby senza Fluid Compute attivo). Questo endpoint esegue 4 blocchi
+// pesanti in sequenza (calendario, articoli critici, penalty, accrediti), per
+// cui è particolarmente a rischio di superare il limite di default.
+export const config = {
+  maxDuration: 60,
+};
+
 function getSupabaseClient() {
   if (!supabaseUrl || !supabaseServiceRoleKey) {
     throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
@@ -38,7 +46,9 @@ function getDueDaysFromNow() {
  * @param {object} payload - Payload della notifica
  * @returns {Promise<object>} Risposta da OneSignal
  */
-async function sendOneSignalNotification(payload) {
+async function sendOneSignalNotification(payload, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const fetchFn = globalThis.fetch || (await import('node-fetch')).default;
     const response = await fetchFn('https://onesignal.com/api/v1/notifications', {
@@ -47,7 +57,8 @@ async function sendOneSignalNotification(payload) {
         'Content-Type': 'application/json',
         'Authorization': `Basic ${ONESIGNAL_API_KEY}`
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: controller.signal
     });
 
     const data = await response.json();
@@ -60,6 +71,8 @@ async function sendOneSignalNotification(payload) {
   } catch (error) {
     console.error('❌ Errore OneSignal:', error.message);
     throw error;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
