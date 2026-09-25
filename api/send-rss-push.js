@@ -60,7 +60,7 @@ function getDomainLabel(url) {
 // timeout, una chiamata a OneSignal lenta o che non risponde blocca
 // l'esecuzione senza limiti: è la causa più probabile del Timeout segnalato
 // dal cron. Questo helper impone un timeout reale via AbortController.
-async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 6000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -132,11 +132,17 @@ export default async function handler(req, res) {
     console.log('📢 [RSS PUSH] Inizio elaborazione notifiche RSS pending (da rss_notifications_sent)...');
 
     // 1. Leggi tutte le notifiche pending da rss_notifications_sent
+    // Limite volutamente basso: cron-job.org (piano attuale) chiude la
+    // connessione a 30s fissi e non è configurabile. Con concorrenza 10 e
+    // timeout 6s per notifica, il caso peggiore è ceil(30/10)*6 = 18s,
+    // ben sotto i 30s anche se OneSignal è lento su ogni singola chiamata.
+    // Le notifiche in eccesso restano 'pending' e vengono processate dal
+    // prossimo giro del cron (esegue ogni pochi minuti).
     const { data: notifichePending, error: fetchError } = await supabase
       .from('rss_notifications_sent')
       .select('*')
       .eq('status', 'pending')
-      .limit(100);
+      .limit(30);
 
     if (fetchError) {
       console.error('❌ [RSS PUSH] Errore:', fetchError);
@@ -164,7 +170,7 @@ export default async function handler(req, res) {
     // Concorrenza limitata invece di un ciclo sequenziale: se OneSignal è
     // lento, prima si sommavano i tempi di TUTTE le notifiche una dopo
     // l'altra fino al timeout della function.
-    await mapWithConcurrency(notifichePending, 5, async (notifica) => {
+    await mapWithConcurrency(notifichePending, 10, async (notifica) => {
       try {
         // LOG: Mostra il valore di article_guid e id notifica
         console.log(`[RSS PUSH] Notifica ID: ${notifica.id}, article_guid: ${notifica.article_guid}`);
