@@ -10,6 +10,13 @@ const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_API_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// Senza questa config, Vercel applica il maxDuration di default del piano
+// (10s su Hobby senza Fluid Compute attivo): è la causa più probabile del
+// Timeout osservato, indipendentemente dai timeout/concorrenza interni.
+export const config = {
+  maxDuration: 60,
+};
+
 // Funzione per decodificare entità HTML
 function decodeHtmlEntities(str) {
   if (!str) return '';
