@@ -4,6 +4,13 @@ import piexif from 'piexifjs'
 import { supabase } from './supabaseClient'
 import TextOverlay, { drawTextBoxOnCanvas, createTextBox } from './TestoPost'
 import GuideLines from './LineeGuida'
+import TecnicaOverlay, { TecnicaPanel, FRECCIA_TECNICA, OVALE_TECNICA_URL, CORNICE_TECNICA_URL, EvidenziaModal, preparaSvg, creaFreccia, creaLente, precaricaFrecce, disegnaTecnicaSuCanvas } from './Tecnica'
+
+// Icona del tasto "Evidenzia" nel menu Strumenti: rettangolo pieno (area evidenziata), tinto
+// come le altre icone. Sta qui, fuori dal componente, così è sempre definita.
+const EVIDENZIA_ICON = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="3" fill="#000"/></svg>'
+)
 
 // CSS per nascondere la barra di scorrimento nativa nell'area zoomata (resta comunque
   // possibile scorrere con mouse/trackpad/touch, solo non si vede più la striscia grigia)
@@ -114,6 +121,13 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
   const [canvasBackground, setCanvasBackground] = useState('#000000') // Colore delle strisce del canvas
   const [textBoxes, setTextBoxes] = useState([]) // Caselle di testo (solo NORMALE/COVER)
   const [guideLines, setGuideLines] = useState([]) // Linee guida viola (solo POST SOCIAL)
+  // --- TECNICA: frecce SVG + lente d'ingrandimento (coordinate in pixel REALI del canvas) ---
+  const [tecnicaArrows, setTecnicaArrows] = useState([]) // [{ id, src, aspect, color, x, y, width, rotation }]
+  const [tecnicaLens, setTecnicaLens] = useState(null) // null oppure { x, y, d, zoom }
+  const [tecnicaSelected, setTecnicaSelected] = useState(null) // id freccia, 'lens' oppure null
+  const [tecnicaHighlights, setTecnicaHighlights] = useState([]) // evidenziature: [{ id, kind:'rect'|'ellipse'|'lasso', color, opacity, outline, ... }]
+  const [tecnicaHlTool, setTecnicaHlTool] = useState(null) // forma in uso mentre si disegna: null | 'rect' | 'ellipse' | 'lasso'
+  const [showEvidenziaModal, setShowEvidenziaModal] = useState(false)
   const [selectedOverlay, setSelectedOverlay] = useState(OVERLAY_GRAPHICS[0]?.key || null) // Grafica sovrapposta (solo POST SOCIAL)
   const [posizioniTestoPerGrafica, setPosizioniTestoPerGrafica] = useState({}) // { overlay_key: {sx,dx,alto,basso,spaziaturaRighe} } — posizioni "bloccate" caricate da Supabase (tabella posizioni_testo_grafiche)
   const overlayImagesRef = useRef({}) // Cache delle immagini precaricate, per l'export
@@ -214,7 +228,7 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
   // che cambia lo spazio disponibile — non solo quando la foto viene caricata la prima volta.
   useEffect(() => {
     if (!containerRef.current) return
-    if (projectMode !== 'normale' && projectMode !== 'postsocial') return
+    if (projectMode !== 'normale' && projectMode !== 'tecnica' && projectMode !== 'postsocial') return
     const imgEl = containerRef.current.querySelector('img')
     if (!imgEl || !imgEl.naturalWidth) return
     const imgAspect = imgEl.naturalWidth / imgEl.naturalHeight
@@ -571,6 +585,8 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
       setGridImages([])
     } else if (projectMode === 'postsocial') {
       // Mantieni la modalità Post Social, nessun reset necessario
+    } else if (projectMode === 'tecnica') {
+      // Mantieni la modalità Tecnica, nessun reset necessario
     } else {
       setProjectMode('normale')
     }
@@ -590,7 +606,9 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
         ? `${projectName} - GRIGLIA-${gridLayout === 'grid2x2' ? '2X2' : gridCount}`
         : projectMode === 'postsocial' && !projectName.toLowerCase().includes('post social')
           ? `${projectName} - POST SOCIAL`
-          : projectName
+          : projectMode === 'tecnica' && !projectName.toLowerCase().includes('tecnica')
+            ? `${projectName} - TECNICA`
+            : projectName
     
     setDimensions({ width, height })
     
@@ -632,6 +650,11 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
         setSelectedImage(e.target.result)
         
         // Reset offset, zoom, style mobile e testo
+        setTecnicaArrows([])
+        setTecnicaHighlights([])
+        setTecnicaHlTool(null)
+        setTecnicaLens(null)
+        setTecnicaSelected(null)
         setImageOffset({ x: 0, y: 0 })
         setImageScale(1)
         setMobileImgStyle({ width: '100%', height: 'auto' })
@@ -677,12 +700,19 @@ const TESTO_BASSO_REALE = posCfg.basso
       .replace(/\s*-\s*GRIGLIA-(2X2|\d)\s*$/i, '')
       .replace(/\s*-\s*COVER\s*$/i, '')
       .replace(/\s*-\s*POST SOCIAL\s*$/i, '')
+      .replace(/\s*-\s*TECNICA\s*$/i, '')
       .trim()
     return cleaned || nome
   }
 
   const handleModeChange = (newMode) => {
     setProjectMode(newMode)
+    setTecnicaArrows([])
+    setTecnicaHighlights([])
+    setTecnicaHlTool(null)
+    setTecnicaLens(null)
+    setTecnicaSelected(null)
+    setShowEvidenziaModal(false)
     setSelectedImage(null) // Pulisce l'immagine corrente
     setImageOffset({ x: 0, y: 0 })
     setImageScale(1)
@@ -1056,6 +1086,53 @@ const TESTO_BASSO_REALE = posCfg.basso
       })
   }
 
+  // --- TECNICA: aggiunta freccia (fissa: src/assets/frecce/frecciatecnica.svg) e lente ---
+  const aggiungiFreccia = async () => {
+    try {
+      const { src, aspect } = await preparaSvg(FRECCIA_TECNICA.url)
+      const nuova = creaFreccia({ src, aspect, canvasW: dimensions.width, canvasH: dimensions.height })
+      setTecnicaArrows((prev) => [...prev, nuova])
+      setTecnicaSelected(nuova.id)
+    } catch (err) {
+      console.error('Errore SVG freccia:', err)
+      setFeedback('❌ SVG non valido')
+      setTimeout(() => setFeedback(''), 4000)
+    }
+  }
+
+  // Ovale: stesso meccanismo della freccia (un SVG tinto, spostabile/ruotabile/ridimensionabile),
+  // ma con l'SVG dell'ovale e una larghezza di partenza maggiore. Lo gestisce tecnicaArrows,
+  // quindi il pannello sotto la foto ha già Colore, Rotazione, Dimensione, Duplica ed Elimina.
+  const aggiungiOvale = async () => {
+    try {
+      const { src, aspect } = await preparaSvg(OVALE_TECNICA_URL)
+      const nuova = creaFreccia({ src, aspect, canvasW: dimensions.width, canvasH: dimensions.height })
+      nuova.width = Math.round(dimensions.width * 0.3)
+      setTecnicaArrows((prev) => [...prev, nuova])
+      setTecnicaSelected(nuova.id)
+    } catch (err) {
+      console.error('Errore SVG ovale:', err)
+      setFeedback('❌ SVG non valido')
+      setTimeout(() => setFeedback(''), 4000)
+    }
+  }
+
+  const apriEvidenziatore = (kind) => {
+    setTecnicaSelected(null)
+    setTecnicaHlTool(kind)
+    setShowEvidenziaModal(false)
+  }
+
+  const toggleLenteTecnica = () => {
+    if (tecnicaLens) {
+      setTecnicaLens(null)
+      if (tecnicaSelected === 'lens') setTecnicaSelected(null)
+    } else {
+      setTecnicaLens(creaLente(dimensions.width, dimensions.height))
+      setTecnicaSelected('lens')
+    }
+  }
+
   const handleSave = () => {
     if (projectMode === 'griglia') {
       handleSaveGrid()
@@ -1065,13 +1142,15 @@ const TESTO_BASSO_REALE = posCfg.basso
     setIsSaving(true)
     const img = new Image()
     img.src = selectedImage
-    img.onload = () => {
+    img.onload = async () => {
       const canvas = document.createElement('canvas')
       canvas.width = dimensions.width
       canvas.height = dimensions.height
       const ctx = canvas.getContext('2d')
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
+      
+      let drawPhotoFn = null // ridisegna la foto con la stessa posizione/zoom (serve alla lente TECNICA)
       
       if (projectMode === 'cover') {
         // Logica COVER: riempi tutto il canvas con objectFit cover
@@ -1138,6 +1217,7 @@ const TESTO_BASSO_REALE = posCfg.basso
         const baseY = (frameHeightReal - drawH) / 2
         const offsetX = imageOffset.x * scaleToCanvas
         const offsetY = imageOffset.y * scaleToCanvas
+        drawPhotoFn = (c) => c.drawImage(img, baseX + offsetX, baseY + offsetY, drawW, drawH)
 
         ctx.fillStyle = "#ffffff"
         ctx.fillRect(0, 0, canvas.width, canvas.height)
@@ -1190,6 +1270,16 @@ const TESTO_BASSO_REALE = posCfg.basso
         const lX = (dimensions.width - lW) / 2 + config.offsetX
         const lY = dimensions.height - lH - Math.round(dimensions.height * config.offsetYPercent)
         ctx.drawImage(logoImg, lX, lY, lW, lH)
+      }
+
+      // --- TECNICA: lente e frecce, sopra a foto e logo (come in anteprima) ---
+      if (projectMode === 'tecnica' && (tecnicaArrows.length > 0 || tecnicaLens || tecnicaHighlights.length > 0)) {
+        try {
+          await precaricaFrecce(tecnicaArrows)
+          disegnaTecnicaSuCanvas(ctx, { arrows: tecnicaArrows, lens: tecnicaLens, highlights: tecnicaHighlights, drawPhoto: drawPhotoFn })
+        } catch (err) {
+          console.error('Errore disegno TECNICA:', err)
+        }
       }
       
       const ext = exportFormat === 'image/webp' ? 'webp' : (exportFormat === 'image/png' ? 'png' : 'jpg')
@@ -1251,6 +1341,125 @@ const TESTO_BASSO_REALE = posCfg.basso
     color: '#1c1c1e', fontSize: '13px', fontWeight: '700', cursor: 'pointer', textAlign: 'left',
     display: 'flex', alignItems: 'center', gap: '8px', width: '100%'
   }
+
+  const [showTecnicaMenu, setShowTecnicaMenu] = useState(false)
+
+  // Le 3 "mattonelle" del menu Strumenti: icona grande su badge colorato + etichetta sotto,
+  // stesso elemento riusato sia nel flyout desktop sia nel bottom sheet mobile.
+  const tecnicaTiles = [
+    { key: 'freccia', icon: FRECCIA_TECNICA.url, label: 'Freccia', bg: 'rgba(0,122,255,0.12)', fg: '#007AFF', onClick: () => aggiungiFreccia() },
+    { key: 'lente', icon: CORNICE_TECNICA_URL, label: tecnicaLens ? 'Rimuovi lente' : 'Lente', bg: '#f2f2f7', fg: '#636366', onClick: () => toggleLenteTecnica() },
+    // raw: true = si mostra l'SVG così com'è (anello giallo vuoto dentro), senza badge colorato
+    // e senza tinta. L'ovale è un elemento a sé (come la freccia): si aggiunge sulla foto e si
+    // sposta/ruota/ridimensiona/colora/duplica dal pannello sotto la foto.
+    { key: 'ovale', icon: OVALE_TECNICA_URL, label: 'Ovale', raw: true, onClick: () => aggiungiOvale() },
+    // Evidenzia = l'evidenziatore ad area (rettangolo / ellisse / mano libera), invariato.
+    { key: 'evidenzia', icon: EVIDENZIA_ICON, label: 'Evidenzia', bg: 'rgba(255,149,0,0.14)', fg: '#FF9500', onClick: () => setShowEvidenziaModal(true) }
+  ]
+  // Icona = SVG mascherato del colore del badge (stessa tecnica usata per tingere la freccia
+  // sulla foto), non emoji: così le 3 icone caricate dall'utente sono quelle che si vedono davvero.
+  const TecnicaTile = ({ t, size = 56 }) => (
+    <button
+      className="fwm-tecnica-tile"
+      onClick={() => { t.onClick(); setShowTecnicaMenu(false) }}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+        background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '14px', width: `${size + 20}px`
+      }}
+    >
+      <span style={{
+        width: `${size}px`, height: `${size}px`, borderRadius: '16px', background: t.raw ? 'transparent' : t.bg,
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}>
+        {t.raw ? (
+          <img src={t.icon} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+        ) : (
+          <span style={{
+            width: `${Math.round(size * 0.5)}px`, height: `${Math.round(size * 0.5)}px`, background: t.fg,
+            WebkitMaskImage: `url("${t.icon}")`, maskImage: `url("${t.icon}")`,
+            WebkitMaskSize: 'contain', maskSize: 'contain',
+            WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center', maskPosition: 'center'
+          }} />
+        )}
+      </span>
+      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1c1c1e', textAlign: 'center', lineHeight: 1.15 }}>{t.label}</span>
+    </button>
+  )
+
+  // Menu "Strumenti": su desktop un flyout stile Canva che si apre a fianco della colonna
+  // (non più sopra, non copre nulla), su mobile un bottom sheet centrato sullo schermo — così
+  // non dipende più dalla posizione del pulsante dentro la barra che va a capo.
+  const TecnicaMenuButton = ({ vertical = true }) => (
+    <div style={{ position: 'relative', width: vertical ? '100%' : 'auto' }}>
+      <ToolIconButton
+        icon="🛠️"
+        label="Strumenti"
+        active={showTecnicaMenu || showEvidenziaModal || !!tecnicaLens || !!tecnicaHlTool}
+        onClick={() => setShowTecnicaMenu(v => !v)}
+        vertical={vertical}
+      />
+      {showTecnicaMenu && (
+        <>
+          <style>{`
+            .fwm-tecnica-tile:hover { background: #f2f2f7; }
+            .fwm-tecnica-tile:active { background: #e5e5ea; }
+            @keyframes fwmSheetUp { from { transform: translateY(100%) } to { transform: translateY(0) } }
+          `}</style>
+
+          {vertical ? (
+            <>
+              {/* DESKTOP: flyout a fianco della colonna strumenti, stile Canva — niente più
+              menu che sbuca verso l'alto e copre quello che c'è sopra. */}
+              <div onClick={() => setShowTecnicaMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
+              <div style={{
+                position: 'absolute', top: '0', left: 'calc(100% + 14px)',
+                background: '#fff', borderRadius: '18px', boxShadow: '0 12px 30px rgba(0,0,0,0.22)',
+                border: '1px solid rgba(0,122,255,0.15)', padding: '10px', zIndex: 100
+              }}>
+                <div style={{
+                  position: 'absolute', top: '18px', left: '-7px', width: '14px', height: '14px',
+                  background: '#fff', borderLeft: '1px solid rgba(0,122,255,0.15)', borderBottom: '1px solid rgba(0,122,255,0.15)',
+                  transform: 'rotate(45deg)', zIndex: -1
+                }} />
+                <div style={{ padding: '2px 4px 8px', fontSize: '10.5px', fontWeight: '800', color: '#8e8e93', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                  Aggiungi elemento
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {tecnicaTiles.map((t) => <TecnicaTile key={t.key} t={t} />)}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* MOBILE: bottom sheet centrato sullo schermo intero, come un tray di Canva —
+              indipendente da dove si trova il pulsante dentro la barra che va a capo. */}
+              <div
+                onClick={() => setShowTecnicaMenu(false)}
+                style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 10040 }}
+              />
+              <div style={{
+                position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 10041,
+                background: '#fff', borderTopLeftRadius: '24px', borderTopRightRadius: '24px',
+                boxShadow: '0 -10px 30px rgba(0,0,0,0.25)',
+                padding: '10px 20px calc(env(safe-area-inset-bottom, 0px) + 20px)',
+                animation: 'fwmSheetUp 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)'
+              }}>
+                <div style={{ width: '36px', height: '5px', borderRadius: '3px', background: '#e5e5ea', margin: '0 auto 14px' }} />
+                <div style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '10px' }}>
+                  Aggiungi elemento
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+                  {tecnicaTiles.map((t) => <TecnicaTile key={t.key} t={t} size={60} />)}
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  )
+
 
   // Menu unico "+ Aggiungi" che raggruppa testo e linee guida, per non affollare la barra
   // di pulsanti separati.
@@ -1408,6 +1617,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                   const n = (nome || '').toLowerCase()
                   if (n.includes('griglia')) return { colore: '#5856D6' }
                   if (n.includes('post social')) return { colore: '#007AFF' }
+                  if (n.includes('tecnica')) return { colore: '#FF9500' }
                   if (n.includes('cover')) return { colore: '#FF3B30' }
                   return { colore: '#34C759' }
                 }
@@ -1427,6 +1637,8 @@ const TESTO_BASSO_REALE = posCfg.basso
                     }
                   } else if (nomeLower.includes('post social')) {
                     setProjectMode('postsocial')
+                  } else if (nomeLower.includes('tecnica')) {
+                    setProjectMode('tecnica')
                   } else {
                     setProjectMode(nomeLower.includes('cover') ? 'cover' : 'normale')
                   }
@@ -1529,6 +1741,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                     { val: 'cover', label: 'Cover', colore: '#FF3B30' },
                     { val: 'griglia', label: 'Griglia', colore: '#5856D6' },
                     { val: 'postsocial', label: 'Post Social', colore: '#007AFF' },
+                    { val: 'tecnica', label: 'Tecnica', colore: '#FF9500' },
                   ].map(m => (
                     <button
                       key={m.val}
@@ -1995,7 +2208,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                 <>
                   {/* Bottoni di selezione logo e dimensioni */}
                   {userCategorie.length > 0 && userCategorie.some(cat => cat.toLowerCase() === 'formula e') ? (
-                    <div style={{ marginBottom: '20px', marginLeft: '47px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', position: 'relative', width: '100%', minHeight: '40px' }}>
+                    <div style={{ marginBottom: '20px', marginLeft: isMobile ? 0 : '63px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: 'center', justifyContent: 'center', gap: '12px', position: 'relative', width: '100%', minHeight: '40px' }}>
                       {isMobile ? (
                         <>
                           <span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span>
@@ -2075,7 +2288,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                       )}
                     </div>
                   ) : (
-                    <div style={{ marginBottom: '20px', marginLeft: '47px' }}><span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span></div>
+                    <div style={{ marginBottom: '20px', marginLeft: isMobile ? 0 : '63px', display: 'flex', justifyContent: 'center', width: '100%' }}><span style={{ background: '#1c1c1e', color: '#fff', padding: '6px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: '800' }}>{dimensions.width} × {dimensions.height} PX</span></div>
                   )}
                   <div style={{ display: isMobile ? 'block' : 'flex', justifyContent: 'center', alignItems: 'flex-start', gap: '16px' }}>
                     {/* Menu strumenti: colonna a SINISTRA su desktop, riga sotto il canvas su
@@ -2113,6 +2326,12 @@ const TESTO_BASSO_REALE = posCfg.basso
                           <ToolIconButton icon="📐" label={showRulers ? 'Righelli' : 'Righelli'} active={showRulers} onClick={() => setShowRulers((v) => !v)} />
                         )}
                         {projectMode === 'postsocial' && <div style={{ height: '1px', background: '#f2f2f2', margin: '6px 4px' }} />}
+                        {projectMode === 'tecnica' && (
+                          <>
+                            <TecnicaMenuButton />
+                            <div style={{ height: '1px', background: '#f2f2f2', margin: '6px 4px' }} />
+                          </>
+                        )}
 
                         <ToolIconButton
                           icon={canvasBackground === '#000000' ? '🌙' : '☀️'}
@@ -2228,7 +2447,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                           <div style={{ position: 'relative', width: `${zoomedWidth}px`, height: `${zoomedHeight}px` }}>
                             <div 
                               ref={containerRef}
-                              onMouseDown={() => setIsDragging(true)}
+                              onMouseDown={() => { setIsDragging(true); if (projectMode === 'tecnica') setTecnicaSelected(null) }}
                               onMouseMove={(e) => {
                                 if (!isDragging) return
                                 let newX = imageOffset.x + e.movementX / zoomLevel
@@ -2252,6 +2471,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                                   return
                                 }
                                 setIsDragging(true)
+                                if (projectMode === 'tecnica') setTecnicaSelected(null)
                                 e.currentTarget.dataset.startX = e.touches[0].clientX
                                 e.currentTarget.dataset.startY = e.touches[0].clientY
                               }}
@@ -2337,7 +2557,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                                 src={selectedImage} 
                                 draggable={false}
                                 onLoad={(e) => {
-                                  if (projectMode === 'normale' || projectMode === 'postsocial') {
+                                  if (projectMode === 'normale' || projectMode === 'tecnica' || projectMode === 'postsocial') {
                                     const img = e.target
                                     const imgAspect = img.naturalWidth / img.naturalHeight
                                     const containerAspect = containerWidth / photoFrameHeight
@@ -2352,7 +2572,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                                 style={{ 
                                   position: 'absolute', 
                                   maxWidth: 'none',
-                                  ...((projectMode === 'normale' || projectMode === 'postsocial') ? {
+                                  ...((projectMode === 'normale' || projectMode === 'tecnica' || projectMode === 'postsocial') ? {
                                     ...mobileImgStyle,
                                     left: '50%',
                                     top: '50%',
@@ -2426,15 +2646,15 @@ const TESTO_BASSO_REALE = posCfg.basso
                             mentre la trascini e si avvicina al centro esatto del frame — e solo
                             nelle modalità dove la foto si può davvero spostare (NORMALE, POST
                             SOCIAL). In COVER la foto riempie a fissa, non si trascina manualmente. */}
-                            {(projectMode === 'normale' || projectMode === 'postsocial') && photoSnapGuides.v && (
+                            {(projectMode === 'normale' || projectMode === 'tecnica' || projectMode === 'postsocial') && photoSnapGuides.v && (
                               <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: '1px', background: '#007AFF', zIndex: 25, pointerEvents: 'none', boxShadow: '0 0 4px rgba(0,122,255,0.8)' }} />
                             )}
-                            {(projectMode === 'normale' || projectMode === 'postsocial') && photoSnapGuides.h && (
+                            {(projectMode === 'normale' || projectMode === 'tecnica' || projectMode === 'postsocial') && photoSnapGuides.h && (
                               <div style={{ position: 'absolute', top: projectMode === 'postsocial' ? `${(photoFrameHeight * zoomLevel) / 2}px` : '50%', left: 0, right: 0, height: '1px', background: '#007AFF', zIndex: 25, pointerEvents: 'none', boxShadow: '0 0 4px rgba(0,122,255,0.8)' }} />
                             )}
 
                             {/* Cornice di selezione + maniglie agli angoli */}
-                            {(projectMode === 'normale' || projectMode === 'postsocial') && (
+                            {(projectMode === 'normale' || projectMode === 'tecnica' || projectMode === 'postsocial') && (
                               <>
                                 <div style={{
                                   position: 'absolute',
@@ -2517,6 +2737,35 @@ const TESTO_BASSO_REALE = posCfg.basso
                                 canEdit={canEditGuides}
                               />
                             )}
+
+                            {projectMode === 'tecnica' && (
+                              <TecnicaOverlay
+                                canvasWidth={dimensions.width}
+                                containerWidth={zoomedWidth}
+                                containerHeight={zoomedHeight}
+                                arrows={tecnicaArrows}
+                                onArrowsChange={setTecnicaArrows}
+                                lens={tecnicaLens}
+                                onLensChange={setTecnicaLens}
+                                selectedId={tecnicaSelected}
+                                onSelect={setTecnicaSelected}
+                                highlights={tecnicaHighlights}
+                                onHighlightsChange={setTecnicaHighlights}
+                                tool={tecnicaHlTool}
+                                onToolChange={setTecnicaHlTool}
+                                photoSrc={selectedImage}
+                                background={canvasBackground}
+                                photoImgStyle={{
+                                  position: 'absolute',
+                                  maxWidth: 'none',
+                                  ...mobileImgStyle,
+                                  left: '50%',
+                                  top: '50%',
+                                  transform: `translate(calc(-50% + ${imageOffset.x * zoomLevel}px), calc(-50% + ${imageOffset.y * zoomLevel}px)) scale(${imageScale})`,
+                                  pointerEvents: 'none'
+                                }}
+                              />
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2571,7 +2820,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                     </div>
                   )}
                   </div>
-                  {(projectMode === 'normale' || projectMode === 'postsocial') && (
+                  {(projectMode === 'normale' || projectMode === 'tecnica' || projectMode === 'postsocial') && (
                     <div style={{ width: `${containerWidth + (showRulers && projectMode === 'postsocial' ? 20 : 0)}px`, textAlign: 'center', marginTop: '10px' }}>
                       <div
                         onClick={() => setZoomLevel(1)}
@@ -2585,6 +2834,21 @@ const TESTO_BASSO_REALE = posCfg.basso
                         🔍 {Math.round(zoomLevel * 100)}%
                       </div>
                     </div>
+                  )}
+                  {projectMode === 'tecnica' && (
+                    <TecnicaPanel
+                      width={containerWidth}
+                      canvasWidth={dimensions.width}
+                      canvasHeight={dimensions.height}
+                      highlights={tecnicaHighlights}
+                      onHighlightsChange={setTecnicaHighlights}
+                      arrows={tecnicaArrows}
+                      onArrowsChange={setTecnicaArrows}
+                      lens={tecnicaLens}
+                      onLensChange={setTecnicaLens}
+                      selectedId={tecnicaSelected}
+                      onSelect={setTecnicaSelected}
+                    />
                   )}
                   {feedback && (
                     <div style={{ width: `${containerWidth + (showRulers && projectMode === 'postsocial' ? 20 : 0)}px`, textAlign: 'center', marginTop: '10px' }}>
@@ -2645,6 +2909,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                           vertical={false}
                         />
                         <ToolIconButton icon="🖼️" label="Logo" active={conLogo} onClick={() => setConLogo(!conLogo)} vertical={false} />
+                        {projectMode === 'tecnica' && <TecnicaMenuButton vertical={false} />}
                         {projectMode === 'postsocial' && <AddMenuButton vertical={false} />}
                         <ToolIconButton icon="📷" label="Nuova foto" onClick={() => fileInputRef.current.click()} vertical={false} />
                       </div>
@@ -2700,6 +2965,10 @@ const TESTO_BASSO_REALE = posCfg.basso
                         {renderNotesList()}
                       </div>
                     </div>
+                  )}
+
+                  {projectMode === 'tecnica' && showEvidenziaModal && (
+                    <EvidenziaModal onPick={apriEvidenziatore} onClose={() => setShowEvidenziaModal(false)} />
                   )}
 
                   {/* Modale con anteprima di ogni grafica sovrapposta disponibile, cliccabile */}
