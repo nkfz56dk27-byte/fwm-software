@@ -124,6 +124,18 @@ const EMOJI_DISPONIBILI = [
 const MESI_ITALIANO = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 
 // Pulsante di chiusura standard (✕ rosso) usato da tutti i modali
+// Dimensione unica per i modali "grandi" (Gestione Accrediti, Rimborsi, Eventi Futuri, Categorie)
+const modaleGrande = (isMobile) => ({
+  borderRadius: isMobile ? 0 : 22,
+  width: isMobile ? '100vw' : 'min(1180px, 94vw)',
+  maxWidth: isMobile ? '100vw' : '94vw',
+  height: isMobile ? '100vh' : '86vh',
+  maxHeight: isMobile ? '100vh' : '86vh',
+  padding: 0,
+  display: 'flex',
+  flexDirection: 'column'
+});
+
 const CLOSE_BTN_STYLE = { background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' };
 
 // Modale OBBLIGATORIO: chiede se l'evento (o l'intera stagione) si svolge all'ESTERO o in ITALIA (NAZIONALE).
@@ -314,10 +326,13 @@ function GestioneEventiModal({ eventi, campionati, isMobile, onClose, caricaDati
 
   return (
     <div className="fwm-glass-overlay">
-      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '720px', maxHeight: isMobile ? '100vh' : '88vh', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <b style={{ fontSize: 18 }}>📋 Eventi Futuri ({eventiOrdinati.length})</b>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
+      <div className="fwm-glass-card" style={modaleGrande(isMobile)}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? '14px 16px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 20 }}>📋 Eventi Futuri</div>
+            <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{eventiOrdinati.length} in programma · modificali tutti da qui</div>
+          </div>
+          <button onClick={onClose} style={CLOSE_BTN_STYLE}>✕</button>
         </div>
         <div style={{ padding: '14px 24px', borderBottom: '1px solid #eee' }}>
           <input
@@ -1052,7 +1067,7 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
 
   return (
     <div className="fwm-glass-overlay">
-      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+      <div className="fwm-glass-card" style={modaleGrande(isMobile)}>
         <div className="fwm-glass-header">
           <div style={{ fontSize: '18px', fontWeight: '700' }}>Configura Stagione</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#FF3B30' }}>✕</button>
@@ -1447,16 +1462,7 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
       <div className="fwm-glass-overlay">
         <div
           className="fwm-glass-card"
-          style={{
-            borderRadius: isMobile ? 0 : 22,
-            width: isMobile ? '100vw' : 'min(1180px, 94vw)',
-            maxWidth: isMobile ? '100vw' : '94vw',
-            height: isMobile ? '100vh' : '86vh',
-            maxHeight: isMobile ? '100vh' : '86vh',
-            padding: 0,
-            display: 'flex',
-            flexDirection: 'column'
-          }}
+          style={modaleGrande(isMobile)}
         >
           {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? '14px 16px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
@@ -3392,7 +3398,7 @@ function ImpostazioniRimborsiModal({ anno, impostazioniAnno, criterioAttuale, ri
 
   return (
     <div className="fwm-glass-overlay" style={{ padding: isMobile ? '0' : '20px' }}>
-      <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : 'min(960px, 94vw)', maxWidth: isMobile ? '100vw' : '94vw', maxHeight: isMobile ? '100vh' : '86vh', padding: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="fwm-glass-card" style={modaleGrande(isMobile)}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? '14px 16px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 20 }}>💶 Rimborsi Accrediti {anno}</div>
@@ -3401,7 +3407,7 @@ function ImpostazioniRimborsiModal({ anno, impostazioniAnno, criterioAttuale, ri
           <button onClick={onClose} style={CLOSE_BTN_STYLE}>✕</button>
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '16px' : '24px 28px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 18, alignItems: 'start' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: isMobile ? '16px' : '24px 28px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 18, alignItems: 'stretch' }}>
           {/* Budget */}
           <div style={sPannello}>
             <div style={{ fontWeight: 700, fontSize: 16 }}>Budget</div>
