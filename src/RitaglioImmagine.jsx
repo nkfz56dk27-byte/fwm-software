@@ -4,7 +4,7 @@ import piexif from 'piexifjs'
 import { supabase } from './supabaseClient'
 import TextOverlay, { drawTextBoxOnCanvas, createTextBox } from './TestoPost'
 import GuideLines from './LineeGuida'
-import TecnicaOverlay, { TecnicaPanel, FRECCIA_TECNICA, OVALE_TECNICA_URL, CORNICE_TECNICA_URL, EvidenziaModal, preparaSvg, creaFreccia, creaLente, precaricaFrecce, disegnaTecnicaSuCanvas } from './Tecnica'
+import TecnicaOverlay, { TecnicaPanel, FRECCIA_TECNICA, OVALE_TECNICA_URL, CORNICE_TECNICA_URL, EvidenziaModal, preparaSvg, creaFreccia, creaLente, creaTesto, precaricaFrecce, precaricaTesti, disegnaTecnicaSuCanvas } from './Tecnica'
 
 // CSS per nascondere la barra di scorrimento nativa nell'area zoomata (resta comunque
   // possibile scorrere con mouse/trackpad/touch, solo non si vede più la striscia grigia)
@@ -117,6 +117,8 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
   const [guideLines, setGuideLines] = useState([]) // Linee guida viola (solo POST SOCIAL)
   // --- TECNICA: frecce SVG + lente d'ingrandimento (coordinate in pixel REALI del canvas) ---
   const [tecnicaArrows, setTecnicaArrows] = useState([]) // [{ id, src, aspect, color, x, y, width, rotation }]
+  const [tecnicaTexts, setTecnicaTexts] = useState([]) // [{ id, text, color, x, y, size, rotation }] — Roboto, una riga
+  const [tecnicaEditingId, setTecnicaEditingId] = useState(null) // testo in modifica (campo di scrittura aperto)
   const [tecnicaLens, setTecnicaLens] = useState(null) // null oppure { x, y, d, zoom }
   const [tecnicaSelected, setTecnicaSelected] = useState(null) // id freccia, 'lens' oppure null
   const [tecnicaHighlights, setTecnicaHighlights] = useState([]) // evidenziature: [{ id, kind:'rect'|'ellipse'|'lasso', color, opacity, outline, ... }]
@@ -645,6 +647,8 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
         
         // Reset offset, zoom, style mobile e testo
         setTecnicaArrows([])
+        setTecnicaTexts([])
+        setTecnicaEditingId(null)
         setTecnicaHighlights([])
         setTecnicaHlTool(null)
         setTecnicaLens(null)
@@ -702,6 +706,8 @@ const TESTO_BASSO_REALE = posCfg.basso
   const handleModeChange = (newMode) => {
     setProjectMode(newMode)
     setTecnicaArrows([])
+    setTecnicaTexts([])
+    setTecnicaEditingId(null)
     setTecnicaHighlights([])
     setTecnicaHlTool(null)
     setTecnicaLens(null)
@@ -1096,6 +1102,15 @@ const TESTO_BASSO_REALE = posCfg.basso
 
   // L'ovale è un timbro come la freccia: un clic e compare al centro della foto, selezionato
   // (poi si sposta, ruota, ridimensiona e colora dal pannello). Stesso array delle frecce.
+  // Il testo si aggiunge al centro della foto e si mette subito in modifica (come in Testo Post):
+  // si scrive, Invio (o un clic fuori) conferma, un testo lasciato vuoto sparisce.
+  const aggiungiTesto = () => {
+    const nuovo = creaTesto({ canvasW: dimensions.width, canvasH: dimensions.height })
+    setTecnicaTexts((prev) => [...prev, nuovo])
+    setTecnicaSelected(nuovo.id)
+    setTecnicaEditingId(nuovo.id)
+  }
+
   const aggiungiOvale = async () => {
     try {
       const { src, aspect } = await preparaSvg(OVALE_TECNICA_URL, { autoCrop: true })
@@ -1266,10 +1281,11 @@ const TESTO_BASSO_REALE = posCfg.basso
       }
 
       // --- TECNICA: lente e frecce, sopra a foto e logo (come in anteprima) ---
-      if (projectMode === 'tecnica' && (tecnicaArrows.length > 0 || tecnicaLens || tecnicaHighlights.length > 0)) {
+      if (projectMode === 'tecnica' && (tecnicaArrows.length > 0 || tecnicaTexts.length > 0 || tecnicaLens || tecnicaHighlights.length > 0)) {
         try {
           await precaricaFrecce(tecnicaArrows)
-          disegnaTecnicaSuCanvas(ctx, { arrows: tecnicaArrows, lens: tecnicaLens, highlights: tecnicaHighlights, drawPhoto: drawPhotoFn })
+          await precaricaTesti(tecnicaTexts)
+          disegnaTecnicaSuCanvas(ctx, { arrows: tecnicaArrows, texts: tecnicaTexts, lens: tecnicaLens, highlights: tecnicaHighlights, drawPhoto: drawPhotoFn })
         } catch (err) {
           console.error('Errore disegno TECNICA:', err)
         }
@@ -1337,12 +1353,13 @@ const TESTO_BASSO_REALE = posCfg.basso
 
   const [showTecnicaMenu, setShowTecnicaMenu] = useState(false)
 
-  // Le 3 "mattonelle" del menu Strumenti: icona grande su badge colorato + etichetta sotto,
+  // Le "mattonelle" del menu Strumenti: icona grande su badge colorato + etichetta sotto,
   // stesso elemento riusato sia nel flyout desktop sia nel bottom sheet mobile.
   const tecnicaTiles = [
     { key: 'freccia', icon: FRECCIA_TECNICA.url, label: 'Freccia', bg: 'rgba(0,122,255,0.12)', fg: '#007AFF', onClick: () => aggiungiFreccia() },
     { key: 'lente', icon: CORNICE_TECNICA_URL, label: tecnicaLens ? 'Rimuovi lente' : 'Lente', bg: '#f2f2f7', fg: '#636366', onClick: () => toggleLenteTecnica() },
-    { key: 'evidenzia', icon: OVALE_TECNICA_URL, label: 'Evidenzia', bg: 'rgba(255,149,0,0.14)', fg: '#FF9500', onClick: () => setShowEvidenziaModal(true) }
+    { key: 'evidenzia', icon: OVALE_TECNICA_URL, label: 'Evidenzia', bg: 'rgba(255,149,0,0.14)', fg: '#FF9500', onClick: () => setShowEvidenziaModal(true) },
+    { key: 'testo', glyph: 'T', label: 'Testo', bg: 'rgba(175,82,222,0.13)', fg: '#AF52DE', onClick: () => aggiungiTesto() }
   ]
   // Icona = SVG mascherato del colore del badge (stessa tecnica usata per tingere la freccia
   // sulla foto), non emoji: così le 3 icone caricate dall'utente sono quelle che si vedono davvero.
@@ -1359,13 +1376,17 @@ const TESTO_BASSO_REALE = posCfg.basso
         width: `${size}px`, height: `${size}px`, borderRadius: '16px', background: t.bg,
         display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
-        <span style={{
-          width: `${Math.round(size * 0.5)}px`, height: `${Math.round(size * 0.5)}px`, background: t.fg,
-          WebkitMaskImage: `url("${t.icon}")`, maskImage: `url("${t.icon}")`,
-          WebkitMaskSize: 'contain', maskSize: 'contain',
-          WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
-          WebkitMaskPosition: 'center', maskPosition: 'center'
-        }} />
+        {t.glyph ? (
+          <span style={{ fontFamily: 'Roboto, sans-serif', fontWeight: 700, fontSize: `${Math.round(size * 0.52)}px`, lineHeight: 1, color: t.fg }}>{t.glyph}</span>
+        ) : (
+          <span style={{
+            width: `${Math.round(size * 0.5)}px`, height: `${Math.round(size * 0.5)}px`, background: t.fg,
+            WebkitMaskImage: `url("${t.icon}")`, maskImage: `url("${t.icon}")`,
+            WebkitMaskSize: 'contain', maskSize: 'contain',
+            WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+            WebkitMaskPosition: 'center', maskPosition: 'center'
+          }} />
+        )}
       </span>
       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1c1c1e', textAlign: 'center', lineHeight: 1.15 }}>{t.label}</span>
     </button>
@@ -1433,8 +1454,8 @@ const TESTO_BASSO_REALE = posCfg.basso
                 <div style={{ fontSize: '11px', fontWeight: '800', color: '#8e8e93', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: '10px' }}>
                   Aggiungi elemento
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-around' }}>
-                  {tecnicaTiles.map((t) => <TecnicaTile key={t.key} t={t} size={60} />)}
+                <div style={{ display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', rowGap: '4px' }}>
+                  {tecnicaTiles.map((t) => <TecnicaTile key={t.key} t={t} size={56} />)}
                 </div>
               </div>
             </>
@@ -2729,6 +2750,10 @@ const TESTO_BASSO_REALE = posCfg.basso
                                 containerHeight={zoomedHeight}
                                 arrows={tecnicaArrows}
                                 onArrowsChange={setTecnicaArrows}
+                                texts={tecnicaTexts}
+                                onTextsChange={setTecnicaTexts}
+                                editingId={tecnicaEditingId}
+                                onEditingChange={setTecnicaEditingId}
                                 lens={tecnicaLens}
                                 onLensChange={setTecnicaLens}
                                 selectedId={tecnicaSelected}
@@ -2828,6 +2853,9 @@ const TESTO_BASSO_REALE = posCfg.basso
                       onHighlightsChange={setTecnicaHighlights}
                       arrows={tecnicaArrows}
                       onArrowsChange={setTecnicaArrows}
+                      texts={tecnicaTexts}
+                      onTextsChange={setTecnicaTexts}
+                      onEditText={setTecnicaEditingId}
                       lens={tecnicaLens}
                       onLensChange={setTecnicaLens}
                       selectedId={tecnicaSelected}
