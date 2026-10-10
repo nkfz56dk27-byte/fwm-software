@@ -6,12 +6,6 @@ import TextOverlay, { drawTextBoxOnCanvas, createTextBox } from './TestoPost'
 import GuideLines from './LineeGuida'
 import TecnicaOverlay, { TecnicaPanel, FRECCIA_TECNICA, OVALE_TECNICA_URL, CORNICE_TECNICA_URL, EvidenziaModal, preparaSvg, creaFreccia, creaLente, precaricaFrecce, disegnaTecnicaSuCanvas } from './Tecnica'
 
-// Icona del tasto "Evidenzia" nel menu Strumenti: rettangolo pieno (area evidenziata), tinto
-// come le altre icone. Sta qui, fuori dal componente, così è sempre definita.
-const EVIDENZIA_ICON = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="3" fill="#000"/></svg>'
-)
-
 // CSS per nascondere la barra di scorrimento nativa nell'area zoomata (resta comunque
   // possibile scorrere con mouse/trackpad/touch, solo non si vede più la striscia grigia)
   const hideScrollbarCSS = `
@@ -1100,14 +1094,12 @@ const TESTO_BASSO_REALE = posCfg.basso
     }
   }
 
-  // Ovale: stesso meccanismo della freccia (un SVG tinto, spostabile/ruotabile/ridimensionabile),
-  // ma con l'SVG dell'ovale e una larghezza di partenza maggiore. Lo gestisce tecnicaArrows,
-  // quindi il pannello sotto la foto ha già Colore, Rotazione, Dimensione, Duplica ed Elimina.
+  // L'ovale è un timbro come la freccia: un clic e compare al centro della foto, selezionato
+  // (poi si sposta, ruota, ridimensiona e colora dal pannello). Stesso array delle frecce.
   const aggiungiOvale = async () => {
     try {
-      const { src, aspect } = await preparaSvg(OVALE_TECNICA_URL)
-      const nuova = creaFreccia({ src, aspect, canvasW: dimensions.width, canvasH: dimensions.height })
-      nuova.width = Math.round(dimensions.width * 0.3)
+      const { src, aspect } = await preparaSvg(OVALE_TECNICA_URL, { autoCrop: true })
+      const nuova = creaFreccia({ src, aspect, canvasW: dimensions.width, canvasH: dimensions.height, widthRatio: 0.3 })
       setTecnicaArrows((prev) => [...prev, nuova])
       setTecnicaSelected(nuova.id)
     } catch (err) {
@@ -1118,9 +1110,10 @@ const TESTO_BASSO_REALE = posCfg.basso
   }
 
   const apriEvidenziatore = (kind) => {
+    setShowEvidenziaModal(false)
+    if (kind === 'ellipse') { aggiungiOvale(); return }
     setTecnicaSelected(null)
     setTecnicaHlTool(kind)
-    setShowEvidenziaModal(false)
   }
 
   const toggleLenteTecnica = () => {
@@ -1349,12 +1342,7 @@ const TESTO_BASSO_REALE = posCfg.basso
   const tecnicaTiles = [
     { key: 'freccia', icon: FRECCIA_TECNICA.url, label: 'Freccia', bg: 'rgba(0,122,255,0.12)', fg: '#007AFF', onClick: () => aggiungiFreccia() },
     { key: 'lente', icon: CORNICE_TECNICA_URL, label: tecnicaLens ? 'Rimuovi lente' : 'Lente', bg: '#f2f2f7', fg: '#636366', onClick: () => toggleLenteTecnica() },
-    // raw: true = si mostra l'SVG così com'è (anello giallo vuoto dentro), senza badge colorato
-    // e senza tinta. L'ovale è un elemento a sé (come la freccia): si aggiunge sulla foto e si
-    // sposta/ruota/ridimensiona/colora/duplica dal pannello sotto la foto.
-    { key: 'ovale', icon: OVALE_TECNICA_URL, label: 'Ovale', raw: true, onClick: () => aggiungiOvale() },
-    // Evidenzia = l'evidenziatore ad area (rettangolo / ellisse / mano libera), invariato.
-    { key: 'evidenzia', icon: EVIDENZIA_ICON, label: 'Evidenzia', bg: 'rgba(255,149,0,0.14)', fg: '#FF9500', onClick: () => setShowEvidenziaModal(true) }
+    { key: 'evidenzia', icon: OVALE_TECNICA_URL, label: 'Evidenzia', bg: 'rgba(255,149,0,0.14)', fg: '#FF9500', onClick: () => setShowEvidenziaModal(true) }
   ]
   // Icona = SVG mascherato del colore del badge (stessa tecnica usata per tingere la freccia
   // sulla foto), non emoji: così le 3 icone caricate dall'utente sono quelle che si vedono davvero.
@@ -1368,20 +1356,16 @@ const TESTO_BASSO_REALE = posCfg.basso
       }}
     >
       <span style={{
-        width: `${size}px`, height: `${size}px`, borderRadius: '16px', background: t.raw ? 'transparent' : t.bg,
+        width: `${size}px`, height: `${size}px`, borderRadius: '16px', background: t.bg,
         display: 'flex', alignItems: 'center', justifyContent: 'center'
       }}>
-        {t.raw ? (
-          <img src={t.icon} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
-        ) : (
-          <span style={{
-            width: `${Math.round(size * 0.5)}px`, height: `${Math.round(size * 0.5)}px`, background: t.fg,
-            WebkitMaskImage: `url("${t.icon}")`, maskImage: `url("${t.icon}")`,
-            WebkitMaskSize: 'contain', maskSize: 'contain',
-            WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
-            WebkitMaskPosition: 'center', maskPosition: 'center'
-          }} />
-        )}
+        <span style={{
+          width: `${Math.round(size * 0.5)}px`, height: `${Math.round(size * 0.5)}px`, background: t.fg,
+          WebkitMaskImage: `url("${t.icon}")`, maskImage: `url("${t.icon}")`,
+          WebkitMaskSize: 'contain', maskSize: 'contain',
+          WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+          WebkitMaskPosition: 'center', maskPosition: 'center'
+        }} />
       </span>
       <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#1c1c1e', textAlign: 'center', lineHeight: 1.15 }}>{t.label}</span>
     </button>
