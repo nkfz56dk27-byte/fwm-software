@@ -23,11 +23,14 @@ export const TECNICA_COLORI = [
 // (serviti quindi da path assoluti tipo /tecnica-freccia.svg, non importati da src/assets).
 // - tecnica-freccia.svg → la freccia disegnata sulla foto (disegnata puntando verso DESTRA,
 //   così la rotazione 0° è corretta) e l'icona del tool "Freccia".
-// - tecnica-ovale.svg   → l'icona del tool "Evidenziatore" (il tratto a mano libera ovale).
+// - tecnica-ovale.svg   → l'ovale: si aggiunge con un clic come la freccia ("Ellisse") ed è anche
+//   l'icona del tool Evidenziatore.
 // - tecnica-cornice.svg → l'icona del tool "Lente": il cerchietto piccolo indica il punto
 //   osservato, il cerchio grande (collegato da una linea tratteggiata) mostra l'ingrandimento.
 export const FRECCIA_TECNICA = { key: 'tecnica-freccia', label: 'Freccia', url: '/tecnica-freccia.svg' }
 export const OVALE_TECNICA_URL = '/tecnica-ovale.svg'
+// L'ovale funziona come la freccia (un clic e compare, poi si sposta/ruota/ridimensiona/colora);
+// il suo SVG viene ritagliato in automatico sul disegno vero (preparaSvg con autoCrop).
 export const CORNICE_TECNICA_URL = '/tecnica-cornice.svg'
 
 const nuovoId = (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
@@ -37,7 +40,10 @@ const dataUrlSvg = (text) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComp
 // Normalizza un SVG: ricava le proporzioni e gli dà una dimensione esplicita (molti SVG hanno
 // solo il viewBox e alcuni browser li disegnano a 0x0 su canvas). Ritorna { src, aspect }
 // dove aspect = altezza / larghezza.
-export const preparaSvg = async (url) => {
+// Con { autoCrop: true } misura dove c'è davvero il disegno (pixel non trasparenti) e restringe
+// il viewBox a quella zona: così riquadro di selezione e proporzioni lo avvolgono stretto e si
+// vede sempre tutto, qualunque margine abbia il file (anche nessuno).
+export const preparaSvg = async (url, opzioni = {}) => {
   const text = await (await fetch(url)).text()
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml')
   const svg = doc.documentElement
@@ -56,20 +62,78 @@ export const preparaSvg = async (url) => {
   }
   if (!(w > 0) || !(h > 0)) { w = 100; h = 100 }
   if (!svg.getAttribute('viewBox')) svg.setAttribute('viewBox', `0 0 ${w} ${h}`)
-  const k = 1024 / Math.max(w, h)
-  svg.setAttribute('width', String(Math.round(w * k)))
-  svg.setAttribute('height', String(Math.round(h * k)))
+  const dimensiona = () => {
+    const k = 1024 / Math.max(w, h)
+    svg.setAttribute('width', String(Math.round(w * k)))
+    svg.setAttribute('height', String(Math.round(h * k)))
+  }
+  dimensiona()
+
+  if (opzioni.autoCrop) {
+    try {
+      const crop = await misuraDisegno(dataUrlSvg(new XMLSerializer().serializeToString(svg)), w, h)
+      if (crop) {
+        const v = svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(Number)
+        const nx = v[0] + crop.x * v[2]
+        const ny = v[1] + crop.y * v[3]
+        w = crop.w * v[2]
+        h = crop.h * v[3]
+        svg.setAttribute('viewBox', `${nx} ${ny} ${w} ${h}`)
+        dimensiona()
+      }
+    } catch {
+      // misura non riuscita: si usa l'SVG intero, senza ritaglio
+    }
+  }
   return { src: dataUrlSvg(new XMLSerializer().serializeToString(svg)), aspect: h / w }
 }
 
-export const creaFreccia = ({ src, aspect, canvasW, canvasH, color = TECNICA_COLORI[0].hex }) => ({
+// Disegna l'SVG su un canvas piccolo e cerca il rettangolo che contiene tutti i pixel visibili.
+// Ritorna frazioni {x, y, w, h} del viewBox (con un filo di margine), oppure null se non serve.
+const misuraDisegno = (src, w, h) =>
+  new Promise((resolve, reject) => {
+    const im = new Image()
+    im.onload = () => {
+      const N = 512
+      const cw = w >= h ? N : Math.max(1, Math.round((N * w) / h))
+      const ch = w >= h ? Math.max(1, Math.round((N * h) / w)) : N
+      const c = document.createElement('canvas')
+      c.width = cw
+      c.height = ch
+      const ctx = c.getContext('2d')
+      ctx.drawImage(im, 0, 0, cw, ch)
+      const d = ctx.getImageData(0, 0, cw, ch).data
+      let x0 = cw, y0 = ch, x1 = -1, y1 = -1
+      for (let y = 0; y < ch; y++) {
+        for (let x = 0; x < cw; x++) {
+          if (d[(y * cw + x) * 4 + 3] > 10) {
+            if (x < x0) x0 = x
+            if (x > x1) x1 = x
+            if (y < y0) y0 = y
+            if (y > y1) y1 = y
+          }
+        }
+      }
+      if (x1 < 0) return resolve(null) // niente di visibile: lascia stare
+      const pad = 0.012
+      const fx = Math.max(0, x0 / cw - pad)
+      const fy = Math.max(0, y0 / ch - pad)
+      const fx2 = Math.min(1, (x1 + 1) / cw + pad)
+      const fy2 = Math.min(1, (y1 + 1) / ch + pad)
+      resolve({ x: fx, y: fy, w: fx2 - fx, h: fy2 - fy })
+    }
+    im.onerror = reject
+    im.src = src
+  })
+
+export const creaFreccia = ({ src, aspect, canvasW, canvasH, color = TECNICA_COLORI[0].hex, widthRatio = 0.18 }) => ({
   id: nuovoId('fr'),
   src,
   aspect,
   color,
   x: canvasW / 2,
   y: canvasH / 2,
-  width: Math.round(canvasW * 0.18),
+  width: Math.round(canvasW * widthRatio),
   rotation: 0
 })
 
@@ -88,7 +152,8 @@ export const creaLente = (canvasW, canvasH) => {
 }
 
 // ---------- Evidenziatore (aree colorate semitrasparenti) ----------
-// Forme: 'rect', 'ellipse' (x, y, w, h in px reali) e 'lasso' (pts = [{x, y}, ...], px reali).
+// Forme disegnate trascinando: 'rect' (x, y, w, h in px reali) e 'lasso' (pts = [{x, y}, ...]).
+// (L'ellisse non è una forma disegnata: è il timbro SVG dell'ovale, gestito come le frecce.)
 export const creaEvidenziatura = (shape) => ({
   id: nuovoId('hl'),
   color: TECNICA_COLORI[0].hex, // giallo di default
@@ -122,7 +187,6 @@ const hlStroke = (canvasW) => Math.max(3, canvasW * 0.004) // spessore contorno 
 const tracciaHl = (ctx, h) => {
   ctx.beginPath()
   if (h.kind === 'rect') ctx.rect(h.x, h.y, h.w, h.h)
-  else if (h.kind === 'ellipse') ctx.ellipse(h.x + h.w / 2, h.y + h.h / 2, Math.abs(h.w / 2), Math.abs(h.h / 2), 0, 0, Math.PI * 2)
   else {
     h.pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)))
     ctx.closePath()
@@ -307,9 +371,6 @@ function HighlightsSvg({ highlights, canvasWidth, canvasHeight, width, height, i
         if (h.kind === 'rect') {
           return <rect key={h.id} x={h.x} y={h.y} width={Math.max(0, h.w)} height={Math.max(0, h.h)} {...common} />
         }
-        if (h.kind === 'ellipse') {
-          return <ellipse key={h.id} cx={h.x + h.w / 2} cy={h.y + h.h / 2} rx={Math.abs(h.w / 2)} ry={Math.abs(h.h / 2)} {...common} />
-        }
         return <polygon key={h.id} points={h.pts.map((p) => `${p.x},${p.y}`).join(' ')} {...common} />
       })}
     </svg>
@@ -320,8 +381,11 @@ function HighlightsSvg({ highlights, canvasWidth, canvasHeight, width, height, i
 // e disegna l'anteprima della forma; al rilascio la consegna a chi l'ha chiamato.
 function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerHeight, onDone }) {
   const ref = useRef(null)
-  const st = useRef(null)
+  const st = useRef(null) // gesto in corso (puntatore premuto)
+  const poly = useRef(null) // contorno a clic in corso: { pts: [...] }
+  const lastDown = useRef({ t: 0, x: 0, y: 0 })
   const [draft, setDraft] = useState(null)
+  const [polyN, setPolyN] = useState(0) // vertici del contorno a clic (0 = non attivo)
   const k = containerWidth / canvasWidth
 
   const toCanvas = (e) => {
@@ -341,48 +405,120 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
     return { kind: tool, x, y, w, h }
   }
 
+  const reset = () => { st.current = null; poly.current = null; setDraft(null); setPolyN(0) }
+
+  // Chiude il contorno (mano libera o a clic) e lo consegna.
+  const finishLasso = (pts) => {
+    const minPx = 6 / k // sotto i 6 px a schermo non è una selezione
+    reset()
+    if (pts.length < 3) return
+    const b = bboxHl({ pts })
+    if (b.w < minPx || b.h < minPx) return
+    onDone({ kind: 'lasso', pts })
+  }
+
+  // Invio chiude il contorno a clic. (Esc è gestito dall'overlay: esce dallo strumento.)
+  const fin = useRef(null)
+  fin.current = () => { if (poly.current) finishLasso(poly.current.pts) }
+  useEffect(() => {
+    const key = (e) => { if (e.key === 'Enter') { e.preventDefault(); fin.current && fin.current() } }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [])
+
   const onDown = (e) => {
     e.preventDefault()
     e.stopPropagation()
     ref.current.setPointerCapture(e.pointerId)
     const p = toCanvas(e)
-    st.current = { start: p, pts: [p] }
+
+    if (tool === 'lasso' && poly.current) {
+      // Contorno a clic già avviato: ogni clic aggiunge un punto (segmenti dritti).
+      const pts = poly.current.pts
+      const now = Date.now()
+      const ld = lastDown.current
+      lastDown.current = { t: now, x: p.x, y: p.y }
+      const dClose = Math.hypot(p.x - pts[0].x, p.y - pts[0].y) * k
+      const dDouble = Math.hypot(p.x - ld.x, p.y - ld.y) * k
+      // Si chiude cliccando sul primo punto o con doppio clic.
+      if (pts.length >= 3 && (dClose < 14 || (now - ld.t < 350 && dDouble < 12))) { finishLasso(pts); return }
+      pts.push(p)
+      st.current = { polyDrag: true } // tenendo premuto si può aggiustare il punto appena messo
+      setPolyN(pts.length)
+      setDraft({ kind: 'lasso', pts: [...pts] })
+      return
+    }
+
+    lastDown.current = { t: Date.now(), x: p.x, y: p.y }
+    st.current = { start: p, pts: [p], moved: false }
     setDraft(tool === 'lasso' ? { kind: 'lasso', pts: [p] } : build(p, p, false))
   }
 
   const onMove = (e) => {
-    if (!st.current) return
     const p = toCanvas(e)
-    if (tool === 'lasso') {
-      const last = st.current.pts[st.current.pts.length - 1]
-      if (Math.hypot(p.x - last.x, p.y - last.y) * k < 2) return // ignora micro-movimenti
-      st.current.pts.push(p)
-      setDraft({ kind: 'lasso', pts: [...st.current.pts] })
-    } else {
-      setDraft(build(st.current.start, p, e.shiftKey))
+    if (tool !== 'lasso') {
+      if (st.current) setDraft(build(st.current.start, p, e.shiftKey))
+      return
     }
+    if (st.current && st.current.polyDrag) {
+      const pts = poly.current.pts
+      pts[pts.length - 1] = p
+      setDraft({ kind: 'lasso', pts: [...pts] })
+      return
+    }
+    if (!st.current) {
+      // Nessun tasto premuto: nel contorno a clic mostra il segmento "elastico" verso il cursore.
+      if (poly.current) setDraft({ kind: 'lasso', pts: [...poly.current.pts, p] })
+      return
+    }
+    const cur = st.current
+    if (!cur.moved && Math.hypot(p.x - cur.start.x, p.y - cur.start.y) * k > 4) cur.moved = true
+    if (e.shiftKey) {
+      // Con Shift il tratto va dritto dall'ultimo punto fissato al cursore; rilasciandolo si
+      // fissa il vertice e si riprende a mano libera.
+      cur.tail = p
+      setDraft({ kind: 'lasso', pts: [...cur.pts, p] })
+      return
+    }
+    if (cur.tail) { cur.pts.push(cur.tail); cur.tail = null }
+    const last = cur.pts[cur.pts.length - 1]
+    if (Math.hypot(p.x - last.x, p.y - last.y) * k >= 2) cur.pts.push(p) // ignora micro-movimenti
+    setDraft({ kind: 'lasso', pts: [...cur.pts] })
   }
 
   const onUp = (e) => {
     if (!st.current) return
+    if (st.current.polyDrag) { st.current = null; return }
     const p = toCanvas(e)
-    const { start, pts } = st.current
+    const { start, pts, tail, moved } = st.current
     st.current = null
-    setDraft(null)
-    const minPx = 6 / k // sotto i 6 px a schermo lo consideriamo un click, non una selezione
     if (tool === 'lasso') {
-      if (pts.length < 3) return
-      const b = bboxHl({ pts })
-      if (b.w < minPx || b.h < minPx) return
-      onDone({ kind: 'lasso', pts })
-    } else {
-      const s = build(start, p, e.shiftKey)
-      if (s.w < minPx || s.h < minPx) return
-      onDone(s)
+      if (!moved) {
+        // Un semplice clic: parte il contorno a clic (si continua cliccando i punti).
+        poly.current = { pts: [start] }
+        setPolyN(1)
+        setDraft({ kind: 'lasso', pts: [start] })
+        return
+      }
+      if (tail) pts.push(tail)
+      finishLasso(pts)
+      return
     }
+    setDraft(null)
+    const minPx = 6 / k
+    const s = build(start, p, e.shiftKey)
+    if (s.w < minPx || s.h < minPx) return
+    onDone(s)
   }
 
-  const onCancel = () => { st.current = null; setDraft(null) }
+  const onCancel = () => { st.current = null; if (!poly.current) setDraft(null) }
+
+  let hint = 'Trascina sulla foto'
+  if (tool === 'lasso') {
+    if (polyN === 0) hint = 'Trascina a mano libera, oppure clicca i punti per linee dritte'
+    else if (polyN < 3) hint = 'Clicca gli altri punti'
+    else hint = 'Clicca altri punti · doppio clic o primo punto per chiudere'
+  }
 
   return (
     <div
@@ -402,8 +538,39 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
           height={containerHeight}
         />
       )}
-      <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '800', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-        {tool === 'lasso' ? 'Disegna il contorno' : 'Trascina sulla foto'} · Esc per annullare
+      {polyN > 0 && poly.current && (
+        <svg
+          width={containerWidth}
+          height={containerHeight}
+          viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+          style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}
+        >
+          {poly.current.pts.map((q, i) => (
+            <circle
+              key={i}
+              cx={q.x}
+              cy={q.y}
+              r={(i === 0 ? 7 : 4.5) / k}
+              fill={i === 0 && polyN >= 3 ? '#34C759' : '#fff'}
+              stroke="#007AFF"
+              strokeWidth={2 / k}
+            />
+          ))}
+        </svg>
+      )}
+      <div style={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', maxWidth: '94%', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+        <div style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '800', textAlign: 'center' }}>
+          {hint} · Esc per annullare
+        </div>
+        {tool === 'lasso' && polyN >= 3 && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => finishLasso(poly.current.pts)}
+            style={{ pointerEvents: 'auto', background: '#34C759', color: '#fff', border: 'none', borderRadius: '20px', padding: '6px 14px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+          >
+            ✓ Chiudi
+          </button>
+        )}
       </div>
     </div>
   )
@@ -424,6 +591,7 @@ export default function TecnicaOverlay({
   live.current = { k, canvasWidth, canvasHeight, arrows, lens, highlights, tool, selectedId, onArrowsChange, onLensChange, onHighlightsChange, onToolChange, onSelect }
   const dragRef = useRef(null)
   const elRefs = useRef({})
+
 
   useEffect(() => {
     const patch = (target, p) => {
@@ -762,7 +930,7 @@ export function TecnicaPanel({
     return (
       <div style={box}>
         <span style={{ fontSize: '13px', color: '#8e8e93', fontWeight: '600', textAlign: 'center' }}>
-          Aggiungi una freccia, un ovale, la lente o un'evidenziatura, poi trascinala sulla foto. Clicca un elemento per modificarlo.
+          Aggiungi una freccia, la lente o un'evidenziatura, poi trascinala sulla foto. Clicca un elemento per modificarlo.
         </span>
       </div>
     )
@@ -897,8 +1065,8 @@ export function TecnicaPanel({
 export function EvidenziaModal({ onPick, onClose }) {
   const voci = [
     { kind: 'rect', label: 'Rettangolo', desc: 'Shift = quadrato' },
-    { kind: 'ellipse', label: 'Ellisse', desc: 'Shift = cerchio' },
-    { kind: 'lasso', label: 'A mano libera', desc: 'Si chiude da solo' }
+    { kind: 'ellipse', label: 'Ellisse', desc: 'Un clic e appare' },
+    { kind: 'lasso', label: 'A mano libera', desc: 'Trascina o clicca i punti' }
   ]
   return (
     <div
@@ -910,7 +1078,7 @@ export function EvidenziaModal({ onPick, onClose }) {
           <h3 style={{ margin: 0, fontSize: '17px' }}>Evidenzia una zona</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
         </div>
-        <p style={{ fontSize: '12px', color: '#8e8e93', margin: '0 0 16px' }}>Trascina sulla foto per selezionare la zona. Il colore lo cambi dopo (giallo, verde o rosso).</p>
+        <p style={{ fontSize: '12px', color: '#8e8e93', margin: '0 0 16px' }}>Rettangolo e mano libera si disegnano sulla foto, l'ellisse compare subito. Il colore lo cambi dopo.</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
           {voci.map((v) => (
             <button
