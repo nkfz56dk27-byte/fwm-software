@@ -151,6 +151,107 @@ export const creaLente = (canvasW, canvasH) => {
   return { sx, sy, x, y, d, zoom: 2, color: '#ffffff' }
 }
 
+// ---------- Testo (Roboto, una sola riga, casella che si adatta al testo) ----------
+// Come in Testo Post: carattere Roboto Bold. Qui però il testo non va mai a capo e la casella è
+// sempre larga quanto il testo (grandezza automatica); la dimensione del carattere è libera.
+// Anteprima ed export usano la STESSA funzione di disegno (disegnaTestoCentrato), così quello che
+// vedi è esattamente quello che viene salvato.
+const TESTO_FONT = 'Roboto, sans-serif'
+const TESTO_PESO = 700
+const fontTesto = (size) => `${TESTO_PESO} ${size}px ${TESTO_FONT}`
+let _misuraCtx = null
+
+// Misura il testo (px reali del canvas finale). La larghezza minima evita una casella di
+// larghezza zero quando il testo è ancora vuoto.
+export const misuraTesto = (text, size) => {
+  if (!_misuraCtx) _misuraCtx = document.createElement('canvas').getContext('2d')
+  _misuraCtx.font = fontTesto(size)
+  const w = Math.max(_misuraCtx.measureText(text || '').width, size * 0.5)
+  return { w, h: size * 1.2 }
+}
+
+export const creaTesto = ({ canvasW, canvasH, color = TECNICA_COLORI[0].hex }) => ({
+  id: nuovoId('tx'),
+  text: '',
+  color,
+  x: canvasW / 2,
+  y: canvasH / 2,
+  size: Math.round(canvasW * 0.06), // dimensione del carattere in px reali del canvas
+  rotation: 0
+})
+
+// Disegna il testo centrato nell'origine; posizione e rotazione le gestisce chi chiama.
+const disegnaTestoCentrato = (ctx, t) => {
+  if (!t.text) return
+  ctx.save()
+  ctx.font = fontTesto(t.size)
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = t.color
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'
+  ctx.shadowBlur = t.size * 0.06
+  ctx.shadowOffsetY = t.size * 0.025
+  ctx.fillText(t.text, 0, 0)
+  ctx.restore()
+}
+
+const disegnaTesti = (ctx, texts = []) => {
+  texts.forEach((t) => {
+    ctx.save()
+    ctx.translate(t.x, t.y)
+    ctx.rotate((t.rotation * Math.PI) / 180)
+    disegnaTestoCentrato(ctx, t)
+    ctx.restore()
+  })
+}
+
+// Da chiamare (con await) prima dell'export: assicura che Roboto sia davvero caricato, altrimenti
+// il canvas userebbe un carattere di riserva.
+export const precaricaTesti = async (texts = []) => {
+  if (!texts.length || typeof document === 'undefined' || !document.fonts) return
+  try { await document.fonts.load(`${TESTO_PESO} 16px Roboto`) } catch { /* si usa il carattere di riserva */ }
+}
+
+// Fa ri-renderizzare l'anteprima nel momento esatto in cui Roboto diventa pronto (come in Testo
+// Post): una misura fatta prima, col carattere di riserva, resterebbe sbagliata.
+let _robotoPronto = false
+if (typeof document !== 'undefined' && document.fonts) {
+  document.fonts.load(`${TESTO_PESO} 16px Roboto`).then(() => { _robotoPronto = true }).catch(() => {})
+}
+function useRobotoPronto() {
+  const [ok, setOk] = useState(_robotoPronto)
+  useEffect(() => {
+    if (ok || typeof document === 'undefined' || !document.fonts) return
+    let vivo = true
+    const fine = () => { if (vivo) setOk(true) }
+    document.fonts.load(`${TESTO_PESO} 16px Roboto`).then(fine).catch(() => {})
+    document.fonts.ready.then(fine)
+    return () => { vivo = false }
+  }, [ok])
+  return ok
+}
+
+// Anteprima del testo: un canvas disegnato con la stessa funzione dell'export.
+function TestoCanvas({ t, k, pronto }) {
+  const ref = useRef(null)
+  const { w, h } = misuraTesto(t.text, t.size)
+  const pad = t.size * 0.3 // margine attorno al testo per l'ombra
+  const W = (w + 2 * pad) * k
+  const H = (h + 2 * pad) * k
+  useEffect(() => {
+    const c = ref.current
+    if (!c) return
+    const dpr = window.devicePixelRatio || 1
+    c.width = Math.max(1, Math.ceil(W * dpr))
+    c.height = Math.max(1, Math.ceil(H * dpr))
+    const ctx = c.getContext('2d')
+    ctx.scale(dpr * k, dpr * k)
+    ctx.translate(w / 2 + pad, h / 2 + pad)
+    disegnaTestoCentrato(ctx, t)
+  }, [t.text, t.size, t.color, k, pronto, W, H]) // eslint-disable-line react-hooks/exhaustive-deps
+  return <canvas ref={ref} style={{ position: 'absolute', left: -pad * k, top: -pad * k, width: W, height: H, pointerEvents: 'none' }} />
+}
+
 // ---------- Evidenziatore (aree colorate semitrasparenti) ----------
 // Forme disegnate trascinando: 'rect' (x, y, w, h in px reali) e 'lasso' (pts = [{x, y}, ...]).
 // (L'ellisse non è una forma disegnata: è il timbro SVG dell'ovale, gestito come le frecce.)
@@ -229,7 +330,7 @@ export const precaricaFrecce = async (arrows) => {
 
 // Disegna lente e frecce sul canvas finale. `drawPhoto(ctx)` deve ridisegnare la foto con la
 // stessa posizione/zoom usati per il canvas: la lente la riusa ingrandita.
-export const disegnaTecnicaSuCanvas = (ctx, { arrows = [], lens = null, highlights = [], drawPhoto = null }) => {
+export const disegnaTecnicaSuCanvas = (ctx, { arrows = [], texts = [], lens = null, highlights = [], drawPhoto = null }) => {
   // Ordine (dal basso): evidenziature, lente (che ingrandisce anche loro), frecce.
   disegnaEvidenziature(ctx, highlights)
 
@@ -331,6 +432,9 @@ export const disegnaTecnicaSuCanvas = (ctx, { arrows = [], lens = null, highligh
     ctx.drawImage(tmp, -w / 2, -h / 2, w, h)
     ctx.restore()
   })
+
+  // Testi: sopra a tutto, come le frecce.
+  disegnaTesti(ctx, texts)
 }
 
 // ---------- Overlay interattivo sulla foto ----------
@@ -529,7 +633,26 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
       onPointerCancel={onCancel}
       style={{ position: 'absolute', inset: 0, zIndex: 50, cursor: 'crosshair', touchAction: 'none', pointerEvents: 'auto' }}
     >
-      {draft && (
+      {draft && draft.kind === 'lasso' && (
+        // Mentre disegni il contorno è solo una LINEA APERTA (niente riempimento e niente chiusura
+        // automatica verso il primo punto): la forma chiusa e colorata compare solo a fine disegno.
+        <svg
+          width={containerWidth}
+          height={containerHeight}
+          viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+          style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}
+        >
+          <polyline
+            points={draft.pts.map((q) => `${q.x},${q.y}`).join(' ')}
+            fill="none"
+            stroke={TECNICA_COLORI[0].hex}
+            strokeWidth={hlStroke(canvasWidth)}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
+      {draft && draft.kind !== 'lasso' && (
         <HighlightsSvg
           highlights={[{ id: 'draft', color: TECNICA_COLORI[0].hex, opacity: 0.4, outline: true, ...draft }]}
           canvasWidth={canvasWidth}
@@ -581,22 +704,26 @@ export default function TecnicaOverlay({
   arrows, onArrowsChange, lens, onLensChange,
   highlights, onHighlightsChange, tool, onToolChange,
   selectedId, onSelect,
-  photoSrc, photoImgStyle, background
+  photoSrc, photoImgStyle, background,
+  texts = [], onTextsChange = () => {}, editingId = null, onEditingChange = () => {}
 }) {
   const k = containerWidth / canvasWidth // pixel reali -> pixel a schermo
   const canvasHeight = containerHeight / k
 
   // I listener globali leggono sempre l'ultimo stato da qui, senza dover essere ricreati.
   const live = useRef({})
-  live.current = { k, canvasWidth, canvasHeight, arrows, lens, highlights, tool, selectedId, onArrowsChange, onLensChange, onHighlightsChange, onToolChange, onSelect }
+  live.current = { k, canvasWidth, canvasHeight, arrows, lens, highlights, tool, selectedId, onArrowsChange, onLensChange, onHighlightsChange, onToolChange, onSelect, texts, onTextsChange, onEditingChange }
   const dragRef = useRef(null)
   const elRefs = useRef({})
+  const lastTapRef = useRef({ id: null, time: 0 }) // per riconoscere il doppio tocco su un testo
+  const robotoPronto = useRobotoPronto()
 
 
   useEffect(() => {
     const patch = (target, p) => {
       const L = live.current
       if (target === 'lens') L.onLensChange({ ...L.lens, ...p })
+      else if (L.texts.some((t) => t.id === target)) L.onTextsChange(L.texts.map((t) => (t.id === target ? { ...t, ...p } : t)))
       else L.onArrowsChange(L.arrows.map((a) => (a.id === target ? { ...a, ...p } : a)))
     }
 
@@ -637,6 +764,7 @@ export default function TecnicaOverlay({
           return
         }
         const ratio = Math.hypot(e.clientX - d.cx, e.clientY - d.cy) / d.startDist
+        if (d.txt) { patch(d.target, { size: clamp(d.orig.size * ratio, 8, L.canvasWidth) }); return }
         if (d.target === 'lens') patch('lens', { d: clamp(d.orig.d * ratio, 40, L.canvasWidth) })
         else patch(d.target, { width: clamp(d.orig.width * ratio, 24, L.canvasWidth * 1.5) })
       }
@@ -657,6 +785,7 @@ export default function TecnicaOverlay({
         e.preventDefault()
         if (L.selectedId === 'lens') L.onLensChange(null)
         else if (L.highlights.some((h) => h.id === L.selectedId)) L.onHighlightsChange(L.highlights.filter((h) => h.id !== L.selectedId))
+        else if (L.texts.some((t) => t.id === L.selectedId)) L.onTextsChange(L.texts.filter((t) => t.id !== L.selectedId))
         else L.onArrowsChange(L.arrows.filter((a) => a.id !== L.selectedId))
         L.onSelect(null)
       }
@@ -690,13 +819,42 @@ export default function TecnicaOverlay({
     const cx = r ? r.left + r.width / 2 : e.clientX
     const cy = r ? r.top + r.height / 2 : e.clientY
     const hl = L.highlights.find((h) => h.id === target)
-    const orig = target === 'lens' ? { ...L.lens } : hl ? hl : { ...L.arrows.find((a) => a.id === target) }
+    const tx = L.texts.find((t) => t.id === target)
+    const orig = target === 'lens' ? { ...L.lens } : hl ? hl : tx ? { ...tx } : { ...L.arrows.find((a) => a.id === target) }
     dragRef.current = {
-      type, target, orig, cx, cy, hl: !!hl,
+      type, target, orig, cx, cy, hl: !!hl, txt: !!tx,
       startX: e.clientX, startY: e.clientY,
       startDist: Math.hypot(e.clientX - cx, e.clientY - cy) || 1
     }
     L.onSelect(target)
+  }
+
+  // Doppio clic (mouse) o doppio tocco (touch) su un testo = modifica; un solo clic lo trascina.
+  const onTextDown = (e, t) => {
+    const now = Date.now()
+    const lt = lastTapRef.current
+    if (lt.id === t.id && now - lt.time < 350) {
+      e.stopPropagation()
+      e.preventDefault()
+      lastTapRef.current = { id: null, time: 0 }
+      dragRef.current = null
+      live.current.onSelect(t.id)
+      live.current.onEditingChange(t.id)
+      return
+    }
+    lastTapRef.current = { id: t.id, time: now }
+    startDrag(e, 'move', t.id)
+  }
+
+  // Fine modifica: un testo rimasto vuoto non serve a nulla, quindi sparisce.
+  const fineModifica = (id) => {
+    const L = live.current
+    L.onEditingChange(null)
+    const t = L.texts.find((x) => x.id === id)
+    if (t && !t.text.trim()) {
+      L.onTextsChange(L.texts.filter((x) => x.id !== id))
+      L.onSelect(null)
+    }
   }
 
   return (
@@ -849,6 +1007,76 @@ export default function TecnicaOverlay({
         )
       })}
 
+      {/* TESTI — Roboto Bold, una riga, casella larga quanto il testo */}
+      {texts.map((t) => {
+        const m = misuraTesto(t.text, t.size)
+        const w = m.w * k
+        const h = m.h * k
+        const sel = selectedId === t.id
+        const editing = editingId === t.id
+        return (
+          <div
+            key={t.id}
+            ref={(el) => { elRefs.current[t.id] = el }}
+            style={{ position: 'absolute', left: t.x * k - w / 2, top: t.y * k - h / 2, width: w, height: h, transform: `rotate(${t.rotation}deg)`, pointerEvents: 'none' }}
+          >
+            {editing ? (
+              <input
+                autoFocus
+                value={t.text}
+                placeholder="Scrivi…"
+                onChange={(e) => onTextsChange(texts.map((x) => (x.id === t.id ? { ...x, text: e.target.value.replace(/[\r\n]+/g, ' ') } : x)))}
+                onPointerDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur() }}
+                onBlur={() => fineModifica(t.id)}
+                style={{
+                  position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
+                  width: Math.max(w, t.size * k * 2.5) + 24, height: h + 8, boxSizing: 'border-box', padding: '0 12px',
+                  fontFamily: TESTO_FONT, fontWeight: TESTO_PESO, fontSize: t.size * k, color: t.color, textAlign: 'center',
+                  background: 'rgba(128,128,128,0.35)', border: '2px dashed #007AFF', borderRadius: 6, outline: 'none',
+                  pointerEvents: 'auto'
+                }}
+              />
+            ) : (
+              <>
+                <TestoCanvas t={t} k={k} pronto={robotoPronto} />
+                <div
+                  onPointerDown={(e) => onTextDown(e, t)}
+                  style={{ position: 'absolute', inset: 0, cursor: 'move', touchAction: 'none', pointerEvents: 'auto' }}
+                />
+              </>
+            )}
+            {sel && !editing && (
+              <div style={{ position: 'absolute', inset: -3, border: '2px dashed #007AFF', pointerEvents: 'none' }}>
+                <div style={{ position: 'absolute', left: '50%', top: -22, width: 2, height: 20, marginLeft: -1, background: '#007AFF' }} />
+                <div
+                  onPointerDown={(e) => startDrag(e, 'rotate', t.id)}
+                  title="Ruota (Shift = scatti da 15°)"
+                  style={{
+                    position: 'absolute', left: '50%', top: -22 - HANDLE_HIT / 2, width: HANDLE_HIT, height: HANDLE_HIT,
+                    transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'grab', touchAction: 'none', pointerEvents: 'auto'
+                  }}
+                >
+                  <div style={dotStyle} />
+                </div>
+                <div
+                  onPointerDown={(e) => startDrag(e, 'resize', t.id)}
+                  title="Cambia la dimensione del carattere"
+                  style={{
+                    position: 'absolute', right: 0, bottom: 0, width: HANDLE_HIT, height: HANDLE_HIT,
+                    transform: 'translate(50%, 50%)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'nwse-resize', touchAction: 'none', pointerEvents: 'auto'
+                  }}
+                >
+                  <div style={dotStyle} />
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
       {/* Cornice + maniglia di ridimensionamento dell'evidenziatura selezionata */}
       {(() => {
         const h = highlights.find((x) => x.id === selectedId)
@@ -889,12 +1117,102 @@ export default function TecnicaOverlay({
   )
 }
 
+// ---------- Numero con − e + (al posto di uno slider) ----------
+// Un clic su − o + cambia di 1 (Shift = 10); tenendo premuto si ripete, sempre più in fretta
+// dopo un attimo. Il numero si può anche scrivere: vale quando premi Invio o esci dal campo.
+function StepperNumero({ value, min, max, onChange, unita = 'px' }) {
+  const [bozza, setBozza] = useState(null) // cifre digitate, finché non si conferma
+  const val = useRef(value)
+  val.current = value
+  const attesa = useRef(null)
+  const ripeti = useRef(null)
+  const ferma = () => {
+    clearTimeout(attesa.current)
+    clearInterval(ripeti.current)
+    attesa.current = null
+    ripeti.current = null
+  }
+  useEffect(() => ferma, [])
+
+  // Il valore corrente si aggiorna subito (prima del ridisegno), così tenendo premuto nessun
+  // passo si perde nemmeno se l'interfaccia è un attimo in ritardo.
+  const applica = (n) => {
+    const v = clamp(Math.round(n), min, max)
+    val.current = v
+    onChange(v)
+  }
+  const passo = (d) => applica(val.current + d)
+  const parti = (d) => {
+    ferma()
+    passo(d)
+    attesa.current = setTimeout(() => {
+      let n = 0
+      ripeti.current = setInterval(() => {
+        n++
+        passo(n > 12 ? d * 4 : d) // dopo un po' accelera
+      }, 55)
+    }, 380)
+  }
+  const conferma = () => {
+    if (bozza !== null && bozza !== '') applica(Number(bozza))
+    setBozza(null)
+  }
+
+  const bottone = {
+    width: '34px', height: '34px', borderRadius: '10px', border: 'none', background: '#f2f2f7', color: '#1c1c1e',
+    fontSize: '20px', fontWeight: '800', lineHeight: 1, cursor: 'pointer', padding: 0, userSelect: 'none',
+    touchAction: 'manipulation', display: 'flex', alignItems: 'center', justifyContent: 'center'
+  }
+  const premi = (d, label) => (
+    <button
+      type="button"
+      aria-label={label}
+      style={bottone}
+      onPointerDown={(e) => { e.preventDefault(); parti(d * (e.shiftKey ? 10 : 1)) }}
+      onPointerUp={ferma}
+      onPointerLeave={ferma}
+      onPointerCancel={ferma}
+      onClick={(e) => { if (e.detail === 0) passo(d) }} // attivazione da tastiera (Invio/Spazio)
+    >
+      {d < 0 ? '−' : '+'}
+    </button>
+  )
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      {premi(-1, 'Diminuisci')}
+      <input
+        type="text"
+        inputMode="numeric"
+        value={bozza !== null ? bozza : String(Math.round(value))}
+        onChange={(e) => setBozza(e.target.value.replace(/\D/g, '').slice(0, 4))}
+        onFocus={(e) => e.target.select()}
+        onBlur={conferma}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur()
+          else if (e.key === 'Escape') { setBozza(null); e.currentTarget.blur() }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setBozza(null); passo(e.shiftKey ? 10 : 1) }
+          else if (e.key === 'ArrowDown') { e.preventDefault(); setBozza(null); passo(e.shiftKey ? -10 : -1) }
+        }}
+        style={{
+          width: '56px', height: '34px', boxSizing: 'border-box', textAlign: 'center', fontSize: '15px', fontWeight: '800',
+          color: '#1c1c1e', background: '#fff', border: '2px solid #e5e5ea', borderRadius: '10px', outline: 'none'
+        }}
+      />
+      {premi(1, 'Aumenta')}
+      <span style={{ fontSize: '12px', fontWeight: '800', color: '#8e8e93' }}>{unita}</span>
+    </div>
+  )
+}
+
 // ---------- Pannello sotto la foto: colore, rotazione, dimensione, ingrandimento ----------
 export function TecnicaPanel({
   width, canvasWidth, canvasHeight, arrows, onArrowsChange, lens, onLensChange,
-  highlights, onHighlightsChange, selectedId, onSelect
+  highlights, onHighlightsChange, selectedId, onSelect,
+  texts = [], onTextsChange = () => {}, onEditText = () => {}
 }) {
   const arrow = selectedId && selectedId !== 'lens' ? arrows.find((a) => a.id === selectedId) : null
+  const txt = selectedId ? texts.find((t) => t.id === selectedId) : null
   const lensSel = selectedId === 'lens' && lens ? lens : null
   const hl = selectedId ? highlights.find((h) => h.id === selectedId) : null
 
@@ -926,11 +1244,11 @@ export function TecnicaPanel({
     cursor: 'pointer', background: '#f2f2f7', color: '#1c1c1e', ...extra
   })
 
-  if (!arrow && !lensSel && !hl) {
+  if (!arrow && !lensSel && !hl && !txt) {
     return (
       <div style={box}>
         <span style={{ fontSize: '13px', color: '#8e8e93', fontWeight: '600', textAlign: 'center' }}>
-          Aggiungi una freccia, la lente o un'evidenziatura, poi trascinala sulla foto. Clicca un elemento per modificarlo.
+          Aggiungi una freccia, un testo, la lente o un'evidenziatura, poi trascinala sulla foto. Clicca un elemento per modificarlo.
         </span>
       </div>
     )
@@ -970,6 +1288,50 @@ export function TecnicaPanel({
           <button onClick={() => patchHl({ outline: !hl.outline })} style={btn(hl.outline ? { background: '#007AFF', color: '#fff' } : {})}>Contorno</button>
           <button onClick={duplicaHl} style={btn()}>Duplica</button>
           <button onClick={eliminaHl} style={btn({ background: '#FF3B30', color: '#fff' })}>Elimina</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (txt) {
+    const patchTxt = (p) => onTextsChange(texts.map((t) => (t.id === txt.id ? { ...t, ...p } : t)))
+    const eliminaTxt = () => { onTextsChange(texts.filter((t) => t.id !== txt.id)); onSelect(null) }
+    const duplicaTxt = () => {
+      const off = canvasWidth * 0.04
+      const copia = { ...txt, id: nuovoId('tx'), x: clamp(txt.x + off, 0, canvasWidth), y: clamp(txt.y + off, 0, canvasHeight) }
+      onTextsChange([...texts, copia])
+      onSelect(copia.id)
+    }
+    return (
+      <div style={box}>
+        <div style={group}>
+          <span style={lab}>Colore</span>
+          {TECNICA_COLORI.map((c) => (
+            <button
+              key={c.key}
+              title={c.label}
+              onClick={() => patchTxt({ color: c.hex })}
+              style={{
+                width: '30px', height: '30px', borderRadius: '50%', background: c.hex, cursor: 'pointer', padding: 0,
+                border: txt.color === c.hex ? '3px solid #1c1c1e' : '3px solid #fff',
+                boxShadow: '0 0 0 1px #d1d1d6'
+              }}
+            />
+          ))}
+        </div>
+        <div style={group}>
+          <span style={lab}>Dimensione</span>
+          <StepperNumero value={txt.size} min={8} max={Math.round(canvasWidth)} onChange={(n) => patchTxt({ size: n })} />
+        </div>
+        <div style={group}>
+          <span style={lab}>Rotazione</span>
+          <input type="range" min="0" max="359" step="1" value={Math.round(txt.rotation)} onChange={(e) => patchTxt({ rotation: Number(e.target.value) })} style={{ width: '110px' }} />
+          <span style={{ fontSize: '12px', fontWeight: '800', minWidth: '34px' }}>{Math.round(txt.rotation)}°</span>
+        </div>
+        <div style={group}>
+          <button onClick={() => onEditText(txt.id)} style={btn()}>Modifica</button>
+          <button onClick={duplicaTxt} style={btn()}>Duplica</button>
+          <button onClick={eliminaTxt} style={btn({ background: '#FF3B30', color: '#fff' })}>Elimina</button>
         </div>
       </div>
     )
