@@ -3154,60 +3154,12 @@ const debugSpareggio = pilotiOrdinati.length >= 2
   : null
 const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classifica)
 
-  return (
-    <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '20px' }}>
-        {/* HEADER */}
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '10px' : '15px', marginBottom: '20px', padding: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 60px) 15px 15px' : '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', position: 'relative' }}>
-          <button className="page-back-button" onClick={onClose}>Indietro</button>
-          <h1 style={{ position: isMobile ? 'static' : 'absolute', left: 0, right: 0, fontSize: isMobile ? '20px' : '34px', fontWeight: 'bold', margin: 0, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0, pointerEvents: 'none' }}>Grafico Pronostico Campionato</h1>
-        </div>
-
-        {/* TAB */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
-          <button onClick={() => { setTab(0); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 0 ? '#007AFF' : 'white', color: tab === 0 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Piloti</button>
-          <button onClick={() => { setTab(1); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 1 ? '#007AFF' : 'white', color: tab === 1 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Costruttori</button>
-          {classifica.motoristi_attivo && (
-            <button onClick={() => { setTab(2); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 2 ? '#007AFF' : 'white', color: tab === 2 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Motoristi</button>
-          )}
-        </div>
-
-
-        <div style={{ background: 'white', borderRadius: '15px', padding: '20px', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '10px', flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}>Andamento Punti Stagione</h2>
-            <button onClick={() => setShowVersus(true)} style={{ width: 56, height: 56, background: '#007AFF', color: 'white', border: 'none', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }}>
-              <img src="/assets/versus.svg" alt="versus" style={{ height: 48, width: 48, display: 'block', filter: 'invert(1) brightness(2)' }} />
-            </button>
-          </div>
-          <VersusModal
-            open={showVersus ? { piloti: Array.isArray(classifica?.piloti) ? classifica.piloti.filter(p => p.attivo) : [], gp: Array.isArray(classifica?.gp) ? classifica.gp : [] } : null}
-            onClose={() => setShowVersus(false)}
-            handleMouseMove={handleMouseMove}
-            handleMouseUp={handleMouseUp}
-            handleTouchMove={handleTouchMove}
-            handleTouchEnd={handleTouchEnd}
-            backBtnPos={backBtnPos}
-          />
-          {classifica.gp && classifica.gp.length > 0 ? (
-            <div style={{ width: '100%', overflowX: 'auto' }}>
-              <svg width={Math.max(800, classifica.gp.filter(g => g.completato).length * 100)} height="400" style={{ display: 'block' }}>
-                {/* Griglia */}
-                {[0, 25, 50, 75, 100, 125, 150, 175, 200].map(y => (
-                  <g key={y}>
-                    <line x1="50" y1={350 - y * 1.5} x2={Math.max(800, classifica.gp.filter(g => g.completato).length * 100)} y2={350 - y * 1.5} stroke="#e0e0e0" strokeWidth="1" />
-                    <text x="10" y={355 - y * 1.5} fontSize="12" fill="#999">{y}</text>
-                  </g>
-                ))}
-                
-                {/* Linee piloti/costruttori/motoristi */}
-                {listaAttuale.map((item, idx) => {
-                  const gpCompletati = classifica.gp.filter(g => g.completato)
-                  if (gpCompletati.length === 0) return null
-                  
-                  let puntiAccumulati = 0
-                  const punti = [{ x: 50, y: 350, punti: 0 }]
-                  
+  // ===== Dati e scala del grafico (si adatta ai punti reali, cosi' nulla esce dal riquadro) =====
+  const gpCompletatiChart = classifica.gp ? classifica.gp.filter(g => g.completato) : []
+  const calcolaSerieChart = (item) => {
+    const gpCompletati = gpCompletatiChart
+    let puntiAccumulati = 0
+    const serie = []
                   gpCompletati.forEach((gp, gpIdx) => {
                     let puntiGP = 0
                     
@@ -3288,9 +3240,106 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
                     })
                     
                     puntiAccumulati += puntiGP
-                    const x = 50 + (gpIdx + 1) * 100
-                    const y = 350 - puntiAccumulati * 1.5
-                    punti.push({ x, y, punti: puntiAccumulati })
+                    serie.push(puntiAccumulati)
+                  })
+    return serie
+  }
+  const serieChart = listaAttuale.map(calcolaSerieChart)
+  const maxPuntiChart = Math.max(0, ...serieChart.map(s => (s.length ? Math.max(...s) : 0)))
+  const stepChart = [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000].find(s => Math.ceil(maxPuntiChart / s) <= 8) || 5000
+  const yMaxChart = Math.max(stepChart, Math.ceil(maxPuntiChart / stepChart) * stepChart)
+  const chartBase = 350            // y dello zero
+  const chartAltezza = 300         // altezza utile (da y=50 a y=350)
+  const pxPerPunto = chartAltezza / yMaxChart
+  const lineeGriglia = Array.from({ length: yMaxChart / stepChart + 1 }, (_, i) => i * stepChart)
+  // Il grafico si adatta alla larghezza disponibile: tutta la stagione entra nel riquadro.
+  // Solo se i GP sono tantissimi (passo minimo) resta lo scorrimento orizzontale.
+  const chartScrollRef = useRef(null)
+  const [larghezzaDisp, setLarghezzaDisp] = useState(0)
+  const nGpChart = gpCompletatiChart.length
+  const passoFit = larghezzaDisp > 0 && nGpChart > 0 ? (larghezzaDisp - 60) / nGpChart : (isMobile ? 40 : 100)
+  const passoX = Math.min(100, Math.max(12, passoFit))   // distanza orizzontale tra un GP e l'altro
+  const chartWidth = Math.max(larghezzaDisp, 20 + nGpChart * passoX + 40)
+  const rPunto = passoX < 30 ? 3 : 5
+  const ogniLabel = Math.max(1, Math.ceil(28 / passoX))   // se i GP sono fitti, mostra un'etichetta ogni N
+  useEffect(() => {
+    const el = chartScrollRef.current
+    if (!el) return
+    const misura = () => setLarghezzaDisp(el.clientWidth)
+    misura()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(misura) : null
+    if (ro) ro.observe(el)
+    window.addEventListener('resize', misura)
+    return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', misura) }
+  }, [nGpChart, tab])
+  // Se (raramente) resta scorrimento, apri già sull'ultimo GP
+  useEffect(() => {
+    const el = chartScrollRef.current
+    if (!el) return
+    requestAnimationFrame(() => { el.scrollLeft = el.scrollWidth })
+  }, [chartWidth, tab])
+
+  return (
+    <div style={{ height: '100vh', overflow: 'auto', background: '#f5f5f7', padding: isMobile ? '10px' : '20px' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', paddingBottom: '20px' }}>
+        {/* HEADER */}
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '10px' : '15px', marginBottom: '20px', padding: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 60px) 15px 15px' : '20px', background: 'white', borderRadius: '15px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', position: 'relative' }}>
+          <button className="page-back-button" onClick={onClose}>Indietro</button>
+          <h1 style={{ position: isMobile ? 'static' : 'absolute', left: 0, right: 0, fontSize: isMobile ? '20px' : '34px', fontWeight: 'bold', margin: 0, textAlign: isMobile ? 'left' : 'center', order: isMobile ? -1 : 0, pointerEvents: 'none' }}>Grafico Pronostico Campionato</h1>
+        </div>
+
+        {/* TAB */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'center' }}>
+          <button onClick={() => { setTab(0); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 0 ? '#007AFF' : 'white', color: tab === 0 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Piloti</button>
+          <button onClick={() => { setTab(1); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 1 ? '#007AFF' : 'white', color: tab === 1 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Costruttori</button>
+          {classifica.motoristi_attivo && (
+            <button onClick={() => { setTab(2); setPilotaFissato(null) }} style={{ flex: 1, padding: '15px', background: tab === 2 ? '#007AFF' : 'white', color: tab === 2 ? 'white' : '#000', border: 'none', borderRadius: '10px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer' }}>Motoristi</button>
+          )}
+        </div>
+
+
+        <div style={{ background: 'white', borderRadius: '15px', padding: '20px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '10px', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}>Andamento Punti Stagione</h2>
+            <button onClick={() => setShowVersus(true)} style={{ width: 56, height: 56, background: '#007AFF', color: 'white', border: 'none', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, cursor: 'pointer' }}>
+              <img src="/assets/versus.svg" alt="versus" style={{ height: 48, width: 48, display: 'block', filter: 'invert(1) brightness(2)' }} />
+            </button>
+          </div>
+          <VersusModal
+            open={showVersus ? { piloti: Array.isArray(classifica?.piloti) ? classifica.piloti.filter(p => p.attivo) : [], gp: Array.isArray(classifica?.gp) ? classifica.gp : [] } : null}
+            onClose={() => setShowVersus(false)}
+            handleMouseMove={handleMouseMove}
+            handleMouseUp={handleMouseUp}
+            handleTouchMove={handleTouchMove}
+            handleTouchEnd={handleTouchEnd}
+            backBtnPos={backBtnPos}
+          />
+          {classifica.gp && classifica.gp.length > 0 ? (
+            <>
+            <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+              {/* Asse Y fisso: resta visibile anche quando il grafico e' scorso a destra */}
+              <svg width="40" height="440" style={{ display: 'block', flexShrink: 0 }}>
+                {lineeGriglia.map(y => (
+                  <text key={y} x="4" y={chartBase + 4 - y * pxPerPunto} fontSize="12" fill="#999">{y}</text>
+                ))}
+              </svg>
+            <div ref={chartScrollRef} style={{ flex: 1, minWidth: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y' }}>
+              <svg width={chartWidth} height="440" style={{ display: 'block' }}>
+                {/* Griglia */}
+                {lineeGriglia.map(y => (
+                  <g key={y}>
+                    <line x1="0" y1={chartBase - y * pxPerPunto} x2={chartWidth} y2={chartBase - y * pxPerPunto} stroke="#e0e0e0" strokeWidth="1" />
+                  </g>
+                ))}
+                
+                {/* Linee piloti/costruttori/motoristi */}
+                {listaAttuale.map((item, idx) => {
+                  const gpCompletati = gpCompletatiChart
+                  if (gpCompletati.length === 0) return null
+                  
+                  const punti = [{ x: 20, y: chartBase, punti: 0 }]
+                  serieChart[idx].forEach((pt, gpIdx) => {
+                    punti.push({ x: 20 + (gpIdx + 1) * passoX, y: chartBase - pt * pxPerPunto, punti: pt })
                   })
                   
                   // Calcola percentuale per determinare se fuori lotta
@@ -3315,7 +3364,7 @@ const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiMa
                         opacity={opacity}
                       />
                       {punti.map((p, i) => (
-                        <circle key={i} cx={p.x} cy={p.y} r={isFissato ? 7 : 5} fill={colore} opacity={opacity}>
+                        <circle key={i} cx={p.x} cy={p.y} r={isFissato ? rPunto + 2 : rPunto} fill={colore} opacity={opacity}>
                           <title>{item.nome}: {p.punti} pts</title>
                         </circle>
                       ))}
@@ -3324,12 +3373,15 @@ const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiMa
                 })}
                 
                 {/* Etichette GP */}
-                {classifica.gp.filter(g => g.completato).map((gp, idx) => (
-                  <text key={gp.id} x={50 + (idx + 1) * 100} y="380" fontSize="10" fill="#666" textAnchor="middle" transform={`rotate(-45, ${50 + (idx + 1) * 100}, 380)`}>
+                {classifica.gp.filter(g => g.completato).map((gp, idx, arr) => (
+                  ((arr.length - 1 - idx) % ogniLabel !== 0) ? null :
+                  <text key={gp.id} x={20 + (idx + 1) * passoX} y="380" fontSize="10" fill="#666" textAnchor="middle" transform={`rotate(-45, ${20 + (idx + 1) * passoX}, 380)`}>
                     {gp.nome}
                   </text>
                 ))}
               </svg>
+            </div>
+          </div>
               
               {/* Legenda */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginTop: '20px', padding: '15px', background: '#f9f9f9', borderRadius: '10px' }}>
@@ -3364,7 +3416,7 @@ const percentuale = possibile ? Math.min(100, Math.round((1 - distacco / puntiMa
                   )
                 })}
               </div>
-            </div>
+            </>
           ) : (
             <div style={{ textAlign: 'center', color: '#999', padding: '40px' }}>Nessun GP inserito ancora</div>
           )}
