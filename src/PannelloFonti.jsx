@@ -195,6 +195,7 @@ function PannelloFonti({ onClose }) {
   const [username, setUsername] = useState('');
   const [analisiArticoli, setAnalisiArticoli] = useState({});
   const [isLoadingArticoli, setIsLoadingArticoli] = useState(false);
+  const [visibili, setVisibili] = useState(60);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [showFiltriModal, setShowFiltriModal] = useState(false);
@@ -327,6 +328,10 @@ function PannelloFonti({ onClose }) {
       return true;
     });
   }, [articoliIndicizzati, articoliPerTab, searchLower, activeTab]);
+
+  useEffect(() => {
+    setVisibili(60);
+  }, [activeTab, searchLower]);
 
   const prenotazioniMap = useMemo(() => {
     const map = new Map();
@@ -1156,7 +1161,6 @@ function PannelloFonti({ onClose }) {
           
           if (!monitoredError && monitoredUrls && monitoredUrls.length > 0) {
             console.log(`[PannelloFonti] Aggiunto ${monitoredUrls.length} feed monitorati come articoli virtuali`);
-            console.log('[PannelloFonti] monitoredUrls:', monitoredUrls);
             
             // Funzione helper per estrarre titolo da HTML
             const estraiTitoloDaHtml = (html) => {
@@ -1202,7 +1206,6 @@ function PannelloFonti({ onClose }) {
       console.log('[PannelloFonti] articoliRss length:', articoliRss.length);
       console.log('[PannelloFonti] articoliMonitored length:', articoliMonitored.length);
       console.log('[PannelloFonti] articoliConMeta length:', articoliConMeta.length);
-      console.log('[PannelloFonti] articoliConMeta:', articoliConMeta);
       
       if (articoliConMeta.length > 0) {
         // Ordina per data discendente
@@ -1601,7 +1604,6 @@ function PannelloFonti({ onClose }) {
         .select('*')
         .eq('user_id', userId);
       
-      console.log('[PannelloFonti] monitoredUrlsData RAW:', monitoredUrlsData, 'error:', monitoredUrlsError);
       console.log('[PannelloFonti] monitoredUrlsData length:', monitoredUrlsData?.length);
       
       if (monitoredUrlsData && Array.isArray(monitoredUrlsData)) {
@@ -1960,7 +1962,7 @@ function PannelloFonti({ onClose }) {
   }
 
   function getStatoArticolo(articoloId) {
-    const prenotazione = prenotazioni.find(p => p.articolo_id === articoloId);
+    const prenotazione = prenotazioniMap.get(articoloId);
     if (!prenotazione) return 'vuoto';
     return prenotazione.stato;
   }
@@ -2943,7 +2945,12 @@ function PannelloFonti({ onClose }) {
       }}>
         {/* LISTA ARTICOLI RSS */}
         <>
-        {feeds.length === 0 ? (
+        {(loading || isLoadingArticoli) && articoli.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+            <div style={{ width: '28px', height: '28px', margin: '0 auto 12px', border: '3px solid #007AFF', borderTop: '3px solid transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            Caricamento articoli...
+          </div>
+        ) : feeds.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <h3 style={{ color: '#666', marginBottom: '10px' }}>Nessun feed RSS configurato</h3>
             <p style={{ color: '#999' }}>Vai in Gestione → Gestisci RSS per aggiungere i feed</p>
@@ -2956,20 +2963,24 @@ function PannelloFonti({ onClose }) {
         ) : (showFiltriModal || isClosingFiltri) ? (
           <div style={{ flex: 1 }} />
         ) : (
-          <div style={{ 
-            overflowY: 'auto', 
-            padding: '0 20px',
-            height: '100%'
-          }}>
+          <div
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              if (el.scrollTop + el.clientHeight >= el.scrollHeight - 600) {
+                setVisibili(v => (v < articoliFiltrati.length ? v + 60 : v));
+              }
+            }}
+            style={{ overflowY: 'auto', padding: '0 20px', height: '100%' }}
+          >
             {articoliFiltrati
+              .slice(0, visibili)
               .map((articolo, index) => {
-                const origine = getOrigineArticolo(articolo);
                 const stato = getStatoArticolo(articolo.id);
                 const coloreStato = getStatoColore(stato);
                 const prenotazioneCorrente = prenotazioniMap.get(articolo.id);
 
                 return (
-                <div key={index} style={{ 
+                <div key={articolo.id || index} style={{ 
                   background: stato === 'vuoto' ? '#fff' : 
                            stato === 'prenotato' ? '#fff3cd' : 
                            stato === 'pubblicato' ? '#d4edda' : '#f8d7da',
