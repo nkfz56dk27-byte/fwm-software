@@ -273,13 +273,321 @@ const bboxHl = (h) => {
   }
   return { x: h.x, y: h.y, w: h.w, h: h.h }
 }
-const spostaHl = (h, dx, dy) =>
-  h.pts
-    ? { ...h, pts: h.pts.map((p) => ({ x: p.x + dx, y: p.y + dy })) }
-    : { ...h, x: h.x + dx, y: h.y + dy }
+// ---------- Curve (penna di Bezier) ----------
+// Una forma "curva" è un contorno chiuso fatto di NODI: { x, y, t, ix, iy, ox, oy }.
+//   t = 'auto'   → punto dolce: la curva si arrotonda da sola in base ai punti vicini
+//   t = 'corner' → angolo vivo
+//   t = 'manual' → punto dolce con maniglie decise a mano (le due maniglie restano allineate)
+//   t = 'cusp'   → maniglie indipendenti (curve ad uncino)
+// (ix, iy) e (ox, oy) sono le maniglie in entrata e in uscita, in pixel REALI del canvas.
+// Il contorno (`pts`) è la curva campionata in tanti piccoli tratti: per il resto del codice
+// (disegno, export, sposta, ridimensiona, duplica) resta un normale poligono.
+const TENSIONE_AUTO = 0.35 // lunghezza delle maniglie automatiche rispetto al lato
+
+// Maniglie di ogni nodo come punti assoluti: { ci: in entrata, co: in uscita }.
+const maniglie = (nodes, closed) => {
+  const N = nodes.length
+  return nodes.map((n, i) => {
+    if (n.t === 'corner') return { ci: { x: n.x, y: n.y }, co: { x: n.x, y: n.y } }
+    if (n.t === 'manual' || n.t === 'cusp') return { ci: { x: n.ix, y: n.iy }, co: { x: n.ox, y: n.oy } }
+    const prev = i > 0 || closed ? nodes[(i + N - 1) % N] : null
+    const next = i < N - 1 || closed ? nodes[(i + 1) % N] : null
+    const a = prev || n
+    const b = next || n
+    let tx = b.x - a.x
+    let ty = b.y - a.y
+    const tl = Math.hypot(tx, ty)
+    if (!tl) return { ci: { x: n.x, y: n.y }, co: { x: n.x, y: n.y } }
+    tx /= tl
+    ty /= tl
+    const lp = prev ? Math.hypot(n.x - prev.x, n.y - prev.y) * TENSIONE_AUTO : 0
+    const ln = next ? Math.hypot(n.x - next.x, n.y - next.y) * TENSIONE_AUTO : 0
+    return { ci: { x: n.x - tx * lp, y: n.y - ty * lp }, co: { x: n.x + tx * ln, y: n.y + ty * ln } }
+  })
+}
+
+// Campiona la curva in una lista di punti. `seg`/`tt` dicono, per ogni punto, in quale lato cade e
+// a che punto del lato (0-1): servono per aggiungere un nodo senza cambiare la forma.
+const appiattisciConSeg = (nodes, closed = true) => {
+  const N = nodes.length
+  const H = maniglie(nodes, closed)
+  const xs = nodes.map((n) => n.x)
+  const ys = nodes.map((n) => n.y)
+  const diag = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
+  const passo = Math.max(1, diag * 0.005)
+  const pts = []
+  const seg = []
+  const tt = []
+  const lati = closed ? N : N - 1
+  for (let i = 0; i < lati; i++) {
+    const a = nodes[i]
+    const b = nodes[(i + 1) % N]
+    const c1 = H[i].co
+    const c2 = H[(i + 1) % N].ci
+    const cp = Math.hypot(c1.x - a.x, c1.y - a.y) + Math.hypot(c2.x - c1.x, c2.y - c1.y) + Math.hypot(b.x - c2.x, b.y - c2.y)
+    const dritto = c1.x === a.x && c1.y === a.y && c2.x === b.x && c2.y === b.y
+    const steps = dritto ? 1 : clamp(Math.ceil(cp / passo), 4, 80)
+    for (let q = 0; q < steps; q++) {
+      const t = q / steps
+      const u = 1 - t
+      pts.push({
+        x: u * u * u * a.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * b.x,
+        y: u * u * u * a.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * b.y
+      })
+      seg.push(i)
+      tt.push(t)
+    }
+  }
+  if (!closed) { pts.push({ x: nodes[N - 1].x, y: nodes[N - 1].y }); seg.push(N - 2); tt.push(1) }
+  return { pts, seg, tt }
+}
+const appiattisci = (nodes, closed = true) => appiattisciConSeg(nodes, closed).pts
+
+// ---------- Rifinisci: rifà la curva più naturale e uniforme ----------
+const distSegmento = (p, a, b) => {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const l2 = dx * dx + dy * dy
+  if (!l2) return Math.hypot(p.x - a.x, p.y - a.y)
+  const t = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / l2, 0, 1)
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
+}
+// Douglas-Peucker su una linea aperta (gli estremi restano).
+const dp = (pts, eps) => {
+  const keep = new Uint8Array(pts.length)
+  keep[0] = keep[pts.length - 1] = 1
+  const pila = [[0, pts.length - 1]]
+  while (pila.length) {
+    const [i, j] = pila.pop()
+    let md = 0
+    let mi = -1
+    for (let q = i + 1; q < j; q++) {
+      const d = distSegmento(pts[q], pts[i], pts[j])
+      if (d > md) { md = d; mi = q }
+    }
+    if (mi >= 0 && md > eps) { keep[mi] = 1; pila.push([i, mi], [mi, j]) }
+  }
+  return pts.filter((_, i) => keep[i])
+}
+// ... e su un contorno chiuso: lo spezza nel punto più lontano dal primo.
+const dpChiuso = (pts, eps) => {
+  if (pts.length < 4) return pts
+  let far = 0
+  let fd = -1
+  pts.forEach((p, i) => {
+    const d = Math.hypot(p.x - pts[0].x, p.y - pts[0].y)
+    if (d > fd) { fd = d; far = i }
+  })
+  const a = dp(pts.slice(0, far + 1), eps)
+  const b = dp(pts.slice(far).concat([pts[0]]), eps)
+  return a.slice(0, -1).concat(b.slice(0, -1))
+}
+// Punti a distanza uniforme lungo una catena (chiusa o aperta; nell'aperta gli estremi restano).
+const ricampionaCatena = (pts, ds, chiusa) => {
+  const n = pts.length
+  const lati = chiusa ? n : n - 1
+  const seg = []
+  let tot = 0
+  for (let i = 0; i < lati; i++) {
+    const l = Math.hypot(pts[(i + 1) % n].x - pts[i].x, pts[(i + 1) % n].y - pts[i].y)
+    seg.push(l)
+    tot += l
+  }
+  if (!(tot > 0)) return pts.slice()
+  const N = Math.max(chiusa ? 8 : 2, Math.round(tot / ds))
+  const passo = tot / N
+  const out = []
+  let i = 0
+  let acc = 0
+  for (let j = 0; j < (chiusa ? N : N + 1); j++) {
+    const target = j * passo
+    while (i < lati - 1 && acc + seg[i] < target) { acc += seg[i]; i++ }
+    const t = seg[i] ? clamp((target - acc) / seg[i], 0, 1) : 0
+    const a = pts[i]
+    const b = pts[(i + 1) % n]
+    out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+  }
+  return out
+}
+// Media mobile [1 2 1]/4 ripetuta; nelle catene aperte gli estremi restano fermi.
+const levigaCatena = (P, passi, chiusa) => {
+  const n = P.length
+  let cur = P
+  for (let r = 0; r < passi; r++) {
+    cur = cur.map((p, i) => {
+      if (!chiusa && (i === 0 || i === n - 1)) return p
+      const a = cur[(i + n - 1) % n]
+      const b = cur[(i + 1) % n]
+      return { x: (a.x + 2 * p.x + b.x) / 4, y: (a.y + 2 * p.y + b.y) / 4 }
+    })
+  }
+  return cur
+}
+
+// Rifà i nodi: campiona la curva, ne toglie il tremolio e la rifà con pochi punti dolci ben
+// distribuiti (maniglie automatiche = curva uniforme). Gli angoli veri restano angoli. Se la nuova
+// curva si scosta troppo dalla forma levigata, tiene più punti.
+const rifinisciNodi = (nodes) => {
+  const N = nodes.length
+  const { pts, seg, tt } = appiattisciConSeg(nodes, true)
+  const xs = pts.map((p) => p.x)
+  const ys = pts.map((p) => p.y)
+  const diag = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))
+  if (!(diag > 0)) return nodes
+  const ds = diag * 0.004
+  const passi = 24
+
+  // Quali nodi sono angoli vivi (un 'cusp' lo è se le due maniglie formano una svolta netta).
+  const M = maniglie(nodes, true)
+  const angolo = nodes.map((n, i) => {
+    if (n.t === 'corner') return true
+    if (n.t !== 'cusp') return false
+    const a = { x: M[i].co.x - n.x, y: M[i].co.y - n.y }
+    const b = { x: n.x - M[i].ci.x, y: n.y - M[i].ci.y }
+    const la = Math.hypot(a.x, a.y)
+    const lb = Math.hypot(b.x, b.y)
+    if (!la || !lb) return true
+    return (Math.acos(clamp((a.x * b.x + a.y * b.y) / (la * lb), -1, 1)) * 180) / Math.PI > 35
+  })
+  const inizio = nodes.map((_, i) => pts.findIndex((__, j) => seg[j] === i && tt[j] === 0))
+  const cIdx = []
+  angolo.forEach((c, i) => c && cIdx.push(i))
+
+  // Catene levigate: tutto il giro (nessun angolo) oppure un tratto per ogni coppia di angoli.
+  const catene = []
+  if (!cIdx.length) {
+    catene.push({ S: levigaCatena(ricampionaCatena(pts, ds, true), passi, true), chiusa: true })
+  } else {
+    cIdx.forEach((c, j) => {
+      const a = inizio[c]
+      const b = inizio[cIdx[(j + 1) % cIdx.length]]
+      const len = ((b - a + pts.length - 1) % pts.length) + 1
+      const tratto = []
+      for (let q = 0; q <= len; q++) tratto.push(pts[(a + q) % pts.length])
+      catene.push({ S: levigaCatena(ricampionaCatena(tratto, ds, false), passi, false), chiusa: false })
+    })
+  }
+  const tutti = catene.flatMap((c) => c.S)
+
+  const costruisci = (eps) => {
+    if (!cIdx.length) return dpChiuso(catene[0].S, eps).map((p) => ({ x: p.x, y: p.y, t: 'auto' }))
+    const out = []
+    catene.forEach((c) => {
+      dp(c.S, eps).slice(0, -1).forEach((p, q) => out.push({ x: p.x, y: p.y, t: q === 0 ? 'corner' : 'auto' }))
+    })
+    return out
+  }
+
+  let eps = diag * 0.006
+  let ris = null
+  for (let tent = 0; tent < 6; tent++) {
+    const cand = costruisci(eps)
+    if (cand.length >= 3) {
+      ris = cand
+      const nuovi = appiattisci(cand, true)
+      let dev = 0
+      for (const p of tutti) {
+        let m = Infinity
+        for (const q of nuovi) { const d = Math.hypot(p.x - q.x, p.y - q.y); if (d < m) m = d }
+        if (m > dev) dev = m
+      }
+      if (dev <= diag * 0.008) break
+    }
+    eps /= 2
+  }
+  return ris || nodes
+}
+
+// Sposta un nodo (e le sue maniglie, se sono manuali).
+const muoviNodo = (h, idx, dx, dy) => {
+  const nodes = h.nodes.map((n, i) => {
+    if (i !== idx) return n
+    const m = { ...n, x: n.x + dx, y: n.y + dy }
+    if (n.t === 'manual' || n.t === 'cusp') { m.ix = n.ix + dx; m.iy = n.iy + dy; m.ox = n.ox + dx; m.oy = n.oy + dy }
+    return m
+  })
+  return { ...h, nodes, pts: appiattisci(nodes, true) }
+}
+
+// Trascina una maniglia. Un punto 'auto' diventa 'manual'; con Alt le due maniglie si separano.
+const muoviManiglia = (h, idx, esce, dx, dy, alt) => {
+  const n = h.nodes[idx]
+  const M = maniglie(h.nodes, true)[idx]
+  const cur = esce ? M.co : M.ci
+  const opp = esce ? M.ci : M.co
+  const nx = cur.x + dx
+  const ny = cur.y + dy
+  const t = n.t === 'cusp' || alt ? 'cusp' : 'manual'
+  let o = opp
+  if (t === 'manual') {
+    // La maniglia opposta si allinea (stessa retta) e tiene la sua lunghezza.
+    const lo = Math.hypot(opp.x - n.x, opp.y - n.y)
+    const ln = Math.hypot(nx - n.x, ny - n.y) || 1
+    o = { x: n.x - ((nx - n.x) / ln) * lo, y: n.y - ((ny - n.y) / ln) * lo }
+  }
+  const out = esce ? { x: nx, y: ny } : o
+  const inn = esce ? o : { x: nx, y: ny }
+  const nodes = h.nodes.map((m, i) => (i === idx ? { ...m, t, ix: inn.x, iy: inn.y, ox: out.x, oy: out.y } : m))
+  return { ...h, nodes, pts: appiattisci(nodes, true) }
+}
+
+// Doppio clic su un nodo: angolo ↔ curva.
+const alternaNodo = (h, idx) => {
+  const nodes = h.nodes.map((n, i) => (i === idx ? { ...n, t: n.t === 'corner' ? 'auto' : 'corner' } : n))
+  return { ...h, nodes, pts: appiattisci(nodes, true) }
+}
+
+// Aggiunge un nodo sul lato `s` al punto `t` spezzando la Bezier (de Casteljau): la forma non cambia.
+const inserisciNodoCurva = (h, s, t) => {
+  const N = h.nodes.length
+  const H = maniglie(h.nodes, true)
+  const a = h.nodes[s]
+  const b = h.nodes[(s + 1) % N]
+  const P1 = H[s].co
+  const P2 = H[(s + 1) % N].ci
+  const L = (p, q) => ({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t })
+  const A = L(a, P1)
+  const B = L(P1, P2)
+  const C = L(P2, b)
+  const D = L(A, B)
+  const E = L(B, C)
+  const F = L(D, E)
+  const nodes = h.nodes.map((n) => n)
+  nodes[s] = { ...a, t: 'cusp', ix: H[s].ci.x, iy: H[s].ci.y, ox: A.x, oy: A.y }
+  const j = (s + 1) % N
+  nodes[j] = { ...b, t: 'cusp', ix: C.x, iy: C.y, ox: H[j].co.x, oy: H[j].co.y }
+  nodes.splice(s + 1, 0, { x: F.x, y: F.y, t: 'manual', ix: D.x, iy: D.y, ox: E.x, oy: E.y })
+  return { ...h, nodes, pts: appiattisci(nodes, true) }
+}
+
+const mapNodi = (nodes, f) =>
+  nodes.map((n) => {
+    const q = { ...n, ...f(n.x, n.y) }
+    if (n.t === 'manual' || n.t === 'cusp') {
+      const i = f(n.ix, n.iy)
+      const o = f(n.ox, n.oy)
+      q.ix = i.x; q.iy = i.y; q.ox = o.x; q.oy = o.y
+    }
+    return q
+  })
+
+const spostaHl = (h, dx, dy) => {
+  if (!h.pts) return { ...h, x: h.x + dx, y: h.y + dy }
+  const mv = (x, y) => ({ x: x + dx, y: y + dy })
+  const r = { ...h, pts: h.pts.map((p) => mv(p.x, p.y)) }
+  if (h.nodes) r.nodes = mapNodi(h.nodes, mv)
+  if (h.prev) r.prev = mapNodi(h.prev, mv)
+  return r
+}
 const scalaHl = (h, sx, sy) => {
   const b = bboxHl(h)
-  if (h.pts) return { ...h, pts: h.pts.map((p) => ({ x: b.x + (p.x - b.x) * sx, y: b.y + (p.y - b.y) * sy })) }
+  if (h.pts) {
+    const sc = (x, y) => ({ x: b.x + (x - b.x) * sx, y: b.y + (y - b.y) * sy })
+    const r = { ...h, pts: h.pts.map((p) => sc(p.x, p.y)) }
+    if (h.nodes) { r.nodes = mapNodi(h.nodes, sc); r.pts = appiattisci(r.nodes, true) }
+    if (h.prev) r.prev = mapNodi(h.prev, sc)
+    return r
+  }
   return { ...h, w: h.w * sx, h: h.h * sy }
 }
 export const duplicaEvidenziatura = (h, off) => ({ ...spostaHl(h, off, off), id: nuovoId('hl') })
@@ -452,7 +760,7 @@ const maskStyle = (src) => ({
 
 // SVG con le evidenziature. Il viewBox è in pixel REALI del canvas, quindi forma e spessore del
 // contorno sono identici a quelli disegnati in export.
-function HighlightsSvg({ highlights, canvasWidth, canvasHeight, width, height, interactive = false, onDown }) {
+function HighlightsSvg({ highlights, canvasWidth, canvasHeight, width, height, interactive = false, onDown, onDouble }) {
   if (!highlights.length) return null
   const sw = hlStroke(canvasWidth)
   return (
@@ -470,7 +778,8 @@ function HighlightsSvg({ highlights, canvasWidth, canvasHeight, width, height, i
           strokeWidth: sw,
           strokeLinejoin: 'round',
           style: { pointerEvents: interactive ? 'all' : 'none', cursor: interactive ? 'move' : 'default' },
-          onPointerDown: interactive ? (e) => onDown(e, 'move', h.id) : undefined
+          onPointerDown: interactive ? (e) => onDown(e, 'move', h.id) : undefined,
+          onDoubleClick: interactive && h.nodes && onDouble ? (e) => onDouble(e, h.id) : undefined
         }
         if (h.kind === 'rect') {
           return <rect key={h.id} x={h.x} y={h.y} width={Math.max(0, h.w)} height={Math.max(0, h.h)} {...common} />
@@ -490,6 +799,9 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
   const lastDown = useRef({ t: 0, x: 0, y: 0 })
   const [draft, setDraft] = useState(null)
   const [polyN, setPolyN] = useState(0) // vertici del contorno a clic (0 = non attivo)
+  const pen = useRef({ nodes: [] }) // strumento Curve: nodi già messi
+  const [penView, setPenView] = useState(null) // { nodes, cur } per l'anteprima
+  const [penCorner, setPenCorner] = useState(false) // true = i prossimi punti sono angoli
   const k = containerWidth / canvasWidth
 
   const toCanvas = (e) => {
@@ -511,6 +823,27 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
 
   const reset = () => { st.current = null; poly.current = null; setDraft(null); setPolyN(0) }
 
+  // ----- Curve (penna) -----
+  const refreshPen = (cur = null) => setPenView({ nodes: pen.current.nodes.map((n) => ({ ...n })), cur })
+  const finishPen = () => {
+    const nodes = pen.current.nodes
+    const minPx = 6 / k
+    pen.current = { nodes: [] }
+    st.current = null
+    setPenView(null)
+    if (nodes.length < 3) return
+    const pts = appiattisci(nodes, true)
+    const b = bboxHl({ pts })
+    if (b.w < minPx || b.h < minPx) return
+    onDone({ kind: 'lasso', pts, nodes: nodes.map((n) => ({ ...n })) })
+  }
+  const penBack = () => {
+    if (!pen.current.nodes.length) return false
+    pen.current.nodes.pop()
+    refreshPen()
+    return true
+  }
+
   // Chiude il contorno (mano libera o a clic) e lo consegna.
   const finishLasso = (pts) => {
     const minPx = 6 / k // sotto i 6 px a schermo non è una selezione
@@ -523,11 +856,28 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
 
   // Invio chiude il contorno a clic. (Esc è gestito dall'overlay: esce dallo strumento.)
   const fin = useRef(null)
-  fin.current = () => { if (poly.current) finishLasso(poly.current.pts) }
+  fin.current = () => {
+    if (poly.current) finishLasso(poly.current.pts)
+    else if (tool === 'pen' && pen.current.nodes.length) finishPen()
+  }
+  const back = useRef(null)
+  back.current = () => tool === 'pen' && penBack()
   useEffect(() => {
     const key = (e) => { if (e.key === 'Enter') { e.preventDefault(); fin.current && fin.current() } }
+    // Canc/Backspace con la penna toglie l'ultimo punto. Va in fase di cattura, così arriva prima
+    // dell'handler dell'overlay che altrimenti cancellerebbe la forma selezionata.
+    const del = (e) => {
+      if ((e.key === 'Backspace' || e.key === 'Delete') && back.current && back.current()) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+    }
     window.addEventListener('keydown', key)
-    return () => window.removeEventListener('keydown', key)
+    window.addEventListener('keydown', del, true)
+    return () => {
+      window.removeEventListener('keydown', key)
+      window.removeEventListener('keydown', del, true)
+    }
   }, [])
 
   const onDown = (e) => {
@@ -535,6 +885,23 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
     e.stopPropagation()
     ref.current.setPointerCapture(e.pointerId)
     const p = toCanvas(e)
+
+    if (tool === 'pen') {
+      const nodes = pen.current.nodes
+      const now = Date.now()
+      const ld = lastDown.current
+      lastDown.current = { t: now, x: p.x, y: p.y }
+      if (nodes.length >= 3) {
+        const dClose = Math.hypot(p.x - nodes[0].x, p.y - nodes[0].y) * k
+        const dLast = Math.hypot(p.x - nodes[nodes.length - 1].x, p.y - nodes[nodes.length - 1].y) * k
+        // Si chiude cliccando sul primo punto o con doppio clic.
+        if (dClose < 14 || (now - ld.t < 350 && dLast < 12)) { finishPen(); return }
+      }
+      nodes.push({ x: p.x, y: p.y, t: e.shiftKey || penCorner ? 'corner' : 'auto' })
+      st.current = { penDrag: true, idx: nodes.length - 1, start: p, moved: false }
+      refreshPen()
+      return
+    }
 
     if (tool === 'lasso' && poly.current) {
       // Contorno a clic già avviato: ogni clic aggiunge un punto (segmenti dritti).
@@ -560,6 +927,24 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
 
   const onMove = (e) => {
     const p = toCanvas(e)
+    if (tool === 'pen') {
+      const sp = st.current
+      if (sp && sp.penDrag) {
+        // Tenendo premuto e trascinando si piega la curva: il punto diventa dolce con maniglie
+        // simmetriche (come la penna di Photoshop/Illustrator).
+        if (!sp.moved && Math.hypot(p.x - sp.start.x, p.y - sp.start.y) * k > 5) sp.moved = true
+        if (sp.moved) {
+          const n = pen.current.nodes[sp.idx]
+          n.t = 'manual'
+          n.ox = p.x
+          n.oy = p.y
+          n.ix = 2 * n.x - p.x
+          n.iy = 2 * n.y - p.y
+        }
+        refreshPen(null)
+      } else if (pen.current.nodes.length) refreshPen(p)
+      return
+    }
     if (tool !== 'lasso') {
       if (st.current) setDraft(build(st.current.start, p, e.shiftKey))
       return
@@ -591,6 +976,7 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
   }
 
   const onUp = (e) => {
+    if (tool === 'pen') { st.current = null; return }
     if (!st.current) return
     if (st.current.polyDrag) { st.current = null; return }
     const p = toCanvas(e)
@@ -617,8 +1003,13 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
 
   const onCancel = () => { st.current = null; if (!poly.current) setDraft(null) }
 
+  const penN = penView ? penView.nodes.length : 0
   let hint = 'Trascina sulla foto'
-  if (tool === 'lasso') {
+  if (tool === 'pen') {
+    if (penN === 0) hint = 'Clicca lungo il bordo: la curva si arrotonda da sola · trascina per piegarla'
+    else if (penN < 3) hint = 'Continua a cliccare i punti'
+    else hint = 'Clic sul primo punto (verde) o Invio per chiudere · Canc = punto indietro'
+  } else if (tool === 'lasso') {
     if (polyN === 0) hint = 'Trascina a mano libera, oppure clicca i punti per linee dritte'
     else if (polyN < 3) hint = 'Clicca gli altri punti'
     else hint = 'Clicca altri punti · doppio clic o primo punto per chiudere'
@@ -661,6 +1052,46 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
           height={containerHeight}
         />
       )}
+      {tool === 'pen' && penView && penView.nodes.length > 0 && (() => {
+        const base = penView.nodes
+        const conCursore = penView.cur ? [...base, { x: penView.cur.x, y: penView.cur.y, t: 'corner' }] : base
+        const linea = conCursore.length > 1 ? appiattisci(conCursore, false) : conCursore
+        const ultimo = base[base.length - 1]
+        const mu = ultimo.t === 'manual' ? maniglie(base, false)[base.length - 1] : null
+        return (
+          <svg
+            width={containerWidth}
+            height={containerHeight}
+            viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+            style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}
+          >
+            {linea.length > 1 && (
+              <polyline
+                points={linea.map((q) => `${q.x},${q.y}`).join(' ')}
+                fill="none"
+                stroke={TECNICA_COLORI[0].hex}
+                strokeWidth={hlStroke(canvasWidth)}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            )}
+            {mu && [mu.ci, mu.co].map((q, i) => (
+              <g key={`m${i}`}>
+                <line x1={ultimo.x} y1={ultimo.y} x2={q.x} y2={q.y} stroke="#007AFF" strokeWidth={1.5 / k} />
+                <circle cx={q.x} cy={q.y} r={4 / k} fill="#007AFF" />
+              </g>
+            ))}
+            {base.map((q, i) => {
+              const fill = i === 0 && base.length >= 3 ? '#34C759' : '#fff'
+              return q.t === 'corner' ? (
+                <rect key={i} x={q.x - 4.5 / k} y={q.y - 4.5 / k} width={9 / k} height={9 / k} fill={fill} stroke="#007AFF" strokeWidth={2 / k} />
+              ) : (
+                <circle key={i} cx={q.x} cy={q.y} r={(i === 0 ? 7 : 4.5) / k} fill={fill} stroke="#007AFF" strokeWidth={2 / k} />
+              )
+            })}
+          </svg>
+        )
+      })()}
       {polyN > 0 && poly.current && (
         <svg
           width={containerWidth}
@@ -685,6 +1116,34 @@ function DrawLayer({ tool, canvasWidth, canvasHeight, containerWidth, containerH
         <div style={{ background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '800', textAlign: 'center' }}>
           {hint} · Esc per annullare
         </div>
+        {tool === 'pen' && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setPenCorner((v) => !v)}
+            title="Cosa creano i prossimi clic (Shift + clic = angolo)"
+            style={{ pointerEvents: 'auto', background: penCorner ? '#FF9500' : '#007AFF', color: '#fff', border: 'none', borderRadius: '20px', padding: '6px 14px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+          >
+            {penCorner ? '◣ Angolo' : '◠ Curva'}
+          </button>
+        )}
+        {tool === 'pen' && penN >= 1 && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => penBack()}
+            style={{ pointerEvents: 'auto', background: '#8e8e93', color: '#fff', border: 'none', borderRadius: '20px', padding: '6px 14px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+          >
+            ↶ Indietro
+          </button>
+        )}
+        {tool === 'pen' && penN >= 3 && (
+          <button
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => finishPen()}
+            style={{ pointerEvents: 'auto', background: '#34C759', color: '#fff', border: 'none', borderRadius: '20px', padding: '6px 14px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+          >
+            ✓ Chiudi
+          </button>
+        )}
         {tool === 'lasso' && polyN >= 3 && (
           <button
             onPointerDown={(e) => e.stopPropagation()}
@@ -710,9 +1169,13 @@ export default function TecnicaOverlay({
   const k = containerWidth / canvasWidth // pixel reali -> pixel a schermo
   const canvasHeight = containerHeight / k
 
+  const [nodoSel, setNodoSel] = useState(null) // nodo selezionato nella forma curva selezionata
+  const selRev = (highlights.find((x) => x.id === selectedId) || {}).rev
+  useEffect(() => { setNodoSel(null) }, [selectedId, selRev])
+
   // I listener globali leggono sempre l'ultimo stato da qui, senza dover essere ricreati.
   const live = useRef({})
-  live.current = { k, canvasWidth, canvasHeight, arrows, lens, highlights, tool, selectedId, onArrowsChange, onLensChange, onHighlightsChange, onToolChange, onSelect, texts, onTextsChange, onEditingChange }
+  live.current = { k, canvasWidth, canvasHeight, arrows, lens, highlights, tool, selectedId, onArrowsChange, onLensChange, onHighlightsChange, onToolChange, onSelect, texts, onTextsChange, onEditingChange, nodoSel, setNodoSel }
   const dragRef = useRef(null)
   const elRefs = useRef({})
   const lastTapRef = useRef({ id: null, time: 0 }) // per riconoscere il doppio tocco su un testo
@@ -734,6 +1197,13 @@ export default function TecnicaOverlay({
       e.preventDefault()
       const dx = (e.clientX - d.startX) / L.k
       const dy = (e.clientY - d.startY) / L.k
+      if (d.type === 'nodo' || d.type === 'maniglia-in' || d.type === 'maniglia-out') {
+        const nuovo = d.type === 'nodo'
+          ? muoviNodo(d.orig, d.idx, dx, dy)
+          : muoviManiglia(d.orig, d.idx, d.type === 'maniglia-out', dx, dy, e.altKey)
+        L.onHighlightsChange(L.highlights.map((h) => (h.id === d.target ? nuovo : h)))
+        return
+      }
       if (d.type === 'move') {
         if (d.hl) {
           L.onHighlightsChange(L.highlights.map((h) => (h.id === d.target ? spostaHl(d.orig, dx, dy) : h)))
@@ -783,6 +1253,16 @@ export default function TecnicaOverlay({
       if (!L.selectedId) return
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
+        const hn = L.highlights.find((h) => h.id === L.selectedId)
+        if (hn && hn.nodes && L.nodoSel != null && !L.tool) {
+          // Con un punto selezionato, Canc toglie quel punto (non tutta la forma). Minimo 3 punti.
+          if (hn.nodes.length > 3) {
+            const nodes = hn.nodes.filter((_, i) => i !== L.nodoSel)
+            L.onHighlightsChange(L.highlights.map((h) => (h.id === hn.id ? { ...h, nodes, pts: appiattisci(nodes, true) } : h)))
+            L.setNodoSel(null)
+          }
+          return
+        }
         if (L.selectedId === 'lens') L.onLensChange(null)
         else if (L.highlights.some((h) => h.id === L.selectedId)) L.onHighlightsChange(L.highlights.filter((h) => h.id !== L.selectedId))
         else if (L.texts.some((t) => t.id === L.selectedId)) L.onTextsChange(L.texts.filter((t) => t.id !== L.selectedId))
@@ -829,6 +1309,51 @@ export default function TecnicaOverlay({
     L.onSelect(target)
   }
 
+  // Trascina un punto o una maniglia di una forma curva.
+  const startNodeDrag = (e, type, id, idx) => {
+    e.stopPropagation()
+    e.preventDefault()
+    const L = live.current
+    const hl = L.highlights.find((h) => h.id === id)
+    if (!hl) return
+    dragRef.current = { type, target: id, orig: hl, idx, hl: true, startX: e.clientX, startY: e.clientY }
+    L.onSelect(id)
+    setNodoSel(idx)
+  }
+
+  // Doppio clic su un punto: angolo ↔ curva.
+  const alternaNodoClick = (e, id, idx) => {
+    e.stopPropagation()
+    e.preventDefault()
+    dragRef.current = null
+    const L = live.current
+    const hl = L.highlights.find((h) => h.id === id)
+    if (hl && hl.nodes) L.onHighlightsChange(L.highlights.map((h) => (h.id === id ? alternaNodo(hl, idx) : h)))
+  }
+
+  // Doppio clic sulla linea di una forma curva: aggiunge un punto lì, senza cambiare la forma.
+  const aggiungiNodoClick = (e, id) => {
+    const L = live.current
+    const hl = L.highlights.find((h) => h.id === id)
+    const svg = e.currentTarget.ownerSVGElement
+    if (!hl || !hl.nodes || !svg) return
+    const r = svg.getBoundingClientRect()
+    const px = ((e.clientX - r.left) / r.width) * L.canvasWidth
+    const py = ((e.clientY - r.top) / r.height) * L.canvasHeight
+    const { pts, seg, tt } = appiattisciConSeg(hl.nodes, true)
+    let best = -1
+    let bd = Infinity
+    pts.forEach((q, i) => {
+      if (tt[i] <= 0.02) return // sopra un punto esistente
+      const d = Math.hypot(q.x - px, q.y - py)
+      if (d < bd) { bd = d; best = i }
+    })
+    if (best < 0) return
+    const nuovo = inserisciNodoCurva(hl, seg[best], tt[best])
+    L.onHighlightsChange(L.highlights.map((h) => (h.id === id ? nuovo : h)))
+    setNodoSel(seg[best] + 1)
+  }
+
   // Doppio clic (mouse) o doppio tocco (touch) su un testo = modifica; un solo clic lo trascina.
   const onTextDown = (e, t) => {
     const now = Date.now()
@@ -868,6 +1393,7 @@ export default function TecnicaOverlay({
         height={containerHeight}
         interactive
         onDown={startDrag}
+        onDouble={aggiungiNodoClick}
       />
 
       {/* LENTE — sotto le frecce. Cerchietto sorgente (dove sta puntando) + linea tratteggiata
@@ -1098,6 +1624,54 @@ export default function TecnicaOverlay({
         )
       })()}
 
+      {/* Punti e maniglie della forma curva selezionata */}
+      {(() => {
+        const h = highlights.find((x) => x.id === selectedId)
+        if (!h || !h.nodes || tool) return null
+        const M = maniglie(h.nodes, true)
+        const sel = nodoSel != null && h.nodes[nodoSel] && h.nodes[nodoSel].t !== 'corner' ? nodoSel : null
+        const hit = 16 / k
+        return (
+          <svg
+            width={containerWidth}
+            height={containerHeight}
+            viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
+            style={{ position: 'absolute', left: 0, top: 0, display: 'block', pointerEvents: 'none', touchAction: 'none' }}
+          >
+            {sel != null && [['maniglia-in', M[sel].ci], ['maniglia-out', M[sel].co]].map(([tipo, q]) => (
+              <g key={tipo}>
+                <line x1={h.nodes[sel].x} y1={h.nodes[sel].y} x2={q.x} y2={q.y} stroke="#007AFF" strokeWidth={1.5 / k} />
+                <circle cx={q.x} cy={q.y} r={4.5 / k} fill="#007AFF" style={{ pointerEvents: 'none' }} />
+                <circle
+                  cx={q.x} cy={q.y} r={hit} fill="transparent"
+                  style={{ pointerEvents: 'all', cursor: 'grab' }}
+                  onPointerDown={(e) => startNodeDrag(e, tipo, h.id, sel)}
+                />
+              </g>
+            ))}
+            {h.nodes.map((n, i) => {
+              const attivo = i === nodoSel
+              const fill = attivo ? '#007AFF' : '#fff'
+              return (
+                <g key={i}>
+                  {n.t === 'corner' ? (
+                    <rect x={n.x - 5 / k} y={n.y - 5 / k} width={10 / k} height={10 / k} fill={fill} stroke="#007AFF" strokeWidth={2 / k} style={{ pointerEvents: 'none' }} />
+                  ) : (
+                    <circle cx={n.x} cy={n.y} r={5.5 / k} fill={fill} stroke="#007AFF" strokeWidth={2 / k} style={{ pointerEvents: 'none' }} />
+                  )}
+                  <circle
+                    cx={n.x} cy={n.y} r={hit} fill="transparent"
+                    style={{ pointerEvents: 'all', cursor: 'move' }}
+                    onPointerDown={(e) => startNodeDrag(e, 'nodo', h.id, i)}
+                    onDoubleClick={(e) => alternaNodoClick(e, h.id, i)}
+                  />
+                </g>
+              )
+            })}
+          </svg>
+        )
+      })()}
+
       {tool && (
         <DrawLayer
           tool={tool}
@@ -1257,6 +1831,13 @@ export function TecnicaPanel({
   if (hl) {
     const patchHl = (p) => onHighlightsChange(highlights.map((h) => (h.id === hl.id ? { ...h, ...p } : h)))
     const eliminaHl = () => { onHighlightsChange(highlights.filter((h) => h.id !== hl.id)); onSelect(null) }
+    // Rifinisci: rifà la curva più naturale e uniforme (si può ripetere, e annullare).
+    const rifinisciHl = () => {
+      const nodes = rifinisciNodi(hl.nodes)
+      patchHl({ prev: hl.nodes, nodes, pts: appiattisci(nodes, true), rev: (hl.rev || 0) + 1 })
+    }
+    const annullaRifinitura = () =>
+      patchHl({ nodes: hl.prev, pts: appiattisci(hl.prev, true), prev: null, rev: (hl.rev || 0) + 1 })
     const duplicaHl = () => {
       const copia = duplicaEvidenziatura(hl, canvasWidth * 0.04)
       onHighlightsChange([...highlights, copia])
@@ -1284,11 +1865,22 @@ export function TecnicaPanel({
           <input type="range" min="10" max="90" step="1" value={Math.round(hl.opacity * 100)} onChange={(e) => patchHl({ opacity: Number(e.target.value) / 100 })} style={{ width: '110px' }} />
           <span style={{ fontSize: '12px', fontWeight: '800', minWidth: '34px' }}>{Math.round(hl.opacity * 100)}%</span>
         </div>
+        {hl.nodes && (
+          <div style={group}>
+            <button onClick={rifinisciHl} title="Rende la curva più naturale e uniforme" style={btn({ background: '#34C759', color: '#fff' })}>✨ Rifinisci</button>
+            {hl.prev && <button onClick={annullaRifinitura} style={btn()}>↶ Annulla rifinitura</button>}
+          </div>
+        )}
         <div style={group}>
           <button onClick={() => patchHl({ outline: !hl.outline })} style={btn(hl.outline ? { background: '#007AFF', color: '#fff' } : {})}>Contorno</button>
           <button onClick={duplicaHl} style={btn()}>Duplica</button>
           <button onClick={eliminaHl} style={btn({ background: '#FF3B30', color: '#fff' })}>Elimina</button>
         </div>
+        {hl.nodes && (
+          <div style={{ width: '100%', textAlign: 'center', fontSize: '11px', color: '#8e8e93', fontWeight: '600' }}>
+            Trascina i punti e le maniglie per modellare · doppio clic su un punto: angolo/curva · doppio clic sulla linea: nuovo punto · Canc: toglie il punto scelto
+          </div>
+        )}
       </div>
     )
   }
@@ -1428,7 +2020,8 @@ export function EvidenziaModal({ onPick, onClose }) {
   const voci = [
     { kind: 'rect', label: 'Rettangolo', desc: 'Shift = quadrato' },
     { kind: 'ellipse', label: 'Ellisse', desc: 'Un clic e appare' },
-    { kind: 'lasso', label: 'A mano libera', desc: 'Trascina o clicca i punti' }
+    { kind: 'lasso', label: 'A mano libera', desc: 'Trascina o clicca i punti' },
+    { kind: 'pen', label: 'Curve', desc: 'Clicca i punti, trascina per piegare' }
   ]
   return (
     <div
@@ -1440,8 +2033,8 @@ export function EvidenziaModal({ onPick, onClose }) {
           <h3 style={{ margin: 0, fontSize: '17px' }}>Evidenzia una zona</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#FF3B30', cursor: 'pointer' }}>✕</button>
         </div>
-        <p style={{ fontSize: '12px', color: '#8e8e93', margin: '0 0 16px' }}>Rettangolo e mano libera si disegnano sulla foto, l'ellisse compare subito. Il colore lo cambi dopo.</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+        <p style={{ fontSize: '12px', color: '#8e8e93', margin: '0 0 16px' }}>Rettangolo e mano libera si disegnano sulla foto, l'ellisse compare subito. Con "Curve" clicchi i punti lungo il bordo e la linea si arrotonda da sola: trascinando un punto la pieghi. Il colore lo cambi dopo.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           {voci.map((v) => (
             <button
               key={v.kind}
@@ -1457,6 +2050,12 @@ export function EvidenziaModal({ onPick, onClose }) {
                   <img src={OVALE_TECNICA_URL} alt="" style={{ width: '70%', height: '70%', objectFit: 'contain' }} />
                 )}
                 {v.kind === 'lasso' && <span style={{ fontSize: '28px', color: '#FFD400' }}>✎</span>}
+                {v.kind === 'pen' && (
+                  <svg viewBox="0 0 60 40" style={{ width: '60%', height: '42%' }}>
+                    <path d="M4 30 C 16 2, 28 2, 32 20 S 50 36, 56 10" fill="none" stroke="#FFD400" strokeWidth="3" strokeLinecap="round" />
+                    <circle cx="4" cy="30" r="3" fill="#fff" /><circle cx="32" cy="20" r="3" fill="#fff" /><circle cx="56" cy="10" r="3" fill="#fff" />
+                  </svg>
+                )}
               </div>
               <span style={{ display: 'block', padding: '8px 4px 2px', fontSize: '12px', fontWeight: '700', color: '#fff', textAlign: 'center' }}>
                 {v.label}
