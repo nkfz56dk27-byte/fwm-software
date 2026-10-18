@@ -1,0 +1,336 @@
+/* Aspetto come le altre schermate dell'app: foto di sfondo + pannello bianco.
+   Un solo colore per le azioni (blu), tutto il resto neutro. Pulsanti e schede sempre della stessa misura. */
+
+.ot-shell {
+  --ink: #1c1c1e;
+  --ink-2: #636366;
+  --ink-3: #8e8e93;
+  --line: #e5e5ea;
+  --line-soft: #f0f0f3;
+  --fill: #f2f2f7;
+  --fill-strong: #e9e9ee;
+  --accent: #007aff;
+  --accent-soft: rgba(0, 122, 255, .1);
+  --ok: #1f8f4a;
+  --ok-soft: #e8f6ee;
+  --warn: #8a5a00;
+  --warn-soft: #fff6dc;
+  --bad: #d93025;
+  --bad-soft: #fdeceb;
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro', 'SF Pro Rounded', 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  padding: 0 20px 40px; /* niente spazio sopra: lo dà il margine del pannello, così la barra del risultato può agganciarsi al bordo */
+  background: #e9e9ee url(/sfondo-fwm.jpg) center / cover no-repeat;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+.ot-shell *, .ot-shell *::before, .ot-shell *::after { box-sizing: border-box; }
+.ot-shell :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Pannello ──────────────────────────────────────────────────────────── */
+.ot-panel {
+  max-width: 1200px;
+  margin: 40px auto 0;
+  padding: 32px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, .92);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .18), 0 1px 0 rgba(255, 255, 255, .7) inset;
+}
+
+.ot-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+.ot-title { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
+.ot-sub { margin: 6px 0 0; color: var(--ink-2); font-size: 15px; }
+.ot-head__actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.ot-h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+.ot-h3 { margin: 0; font-size: 16px; font-weight: 700; }
+.ot-muted { margin: 4px 0 0; color: var(--ink-2); font-size: 14px; }
+.ot-label { margin: 0 0 12px; color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.ot-count { color: var(--ink-3); font-weight: 500; }
+.ot-hint { margin: 12px 0 20px; color: var(--ink-2); }
+
+/* ── Bottoni: stessa altezza, un solo colore ───────────────────────────── */
+.ot-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; min-width: 44px; padding: 0 20px;
+  border: none; border-radius: 12px;
+  background: var(--fill); color: var(--ink);
+  font: inherit; font-size: 15px; font-weight: 600; white-space: nowrap; cursor: pointer;
+  transition: background-color .15s, color .15s, transform .1s;
+}
+.ot-btn:hover:not(:disabled) { background: var(--fill-strong); }
+.ot-btn:active:not(:disabled) { transform: scale(.98); }
+.ot-btn:disabled { opacity: .4; cursor: not-allowed; }
+.ot-btn--primary { background: var(--accent); color: #fff; }
+.ot-btn--primary:hover:not(:disabled) { background: #0a6fe0; }
+.ot-btn--tinted { background: var(--accent-soft); color: var(--accent); }
+.ot-btn--tinted:hover:not(:disabled) { background: rgba(0, 122, 255, .16); }
+.ot-btn--ghost { background: transparent; color: var(--accent); padding: 0 12px; }
+.ot-btn--ghost:hover:not(:disabled) { background: var(--accent-soft); }
+.ot-btn--sm { height: 34px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
+.ot-btn--block { width: 100%; }
+
+.ot-icon-btn {
+  display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  border: none; border-radius: 10px; background: transparent; color: var(--ink-3); cursor: pointer;
+}
+.ot-icon-btn:hover:not(:disabled) { background: var(--fill); color: var(--ink); }
+.ot-icon-btn:disabled { opacity: .3; cursor: not-allowed; }
+.ot-icon-btn--danger:hover:not(:disabled) { background: var(--bad-soft); color: var(--bad); }
+
+.ot-link { padding: 0; border: none; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+.ot-link:hover { text-decoration: underline; }
+
+/* ── Interruttore ──────────────────────────────────────────────────────── */
+.ot-switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.ot-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ot-switch__track { position: relative; flex: none; width: 42px; height: 26px; border-radius: 999px; background: #d1d1d6; transition: background-color .18s; }
+.ot-switch__track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, .25); transition: transform .18s; }
+.ot-switch input:checked + .ot-switch__track { background: var(--accent); }
+.ot-switch input:checked + .ot-switch__track::after { transform: translateX(16px); }
+.ot-switch input:focus-visible + .ot-switch__track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ot-switch__hint { color: var(--ink-3); font-size: 13px; }
+.ot-switch.is-disabled { cursor: not-allowed; opacity: .5; }
+
+/* ── Campi ─────────────────────────────────────────────────────────────── */
+.ot-input {
+  width: 100%; height: 46px; padding: 0 16px;
+  border: 1px solid transparent; border-radius: 12px; background: var(--fill);
+  color: var(--ink); font: inherit; font-size: 16px;
+  transition: background-color .15s, box-shadow .15s, border-color .15s;
+}
+.ot-input::placeholder { color: var(--ink-3); }
+.ot-input:focus { outline: none; background: #fff; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.ot-textarea { height: auto; padding: 12px 16px; font-family: var(--mono); font-size: 13px; resize: vertical; }
+.ot-field-row { display: flex; gap: 10px; }
+.ot-field-row .ot-input { flex: 1; min-width: 0; }
+.ot-search { position: relative; flex: 1; min-width: 220px; }
+.ot-search svg { position: absolute; left: 16px; top: 15px; color: var(--ink-3); pointer-events: none; }
+.ot-search .ot-input { padding-left: 44px; }
+.ot-select { height: 46px; padding: 0 14px; border: 1px solid transparent; border-radius: 12px; background: var(--fill); color: var(--ink); font: inherit; width: 100%; margin-bottom: 16px; }
+
+/* ── Sezioni (niente schede dentro schede) ─────────────────────────────── */
+.ot-card { margin-top: 28px; padding-top: 28px; border-top: 1px solid var(--line); }
+.ot-card:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+.ot-card__head { margin-bottom: 16px; }
+.ot-card__head--row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.ot-card--slim { padding: 14px 18px; margin-top: 12px; border: none; border-radius: 14px; background: var(--fill); }
+.ot-card--slim:first-of-type { margin-top: 0; padding-top: 14px; }
+.ot-card--slim .ot-btn { background: #fff; }
+.ot-card--slim .ot-btn:hover:not(:disabled) { background: var(--fill-strong); }
+/* Specificità alta di proposito: ".ot-card:first-of-type" azzera il padding in alto e farebbe attaccare il titolo al bordo */
+.ot-card--sync, .ot-card--sync:first-of-type { padding: 24px 28px; border: none; border-radius: 18px; background: var(--accent-soft); margin: 0 0 24px; }
+.ot-card--sync .ot-card__head { gap: 16px; margin-bottom: 18px; }
+.ot-card--sync .ot-card__head--row { align-items: center; }
+.ot-banner { margin: 14px 0; padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; }
+.ot-banner--ok { background: var(--ok-soft); color: var(--ok); }
+.ot-banner--warn { background: var(--warn-soft); color: var(--warn); }
+.ot-banner--bad { background: var(--bad-soft); color: var(--bad); }
+
+/* ── Home: pulsanti e schede tutti uguali ──────────────────────────────── */
+.ot-actions-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 32px; }
+.ot-actions-grid .ot-btn { width: 100%; }
+.ot-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.ot-list__item { position: relative; }
+.ot-list__open {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; height: 76px; padding: 0 20px;
+  border: 1px solid var(--line); border-radius: 16px; background: #fff; color: var(--ink);
+  font: inherit; font-size: 16px; font-weight: 600; text-align: left; cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.ot-list__open:hover { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.ot-list__open > span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.25; }
+.ot-list__open svg { color: var(--ink-3); flex: none; }
+.ot-list__delete { position: absolute; top: -8px; right: -8px; width: 28px; height: 28px; border-radius: 50%; background: var(--bad); color: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .25); }
+.ot-list__delete:hover:not(:disabled) { background: #b9261c; color: #fff; }
+.ot-empty { padding: 36px 20px; text-align: center; color: var(--ink-2); border-radius: 16px; background: var(--fill); }
+.ot-footer-link { margin-top: 28px; text-align: center; }
+
+/* ── Passi ─────────────────────────────────────────────────────────────── */
+.ot-steps { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
+.ot-steps li { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-3); font-size: 14px; font-weight: 500; }
+.ot-steps li + li::before { content: ''; width: 24px; height: 1px; margin-right: 6px; background: var(--line); }
+.ot-steps__n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #c7c7cc; color: var(--ink-3); font-size: 12px; font-weight: 600; }
+.ot-steps li.is-current { color: var(--ink); font-weight: 600; }
+.ot-steps li.is-current .ot-steps__n { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ot-steps li.is-done { color: var(--ink-2); }
+.ot-steps li.is-done .ot-steps__n { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+
+/* ── Barra strumenti, segmenti ─────────────────────────────────────────── */
+.ot-toolbar { display: flex; align-items: center; gap: 14px 28px; flex-wrap: wrap; margin-bottom: 16px; }
+/* Ricerca su tutta la riga; sotto, gli interruttori e il bottone Colonne a destra */
+.ot-toolbar .ot-search { flex: 1 1 100%; }
+.ot-toolbar > .ot-btn { margin-left: auto; }
+.ot-segmented { display: inline-flex; padding: 3px; border-radius: 12px; background: var(--fill-strong); }
+.ot-segmented button { height: 36px; padding: 0 18px; border: none; border-radius: 9px; background: transparent; color: var(--ink-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.ot-segmented button[aria-pressed='true'] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .14); }
+
+/* ── Tabelle ───────────────────────────────────────────────────────────── */
+.ot-scroll { overflow-x: auto; }
+.ot-tablewrap, .ot-box { border: 1px solid var(--line); border-radius: 16px; background: #fff; overflow: hidden; margin-bottom: 20px; }
+.ot-box { overflow-x: auto; margin-bottom: 0; }
+.ot-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ot-table th { padding: 12px 14px; background: #fafafc; border-bottom: 1px solid var(--line); text-align: left; font-size: 13px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.ot-table td { padding: 8px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+.ot-table tbody tr:last-child td { border-bottom: none; }
+.ot-td--text { min-width: 120px; font-weight: 500; }
+.ot-td--actions { width: 52px; padding-right: 10px; }
+
+.ot-cell-input {
+  width: 100%; min-width: 90px; height: 38px; padding: 0 12px;
+  border: 1px solid transparent; border-radius: 10px; background: var(--fill); color: var(--ink);
+  font: inherit; font-size: 14px; transition: background-color .15s, box-shadow .15s, border-color .15s;
+}
+.ot-cell-input:hover:not(:disabled) { background: var(--fill-strong); }
+.ot-cell-input:focus { outline: none; background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ot-cell-input:disabled { background: transparent; color: var(--ink-3); cursor: not-allowed; border-style: dashed; border-color: var(--line); }
+.ot-cell-input--num { width: 72px; min-width: 72px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ot-cell-input--head { font-weight: 600; background: #fff; border-color: var(--line); }
+.ot-cell-input--time, .ot-cell-input--best { font-variant-numeric: tabular-nums; }
+.ot-cell-input--best { font-weight: 600; }
+.ot-cell-input.is-locked { background: transparent; border-color: transparent; color: var(--ink); font-weight: 700; }
+.ot-cell-input.is-dup { border-color: var(--bad); background: var(--bad-soft); }
+.ot-pos { display: flex; align-items: center; gap: 4px; }
+
+/* Anteprima di importazione: le colonne spente restano visibili ma sbiadite */
+.ot-table--preview td { white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.ot-table--preview th.is-off, .ot-table--preview td.is-off { color: #c7c7cc; }
+
+/* Scelta colonne (finestra "Colonne" e import): una tessera con interruttore per ogni colonna */
+.ot-cols__bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 18px 0 12px; }
+.ot-cols__count { color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.ot-cols__quick { display: inline-flex; gap: 18px; font-size: 14px; }
+.ot-cols__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ot-tile {
+  position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 52px; padding: 10px 14px 10px 16px; border-radius: 14px; background: var(--fill);
+  cursor: pointer; user-select: none; transition: background-color .15s;
+}
+.ot-tile:hover { background: var(--fill-strong); }
+.ot-tile__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ot-tile:not(.is-on) .ot-tile__name { color: var(--ink-3); font-weight: 500; }
+.ot-tile__input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ot-tile__input:checked + .ot-switch__track { background: var(--accent); }
+.ot-tile__input:checked + .ot-switch__track::after { transform: translateX(16px); }
+.ot-tile__input:focus-visible + .ot-switch__track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ot-options { display: flex; flex-wrap: wrap; gap: 14px 28px; margin: 0 0 18px; }
+.ot-table--edit .ot-cell-input { min-width: 140px; }
+.ot-table--edit th, .ot-table--edit td { padding-left: 6px; padding-right: 6px; }
+.ot-table--edit td:first-child .ot-cell-input, .ot-table--edit th:first-child .ot-cell-input { min-width: 80px; }
+
+/* ── Righe come schede su telefono ─────────────────────────────────────── */
+.ot-cards { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.ot-rowcard { position: relative; padding: 16px; background: var(--fill); border-radius: 16px; }
+.ot-rowcard__title { font-size: 17px; font-weight: 700; }
+.ot-rowcard__sub { color: var(--ink-2); font-size: 14px; margin-bottom: 12px; }
+.ot-rowcard__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ot-rowcard label { display: block; margin-bottom: 4px; color: var(--ink-2); font-size: 12px; }
+.ot-rowcard .ot-cell-input { background: #fff; }
+.ot-rowcard__remove { position: absolute; top: 8px; right: 8px; }
+.ot-kv { display: flex; gap: 10px; font-size: 14px; }
+.ot-kv span:first-child { min-width: 90px; color: var(--ink-2); }
+.ot-kv span:last-child { font-weight: 600; }
+
+/* ── Barra azioni ──────────────────────────────────────────────────────── */
+.ot-actionbar {
+  position: sticky; bottom: 16px; z-index: 20;
+  display: flex; justify-content: flex-end; margin: 24px 0 0; pointer-events: none;
+}
+.ot-actionbar .ot-btn { pointer-events: auto; min-width: 220px; height: 48px; box-shadow: 0 8px 24px rgba(0, 0, 0, .22); }
+/* Quando il risultato è già sotto, il bottone smette di "galleggiare" e non si sovrappone più ai riquadri */
+.ot-actionbar.is-static { position: static; pointer-events: auto; }
+.ot-actionbar.is-static .ot-btn { box-shadow: none; }
+.ot-actionbar__main { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-left: auto; }
+
+/* ── Risultato ─────────────────────────────────────────────────────────── */
+/* Specificità alta di proposito: ".ot-card:first-of-type" azzererebbe margine e spazio sopra il risultato */
+.ot-card.ot-result, .ot-card.ot-result:first-of-type { margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--line); }
+/* Barra del risultato: resta agganciata in alto mentre scorri le tabelle, così "Copia tutto" è sempre a portata di mano */
+.ot-result__head {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin: 0 0 20px; padding: 14px 0; border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, .96); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.ot-result__actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+/* Ogni tabella è mostrata intera, una sotto l'altra: niente scroll interno */
+.ot-output__block { margin-bottom: 28px; }
+.ot-output__blockhead { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; }
+.ot-output__preview { overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; background: #fff; font-size: 14px; }
+.ot-output__preview table { width: 100%; margin: 0; border-collapse: collapse; }
+.ot-output__preview th, .ot-output__preview td { padding: 9px 14px; border-bottom: 1px solid var(--line-soft); text-align: left; }
+.ot-output__preview th { background: #fafafc; font-size: 13px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.ot-output__preview tbody tr:last-child td { border-bottom: none; }
+/* Il codice sta nascosto finché non premi "Mostra codice" */
+.ot-code { display: block; width: 100%; height: 360px; padding: 16px; resize: vertical; border: 1px solid var(--line); border-radius: 16px; background: var(--fill); color: var(--ink); font-family: var(--mono); font-size: 12.5px; line-height: 1.55; }
+.ot-code:focus { outline: none; background: #fff; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+
+/* ── Sincronizzazione Timing71 ─────────────────────────────────────────── */
+.ot-sync__list { display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; }
+.ot-sync__item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 18px; background: #fff; border-radius: 14px; }
+.ot-sync__name { font-weight: 600; }
+.ot-sync__meta { color: var(--ink-2); font-size: 13px; }
+.ot-sync__actions { display: flex; align-items: center; gap: 10px; }
+
+/* ── Riassunto dei passaggi chiusi ─────────────────────────────────────── */
+.ot-summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.ot-summary__label { font-size: 12px; color: var(--ink-2); }
+.ot-summary__value { font-weight: 600; overflow-wrap: anywhere; }
+
+/* ── Finestra colonne ──────────────────────────────────────────────────── */
+.ot-modal { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 20px; background: rgba(0, 0, 0, .4); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.ot-dialog { width: min(600px, 100%); max-height: 86vh; overflow-y: auto; padding: 32px; border-radius: 24px; background: #fff; color: var(--ink); box-shadow: 0 24px 60px rgba(0, 0, 0, .3); }
+/* Il bottone Fatto resta sempre visibile in fondo, anche se l'elenco scorre (telefono) */
+.ot-dialog__foot { position: sticky; bottom: -32px; display: flex; justify-content: flex-end; gap: 10px; margin: 16px -32px -32px; padding: 16px 32px 32px; background: #fff; }
+
+.ot-toast { position: fixed; left: 50%; bottom: 28px; z-index: 10001; transform: translateX(-50%); padding: 12px 20px; border-radius: 999px; background: #1c1c1e; color: #fff; font-weight: 600; box-shadow: 0 8px 24px rgba(0, 0, 0, .3); }
+
+/* ── Mobile: pannello a tutta pagina su bianco, come le altre schermate ── */
+@media (max-width: 768px) {
+  .ot-shell { padding: 0 0 20px; background: #fff; }
+  .ot-panel {
+    padding: 20px 16px; border-radius: 0; box-shadow: none; background: #fff;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    margin-top: calc(env(safe-area-inset-top, 0px) + 56px);
+  }
+  .ot-title { font-size: 26px; }
+  .ot-head { margin-bottom: 20px; }
+  .ot-head__actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+  .ot-head__actions .ot-btn { width: 100%; padding: 0 10px; }
+  .ot-head__actions .ot-segmented { grid-column: 1 / -1; }
+  .ot-head__actions .ot-segmented button { flex: 1; }
+  .ot-actions-grid { grid-template-columns: 1fr; margin-bottom: 24px; }
+  .ot-field-row { flex-direction: column; }
+  .ot-result__head { top: calc(env(safe-area-inset-top, 0px) + 56px); }
+  .ot-result__actions { width: 100%; justify-content: space-between; }
+  .ot-code { height: 300px; }
+  .ot-toolbar > .ot-btn { margin-left: 0; }
+  .ot-card--sync, .ot-card--sync:first-of-type { padding: 20px 16px; }
+  .ot-cols__grid { grid-template-columns: 1fr; }
+  .ot-dialog { padding: 24px 20px; }
+  .ot-dialog__foot { bottom: -24px; margin: 12px -20px -24px; padding: 12px 20px 24px; }
+  .ot-actionbar { bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); flex-wrap: nowrap; gap: 10px; padding: 10px 12px; }
+  .ot-actionbar .ot-switch__hint { display: none; }
+  .ot-actionbar .ot-switch > span:last-child { white-space: nowrap; }
+}
+
+@media (prefers-reduced-motion: reduce) { .ot-shell * { transition: none !important; } }
+
+/* Nuovo template: salva oppure genera subito */
+.ot-export-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+.ot-field-row--center { align-items: center; justify-content: space-between; }
+@media (max-width: 768px) {
+  .ot-export-grid { grid-template-columns: 1fr; gap: 28px; }
+  .ot-field-row--center { flex-direction: row; flex-wrap: wrap; gap: 14px; }
+  .ot-actionbar { bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+  .ot-actionbar .ot-btn { width: 100%; }
+}
