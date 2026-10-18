@@ -19,6 +19,7 @@
   --bad-soft: #fdeceb;
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro', 'SF Pro Rounded', 'Segoe UI', sans-serif;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --nav-app: 112px; /* su telefono: altezza della barra Home / Gestione / Profilo che galleggia in basso. Alzala se copre ancora i bottoni */
 
   position: fixed;
   inset: 0;
@@ -296,7 +297,8 @@
 
 /* ── Mobile: pannello a tutta pagina su bianco, come le altre schermate ── */
 @media (max-width: 768px) {
-  .ot-shell { padding: 0 0 20px; background: #fff; }
+  /* il padding in basso lascia libero lo spazio della barra dell'app: anche il bottone che galleggia (sticky) lo rispetta */
+  .ot-shell { padding: 0 0 calc(var(--nav-app) + env(safe-area-inset-bottom, 0px)); background: #fff; }
   .ot-panel {
     padding: 20px 16px; border-radius: 0; box-shadow: none; background: #fff;
     -webkit-backdrop-filter: none; backdrop-filter: none;
@@ -318,7 +320,8 @@
   .ot-cols__grid { grid-template-columns: 1fr; }
   .ot-dialog { padding: 24px 20px; }
   .ot-dialog__foot { bottom: -24px; margin: 12px -20px -24px; padding: 12px 20px 24px; }
-  .ot-actionbar { bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); flex-wrap: nowrap; gap: 10px; padding: 10px 12px; }
+  .ot-actionbar { position: static; flex-wrap: nowrap; gap: 10px; padding: 0; } /* su telefono il bottone sta in fondo alla pagina, non galleggia */
+  .ot-toast { bottom: calc(var(--nav-app) + env(safe-area-inset-bottom, 0px) + 12px); }
   .ot-actionbar .ot-switch__hint { display: none; }
   .ot-actionbar .ot-switch > span:last-child { white-space: nowrap; }
 }
@@ -331,6 +334,6 @@
 @media (max-width: 768px) {
   .ot-export-grid { grid-template-columns: 1fr; gap: 28px; }
   .ot-field-row--center { flex-direction: row; flex-wrap: wrap; gap: 14px; }
-  .ot-actionbar { bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+  .ot-actionbar { position: static; }
   .ot-actionbar .ot-btn { width: 100%; }
 }
