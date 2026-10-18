@@ -129,8 +129,8 @@ const modaleGrande = (isMobile) => ({
   borderRadius: isMobile ? 0 : 22,
   width: isMobile ? '100vw' : 'min(1180px, 94vw)',
   maxWidth: isMobile ? '100vw' : '94vw',
-  height: isMobile ? '100vh' : '86vh',
-  maxHeight: isMobile ? '100vh' : '86vh',
+  height: isMobile ? '100dvh' : '86vh',
+  maxHeight: isMobile ? '100dvh' : '86vh',
   padding: 0,
   display: 'flex',
   flexDirection: 'column'
@@ -207,9 +207,9 @@ function AdminMenuModal({ onClose, onCategorie, onRimborsi, onTuttiEventi, rimbo
     // Nuove opzioni admin (es. logiche future) possono essere aggiunte qui come nuove voci.
   ];
   return (
-    <div className="fwm-glass-overlay">
+    <div className="fwm-glass-overlay" style={{ zIndex: 40000 }}>
       <div className="fwm-glass-card" style={{ borderRadius: isMobile ? 0 : 22, width: isMobile ? '100vw' : 'min(960px, 94vw)', maxWidth: isMobile ? '100vw' : '94vw', maxHeight: isMobile ? '100vh' : '86vh', padding: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? '14px 16px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? 'calc(max(env(safe-area-inset-top, 0px), 44px) + 8px) 16px 14px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 20 }}>⚙️ Menu Admin</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Opzioni amministrative del calendario</div>
@@ -325,9 +325,9 @@ function GestioneEventiModal({ eventi, campionati, isMobile, onClose, caricaDati
   const sLabRiga = { fontSize: 10, fontWeight: 600, color: '#888', display: 'block', marginBottom: 2 };
 
   return (
-    <div className="fwm-glass-overlay">
+    <div className="fwm-glass-overlay" style={{ zIndex: 40000 }}>
       <div className="fwm-glass-card" style={modaleGrande(isMobile)}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? '14px 16px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? 'calc(max(env(safe-area-inset-top, 0px), 44px) + 8px) 16px 14px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 20 }}>📋 Eventi Futuri</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{eventiOrdinati.length} in programma · modificali tutti da qui</div>
@@ -1066,7 +1066,7 @@ function ConfiguraCampionatoModal({ onClose, onSave, campionati, isMobile, utent
   };
 
   return (
-    <div className="fwm-glass-overlay">
+    <div className="fwm-glass-overlay" style={{ zIndex: 40000 }}>
       <div className="fwm-glass-card" style={modaleGrande(isMobile)}>
         <div className="fwm-glass-header">
           <div style={{ fontSize: '18px', fontWeight: '700' }}>Configura Stagione</div>
@@ -1459,13 +1459,13 @@ export default function CalendarioAccrediti({ utenteCorrente, onClose, onNotific
     };
 
     return (
-      <div className="fwm-glass-overlay">
+      <div className="fwm-glass-overlay" style={{ zIndex: 40000 }}>
         <div
           className="fwm-glass-card"
           style={modaleGrande(isMobile)}
         >
           {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? '14px 16px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? 'calc(max(env(safe-area-inset-top, 0px), 44px) + 8px) 16px 14px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
             <div>
               <div style={{ fontWeight: 700, fontSize: 20 }}>Gestione Accrediti</div>
               <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
@@ -3397,9 +3397,9 @@ function ImpostazioniRimborsiModal({ anno, impostazioniAnno, criterioAttuale, ri
   }
 
   return (
-    <div className="fwm-glass-overlay" style={{ padding: isMobile ? '0' : '20px' }}>
+    <div className="fwm-glass-overlay" style={{ zIndex: 40000, padding: isMobile ? '0' : '20px' }}>
       <div className="fwm-glass-card" style={modaleGrande(isMobile)}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? '14px 16px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? 'calc(max(env(safe-area-inset-top, 0px), 44px) + 8px) 16px 14px' : '18px 28px', borderBottom: '0.5px solid rgba(60,60,67,0.15)' }}>
           <div>
             <div style={{ fontWeight: 700, fontSize: 20 }}>💶 Rimborsi Accrediti {anno}</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Budget annuale e criterio di rimborso</div>
