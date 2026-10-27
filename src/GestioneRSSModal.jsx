@@ -321,7 +321,16 @@ function GestioneRSSModal({ onClose }) {
     }
   }
 
-  return createPortal(
+  return (
+    <>
+      {/* Stesso identico bottone di Gestione Utenti (.page-back-button), montato direttamente su <body>:
+          nessun antenato (header con backdrop-filter, contenitore del modale) può spostarlo, quindi sta
+          alla stessa altezza di Gestione Utenti. zIndex sopra il modale (100000). */}
+      {createPortal(
+        <button className="page-back-button" style={{ zIndex: 100001 }} onClick={onClose}>Indietro</button>,
+        document.body
+      )}
+      {createPortal(
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(180deg, #eef0f4 0%, #e4e6ec 100%)', zIndex: 100000, display: 'flex', flexDirection: 'column' }}>
         <style>{`
           @media (max-width: 768px) {
@@ -343,10 +352,6 @@ function GestioneRSSModal({ onClose }) {
         `}</style>
         <div className="gestione-header" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 8px)', paddingBottom: 12, minHeight: 70 }}>
           <div className="gestione-navbar" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }}>
-            <button className="btn-back" onClick={onClose}>
-              <svg className="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-              Indietro
-            </button>
             <h1 className="gestione-title">Gestione feed RSS</h1>
           </div>
         </div>
@@ -800,6 +805,8 @@ function GestioneRSSModal({ onClose }) {
         </div>
     </div>,
     document.body
+      )}
+    </>
   );
 }
 
