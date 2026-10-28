@@ -255,7 +255,9 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
     document.addEventListener('visibilitychange', risincronizza)
     window.addEventListener('focus', risincronizza)
     window.addEventListener('online', risincronizza)
+    const timerLista = setInterval(risincronizza, 15000)
     return () => {
+      clearInterval(timerLista)
       document.removeEventListener('visibilitychange', risincronizza)
       window.removeEventListener('focus', risincronizza)
       window.removeEventListener('online', risincronizza)
@@ -1008,6 +1010,12 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
   const [selezioniCollaborative, setSelezioniCollaborative] = useState({}) // { [articoloId]: username }
   const channelRef = useRef(null)
   const articoliRef = useRef([])
+  // Identifica questo dispositivo/scheda: serve a distinguere le selezioni dello stesso utente su più dispositivi
+  const clientIdRef = useRef(Math.random().toString(36).slice(2) + Date.now().toString(36))
+  const nomeRedattoreRef = useRef(nomeRedattore)
+  nomeRedattoreRef.current = nomeRedattore
+  const articoliSelezionatiRef = useRef(new Set())
+  useEffect(() => { articoliSelezionatiRef.current = articoliSelezionati }, [articoliSelezionati])
 
   useEffect(() => {
     articoliRef.current = articoli
@@ -1031,6 +1039,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
             payload: {
               articoloId: id,
               username: nomeRedattore,
+              clientId: clientIdRef.current,
               selezionato: false
             }
           });
@@ -1057,6 +1066,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
               payload: {
                 articoloId: id,
                 username: nomeRedattore,
+                clientId: clientIdRef.current,
                 selezionato: false
               }
             });
@@ -1078,23 +1088,56 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
     }, [weekend.id, nomeRedattore]);
   // Setup realtime channel per selezione collaborativa e aggiornamento articoli
   useEffect(() => {
+    let chiusuraVolontaria = false // true quando il canale viene chiuso da noi (uscita dalla schermata)
     const channel = supabase.channel('selezione_articoli_'+weekend.id)
       .on('broadcast', { event: 'selezione' }, payload => {
         console.log('[REALTIME] Broadcast ricevuto:', payload);
         if (!payload || !payload.payload) return;
+        // payload: { articoloId, username, clientId, selezionato }
+        const { articoloId, username, clientId, selezionato } = payload.payload;
+        if (clientId && clientId === clientIdRef.current) return; // messaggio mio
+        // Stesso utente ma altro dispositivo: mostra comunque l'occhio, con etichetta dedicata
+        const etichetta = (username === nomeRedattoreRef.current && clientId && clientId !== clientIdRef.current)
+          ? `${username} (altro dispositivo)`
+          : username;
         setSelezioniCollaborative(prev => {
           const nuovo = { ...prev };
-          // payload: { articoloId, username, selezionato }
-          const { articoloId, username, selezionato } = payload.payload;
           if (selezionato) {
-            nuovo[articoloId] = username;
+            nuovo[articoloId] = etichetta;
           } else {
-            if (nuovo[articoloId] === username) delete nuovo[articoloId];
+            if (nuovo[articoloId] === etichetta) delete nuovo[articoloId];
           }
           console.log('[REALTIME] Stato selezioniCollaborative aggiornato:', nuovo);
           return nuovo;
         });
       })
+      // Chi entra dopo chiede "chi sta selezionando?" e chi ha selezioni non confermate le rimanda
+      .on('broadcast', { event: 'chi_ce' }, payload => {
+        if (payload?.payload?.clientId === clientIdRef.current) return;
+        for (const id of articoliSelezionatiRef.current) {
+          const art = (articoliRef.current || []).find(a => a.id === id);
+          if (art && art.assegnato_a === nomeRedattoreRef.current) continue; // già confermato: lo mostra il DB
+          channel.send({
+            type: 'broadcast',
+            event: 'selezione',
+            payload: { articoloId: id, username: nomeRedattoreRef.current, clientId: clientIdRef.current, selezionato: true }
+          });
+        }
+      })
+      .subscribe((status) => {
+        console.log('[REALTIME] Canale selezione articoli, stato:', status);
+        if (status === 'SUBSCRIBED') {
+          ricaricaSoloArticoli();
+          channel.send({ type: 'broadcast', event: 'chi_ce', payload: { clientId: clientIdRef.current } });
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || (status === 'CLOSED' && !chiusuraVolontaria)) {
+          console.warn('[REALTIME] Canale selezione articoli CADUTO:', status);
+        }
+      });
+    channelRef.current = channel;
+    // Canale SEPARATO per le modifiche del database: il canale degli "occhi" è solo broadcast e si collega
+    // subito, senza dipendere dalla sottoscrizione a Postgres (che può andare in timeout).
+    let chiusuraDbVolontaria = false
+    const channelDb = supabase.channel('articoli_db_'+weekend.id)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -1109,16 +1152,16 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         caricaArticoli();
       })
       .subscribe((status) => {
-        console.log('[REALTIME] Canale selezione articoli, stato:', status);
-        if (status === 'SUBSCRIBED') {
-          ricaricaSoloArticoli();
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          console.warn('[REALTIME] Canale selezione articoli:', status);
+        console.log('[REALTIME] Canale articoli (DB), stato:', status);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || (status === 'CLOSED' && !chiusuraDbVolontaria)) {
+          console.warn('[REALTIME] Canale articoli (DB) CADUTO:', status);
         }
       });
-    channelRef.current = channel;
     return () => {
+      chiusuraVolontaria = true;
+      chiusuraDbVolontaria = true;
       supabase.removeChannel(channel);
+      supabase.removeChannel(channelDb);
     };
   }, [weekend.id]);
 
@@ -1223,6 +1266,7 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
           payload: {
             articoloId: id,
             username: nomeRedattore,
+            clientId: clientIdRef.current,
             selezionato: false
           }
         });
@@ -1263,15 +1307,17 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
       // Non serve più ripristinare la selezione temporanea qui: viene gestita in caricaArticoli
     // Broadcast selezione/deselezione
     if (channelRef.current) {
+      console.log('[REALTIME] Invio broadcast selezione. Stato canale:', channelRef.current.state, '| utente:', nomeRedattore, '| articolo:', articoloId, '| selezionato:', selezionato)
       channelRef.current.send({
         type: 'broadcast',
         event: 'selezione',
         payload: {
           articoloId,
           username: nomeRedattore,
+          clientId: clientIdRef.current,
           selezionato
         }
-      })
+      }).then(esito => console.log('[REALTIME] Esito invio broadcast:', esito))
     }
     // Aggiorna anche localmente lo stato collaborativo
     setSelezioniCollaborative(prev => {
