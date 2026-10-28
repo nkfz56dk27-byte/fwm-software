@@ -221,7 +221,6 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
       }, (payload) => {
         console.log('%c[NOTIFICHE][REALTIME] Cambiamento ricevuto:', 'background: #34C759; color: white; font-size: 16px', payload)
         console.log('%c[NOTIFICHE][REALTIME] Username attuale:', 'background: #34C759; color: white; font-size: 16px', utenteRef.current?.username)
-        window.alert('[DEBUG] Listener realtime notifiche SCATTATO! (vedi console)')
         caricaNotifiche()
         if (onNotificheChange) onNotificheChange()
       })
@@ -241,8 +240,25 @@ export default function DisponibilitaWeekend({ utenteCorrente, onClose, onNotifi
         console.log('%c[WEEKEND][REALTIME] Cambiamento weekend ricevuto:', 'background: #5856D6; color: white; font-size: 16px', payload)
         caricaWeekends()
       })
-      .subscribe()
+      .subscribe((status) => {
+        // Se il canale (ri)parte o cade, riallinea i dati: evita di restare "indietro" dopo una disconnessione
+        if (status === 'SUBSCRIBED') {
+          caricaWeekends()
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn('[REALTIME] Canale disponibilità:', status)
+        }
+      })
+    // Su desktop il browser sospende/rallenta le schede in background: al ritorno ricarica i dati
+    const risincronizza = () => {
+      if (document.visibilityState === 'visible') caricaWeekends()
+    }
+    document.addEventListener('visibilitychange', risincronizza)
+    window.addEventListener('focus', risincronizza)
+    window.addEventListener('online', risincronizza)
     return () => {
+      document.removeEventListener('visibilitychange', risincronizza)
+      window.removeEventListener('focus', risincronizza)
+      window.removeEventListener('online', risincronizza)
       supabase.removeChannel(channel)
     }
   }, [])
@@ -1082,18 +1098,52 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'articoli',
-        filter: `weekend_id=eq.${weekend.id}`
+        table: 'articoli'
       }, payload => {
+        // Nessun filtro lato server (come nel componente principale, che funziona): filtro qui per weekend.
+        // Se il weekend_id non è nel payload (es. DELETE) ricarica comunque.
+        const wid = payload?.new?.weekend_id ?? payload?.old?.weekend_id
+        console.log('[REALTIME] articoli cambiato:', payload?.eventType, wid)
+        if (wid !== undefined && wid !== null && String(wid) !== String(weekend.id)) return
         // Aggiorna la schermata quando cambia lo stato di un articolo
         caricaArticoli();
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[REALTIME] Canale selezione articoli, stato:', status);
+        if (status === 'SUBSCRIBED') {
+          ricaricaSoloArticoli();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn('[REALTIME] Canale selezione articoli:', status);
+        }
+      });
     channelRef.current = channel;
     return () => {
       supabase.removeChannel(channel);
     };
   }, [weekend.id]);
+
+  // Risincronizzazione: al ritorno sulla scheda/finestra, a connessione ripristinata e ogni 5s come rete di sicurezza.
+  // Aggiorna solo la lista articoli, senza toccare le selezioni temporanee dell'utente.
+  useEffect(() => {
+    const risincronizza = () => {
+      if (document.visibilityState === 'visible') ricaricaSoloArticoli();
+    };
+    document.addEventListener('visibilitychange', risincronizza);
+    window.addEventListener('focus', risincronizza);
+    window.addEventListener('online', risincronizza);
+    const timer = setInterval(risincronizza, 5000);
+    return () => {
+      document.removeEventListener('visibilitychange', risincronizza);
+      window.removeEventListener('focus', risincronizza);
+      window.removeEventListener('online', risincronizza);
+      clearInterval(timer);
+    };
+  }, [weekend.id]);
+
+  async function ricaricaSoloArticoli() {
+    const { data } = await supabase.from('articoli').select('*').eq('weekend_id', weekend.id).order('giorno').order('categoria').order('titolo')
+    if (data) setArticoli(data)
+  }
 
   useEffect(() => {
     caricaArticoli()
