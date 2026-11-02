@@ -84,10 +84,13 @@ const resizeStateRef = useRef({ corner: null, startScale: 1, startDist: 0, cente
   const [gridImages, setGridImages] = useState([]) // [{ src, offset:{x,y}, scale }, ...]
   const [isGridDragging, setIsGridDragging] = useState(false)
   const [isGridResizing, setIsGridResizing] = useState(false)
+  const [isGridRotating, setIsGridRotating] = useState(false)
+  const isStrips = gridLayout === 'strips' // strisce a 2, 3 o 4 foto (disegni griglia_a_2/3/4.svg)
   const gridFileInputRef = useRef(null)
   const gridActiveCellRef = useRef(0)
   const gridDragCellRef = useRef(null)
   const gridResizeStateRef = useRef({ cellIndex: 0, startScale: 1, startDist: 0, centerX: 0, centerY: 0 })
+  const gridRotateStateRef = useRef({ cellIndex: 0, startAngle: 0, startRotation: 0, centerX: 0, centerY: 0 })
   const gridCellContainerRefs = useRef([])
   const [conLogo, setConLogo] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -727,46 +730,87 @@ const TESTO_BASSO_REALE = posCfg.basso
     reader.onload = (e) => {
       setGridImages(prev => {
         const next = [...prev]
-        next[cellIndex] = { src: e.target.result, offset: { x: 0, y: 0 }, scale: 1, fitStyle: { width: '100%', height: 'auto' } }
+        next[cellIndex] = { src: e.target.result, offset: { x: 0, y: 0 }, scale: 1, rotation: 0, fitStyle: { width: '100%', height: 'auto' } }
         return next
       })
     }
     reader.readAsDataURL(file)
   }
 
-  // --- GRIGLIA: taglio diagonale per le strisce (stile magazine/Canva), con spessore fisso in px come la 2x2 ---
-  const getStripClipPath = (i, total, cellWidthPx, slantPct = 0.6, gapPx = 0.6) => {
-    const isFirst = i === 0
-    const isLast = i === total - 1
-    const gapPct = cellWidthPx > 0 ? (gapPx / cellWidthPx) * 100 : 0
-    const leftTop = isFirst ? 0 : slantPct + gapPct / 2
-    const leftBottom = isFirst ? 0 : gapPct / 2
-    const rightTop = isLast ? 100 : 100 - gapPct / 2
-    const rightBottom = isLast ? 100 : (100 - slantPct) - gapPct / 2
-    return `polygon(${leftTop}% 0%, ${rightTop}% 0%, ${rightBottom}% 100%, ${leftBottom}% 100%)`
+  // --- GRIGLIA A STRISCE (disegni griglia_a_2.svg / griglia_a_3.svg / griglia_a_4.svg) ---
+  // Pannelli inclinati separati da una sottile fessura bianca. Misure ricavate dagli SVG (viewBox 900×546,75):
+  //  - slant: pendenza dei tagli (px orizzontali per ogni px verticale): 2 foto ≈5,01°, 3 foto ≈2,66°, 4 foto ≈3,53°
+  //  - cuts: posizione di ogni taglio a metà altezza, in frazione della larghezza
+  //  - gap: larghezza totale della fessura, in px su 900 di larghezza
+  // Le proporzioni sono identiche agli SVG per canvas 1200×729; con altre dimensioni l'inclinazione resta la stessa.
+  const STRIPS_SVG = {
+    2: { slant: 0.087660, cuts: [0.483335], gap: 3.0073 },
+    3: { slant: 0.046463, cuts: [0.326312, 0.671526], gap: 2.2508 },
+    4: { slant: 0.061733, cuts: [0.235142, 0.497187, 0.760066], gap: 3.7564 }
+  }
+  // Restituisce per ogni pannello il riquadro (x, w, h), l'inclinazione in px e il poligono (coordinate relative al riquadro)
+  const getStripsGeometry = (count, W, H) => {
+    const cfg = STRIPS_SVG[count] || STRIPS_SVG[3]
+    const mezzaFessura = (W * cfg.gap) / 900 / 2
+    const centro = (k, y) => W * cfg.cuts[k] + cfg.slant * (H / 2 - y) // centro del taglio k all'altezza y
+    return Array.from({ length: count }, (_, i) => {
+      const sx = (y) => (i === 0 ? 0 : centro(i - 1, y) + mezzaFessura)     // bordo sinistro all'altezza y
+      const dx = (y) => (i === count - 1 ? W : centro(i, y) - mezzaFessura) // bordo destro all'altezza y
+      const x = sx(H) // il bordo sinistro è più a sinistra in basso
+      const w = dx(0) - x // il bordo destro è più a destra in alto
+      return {
+        x,
+        w,
+        h: H,
+        slantPx: cfg.slant * H,
+        poly: [[sx(0) - x, 0], [dx(0) - x, 0], [dx(H) - x, H], [sx(H) - x, H]]
+      }
+    })
+  }
+
+  // Dimensione "cover" dell'immagine nella cella a scala 1 e scala minima che copre ancora la cella con la rotazione data
+  const getGridBase = (cellEl, imgEl) => {
+    const cellW = cellEl.clientWidth
+    const cellH = cellEl.clientHeight
+    const imgAspect = imgEl.naturalWidth / imgEl.naturalHeight
+    if (imgAspect > cellW / cellH) return { cellW, cellH, w0: cellH * imgAspect, h0: cellH }
+    return { cellW, cellH, w0: cellW, h0: cellW / imgAspect }
+  }
+  const getGridMinScale = (cellIndex, rotationDeg = 0) => {
+    const cellEl = gridCellContainerRefs.current[cellIndex]
+    const imgEl = cellEl && cellEl.querySelector('img')
+    if (!cellEl || !imgEl || !imgEl.naturalWidth) return 1
+    const { cellW, cellH, w0, h0 } = getGridBase(cellEl, imgEl)
+    const t = (rotationDeg * Math.PI) / 180
+    const c = Math.abs(Math.cos(t))
+    const s = Math.abs(Math.sin(t))
+    const hx = (cellW / 2) * c + (cellH / 2) * s
+    const hy = (cellW / 2) * s + (cellH / 2) * c
+    return Math.max(1, (2 * hx) / w0, (2 * hy) / h0)
   }
 
   // --- GRIGLIA: bounds di trascinamento per singola cella ---
-  const applyGridBounds = (cellIndex, newX, newY, scale) => {
+  const applyGridBounds = (cellIndex, newX, newY, scale, rotationDeg = 0) => {
     const cellEl = gridCellContainerRefs.current[cellIndex]
     if (!cellEl) return { x: newX, y: newY }
     const imgEl = cellEl.querySelector('img')
     if (!imgEl) return { x: newX, y: newY }
-    const cellW = cellEl.clientWidth
-    const cellH = cellEl.clientHeight
-    const imgAspect = imgEl.naturalWidth / imgEl.naturalHeight
-    const cellAspect = cellW / cellH
-    let actualW, actualH
-    if (imgAspect > cellAspect) {
-      actualH = cellH * scale
-      actualW = actualH * imgAspect
-    } else {
-      actualW = cellW * scale
-      actualH = actualW / imgAspect
-    }
-    const maxX = Math.max(0, (actualW - cellW) / 2)
-    const maxY = Math.max(0, (actualH - cellH) / 2)
-    return { x: Math.min(maxX, Math.max(-maxX, newX)), y: Math.min(maxY, Math.max(-maxY, newY)) }
+    const { cellW, cellH, w0, h0 } = getGridBase(cellEl, imgEl)
+    const actualW = w0 * scale
+    const actualH = h0 * scale
+    // Con la foto ruotata, il limite si calcola negli assi della foto: la cella deve restare dentro l'immagine
+    const t = (rotationDeg * Math.PI) / 180
+    const cos = Math.cos(t)
+    const sin = Math.sin(t)
+    const hx = (cellW / 2) * Math.abs(cos) + (cellH / 2) * Math.abs(sin)
+    const hy = (cellW / 2) * Math.abs(sin) + (cellH / 2) * Math.abs(cos)
+    let a = newX * cos + newY * sin     // componente lungo l'asse X della foto
+    let b = -newX * sin + newY * cos    // componente lungo l'asse Y della foto
+    const maxA = Math.max(0, actualW / 2 - hx)
+    const maxB = Math.max(0, actualH / 2 - hy)
+    a = Math.min(maxA, Math.max(-maxA, a))
+    b = Math.min(maxB, Math.max(-maxB, b))
+    return { x: a * cos - b * sin, y: a * sin + b * cos }
   }
 
   const startGridDrag = (i) => {
@@ -804,12 +848,13 @@ const TESTO_BASSO_REALE = posCfg.basso
       const { cellIndex, startScale, startDist, centerX, centerY } = gridResizeStateRef.current
       const newDist = Math.hypot(clientX - centerX, clientY - centerY)
       const ratio = newDist / startDist
-      const newScale = Math.min(5, Math.max(1, startScale * ratio))
       setGridImages(prev => {
         const next = [...prev]
         const g = next[cellIndex]
         if (!g) return prev
-        const bounded = applyGridBounds(cellIndex, g.offset.x, g.offset.y, newScale)
+        const rot = g.rotation || 0
+        const newScale = Math.min(5, Math.max(getGridMinScale(cellIndex, rot), startScale * ratio))
+        const bounded = applyGridBounds(cellIndex, g.offset.x, g.offset.y, newScale, rot)
         next[cellIndex] = { ...g, scale: newScale, offset: bounded }
         return next
       })
@@ -826,6 +871,65 @@ const TESTO_BASSO_REALE = posCfg.basso
       window.removeEventListener('touchend', stop)
     }
   }, [isGridResizing])
+
+  // --- GRIGLIA: rotazione trascinando la maniglia ↻ in basso a sinistra della cella ---
+  const startGridRotate = (e, cellIndex) => {
+    e.stopPropagation()
+    e.preventDefault()
+    const cellEl = gridCellContainerRefs.current[cellIndex]
+    if (!cellEl) return
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    const rect = cellEl.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    const startAngle = (Math.atan2(clientY - centerY, clientX - centerX) * 180) / Math.PI
+    gridRotateStateRef.current = { cellIndex, startAngle, startRotation: gridImages[cellIndex]?.rotation || 0, centerX, centerY }
+    setIsGridRotating(true)
+  }
+
+  const resetGridRotation = (cellIndex) => {
+    setGridImages(prev => {
+      const next = [...prev]
+      const g = next[cellIndex]
+      if (!g) return prev
+      next[cellIndex] = { ...g, rotation: 0, offset: applyGridBounds(cellIndex, g.offset.x, g.offset.y, g.scale, 0) }
+      return next
+    })
+  }
+
+  useEffect(() => {
+    if (!isGridRotating) return
+    const handleMove = (e) => {
+      e.preventDefault()
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY
+      const { cellIndex, startAngle, startRotation, centerX, centerY } = gridRotateStateRef.current
+      const angle = (Math.atan2(clientY - centerY, clientX - centerX) * 180) / Math.PI
+      let rot = startRotation + (angle - startAngle)
+      rot = ((((rot + 180) % 360) + 360) % 360) - 180 // normalizza in [-180, 180)
+      if (Math.abs(rot) < 1.5) rot = 0                 // aggancio a 0°
+      setGridImages(prev => {
+        const next = [...prev]
+        const g = next[cellIndex]
+        if (!g) return prev
+        const newScale = Math.min(5, Math.max(getGridMinScale(cellIndex, rot), g.scale)) // la foto deve sempre coprire la cella
+        next[cellIndex] = { ...g, rotation: rot, scale: newScale, offset: applyGridBounds(cellIndex, g.offset.x, g.offset.y, newScale, rot) }
+        return next
+      })
+    }
+    const stop = () => setIsGridRotating(false)
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', stop)
+    window.addEventListener('touchmove', handleMove, { passive: false })
+    window.addEventListener('touchend', stop)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', stop)
+      window.removeEventListener('touchmove', handleMove)
+      window.removeEventListener('touchend', stop)
+    }
+  }, [isGridRotating])
 
   // Gestisce i preferiti su Supabase con controllo tipi e feedback
   const toggleFavorite = async (projectId) => {
@@ -985,42 +1089,67 @@ const TESTO_BASSO_REALE = posCfg.basso
         ctx.fillStyle = '#ffffff'
         ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-        const cellW = (canvas.width - gapPx * (cols - 1)) / cols
-        const cellH = (canvas.height - gapPx * (rows - 1)) / rows
-        const screenCellW = (containerWidth - gapPx * (cols - 1)) / cols
-        const screenCellH = (containerHeight - gapPx * (rows - 1)) / rows
+        const strips = gridLayout === 'strips'
+        const geoStrips = strips ? getStripsGeometry(cellsCount, canvas.width, canvas.height) : null
+        const screenGeoStrips = strips ? getStripsGeometry(cellsCount, containerWidth, containerHeight) : null
 
         loadedImages.forEach((im, i) => {
-          const col = i % cols
-          const row = Math.floor(i / cols)
-          const cellX = col * (cellW + gapPx)
-          const cellY = row * (cellH + gapPx)
+          let cellX, cellY, cellW, cellH, screenCellW, screenCellH
+          let clipPoly = null
+          if (strips) {
+            // Strisce a 2, 3 o 4 foto: pannelli inclinati come nei disegni griglia_a_N.svg
+            cellX = geoStrips[i].x
+            cellY = 0
+            cellW = geoStrips[i].w
+            cellH = geoStrips[i].h
+            screenCellW = screenGeoStrips[i].w
+            screenCellH = screenGeoStrips[i].h
+            clipPoly = geoStrips[i].poly
+          } else {
+            cellW = (canvas.width - gapPx * (cols - 1)) / cols
+            cellH = (canvas.height - gapPx * (rows - 1)) / rows
+            screenCellW = (containerWidth - gapPx * (cols - 1)) / cols
+            screenCellH = (containerHeight - gapPx * (rows - 1)) / rows
+            const col = i % cols
+            const row = Math.floor(i / cols)
+            cellX = col * (cellW + gapPx)
+            cellY = row * (cellH + gapPx)
+          }
 
           const g = gridImages[i]
           const imgAspect = im.width / im.height
           const cellAspect = cellW / cellH
 
-          let drawW, drawH, scaleToCanvas
+          let baseW, baseH, scaleToCanvas
           if (imgAspect > cellAspect) {
-            drawH = cellH * g.scale
-            drawW = drawH * imgAspect
+            baseH = cellH
+            baseW = baseH * imgAspect
             scaleToCanvas = cellH / screenCellH
           } else {
-            drawW = cellW * g.scale
-            drawH = drawW / imgAspect
+            baseW = cellW
+            baseH = baseW / imgAspect
             scaleToCanvas = cellW / screenCellW
           }
 
-          const baseX = cellX + (cellW - drawW) / 2
-          const baseY = cellY + (cellH - drawH) / 2
-          const offsetX = g.offset.x * scaleToCanvas
-          const offsetY = g.offset.y * scaleToCanvas
+          const centerX = cellX + cellW / 2 + g.offset.x * scaleToCanvas
+          const centerY = cellY + cellH / 2 + g.offset.y * scaleToCanvas
 
           ctx.save()
           ctx.beginPath()
-          ctx.rect(cellX, cellY, cellW, cellH)
+          if (clipPoly) {
+            clipPoly.forEach(([px, py], k) => {
+              if (k === 0) ctx.moveTo(cellX + px, cellY + py)
+              else ctx.lineTo(cellX + px, cellY + py)
+            })
+            ctx.closePath()
+          } else {
+            ctx.rect(cellX, cellY, cellW, cellH)
+          }
           ctx.clip()
-          ctx.drawImage(im, baseX + offsetX, baseY + offsetY, drawW, drawH)
+          ctx.translate(centerX, centerY)
+          ctx.rotate(((g.rotation || 0) * Math.PI) / 180)
+          ctx.scale(g.scale, g.scale)
+          ctx.drawImage(im, -baseW / 2, -baseH / 2, baseW, baseH)
           ctx.restore()
         })
 
@@ -1637,7 +1766,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                       setGridLayout('grid2x2')
                     } else {
                       setGridLayout('strips')
-                      const match = nomeLower.match(/griglia/)
+                      const match = nomeLower.match(/griglia-(\d)/)
                       setGridCount(match ? parseInt(match[1]) : 3)
                     }
                   } else if (nomeLower.includes('post social')) {
@@ -2003,7 +2132,8 @@ const TESTO_BASSO_REALE = posCfg.basso
                     width: `${containerWidth}px`,
                     height: `${containerHeight}px`,
                     background: '#fff',
-                    display: 'grid',
+                    display: isStrips ? 'block' : 'grid',
+                    position: 'relative',
                     gridTemplateColumns: `repeat(${gridLayout === 'grid2x2' ? 2 : gridCount}, 1fr)`,
                     gridTemplateRows: `repeat(${gridLayout === 'grid2x2' ? 2 : 1}, 1fr)`,
                     gap: gridLayout === 'strips' ? '0px' : '4px',
@@ -2011,9 +2141,11 @@ const TESTO_BASSO_REALE = posCfg.basso
                   }}>
                     {Array.from({ length: gridLayout === 'grid2x2' ? 4 : gridCount }).map((_, i) => {
                       const cell = gridImages[i]
-                      const cellsTotal = gridLayout === 'grid2x2' ? 4 : gridCount
-                      const cellPixelWidth = gridLayout === 'strips' ? containerWidth / cellsTotal : containerWidth / 2
-                      const clipPath = gridLayout === 'strips' ? getStripClipPath(i, cellsTotal, cellPixelWidth) : 'none'
+                      // Strisce: pannelli inclinati come nei disegni griglia_a_N.svg (riquadro + poligono in px)
+                      const geo = isStrips ? getStripsGeometry(gridCount, containerWidth, containerHeight)[i] : null
+                      const clipPath = isStrips
+                        ? `polygon(${geo.poly.map(([px, py]) => `${px}px ${py}px`).join(', ')})`
+                        : 'none'
                       return (
                         <div
                           key={i}
@@ -2025,7 +2157,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                               const next = [...prev]
                               const g = next[i]
                               if (!g) return prev
-                              const bounded = applyGridBounds(i, g.offset.x + e.movementX, g.offset.y + e.movementY, g.scale)
+                              const bounded = applyGridBounds(i, g.offset.x + e.movementX, g.offset.y + e.movementY, g.scale, g.rotation || 0)
                               next[i] = { ...g, offset: bounded }
                               return next
                             })
@@ -2049,7 +2181,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                               const next = [...prev]
                               const g = next[i]
                               if (!g) return prev
-                              const bounded = applyGridBounds(i, g.offset.x + diffX, g.offset.y + diffY, g.scale)
+                              const bounded = applyGridBounds(i, g.offset.x + diffX, g.offset.y + diffY, g.scale, g.rotation || 0)
                               next[i] = { ...g, offset: bounded }
                               return next
                             })
@@ -2066,7 +2198,9 @@ const TESTO_BASSO_REALE = posCfg.basso
                             if (file) processGridFile(file, i)
                           }}
                           style={{
-                            position: 'relative',
+                            ...(isStrips
+                              ? { position: 'absolute', left: `${geo.x}px`, top: 0, width: `${geo.w}px`, height: `${geo.h}px` }
+                              : { position: 'relative' }),
                             overflow: 'hidden',
                             background: canvasBackground,
                             cursor: cell ? (isGridDragging && gridDragCellRef.current === i ? 'grabbing' : 'grab') : 'pointer',
@@ -2102,7 +2236,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                                   top: '50%',
                                   left: '50%',
                                   ...(cell.fitStyle || { width: '100%', height: 'auto' }),
-                                  transform: `translate(calc(-50% + ${cell.offset.x}px), calc(-50% + ${cell.offset.y}px)) scale(${cell.scale})`,
+                                  transform: `translate(calc(-50% + ${cell.offset.x}px), calc(-50% + ${cell.offset.y}px)) rotate(${cell.rotation || 0}deg) scale(${cell.scale})`,
                                   pointerEvents: 'none'
                                 }}
                               />
@@ -2112,7 +2246,7 @@ const TESTO_BASSO_REALE = posCfg.basso
                                 style={{
                                   position: 'absolute',
                                   bottom: 0,
-                                  right: 0,
+                                  right: isStrips && i < gridCount - 1 ? `${geo.slantPx + 8}px` : 0,
                                   width: '36px',
                                   height: '36px',
                                   display: 'flex',
@@ -2132,6 +2266,45 @@ const TESTO_BASSO_REALE = posCfg.basso
                                   boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
                                   pointerEvents: 'none'
                                 }} />
+                              </div>
+                              <div
+                                onMouseDown={(e) => startGridRotate(e, i)}
+                                onTouchStart={(e) => startGridRotate(e, i)}
+                                onDoubleClick={(e) => { e.stopPropagation(); resetGridRotation(i) }}
+                                title="Trascina per ruotare (doppio click: azzera)"
+                                style={{
+                                  position: 'absolute',
+                                  bottom: 0,
+                                  left: 0,
+                                  width: '36px',
+                                  height: '36px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'grab',
+                                  touchAction: 'none',
+                                  zIndex: 20
+                                }}
+                              >
+                                <div style={{
+                                  minWidth: '20px',
+                                  height: '20px',
+                                  padding: (cell.rotation || 0) !== 0 ? '0 6px' : 0,
+                                  borderRadius: '10px',
+                                  background: '#fff',
+                                  border: '3px solid #007AFF',
+                                  boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '11px',
+                                  fontWeight: '800',
+                                  color: '#007AFF',
+                                  pointerEvents: 'none',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {(cell.rotation || 0) !== 0 ? `${Math.round(cell.rotation)}°` : '↻'}
+                                </div>
                               </div>
                               <button
                                 onClick={(e) => { e.stopPropagation(); gridActiveCellRef.current = i; gridFileInputRef.current?.click() }}
