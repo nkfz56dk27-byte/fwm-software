@@ -1215,6 +1215,40 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
     sessionStorage.setItem(key, JSON.stringify(unione));
   }
 
+  // Registra su Supabase (tabella prenotazioni_weekend) uno "snapshot" del salvataggio:
+  // chi ha prenotato, quali articoli (con titolo e giorno) e cosa risulta ancora libero in quel momento.
+  // Gli articoli vengono riletti dal database dopo gli update, così lo stato è quello reale.
+  async function registraPrenotazione(conferma) {
+    try {
+      const { data, error } = await supabase
+        .from('articoli')
+        .select('id, titolo, categoria, giorno, stato, assegnato_a')
+        .eq('weekend_id', weekend.id)
+        .order('giorno')
+        .order('categoria')
+        .order('titolo')
+      if (error) throw error
+      const tutti = data || []
+      const riduci = (a) => ({ id: a.id, titolo: a.titolo, giorno: a.giorno, categoria: a.categoria })
+      const prenotati = tutti.filter(a => a.assegnato_a === nomeRedattore).map(riduci)
+      const liberi = tutti.filter(a => a.stato === 'libero' && !a.assegnato_a).map(riduci)
+      const { error: errInserimento } = await supabase.from('prenotazioni_weekend').insert({
+        weekend_id: weekend.id,
+        nome_gp: weekend.nome_gp,
+        username: nomeRedattore,
+        confermato: !!conferma,
+        articoli_prenotati: prenotati,
+        articoli_liberi: liberi,
+        n_prenotati: prenotati.length,
+        n_liberi: liberi.length
+      })
+      if (errInserimento) throw errInserimento
+    } catch (err) {
+      // Un errore nel registro non deve mai bloccare la prenotazione
+      console.error('[ERRORE REGISTRO PRENOTAZIONE]', err)
+    }
+  }
+
   async function salvaArticoli(conferma = false) {
     setSalvando(true)
     for (const id of articoliSelezionati) {
@@ -1226,6 +1260,8 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         await supabase.from('articoli').update({ stato: 'libero', assegnato_a: null }).eq('id', art.id)
       }
     }
+    // Registro su Supabase: prenotati + ancora liberi
+    await registraPrenotazione(conferma)
     // CREA NOTIFICA quando conferma
     if (conferma && articoliSelezionati.size > 0) {
       await supabase.from('notifiche_disponibilita').insert({
