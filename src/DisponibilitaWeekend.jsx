@@ -1215,8 +1215,9 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
     sessionStorage.setItem(key, JSON.stringify(unione));
   }
 
-  // Registra su Supabase (tabella prenotazioni_weekend) uno "snapshot" del salvataggio:
-  // chi ha prenotato, quali articoli (con titolo e giorno) e cosa risulta ancora libero in quel momento.
+  // Registra su Supabase (tabella prenotazioni_weekend) cosa è successo a ogni salvataggio:
+  // una riga per ogni articolo prenotato dall'utente (tipo 'prenotato') e una per ogni articolo
+  // ancora libero in quel momento (tipo 'libero'), con titolo, giorno e categoria in colonne leggibili.
   // Gli articoli vengono riletti dal database dopo gli update, così lo stato è quello reale.
   async function registraPrenotazione(conferma) {
     try {
@@ -1229,19 +1230,27 @@ function RedattoreWeekendView({ weekend, nomeRedattore, isAdmin, onClose, onDele
         .order('titolo')
       if (error) throw error
       const tutti = data || []
-      const riduci = (a) => ({ id: a.id, titolo: a.titolo, giorno: a.giorno, categoria: a.categoria })
-      const prenotati = tutti.filter(a => a.assegnato_a === nomeRedattore).map(riduci)
-      const liberi = tutti.filter(a => a.stato === 'libero' && !a.assegnato_a).map(riduci)
-      const { error: errInserimento } = await supabase.from('prenotazioni_weekend').insert({
-        weekend_id: weekend.id,
+      const salvataggioId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+      const riga = (a, tipo) => ({
+        salvataggio_id: salvataggioId,
+        weekend_id: String(weekend.id),
         nome_gp: weekend.nome_gp,
         username: nomeRedattore,
         confermato: !!conferma,
-        articoli_prenotati: prenotati,
-        articoli_liberi: liberi,
-        n_prenotati: prenotati.length,
-        n_liberi: liberi.length
+        tipo,
+        articolo: a.titolo,
+        giorno: a.giorno,
+        categoria: a.categoria,
+        articolo_id: String(a.id)
       })
+      const righe = [
+        ...tutti.filter(a => a.assegnato_a === nomeRedattore).map(a => riga(a, 'prenotato')),
+        ...tutti.filter(a => a.stato === 'libero' && !a.assegnato_a).map(a => riga(a, 'libero'))
+      ]
+      if (righe.length === 0) return
+      const { error: errInserimento } = await supabase.from('prenotazioni_weekend').insert(righe)
       if (errInserimento) throw errInserimento
     } catch (err) {
       // Un errore nel registro non deve mai bloccare la prenotazione
