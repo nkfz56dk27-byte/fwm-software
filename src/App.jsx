@@ -83,6 +83,44 @@ import { ToastNotification } from './ToastNotification.jsx'
 
 import './App.css'
 
+// ───────── PUNTI QUALIFICA / POLE ─────────
+// Formula E (dal 2026): punti ai primi 8 della qualifica 4-3-2-2-1-1-1-1, più 1 punto bonus per la pole
+// (totale 5 al 1º). Il bonus pole NON va dato se il pilota non completa un giro cronometrato in ogni duello
+// (quarti, semifinale, finale), salvo concessione degli steward → flag `pole_bonus_negato` sulla gara.
+// Con la tabella attiva, `punti_pole_valore` della classifica è il valore del bonus pole.
+// Se la classifica ha `punti_qualifica` (array) si assegnano punti a più piloti;
+// altrimenti vale il vecchio sistema: solo la pole, con `punti_pole_valore`.
+const PUNTI_QUALIFICA_FE = [4, 3, 2, 2, 1, 1, 1, 1]
+const PUNTI_POLE_BONUS_FE = 1
+const getTabellaQualifica = (classifica) =>
+  Array.isArray(classifica?.punti_qualifica) && classifica.punti_qualifica.length > 0
+    ? classifica.punti_qualifica.map(n => Number(n) || 0)
+    : null
+// Ordine di qualifica salvato nella gara (retrocompatibile: le gare vecchie hanno solo pole_id)
+const getOrdineQualifica = (gara) => {
+  if (Array.isArray(gara?.qualifica_ids) && gara.qualifica_ids.length > 0) return gara.qualifica_ids.map(String)
+  if (gara?.pole_id) return [String(gara.pole_id)]
+  return []
+}
+// Posizione in qualifica (1-based) o null
+const getPosQualifica = (gara, pilotaId) => {
+  const idx = getOrdineQualifica(gara).indexOf(String(pilotaId))
+  return idx >= 0 ? idx + 1 : null
+}
+// Punti qualifica/pole di un pilota in una gara (0 se non a punti)
+const calcolaPuntiQualifica = (gara, pilotaId, classifica) => {
+  if (!classifica?.punti_pole_attivo || gara?.tipo_gara === 'f2sprint') return 0
+  const pos = getPosQualifica(gara, pilotaId)
+  if (!pos) return 0
+  const tab = getTabellaQualifica(classifica)
+  if (tab) {
+    let punti = tab[pos - 1] || 0
+    if (pos === 1 && !gara?.pole_bonus_negato) punti += Number(classifica.punti_pole_valore) || 0
+    return punti
+  }
+  return pos === 1 ? (classifica.punti_pole_valore || 3) : 0
+}
+
 function App() {
     // DEBUG: Bottone per forzare il popup OneSignal se non appare
     const showDebugOneSignalButton = process.env.NODE_ENV !== 'production' || window.location.hostname.includes('localhost');
@@ -931,6 +969,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
         numero_sprint_stagione: nuovaClassifica.numero_sprint_stagione || nuovaClassifica.numeroSprint || null,
         punti_pole_attivo: typeof nuovaClassifica.punti_pole_attivo !== 'undefined' ? !!nuovaClassifica.punti_pole_attivo : false,
         punti_pole_valore: typeof nuovaClassifica.punti_pole_valore !== 'undefined' ? Number(nuovaClassifica.punti_pole_valore) : 0,
+        punti_qualifica: getTabellaQualifica(nuovaClassifica),
         giro_veloce_attivo: typeof nuovaClassifica.giro_veloce_attivo !== 'undefined' ? !!nuovaClassifica.giro_veloce_attivo : false,
         giro_veloce_valore: typeof nuovaClassifica.giro_veloce_valore !== 'undefined' ? Number(nuovaClassifica.giro_veloce_valore) : 0,
         tipo_spareggio: nuovaClassifica.tipo_spareggio || 'nessuno', // mancava: la regola di spareggio non veniva mai salvata davvero
@@ -1183,9 +1222,12 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                       puntiPos = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                     }
                     // Punti pole SEMPRE se pole_id, tranne DNS
-                    const isPole = classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS' && gara.tipo_gara !== 'f2sprint';
+                    const posQualifica = getPosQualifica(gara, pilotaId);
+                    const puntiQualifica = flagNorm !== 'DNS' ? calcolaPuntiQualifica(gara, pilotaId, classifica) : 0;
+                    const isPole = puntiQualifica > 0 && posQualifica === 1;
+                    const isQualificaPunti = puntiQualifica > 0 && posQualifica > 1;
                     const isGiroVeloce = classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS';
-                    if (isPole) puntiPole = classifica.punti_pole_valore || 3;
+                    puntiPole = puntiQualifica;
                     if (isGiroVeloce) puntiGiroVeloce = classifica.giro_veloce_valore || 1;
                     const puntiTot = puntiPos + puntiPole + puntiGiroVeloce;
                     // Dettaglio punti
@@ -1193,7 +1235,7 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                     if (puntiTot > 0) {
                       dettaglio = `+${puntiTot} (`;
                       if (puntiPos > 0) dettaglio += puntiPos;
-                      if (puntiPole > 0) dettaglio += (puntiPos > 0 ? '+' : '') + puntiPole + 'P';
+                      if (puntiPole > 0) dettaglio += (puntiPos > 0 ? '+' : '') + puntiPole + (posQualifica === 1 ? 'P' : 'Q');
                       if (puntiGiroVeloce > 0) dettaglio += ((puntiPos > 0 || puntiPole > 0) ? '+' : '') + puntiGiroVeloce + 'FL';
                       dettaglio += ')';
                     }
@@ -1218,6 +1260,21 @@ function ClassificaView({ classificaId, user, isMobile, onBack }) {
                               letterSpacing: '1px',
                               boxShadow: '0 1px 3px rgba(52,199,89,0.15)'
                             }}>POLE</span>
+                          )}
+                          {isQualificaPunti && (
+                            <span title={`${posQualifica}º in qualifica`} style={{
+                              display: 'inline-block',
+                              background: 'linear-gradient(90deg, #5ac8fa 0%, #007aff 100%)',
+                              color: 'white',
+                              borderRadius: '8px',
+                              fontWeight: 'bold',
+                              fontSize: '11px',
+                              padding: '2px 7px',
+                              marginLeft: 6,
+                              verticalAlign: 'middle',
+                              letterSpacing: '1px',
+                              boxShadow: '0 1px 3px rgba(0,122,255,0.15)'
+                            }}>Q{posQualifica}</span>
                           )}
                           {isGiroVeloce && (
                             <span title="Giro Veloce" style={{
@@ -1466,6 +1523,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
   const [customMode, setCustomMode] = useState(false);
           const [giroVeloceId, setGiroVeloceId] = useState(null);
         const [poleId, setPoleId] = useState(null);
+        const [qualificaIds, setQualificaIds] = useState([]); // ordine di qualifica (indice 0 = pole)
+        const [poleBonusNegato, setPoleBonusNegato] = useState(false); // true = niente punto bonus pole (no giro cronometrato in ogni duello)
       const [risultati, setRisultati] = useState({});
     // Trova posizioni duplicate
     const posizioniValide = Object.values(risultati).filter(v => v && !isNaN(Number(v)));
@@ -1518,6 +1577,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
       const garaAttuale = gp.gare[garaCorrente];
       setRisultati(mapRisultatiInput(garaAttuale.risultati));
       setPoleId(garaAttuale.pole_id || null);
+      setQualificaIds(getOrdineQualifica(garaAttuale));
+      setPoleBonusNegato(!!garaAttuale.pole_bonus_negato);
       setGiroVeloceId(garaAttuale.giro_veloce_id || null);
     }
   }, [gpPreselezionato, garaCorrente, gp]);
@@ -1552,6 +1613,16 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
     }
   }
 
+  // Campi qualifica da salvare nella gara. Con la tabella qualifica salviamo l'ordine completo
+  // e teniamo pole_id = 1º, così tutto ciò che legge pole_id (badge, spareggi) continua a funzionare.
+  const campiQualifica = () => {
+    if (getTabellaQualifica(classifica)) {
+      const ids = qualificaIds.filter(Boolean).map(String);
+      return { pole_id: ids[0] || null, qualifica_ids: ids, pole_bonus_negato: !!poleBonusNegato };
+    }
+    return { pole_id: poleId, qualifica_ids: poleId ? [String(poleId)] : [] };
+  };
+
   // Salva SOLO la gara attiva (Sprint o Feature), non tutto il GP
   const salvaRisultatiGara = () => {
     const gare = [...gp.gare];
@@ -1574,7 +1645,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
     gare[garaCorrente] = {
       ...gare[garaCorrente],
       risultati: risultatiConFlag,
-      pole_id: poleId,
+      ...campiQualifica(),
       giro_veloce_id: giroVeloceId,
       completata: true
     };
@@ -1611,8 +1682,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
             }
           }
           // Punti pole SEMPRE se pole_id, tranne DNS
-          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS' && gara.tipo_gara !== 'f2sprint') {
-            punti += classifica.punti_pole_valore || 3;
+          if (flagNorm !== 'DNS') {
+            punti += calcolaPuntiQualifica(gara, pilotaId, classifica);
           }
           // Punti giro veloce SEMPRE se giro_veloce_id, tranne DNS
           if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS') {
@@ -1652,6 +1723,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
       ...gare[garaCorrente],
       risultati: {},  // Nessun risultato
       pole_id: null,
+      qualifica_ids: [],
+      pole_bonus_negato: false,
       giro_veloce_id: null,
       completata: true,
       non_disputata: true  // Flag per marcare come non disputata
@@ -1664,6 +1737,8 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
       setGaraCorrente(garaCorrente + 1)
       setRisultati({})
       setPoleId(null)
+      setQualificaIds([])
+      setPoleBonusNegato(false)
       setGiroVeloceId(null)
     } else {
       const gpFinale = { ...gpAggiornato, completato: true }
@@ -1701,7 +1776,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
     gare[garaCorrente] = {
       ...gare[garaCorrente],
       risultati: risultatiConFlag,
-      pole_id: poleId,
+      ...campiQualifica(),
       giro_veloce_id: giroVeloceId,
       completata: true,
       accorciata: true,
@@ -1733,9 +1808,7 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
           if (info.flag === 'DNS' || info.flag === 'DSQ' || info.flag === 'DNF') return;
           const pos = info.posizione;
           let punti = pronosticoCampionato.calcolaPuntiPosizione(pos, gara.tipo_gara, classifica, gara);
-          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && gara.tipo_gara !== 'f2sprint') {
-            punti += classifica.punti_pole_valore || 3;
-          }
+          punti += calcolaPuntiQualifica(gara, pilotaId, classifica);
           if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
             punti += classifica.giro_veloce_valore || 1;
           }
@@ -2069,7 +2142,50 @@ function InserimentoRisultatiGP({ classifica, gpPreselezionato, onClose, onSave,
         )}
       </div>
 
-      {classifica.punti_pole_attivo && (
+      {classifica.punti_pole_attivo && getTabellaQualifica(classifica) && (
+        !garaAttuale || garaAttuale.tipo_gara !== 'f2sprint'
+      ) && (
+        <div style={{ marginBottom: '20px' }}>
+          <h3 style={{ marginBottom: '10px', fontWeight: '600' }}>Qualifica (piloti a punti):</h3>
+          {getTabellaQualifica(classifica).map((pt, i) => {
+            const scelti = qualificaIds.filter((id, j) => id && j !== i).map(String);
+            const bloccato = i > 0 && !qualificaIds[i - 1];
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <span style={{ minWidth: '110px', fontWeight: '600' }}>{i + 1}º <span style={{ color: '#007AFF' }}>({i === 0 && Number(classifica.punti_pole_valore) > 0 ? `${pt}+${Number(classifica.punti_pole_valore)}` : pt} pt)</span></span>
+                <select
+                  value={qualificaIds[i] || ''}
+                  disabled={bloccato}
+                  onChange={(e) => {
+                    const nuovo = [...qualificaIds];
+                    while (nuovo.length <= i) nuovo.push('');
+                    nuovo[i] = e.target.value;
+                    // se svuoto una posizione, svuoto anche le successive (niente buchi nell'ordine)
+                    if (!e.target.value) for (let k = i + 1; k < nuovo.length; k++) nuovo[k] = '';
+                    setQualificaIds(nuovo);
+                    setPoleId(nuovo[0] || null);
+                  }}
+                  style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd', opacity: bloccato ? 0.5 : 1 }}
+                >
+                  <option value="">Nessuno</option>
+                  {pilotiAttivi.filter(p => !scelti.includes(String(p.id))).map(p => <option key={p.id} value={p.id}>{formatNomePilota(p)}</option>)}
+                </select>
+              </div>
+            );
+          })}
+          {qualificaIds[0] && Number(classifica.punti_pole_valore) > 0 && (
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '6px', padding: '10px', background: '#f5f5f7', borderRadius: '8px', fontSize: '14px' }}>
+              <input type="checkbox" checked={!poleBonusNegato} onChange={(e) => setPoleBonusNegato(!e.target.checked)} style={{ width: '18px', height: '18px', marginTop: '2px' }} />
+              <span>
+                Assegna il punto bonus pole (+{Number(classifica.punti_pole_valore)}) al 1º.
+                <span style={{ display: 'block', opacity: 0.7 }}>Togli la spunta se non ha completato un giro cronometrato in ogni duello (quarti, semifinale, finale), salvo concessione degli steward.</span>
+              </span>
+            </label>
+          )}
+        </div>
+      )}
+
+      {classifica.punti_pole_attivo && !getTabellaQualifica(classifica) && (
         !garaAttuale || garaAttuale.tipo_gara !== 'f2sprint'
       ) && (
         <div style={{ marginBottom: '20px' }}>
@@ -2341,8 +2457,8 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
                 punti += pronosticoCampionato.calcolaPuntiPosizione(pos, gara.tipo_gara, classificaAggiornata, gara)
               }
             }
-            if (classificaAggiornata.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && flagNorm !== 'DNS' && gara.tipo_gara !== 'f2sprint') {
-              punti += classificaAggiornata.punti_pole_valore || 3
+            if (flagNorm !== 'DNS') {
+              punti += calcolaPuntiQualifica(gara, pilotaId, classificaAggiornata)
             }
             if (classificaAggiornata.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId) && flagNorm !== 'DNS') {
               punti += classificaAggiornata.giro_veloce_valore || 1
@@ -2393,6 +2509,7 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
         url_sync: dati.url_sync || null,
         punti_pole_attivo: !!dati.punti_pole_attivo,
         punti_pole_valore: Number(dati.punti_pole_valore) || 0,
+        punti_qualifica: getTabellaQualifica(dati),
         giro_veloce_attivo: !!dati.giro_veloce_attivo,
         giro_veloce_valore: Number(dati.giro_veloce_valore) || 0,
         usa_sistema_fia: !!dati.usa_sistema_fia,
@@ -2516,14 +2633,53 @@ function ImpostazioniClassifica({ classifica, onClose, onSave }) {
       <div style={{ marginBottom: '30px' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
           <input type="checkbox" checked={dati.punti_pole_attivo || false} onChange={(e) => setDati({ ...dati, punti_pole_attivo: e.target.checked })} style={{ width: '20px', height: '20px' }} />
-          <span style={{ fontWeight: '600' }}>Punti Pole Position</span>
+          <span style={{ fontWeight: '600' }}>Punti Pole Position / Qualifica</span>
         </label>
-        {dati.punti_pole_attivo && (
-          <div style={{ marginLeft: '30px' }}>
-            <label>Punti per Pole: </label>
-            <input type="number" min="1" max="10" value={dati.punti_pole_valore || 3} onChange={(e) => setDati({ ...dati, punti_pole_valore: parseInt(e.target.value) })} style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '2px solid #007AFF', textAlign: 'center' }} />
-          </div>
-        )}
+        {dati.punti_pole_attivo && (() => {
+          const tab = getTabellaQualifica(dati)
+          const setTab = (arr) => setDati({ ...dati, punti_qualifica: arr })
+          return (
+            <div style={{ marginLeft: '30px' }}>
+              <div style={{ display: 'grid', gap: '8px', marginBottom: '14px' }}>
+                <button onClick={() => setDati({ ...dati, punti_qualifica: null, punti_pole_valore: tab ? 3 : dati.punti_pole_valore })} style={{ padding: '10px', background: !tab ? '#007AFF' : 'white', color: !tab ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+                  🏁 Solo pole (un valore fisso al 1º)
+                </button>
+                <button onClick={() => { if (!tab) setDati({ ...dati, punti_qualifica: PUNTI_QUALIFICA_FE, punti_pole_valore: PUNTI_POLE_BONUS_FE }) }} style={{ padding: '10px', background: tab ? '#007AFF' : 'white', color: tab ? 'white' : '#000', border: '2px solid #007AFF', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>
+                  ⚡️ Qualifica a punti (più piloti, es. Formula E)
+                </button>
+              </div>
+              {!tab ? (
+                <div>
+                  <label>Punti per Pole: </label>
+                  <input type="number" min="1" max="10" value={dati.punti_pole_valore || 3} onChange={(e) => setDati({ ...dati, punti_pole_valore: parseInt(e.target.value) })} style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '2px solid #007AFF', textAlign: 'center' }} />
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '12px' }}>
+                    {tab.map((pt, i) => (
+                      <div key={i} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '600', marginBottom: '4px' }}>{i + 1}º</div>
+                        <input type="number" min="0" max="25" value={pt} onChange={(e) => { const n = [...tab]; n[i] = Math.max(0, parseInt(e.target.value) || 0); setTab(n) }} style={{ width: '52px', padding: '8px', borderRadius: '8px', border: '2px solid #007AFF', textAlign: 'center' }} />
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    <button onClick={() => setTab([...tab, 1])} disabled={tab.length >= 20} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd', background: 'white', cursor: 'pointer' }}>+ Posizione</button>
+                    <button onClick={() => tab.length > 1 && setTab(tab.slice(0, -1))} disabled={tab.length <= 1} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #ddd', background: 'white', cursor: 'pointer' }}>− Posizione</button>
+                    <button onClick={() => setDati({ ...dati, punti_qualifica: PUNTI_QUALIFICA_FE, punti_pole_valore: PUNTI_POLE_BONUS_FE })} style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #007AFF', background: 'white', color: '#007AFF', cursor: 'pointer' }}>Formula E 2026 (4-3-2-2-1-1-1-1 + 1 pole)</button>
+                  </div>
+                  <div style={{ marginTop: '12px' }}>
+                    <label>Punto bonus pole (al 1º): </label>
+                    <input type="number" min="0" max="10" value={dati.punti_pole_valore ?? 0} onChange={(e) => setDati({ ...dati, punti_pole_valore: Math.max(0, parseInt(e.target.value) || 0) })} style={{ width: '60px', padding: '8px', borderRadius: '8px', border: '2px solid #007AFF', textAlign: 'center' }} />
+                  </div>
+                  <div style={{ fontSize: '13px', opacity: 0.7, marginTop: '10px' }}>
+                    Il bonus si può togliere gara per gara (nessun giro cronometrato in ogni duello, salvo steward). Dopo aver cambiato i valori usa «Ricalcola tutti i punti» per aggiornare le gare già salvate.
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       <div style={{ marginBottom: '30px' }}>
@@ -3181,9 +3337,7 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
                         } else {
                           puntiGara = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                         }
-                        if (classifica.punti_pole_attivo && String(gara.pole_id) === String(item.id) && gara.tipo_gara !== 'f2sprint') {
-                          puntiGara += classifica.punti_pole_valore || 3;
-                        }
+                        puntiGara += calcolaPuntiQualifica(gara, item.id, classifica);
                         if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(item.id)) {
                           puntiGara += classifica.giro_veloce_valore || 1;
                         }
@@ -3203,9 +3357,7 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
                           } else {
                             puntiGara = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                           }
-                          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && gara.tipo_gara !== 'f2sprint') {
-                            puntiGara += classifica.punti_pole_valore || 3;
-                          }
+                          puntiGara += calcolaPuntiQualifica(gara, pilotaId, classifica);
                           if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
                             puntiGara += classifica.giro_veloce_valore || 1;
                           }
@@ -3228,9 +3380,7 @@ const debugTipoSpareggio = pronosticoCampionato.determinaTipoSpareggio(classific
                           } else {
                             puntiGara = pronosticoCampionato.calcolaPuntiPosizione(posizione, gara.tipo_gara, classifica, gara);
                           }
-                          if (classifica.punti_pole_attivo && String(gara.pole_id) === String(pilotaId) && gara.tipo_gara !== 'f2sprint') {
-                            puntiGara += classifica.punti_pole_valore || 3;
-                          }
+                          puntiGara += calcolaPuntiQualifica(gara, pilotaId, classifica);
                           if (classifica.giro_veloce_attivo && String(gara.giro_veloce_id) === String(pilotaId)) {
                             puntiGara += classifica.giro_veloce_valore || 1;
                           }
